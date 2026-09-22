@@ -1,0 +1,48 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    commit-message:
+      # Conventional Commits, senao o Commitlint recusa o PR do Dependabot.
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    groups:
+      # Patch e minor agrupados num PR so: sao os que quase sempre entram
+      # direto. Major fica separado, um por PR, porque exige leitura.
+      patch-e-minor:
+        applies-to: version-updates
+        update-types: [patch, minor]
+      seguranca:
+        applies-to: security-updates
+        patterns: ['*']
+    ignore:
+      # three e gsap estao pinados nas versoes que o CDN servia (0.128.0 e
+      # 3.12.5). three moderno remove THREE.sRGBEncoding, que o script legado
+      # usa. Subir isso e trabalho proprio, nao update automatico.
+      - dependency-name: three
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: '@types/three'
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: gsap
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ['*']
