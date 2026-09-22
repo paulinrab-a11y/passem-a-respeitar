@@ -1,15 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-// Hosts que o site realmente consome hoje. Sao os links publicos de Drive e
-// Dropbox que a Issue #14 vai trocar por URL assinada — quando isso acontecer,
-// esta lista encolhe para 'self' e o dominio do storage proprio.
-const DRIVE = [
-  'https://lh3.googleusercontent.com', // fotos da merch e elementos cromados
-  'https://drive.google.com', // iframe do clipe e fallback de download
-  'https://drive.usercontent.google.com', // fallback de download
-  'https://docs.google.com', // fallback de download
-];
-const DROPBOX = 'https://dl.dropboxusercontent.com'; // modelo 3D, textura 360, beats
+// A Issue #14 trouxe imagens, modelo 3D, textura 360 e beats para public/,
+// servidos pela propria origem. Por isso img-src, media-src e connect-src
+// voltaram a 'self': nao sobrou nenhum host externo de asset.
+//
+// O unico externo que resta e o player do clipe, que e um iframe do Drive e
+// nao um arquivo que daria para hospedar aqui.
+const CLIPE_IFRAME = 'https://drive.google.com';
 
 function montaCsp(nonce: string, dev: boolean) {
   const script = [
@@ -29,10 +26,10 @@ function montaCsp(nonce: string, dev: boolean) {
     // script legado escreve style="" direto no elemento. A Issue #16 proibe
     // unsafe-inline em script-src, que e onde ele de fato e perigoso.
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: ${DRIVE.join(' ')} ${DROPBOX}`,
-    `media-src 'self' ${DROPBOX} ${DRIVE.join(' ')}`,
-    `connect-src 'self' ${DROPBOX} ${DRIVE.join(' ')}`,
-    'frame-src https://drive.google.com',
+    "img-src 'self' data: blob:",
+    "media-src 'self'",
+    "connect-src 'self'",
+    `frame-src ${CLIPE_IFRAME}`,
     "font-src 'self'",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
