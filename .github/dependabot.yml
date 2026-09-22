@@ -23,15 +23,20 @@ updates:
         applies-to: security-updates
         patterns: ['*']
     ignore:
-      # three e gsap estao pinados nas versoes que o CDN servia (0.128.0 e
-      # 3.12.5). three moderno remove THREE.sRGBEncoding, que o script legado
-      # usa. Subir isso e trabalho proprio, nao update automatico.
+      # three e gsap comandam o visual da home e nenhum teste automatico pega
+      # regressao de animacao: lint, typecheck e build passam com a intro
+      # quebrada. Subir esses dois exige olho humano no site, entao fica fora
+      # do update automatico e vira trabalho deliberado.
+      #
+      # three: a versao moderna remove THREE.sRGBEncoding, que o script usa.
+      # gsap: 3.15.0 entrou num PR agrupado e so foi conferido depois, na mao.
+      # Patch de seguranca continua passando nos dois.
       - dependency-name: three
         update-types: [version-update:semver-major, version-update:semver-minor]
       - dependency-name: '@types/three'
         update-types: [version-update:semver-major, version-update:semver-minor]
       - dependency-name: gsap
-        update-types: [version-update:semver-major]
+        update-types: [version-update:semver-major, version-update:semver-minor]
 
   - package-ecosystem: github-actions
     directory: /
