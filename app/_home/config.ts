@@ -42,8 +42,8 @@ export const CONFIG: SiteConfig = {
   links: {
     preSave: '#',
     merch: '#',
-    igSantxx: 'https://instagram.com/',
-    igChefe: 'https://instagram.com/',
+    igSantxx: 'https://instagram.com/ogsantxx',
+    igChefe: 'https://instagram.com/ch3fe3k',
     igLabel: 'https://instagram.com/',
   },
   logoUrl: '/logo.png',
