@@ -710,23 +710,71 @@ const Loja = (()=>{
   const form=$('#formConvite'), inp=$('#cod'), erro=$('#erroCod'), sala=$('#sala'), video=$('#salaVideo');
   const aberto = CONFIG.fase >= 3;
   if (!aberto){ inp.placeholder='em breve'; inp.disabled=true; form.querySelector('button').disabled=true; }
-  form.addEventListener('submit', e=>{
+  // Issue #13: a validacao mora no servidor. O cliente nao conhece codigo
+  // nenhum, e a URL do teaser so chega depois que o codigo confere.
+  const botao = form.querySelector('button');
+  form.addEventListener('submit', async e=>{
     e.preventDefault(); if(!aberto) return;
     const v = inp.value.trim().toUpperCase();
     if (!v){ erro.textContent='Digita o código do convite.'; return; }
-    if (CONFIG.convite.codigos.includes(v)){
-      erro.textContent='';
-      if (CONFIG.convite.videoEmbed){
-        video.innerHTML = `<iframe src="${CONFIG.convite.videoEmbed}" allow="autoplay; fullscreen" allowfullscreen title="Teaser"></iframe>`;
+    botao.disabled = true; erro.textContent = 'Conferindo…';
+    try {
+      const r = await fetch('/api/convite', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ codigo: v }),
+      });
+      const dados = await r.json().catch(()=>({}));
+      if (r.ok && dados.ok){
+        erro.textContent='';
+        if (dados.teaser){
+          video.textContent='';
+          const f = document.createElement('iframe');
+          f.src = dados.teaser;
+          f.allow = 'autoplay; fullscreen';
+          f.allowFullscreen = true;
+          f.title = 'Teaser';
+          video.appendChild(f);
+        }
+        sala.classList.add('on'); Som.corrente(1); $('#fecharSala').focus();
+      } else {
+        erro.textContent = dados.erro || 'Esse código não abre nada aqui.';
+        inp.select(); Som.tick();
       }
-      sala.classList.add('on'); Som.corrente(1); $('#fecharSala').focus();
-    } else {
-      erro.textContent='Esse código não abre nada aqui.';
-      inp.select(); Som.tick();
+    } catch {
+      erro.textContent = 'Não deu pra conferir agora. Tenta de novo.';
+      Som.tick();
+    } finally {
+      botao.disabled = false;
     }
   });
   $('#fecharSala').addEventListener('click', ()=>{ sala.classList.remove('on'); inp.focus(); });
   addEventListener('keydown', e=>{ if(e.key==='Escape') sala.classList.remove('on'); });
-  $('#linkConvite').addEventListener('click', ()=> setTimeout(()=> inp.focus({preventScroll:true}), 600));
+  // Quem ja tem o cookie assinado volta direto para a sala, sem redigitar.
+  // A checagem e preguicosa de proposito: so custa um request para quem
+  // clica em convite, nao para todo visitante que abre a home.
+  async function abreSeJaLiberado(){
+    try {
+      const r = await fetch('/api/convite');
+      if (!r.ok) return false;
+      const dados = await r.json();
+      if (!dados.ok) return false;
+      if (dados.teaser && !video.querySelector('iframe')){
+        video.textContent='';
+        const f = document.createElement('iframe');
+        f.src = dados.teaser;
+        f.allow = 'autoplay; fullscreen';
+        f.allowFullscreen = true;
+        f.title = 'Teaser';
+        video.appendChild(f);
+      }
+      sala.classList.add('on'); $('#fecharSala').focus();
+      return true;
+    } catch { return false; }
+  }
+  $('#linkConvite').addEventListener('click', async ()=>{
+    if (await abreSeJaLiberado()) return;
+    setTimeout(()=> inp.focus({preventScroll:true}), 600);
+  });
 })();
 }
