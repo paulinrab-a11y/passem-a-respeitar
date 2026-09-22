@@ -18,7 +18,6 @@ export type SiteConfig = {
     igChefe: string;
     igLabel: string;
   };
-  convite: { codigos: string[]; videoEmbed: string };
   logoUrl: string;
   clipe: { blick: string };
   merchFotos: string[];
@@ -37,10 +36,6 @@ export const CONFIG: SiteConfig = {
     igSantxx: 'https://instagram.com/',
     igChefe: 'https://instagram.com/',
     igLabel: 'https://instagram.com/',
-  },
-  convite: {
-    codigos: ['RESPEITO', 'PAR2026'],
-    videoEmbed: '',
   },
   logoUrl: '/logo.png',
   clipe: { blick: 'https://drive.google.com/file/d/1jyKv_u6NfwK0ImamvkvGX7Y2mQUO14yl/preview' },
