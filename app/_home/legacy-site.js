@@ -46,7 +46,23 @@ const mobile = matchMedia('(max-width: 720px)').matches || /Mobi|Android/i.test(
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 
-$('#preSave').href = CONFIG.links.preSave;
+// Issue #58: sem link de pre-save, o botao virava um call to action morto —
+// o principal da pagina final, e nao fazia nada ao ser clicado. Agora ele
+// assume o mesmo tratamento que o campo de convite ja usava: "em breve",
+// desabilitado, em vez de prometer uma acao que nao acontece.
+(function preSave(){
+  const a = $('#preSave');
+  const link = CONFIG.links.preSave;
+  if (!link || link === '#'){
+    a.removeAttribute('href');
+    a.removeAttribute('target');
+    a.classList.add('off');
+    a.setAttribute('aria-disabled', 'true');
+    a.textContent = 'Pré-save em breve';
+    return;
+  }
+  a.href = link;
+})();
 $('#igSantxx').href = CONFIG.links.igSantxx;
 $('#igChefe').href = CONFIG.links.igChefe;
 $('#igLabel').href = CONFIG.links.igLabel;

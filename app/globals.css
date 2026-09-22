@@ -80,6 +80,8 @@ section{position:relative;min-height:100vh}
 .btn:hover::before{transform:none}
 .btn.cheio{background:var(--prata);color:#000;border-color:var(--prata)}
 .btn.cheio:hover{color:#000}
+.btn.off{background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:default;pointer-events:none}
+.btn.off::before{display:none}
 .btn .play{width:0;height:0;border-left:10px solid currentColor;border-top:6px solid transparent;border-bottom:6px solid transparent}
 
 .tocando{position:fixed;left:var(--gutter);bottom:24px;z-index:20;display:flex;align-items:center;gap:14px;font-size:13px;letter-spacing:.18em;opacity:0;transform:translateY(10px);transition:.4s;pointer-events:none;cursor:pointer}

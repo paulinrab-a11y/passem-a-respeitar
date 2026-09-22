@@ -44,12 +44,16 @@ export const CONFIG: SiteConfig = {
     merch: '#',
     igSantxx: 'https://instagram.com/ogsantxx',
     igChefe: 'https://instagram.com/ch3fe3k',
-    igLabel: 'https://instagram.com/',
+    igLabel: 'https://instagram.com/whynotrecords__',
   },
   logoUrl: '/logo.png',
-  // Unico asset que continua externo: e um iframe do player do Drive, nao um
-  // arquivo. Hospedar video e outro problema — ver a Issue de video.
-  clipe: { blick: 'https://drive.google.com/file/d/1jyKv_u6NfwK0ImamvkvGX7Y2mQUO14yl/preview' },
+  // Vazio de proposito ate o clipe subir no YouTube (#75). Com string vazia
+  // o script nao monta iframe nenhum e a secao mostra "clipe em breve".
+  //
+  // Isso tirou do HTML o id do arquivo no Drive, que era material inedito
+  // baixavel por quem copiasse o id. Quando o video existir, o valor vira
+  // 'https://www.youtube-nocookie.com/embed/<id>' e o frame-src da CSP volta.
+  clipe: { blick: '' },
   merchFotos: [
     '/merch/camiseta-01.jpg',
     '/merch/camiseta-02.jpg',

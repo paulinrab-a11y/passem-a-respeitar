@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
 // A Issue #14 trouxe imagens, modelo 3D, textura 360 e beats para public/,
-// servidos pela propria origem. Por isso img-src, media-src e connect-src
-// voltaram a 'self': nao sobrou nenhum host externo de asset.
+// servidos pela propria origem. Com o clipe saindo do Drive (#58, #75), nao
+// sobrou nenhum host externo: a politica inteira virou 'self'.
 //
-// O unico externo que resta e o player do clipe, que e um iframe do Drive e
-// nao um arquivo que daria para hospedar aqui.
-const CLIPE_IFRAME = 'https://drive.google.com';
+// Quando o clipe subir no YouTube, frame-src volta como
+// 'https://www.youtube-nocookie.com' — e so isso.
+const FRAME_SRC = "'none'";
 
 function montaCsp(nonce: string, dev: boolean) {
   const script = [
@@ -29,7 +29,7 @@ function montaCsp(nonce: string, dev: boolean) {
     "img-src 'self' data: blob:",
     "media-src 'self'",
     "connect-src 'self'",
-    `frame-src ${CLIPE_IFRAME}`,
+    `frame-src ${FRAME_SRC}`,
     "font-src 'self'",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
