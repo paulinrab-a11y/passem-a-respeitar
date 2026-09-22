@@ -1,5 +1,11 @@
 import HomeRuntime from './_home/HomeRuntime';
 
+// A CSP do middleware.ts carrega um nonce novo a cada request, e o Next so
+// carimba esse nonce nos proprios scripts quando a rota e renderizada por
+// request. Estatico nao funciona: o HTML sairia do build sem nonce e a CSP
+// bloquearia todo o JavaScript da pagina.
+export const dynamic = 'force-dynamic';
+
 // Markup portado de src/index.html sem alteracao de conteudo, cor, fonte ou
 // espacamento. Renderizado no servidor; o comportamento (intro VHS, elos,
 // three.js, GSAP, loja 3D, beats, convite) e ligado por HomeRuntime no cliente.
