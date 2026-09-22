@@ -1,0 +1,13 @@
+# O que o CLI NAO deve subir. Sem isto o `vercel --prod` tenta enviar o
+# node_modules inteiro e trava no upload — foi o que aconteceu na primeira
+# tentativa. A Vercel instala as dependencias do lockfile no build dela.
+node_modules
+.next
+.git
+.agents
+.claude
+.husky
+coverage
+playwright-report
+test-results
+*.log
