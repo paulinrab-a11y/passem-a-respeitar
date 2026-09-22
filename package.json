@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "knip": "knip"
   },
   "dependencies": {
     "gsap": "3.12.5",
@@ -16,10 +20,12 @@
     "three": "0.128.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
     "@types/node": "22.10.5",
     "@types/react": "19.1.8",
     "@types/react-dom": "19.1.6",
     "@types/three": "^0.128.0",
+    "knip": "^6.37.0",
     "typescript": "5.7.3"
   },
   "overrides": {

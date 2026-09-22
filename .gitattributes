@@ -1,0 +1,12 @@
+# Normaliza tudo para LF no repositorio, independente do SO de quem commita.
+# Sem isso, quem trabalha no Windows gera diff inteiro de linha e o Biome
+# reclama de line ending em todo arquivo.
+* text=auto eol=lf
+
+# Binarios
+*.png binary
+*.jpg binary
+*.webp binary
+*.glb binary
+*.mp3 binary
+*.ico binary
