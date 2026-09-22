@@ -47,3 +47,7 @@ yarn-error.log*
 
 # sentry
 .sentryclirc
+
+# skills instaladas (reprodutiveis via skills-lock.json)
+.agents/
+.claude/skills/
