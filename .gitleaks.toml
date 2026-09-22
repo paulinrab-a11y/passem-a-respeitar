@@ -1,0 +1,19 @@
+# Config do gitleaks para este repositorio.
+# Herda todas as regras padrao e so acrescenta allowlist de caminho.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Artefatos de build e dependencia. O .next guarda chaves de preview e prerender
+geradas pelo proprio Next a cada build, e o .env.local guarda o token OIDC que
+o `vercel link` cria. Os tres estao no .gitignore e nunca chegam num commit —
+aparecem so quando se varre o diretorio em vez do historico.
+"""
+paths = [
+  '''^\.next/''',
+  '''^node_modules/''',
+  '''^\.env\.local$''',
+  '''^package-lock\.json$''',
+]
