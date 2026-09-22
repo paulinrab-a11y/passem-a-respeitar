@@ -42,6 +42,9 @@ Skill de referência: `kylezantos/design-motion-principles` (instalar com `npx s
 - Estado de loading e progresso em todo botão/ação assíncrona; barra de progresso em navegação e upload; feedback de sucesso/erro.
 - Só animar `transform` e `opacity`. Respeitar `prefers-reduced-motion`. Sem loops chamando atenção.
 - Antes de fechar um PR de UI, rodar o modo Audit da skill e tratar os gaps.
+- `three` e `gsap` ficam fora do update automatico em minor e major. Nenhum teste
+  automatico pega regressao de animacao: lint, typecheck e build passam com a
+  intro quebrada. Subir essas duas exige abrir o site e olhar.
 
 ## Regras gerais
 - Não invente integração, dado ou credencial. Se faltar informação, abra Issue com label `blocked` e pergunte.
