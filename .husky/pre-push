@@ -1,0 +1,24 @@
+# Rede de seguranca LOCAL contra push direto na main.
+#
+# Nao substitui branch protection do GitHub: vale so nesta maquina e da pra
+# furar com --no-verify. Existe porque branch protection exige GitHub Pro em
+# repositorio privado, e este repo esta no plano Free (Issue #7).
+# Assim que a protecao de verdade estiver no servidor, este hook pode sair.
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main)
+      echo ""
+      echo "  Push direto na main esta bloqueado."
+      echo ""
+      echo "  O fluxo do repo e: Issue -> branch -> PR -> CI verde -> merge."
+      echo "  Veja AGENTS.md."
+      echo ""
+      echo "  Se for emergencia mesmo, use: git push --no-verify"
+      echo ""
+      exit 1
+      ;;
+  esac
+done
+
+exit 0
