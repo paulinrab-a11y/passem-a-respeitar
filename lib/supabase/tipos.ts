@@ -103,6 +103,7 @@ export type Database = {
       };
       orders: {
         Row: {
+          anonimizado_em: string | null;
           atualizado_em: string;
           criado_em: string;
           id: string;
@@ -112,9 +113,10 @@ export type Database = {
           pagamento_provedor: string | null;
           status: Database['public']['Enums']['status_pedido'];
           total_centavos: number;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
+          anonimizado_em?: string | null;
           atualizado_em?: string;
           criado_em?: string;
           id?: string;
@@ -124,9 +126,10 @@ export type Database = {
           pagamento_provedor?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
           total_centavos?: number;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
+          anonimizado_em?: string | null;
           atualizado_em?: string;
           criado_em?: string;
           id?: string;
@@ -136,7 +139,7 @@ export type Database = {
           pagamento_provedor?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
           total_centavos?: number;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [];
       };
