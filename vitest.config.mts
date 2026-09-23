@@ -1,7 +1,11 @@
 import { fileURLToPath } from 'node:url';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // O tsconfig do Next usa jsx: 'preserve', que o Vite nao sabe transformar
+  // sozinho. O plugin resolve, e e o caminho documentado para React + Vitest.
+  plugins: [react()],
   resolve: {
     alias: {
       // Mesmo alias do tsconfig, para o teste importar como o codigo importa.
@@ -22,7 +26,15 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'middleware.test.ts'],
+    // Valores falsos para os modulos que leem o ambiente no import. Sem eles,
+    // qualquer teste que toque a arvore do Supabase morre no import com
+    // "variavel nao definida" — que e o comportamento certo em producao e
+    // atrapalhado aqui. Quem testa a falta da variavel usa vi.stubEnv('').
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: 'https://projeto-de-teste.supabase.co',
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_chave_de_teste',
+    },
+    include: ['lib/**/*.test.ts', 'app/**/*.test.{ts,tsx}', 'middleware.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
@@ -30,7 +42,7 @@ export default defineConfig({
       // legado portado verbatim e a pagina que o monta: quem cobre aquilo e o
       // Playwright (#10), nao teste de unidade.
       include: ['lib/**/*.ts', 'app/**/*.ts', 'middleware.ts'],
-      exclude: ['**/*.test.ts', 'lib/supabase/tipos.ts', 'app/_home/**'],
+      exclude: ['**/*.test.{ts,tsx}', 'lib/supabase/tipos.ts', 'app/_home/**'],
       // Piso, nao meta. Existe para que uma queda apareca no PR, nao para
       // premiar numero alto: o que importa e o que esta coberto, e aqui e a
       // comparacao do convite e a assinatura do cookie.
