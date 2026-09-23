@@ -23,13 +23,13 @@ import { sair } from '@/app/conta/acoes';
 type Resumo = { logado: true; nome: string | null; iniciais: string } | { logado: false };
 
 /**
- * `pronto: false` vira item desligado em vez de link para 404. As telas
- * entram em #37 e #41, e cada uma liga a sua linha aqui.
+ * `pronto: false` vira item desligado em vez de link para 404. Pedidos
+ * entra em #41 e liga a propria linha aqui.
  */
 const ITENS = [
   { href: '/conta', texto: 'Conta', pronto: true },
   { href: '/conta/pedidos', texto: 'Pedidos', pronto: false },
-  { href: '/conta/seguranca', texto: 'Segurança', pronto: false },
+  { href: '/conta/seguranca', texto: 'Segurança', pronto: true },
 ] as const;
 
 export default function BarraConta() {

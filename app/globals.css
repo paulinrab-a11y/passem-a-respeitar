@@ -502,3 +502,38 @@ footer.assina a:hover{color:var(--vermelho)}
 @media (max-width:767px){
   #bar .right{gap:11px;letter-spacing:.06em;white-space:nowrap}
 }
+
+/* Senha: medidor e toast (#37) ---------------------------------------------- */
+
+.senha-forca{display:flex;align-items:center;gap:12px;margin-top:-4px}
+.senha-barra{flex:1;height:3px;background:#16171a;overflow:hidden}
+/* scaleX e nao width: largura e layout, e isto anima a cada tecla digitada. */
+.senha-barra i{display:block;height:100%;background:var(--prata-3);transform-origin:left;transform:scaleX(0);transition:transform .18s cubic-bezier(.22,1,.36,1),background-color .18s}
+.senha-barra[data-nivel="0"] i{background:var(--vermelho)}
+.senha-barra[data-nivel="1"] i{background:var(--vermelho)}
+.senha-barra[data-nivel="2"] i{background:#c9a227}
+.senha-barra[data-nivel="3"] i{background:var(--prata-2)}
+.senha-barra[data-nivel="4"] i{background:var(--prata)}
+.senha-forca span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);min-width:8ch}
+
+@keyframes toast-entra{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+/* Saida mais curta e para cima e para fora, sem chamar atencao. */
+@keyframes toast-sai{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px)}}
+.toast{position:fixed;left:var(--gutter);right:var(--gutter);bottom:24px;z-index:40;max-width:440px;margin-inline:auto;display:flex;align-items:flex-start;gap:14px;padding:16px 18px;background:rgba(6,6,7,.97);border:1px solid var(--prata-3);border-left-width:2px;animation:toast-entra .22s cubic-bezier(.22,1,.36,1) backwards}
+.toast.saindo{animation:toast-sai .15s cubic-bezier(.4,0,1,1) forwards}
+.toast.ok{border-left-color:var(--prata)}
+.toast.erro{border-left-color:var(--vermelho)}
+.toast p{font-size:13px;line-height:1.5;letter-spacing:.02em;color:var(--prata);flex:1}
+.toast.erro p{color:var(--vermelho)}
+.toast button{font-size:20px;line-height:1;color:var(--prata-2);padding:0 2px}
+.toast button:hover{color:var(--prata)}
+
+@media (prefers-reduced-motion:reduce){
+  .senha-barra i{transition:none}
+  /* Duracao quase zero, nao `none`: o desmonte tem o prazo do hook, mas o
+     evento ainda e o caminho rapido e `animation:none` nunca o dispara. */
+  .toast,.toast.saindo{animation-duration:.01ms}
+}
+.conta-atalho{margin-top:18px;font-size:13px;letter-spacing:.06em}
+.conta-atalho a{color:var(--prata-2);text-decoration:none;border-bottom:1px solid var(--prata-3)}
+.conta-atalho a:hover{color:var(--vermelho);border-color:var(--vermelho)}
