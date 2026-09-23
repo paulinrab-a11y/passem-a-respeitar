@@ -25,7 +25,36 @@ lib/
   rate-limit.ts         limite por IP (provisório, em memória — ver #22)
 middleware.ts           CSP com nonce por request
 public/                 logo.png, brasao.png, saturno.png
+supabase/
+  migrations/           SQL versionado, aplicado em ordem de nome
+  tests/                testes de RLS
 ```
+
+## Banco
+
+Supabase (`cbac principal`, sa-east-1). O schema mora em
+`supabase/migrations/` e cada arquivo e aplicado uma vez, na ordem do nome.
+
+A regra que organiza o modelo inteiro: **o cliente le, o servidor escreve.**
+`authenticated` tem `SELECT` em `orders`, `order_items` e
+`order_status_history` e nada mais. Pedido e criado e alterado por rota de
+servidor, que calcula o total a partir do catalogo — preco que chega do
+navegador e sugestao, nao preco.
+
+Sao tres barreiras, e cada uma sozinha ja barraria:
+
+| Barreira | O que ela decide |
+|---|---|
+| `GRANT` | se o papel pode escrever, e em quais **colunas** |
+| RLS | quais **linhas** o papel alcanca |
+| trigger | `user_id` de pedido nao muda nem por `service_role` |
+
+A separacao importa: policy nunca restringe coluna. Quem impede mass assignment
+em `profiles` e o `grant update (nome, telefone)`, nao a policy.
+
+`supabase/tests/rls-pedidos.sql` cria dois usuarios e confere o que um alcanca
+do outro — 22 casos. Roda no SQL Editor do Supabase; ainda nao no CI, que e a
+Issue #10.
 
 **`legacy-site.js` é intocável por padrão.** É o script do site original, mantido
 byte a byte para o diff continuar auditável contra o deploy antigo. Está fora do
@@ -97,9 +126,9 @@ motion e carregamento.
 ## Pendências conhecidas
 
 - Botão "Comprar" da merch sem destino — checkout Mercado Pago (#44, #45)
-- Clipe, fotos da merch, modelo 3D e beats ainda em links públicos de Google
-  Drive e Dropbox, sem expiração (#14)
-- Links de pré-save e Instagram sem destino real (#58)
-- Sem banco e sem área de conta ainda (#12, #29 a #45)
+- Link de pré-save ainda não existe; o botão mostra "em breve" (#58)
+- Clipe fora do ar até subir no YouTube (#75)
+- Schema e RLS prontos (#18), mas sem cliente Supabase nem área de conta
+  (#29 a #45)
 - Rate limit em memória, por instância — trocar por Upstash (#22)
 - Branch protection não disponível: exige GitHub Pro em repositório privado (#7)
