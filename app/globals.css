@@ -273,3 +273,85 @@ footer.assina a:hover{color:var(--vermelho)}
   #hero .desce::after{animation:none}
   #manifesto .l{opacity:1;filter:none;transform:none}
 }
+
+/* ===========================================================================
+   Area de conta — /entrar e as telas de auth (Issues #30, #31, #32)
+
+   Reusa o vocabulario da home: preto, prata, vermelho, Anton em caixa alta,
+   scanline e vinheta. Sem three.js e sem GSAP — estas telas sao formulario,
+   nao momento de marca, e tem que abrir instantaneas.
+
+   Motion: entrada em opacity + translateY + blur, erro inline, e o proprio
+   ::before vermelho do .btn virando barra de progresso no envio. So transform,
+   opacity e filter.
+   =========================================================================== */
+
+.auth{min-height:100svh;display:grid;place-items:center;padding:var(--gutter);position:relative}
+.auth-scan{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.16;background:repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, transparent 1px 3px)}
+.auth-vinheta{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,.85) 100%)}
+.auth-caixa{position:relative;z-index:2;width:min(420px,100%)}
+
+/* Entrada: acontece uma vez por visita, entao cabe. `backwards` evita o
+   piscao de conteudo em opacidade cheia antes de o atraso comecar. */
+@keyframes auth-entra{from{opacity:0;transform:translateY(8px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+.auth-caixa>*{animation:auth-entra .24s cubic-bezier(.22,1,.36,1) backwards}
+.auth-caixa>*:nth-child(2){animation-delay:.04s}
+.auth-caixa>*:nth-child(3){animation-delay:.08s}
+.auth-caixa>*:nth-child(4){animation-delay:.12s}
+
+.auth-voltar{display:inline-block;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2);text-decoration:none;margin-bottom:34px}
+.auth-voltar:hover{color:var(--vermelho)}
+.auth h1{font-family:var(--display);text-transform:uppercase;font-size:clamp(44px,9vw,76px);line-height:.85;color:#fff}
+.auth-sub{margin-top:10px;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
+
+.auth-form{margin-top:36px;display:flex;flex-direction:column;gap:18px}
+.auth-campo{display:flex;flex-direction:column;gap:8px}
+.auth-campo span{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2)}
+/* 16px nao e escolha estetica: abaixo disso o iOS da zoom sozinho ao focar o
+   campo, e a pagina inteira sai do lugar. */
+.auth-campo input{font:inherit;font-size:16px;letter-spacing:.06em;background:transparent;color:var(--prata);border:1px solid var(--prata-3);padding:14px 16px;width:100%}
+.auth-campo input:hover{border-color:var(--prata-2)}
+.auth-campo input:disabled{opacity:.45}
+/* Foco nao anima de proposito: e disparado por teclado e acontece o tempo
+   todo. O contorno vermelho de :focus-visible ja vem do topo deste arquivo. */
+
+.auth-linha{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.auth-caixinha{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:.1em;color:var(--prata-2);cursor:pointer}
+.auth-caixinha input{width:16px;height:16px;accent-color:var(--vermelho);cursor:pointer}
+.auth-link{font-size:13px;letter-spacing:.1em;color:var(--prata-2);text-decoration:none}
+.auth-link:hover{color:var(--vermelho)}
+
+@keyframes auth-erro-entra{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.auth-erro{font-size:13px;letter-spacing:.04em;line-height:1.45;color:var(--vermelho);border-left:2px solid var(--vermelho);padding-left:12px;animation:auth-erro-entra .16s cubic-bezier(.22,1,.36,1) backwards}
+
+.auth-enviar{justify-content:center;margin-top:6px}
+/* Feedback tatil imediato, sem duracao: o dedo ja saiu antes de 100ms. */
+.btn:active{transform:scale(.98)}
+/* O envio preenche o botao de vermelho e para. Nao e loop: e o mesmo wipe do
+   hover, so que disparado por estado e mais lento, para durar o tempo da ida
+   ao servidor sem virar enfeite piscando. */
+.auth-enviar.carregando{color:#000;border-color:var(--vermelho);cursor:progress}
+.auth-enviar.carregando::before{transform:none;transition:transform .7s cubic-bezier(.4,0,.2,1)}
+
+.auth-rodape{margin-top:8px;font-size:13px;letter-spacing:.06em;color:var(--prata-2)}
+.auth-rodape a{color:var(--prata);text-decoration:none;border-bottom:1px solid var(--prata-3)}
+.auth-rodape a:hover{color:var(--vermelho);border-color:var(--vermelho)}
+
+@media (max-width:767px){
+  .auth{place-items:start center;padding:6vh var(--gutter) 40px}
+  .auth-voltar{margin-bottom:26px;font-size:var(--t-micro);letter-spacing:.16em}
+  .auth h1{font-size:clamp(2.5rem,12vw,3.25rem)}
+  .auth-sub{font-size:var(--t-small);letter-spacing:.1em}
+  .auth-form{margin-top:28px;gap:16px}
+  .auth-enviar{width:100%;min-height:52px}
+  .auth-scan{opacity:.1}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .auth-caixa>*,.auth-erro{animation:none}
+  /* O estado final continua sendo o vermelho cheio: o botao ainda diz que
+     esta trabalhando, so nao anima ate la. */
+  .auth-enviar.carregando::before{transition:none}
+  .btn:active{transform:none}
+  .auth-scan{display:none}
+}

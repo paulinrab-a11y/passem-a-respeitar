@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
 import { destinoSeguro, ENTRAR, ehRotaDeAuth, exigeSessao, precisaDeSessao } from '@/lib/rotas';
+import { COOKIE_LEMBRAR, opcoesDeSessao } from '@/lib/supabase/cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 
 // A Issue #14 trouxe imagens, modelo 3D, textura 360 e beats para public/,
@@ -65,8 +66,15 @@ async function leSessao(request: NextRequest, requestHeaders: Headers) {
           request.cookies.set(name, value);
         }
         response = NextResponse.next({ request: { headers: requestHeaders } });
+
+        // A escolha de "manter conectado" tem que ser relida aqui. Sem isso a
+        // primeira renovacao de token gravaria o cookie com a validade cheia
+        // do Supabase, e quem desmarcou a caixa continuaria logado depois de
+        // fechar o navegador — justamente o contrario do que pediu.
+        const lembrar = request.cookies.get(COOKIE_LEMBRAR)?.value === '1';
+
         for (const { name, value, options } of lista) {
-          response.cookies.set(name, value, options);
+          response.cookies.set(name, value, opcoesDeSessao(options, lembrar));
         }
       },
     },

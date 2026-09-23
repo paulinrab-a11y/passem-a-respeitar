@@ -218,6 +218,51 @@ describe('renovacao de token', () => {
     expect(r.status).toBe(307);
     expect(r.cookies.get('sb-token')?.value).toBe('renovado');
   });
+
+  // Sem reler a escolha aqui, a primeira renovacao gravaria o token com a
+  // validade cheia do Supabase e quem desmarcou "manter conectado"
+  // continuaria logado depois de fechar o navegador.
+  it('mantem o token como cookie de sessao quando nao pediram para lembrar', async () => {
+    getUser.mockImplementation(async () => {
+      doSupabase.setAll?.([
+        { name: 'sb-token', value: 'renovado', options: { maxAge: 31536000, path: '/' } },
+      ]);
+      return { data: { user: { id: 'u1' } } };
+    });
+
+    const { middleware } = await import('./middleware');
+    const r = await middleware(pede('/conta', { cookie: 'par_lembrar=0' }));
+
+    expect(r.cookies.get('sb-token')?.maxAge).toBeUndefined();
+  });
+
+  it('mantem a validade quando pediram para lembrar', async () => {
+    getUser.mockImplementation(async () => {
+      doSupabase.setAll?.([
+        { name: 'sb-token', value: 'renovado', options: { maxAge: 31536000, path: '/' } },
+      ]);
+      return { data: { user: { id: 'u1' } } };
+    });
+
+    const { middleware } = await import('./middleware');
+    const r = await middleware(pede('/conta', { cookie: 'par_lembrar=1' }));
+
+    expect(r.cookies.get('sb-token')?.maxAge).toBe(31536000);
+  });
+
+  it('o token renovado sai sempre httpOnly', async () => {
+    getUser.mockImplementation(async () => {
+      doSupabase.setAll?.([
+        { name: 'sb-token', value: 'renovado', options: { httpOnly: false, path: '/' } },
+      ]);
+      return { data: { user: { id: 'u1' } } };
+    });
+
+    const { middleware } = await import('./middleware');
+    const r = await middleware(pede('/conta', { cookie: 'par_lembrar=1' }));
+
+    expect(r.cookies.get('sb-token')?.httpOnly).toBe(true);
+  });
 });
 
 describe('http', () => {

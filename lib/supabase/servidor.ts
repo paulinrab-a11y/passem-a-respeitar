@@ -8,8 +8,35 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { opcoesDeSessao } from './cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import type { Database } from './tipos';
+
+/**
+ * Client para as acoes que ESCREVEM a sessao: login, cadastro, logout.
+ *
+ * Diferente de `clienteServidor()` em duas coisas: ele nao engole o erro de
+ * escrever cookie (numa Server Action a escrita funciona, e falhar calado
+ * deixaria a pessoa sem sessao depois de um login que disse ter dado certo) e
+ * ele aplica `opcoesDeSessao`, que endurece o cookie e trata o "manter
+ * conectado".
+ */
+export async function clienteDeAuth(lembrar: boolean) {
+  const jar = await cookies();
+
+  return createServerClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    cookies: {
+      getAll() {
+        return jar.getAll();
+      },
+      setAll(lista) {
+        for (const { name, value, options } of lista) {
+          jar.set(name, value, opcoesDeSessao(options, lembrar));
+        }
+      },
+    },
+  });
+}
 
 export async function clienteServidor() {
   const jar = await cookies();
