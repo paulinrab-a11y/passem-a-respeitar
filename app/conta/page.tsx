@@ -4,6 +4,7 @@ import { iniciais, perfilDaSessao } from '@/lib/conta/perfil';
 import { ENTRAR } from '@/lib/rotas';
 import Foto from './Foto';
 import NomeForm from './NomeForm';
+import Sair from './Sair';
 import Verificacao from './Verificacao';
 
 export const dynamic = 'force-dynamic';
@@ -78,6 +79,8 @@ export default async function Conta() {
         {perfil.emailVerificado ? null : <Verificacao />}
 
         <NomeForm nome={perfil.nome ?? ''} />
+
+        <Sair />
       </section>
     </main>
   );

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { reenviarVerificacao, salvarNome } from './acoes';
+import { reenviarVerificacao, sair, sairDeTodos, salvarNome } from './acoes';
 import { nomeInicial, verificacaoInicial } from './estado';
 
 let n = 0;
@@ -16,6 +16,23 @@ const eqDoUpdate = vi.fn(async () => ({ error: null as { message: string } | nul
 const resend = vi.fn(async (_: { type: string; email: string }) => ({
   error: null as { message: string } | null,
 }));
+const signOut = vi.fn(async (_?: { scope: 'local' | 'global' }) => ({ error: null }));
+const cookieDelete = vi.fn();
+
+/** `redirect` funciona lancando; o duble imita para o teste ver o destino. */
+class Redirecionou extends Error {
+  constructor(readonly destino: string) {
+    super(`redirect:${destino}`);
+  }
+}
+vi.mock('next/navigation', () => ({
+  redirect: (destino: string) => {
+    throw new Redirecionou(destino);
+  },
+}));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ delete: cookieDelete }),
+}));
 
 vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
@@ -23,6 +40,7 @@ vi.mock('@/lib/supabase/servidor', () => ({
     from: () => ({ update }),
     auth: { resend },
   }),
+  clienteDeAuth: async () => ({ auth: { signOut } }),
 }));
 
 const revalidatePath = vi.fn();
@@ -169,5 +187,31 @@ describe('reenviarVerificacao', () => {
 
     expect(r.recado?.tom).toBe('erro');
     expect(r.recado?.texto).not.toMatch(/rate_limit/);
+  });
+});
+
+describe('sair', () => {
+  it('encerra so esta sessao e manda para a home', async () => {
+    await expect(sair()).rejects.toThrow('redirect:/');
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  // O que separa "sair" de "limpar o navegador": o refresh token e revogado no
+  // servidor. Sem isso, quem tivesse copiado o token continuaria entrando.
+  it('sair de todos usa escopo global', async () => {
+    await expect(sairDeTodos()).rejects.toThrow('redirect:/');
+    expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
+  // O par_lembrar e nosso, nao do Supabase. Deixar para tras faria a proxima
+  // sessao herdar a escolha de quem usou o navegador antes.
+  it('apaga tambem o cookie de manter conectado', async () => {
+    await expect(sair()).rejects.toThrow();
+    expect(cookieDelete).toHaveBeenCalledWith('par_lembrar');
+  });
+
+  it('revoga antes de redirecionar', async () => {
+    await expect(sair()).rejects.toThrow();
+    expect(signOut).toHaveBeenCalled();
   });
 });
