@@ -57,10 +57,18 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      # --if-present: ainda nao ha suite de teste. Quando a Issue #9 (Vitest)
-      # entrar e criar o script `test`, este passo comeca a rodar sozinho.
-      - name: Testes
-        run: npm run test --if-present
+      # Com cobertura, nao so `test`: o piso configurado no vitest.config.ts
+      # reprova o job quando a cobertura de lib/ cai. Sem isso, a cobertura
+      # seria um numero que ninguem olha.
+      - name: Testes com cobertura
+        run: npm run test:coverage
+      - name: Guardar relatorio de cobertura
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: cobertura
+          path: coverage/
+          retention-days: 7
 
   build:
     name: build

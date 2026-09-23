@@ -100,6 +100,9 @@ código. Falha fechada, de propósito.
 | `npm run lint:fix` | corrige o que o Biome consegue |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run knip` | código e dependência mortos |
+| `npm test` | Vitest, uma passada |
+| `npm run test:watch` | Vitest em watch |
+| `npm run test:coverage` | Vitest com cobertura e piso |
 
 ## Deploy
 
@@ -116,6 +119,19 @@ em paralelo. PR só é mergeado com tudo verde.
 
 Commits em Conventional Commits, validados por Commitlint no `commit-msg`.
 O tipo `sec:` é específico deste repo, para commit de segurança.
+
+### Testes
+
+Vitest, em `lib/**/*.test.ts`. Rodam sem banco e sem rede: o que depende de
+Supabase usa variável de ambiente falsa via `vi.stubEnv`.
+
+A cobertura mede só `lib/`. `app/_home/` é o script legado portado verbatim —
+quem cobre aquilo é o Playwright (#10), não teste de unidade. O piso está em
+85% e reprova o job; é piso, não meta. O que importa é **o que** está coberto:
+a comparação do código de convite e a assinatura do cookie.
+
+Nenhum teste usa o código de convite real, nem o hash dele. O repositório é
+público e hash de código curto cai em dicionário.
 
 ## Como trabalhar aqui
 
