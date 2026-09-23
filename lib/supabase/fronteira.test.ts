@@ -58,7 +58,22 @@ function importsDe(arquivo: string): string[] {
   return achados;
 }
 
-/** Todo arquivo alcancavel a partir de `entrada`, incluindo ela. */
+/** Arquivo com `'use server'` no topo: Server Action. */
+function ehServerAction(arquivo: string) {
+  return /^\s*['"]use server['"]/.test(fs.readFileSync(arquivo, 'utf8'));
+}
+
+/**
+ * Todo arquivo alcancavel a partir de `entrada`, incluindo ela.
+ *
+ * A travessia PARA num arquivo `'use server'`. Nao e conveniencia: o Next
+ * troca o import de uma Server Action por uma referencia de RPC, e o corpo
+ * dela — com tudo que ela importa — nunca e enviado ao navegador. Seguir
+ * adiante marcaria como "alcancavel pelo cliente" codigo que o cliente
+ * comprovadamente nao recebe, e o teste passaria a acusar o inocente.
+ *
+ * O arquivo da acao continua na lista; o que ele importa e que nao entra.
+ */
 function alcancaveis(entrada: string): string[] {
   const vistos = new Set<string>();
   const fila = [entrada];
@@ -67,6 +82,8 @@ function alcancaveis(entrada: string): string[] {
     const atual = fila.pop();
     if (!atual || vistos.has(atual)) continue;
     vistos.add(atual);
+
+    if (atual !== entrada && ehServerAction(atual)) continue;
 
     for (const esp of importsDe(atual)) {
       const destino = resolveImport(atual, esp);
@@ -146,5 +163,24 @@ describe('fronteira servidor/navegador', () => {
   it('o caminhador acha o admin quando alguem o importa', () => {
     expect(alcancaveis(ADMIN)).toContain(ADMIN);
     expect(alcancaveis(SERVIDOR)).not.toContain(ADMIN);
+  });
+
+  // A parada em Server Action e o unico lugar onde o caminhador deixa de
+  // seguir um import. Se essa regra ficasse larga demais — parando em
+  // qualquer arquivo, por exemplo — os testes acima passariam sem olhar nada.
+  // Estes dois amarram o comportamento dos dois lados.
+  it('para na Server Action, mas inclui o arquivo dela', () => {
+    const acao = path.join(RAIZ, 'app', 'conta', 'seguranca', 'excluir.ts');
+    const vistos = alcancaveis(path.join(RAIZ, 'app', 'conta', 'seguranca', 'ExcluirConta.tsx'));
+
+    expect(vistos).toContain(acao);
+    // O que a acao importa fica do lado do servidor.
+    expect(vistos).not.toContain(ADMIN);
+  });
+
+  it('nao para em arquivo que nao e Server Action', () => {
+    // navegador.ts nao tem 'use server', entao o caminhador segue e acha o
+    // que ele importa.
+    expect(alcancaveis(NAVEGADOR)).toContain(path.join(RAIZ, 'lib', 'supabase', 'env.ts'));
   });
 });

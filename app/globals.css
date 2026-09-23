@@ -569,3 +569,32 @@ footer.assina a:hover{color:var(--vermelho)}
   .sessoes li{animation-duration:.01ms}
   .sessoes li.saindo{animation-duration:.01ms}
 }
+
+/* Excluir conta (#39) ------------------------------------------------------- */
+.excluir{margin-top:44px;padding-top:26px;border-top:1px solid var(--prata-3)}
+.excluir h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:var(--vermelho);margin-bottom:14px}
+
+@keyframes excluir-entra{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes excluir-sai{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-4px)}}
+.excluir-caixa{border-left:2px solid var(--vermelho);padding-left:16px;animation:excluir-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.excluir-caixa.saindo{animation:excluir-sai .13s cubic-bezier(.4,0,1,1) forwards}
+.excluir-aviso{font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);max-width:52ch}
+.excluir-aviso+.excluir-aviso{margin-top:10px}
+.excluir-form{margin-top:20px;display:flex;flex-direction:column;gap:14px}
+.excluir-acoes{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:4px}
+
+/* Botao destrutivo: vermelho na borda desde o repouso, para nao parecer o
+   mesmo botao dos outros formularios. O preenchimento continua sendo o wipe
+   do .btn, que aqui vira a barra de progresso do envio. */
+.btn.perigo{border-color:var(--vermelho);color:var(--vermelho)}
+.btn.perigo:hover:not(:disabled){color:#000}
+.btn.perigo:disabled{border-color:var(--prata-3);color:var(--prata-3);cursor:not-allowed}
+.btn.perigo:disabled::before{display:none}
+
+@media (max-width:767px){
+  .excluir-acoes .btn{width:100%;justify-content:center;min-height:52px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .excluir-caixa,.excluir-caixa.saindo{animation-duration:.01ms}
+}

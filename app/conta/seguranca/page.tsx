@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
+import ExcluirConta from './ExcluirConta';
 import { minhasSessoes } from './lista-sessoes';
 import Sessoes from './Sessoes';
 import TrocarSenha from './TrocarSenha';
@@ -35,6 +36,8 @@ export default async function Seguranca() {
         <TrocarSenha />
 
         <Sessoes sessoes={sessoes} />
+
+        <ExcluirConta email={usuario.email ?? ''} />
       </section>
     </main>
   );

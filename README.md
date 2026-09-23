@@ -20,7 +20,7 @@ app/
     HomeRuntime.tsx     carrega three.js e GSAP por dynamic import
     legacy-site.js      script original, verbatim, embrulhado numa função
   entrar/               login (#31)
-  conta/                perfil (#35), senha e sessões (#37, #38), sair (#33)
+  conta/                perfil (#35), senha, sessões e exclusão (#37, #38, #39)
   api/convite/route.ts  validação do código de convite (servidor)
   api/conta/foto/       upload da foto de perfil (#26)
 lib/
@@ -66,6 +66,21 @@ São três barreiras, e cada uma sozinha já barraria:
 
 A separação importa: policy nunca restringe coluna. Quem impede mass assignment
 em `profiles` é o `grant update (nome, telefone)`, não a policy.
+
+### Exclusão de conta e LGPD
+
+Quando alguém exclui a conta, o perfil, a foto e as sessões somem. **Os pedidos
+ficam, sem dono.**
+
+A LGPD permite reter por obrigação legal (Art. 16, II), e dado anonimizado sai
+do alcance da lei (Art. 12). Apagar a venda junto seria perder o registro
+fiscal de dinheiro que entrou; bloquear a exclusão de quem já comprou seria
+recusar um direito previsto em lei.
+
+O `user_id` do pedido vira nulo e `anonimizado_em` guarda quando. O trigger
+que protege o dono do pedido ganhou uma exceção **de mão única**: de dono para
+nulo pode; transferir pedido de uma pessoa para outra continua impossível,
+e pedido anonimizado não ganha dono de volta.
 
 `supabase/tests/rls-pedidos.sql` cria dois usuários e confere o que um alcança
 do outro — 22 casos. Roda no SQL Editor do Supabase; ainda não no CI, que é a
