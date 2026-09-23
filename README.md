@@ -23,6 +23,12 @@ app/
 lib/
   convite.ts            hash, comparação em tempo constante, cookie assinado
   rate-limit.ts         limite por IP (provisório, em memória — ver #22)
+  supabase/
+    env.ts              lê as variáveis, falha fechada
+    tipos.ts            gerado do schema
+    navegador.ts        client do browser, chave publishable
+    servidor.ts         client de servidor, sessão nos cookies
+    admin.ts            chave secreta, ignora RLS — só servidor
 middleware.ts           CSP com nonce por request
 public/                 logo.png, brasao.png, saturno.png
 supabase/
@@ -33,28 +39,59 @@ supabase/
 ## Banco
 
 Supabase (`cbac principal`, sa-east-1). O schema mora em
-`supabase/migrations/` e cada arquivo e aplicado uma vez, na ordem do nome.
+`supabase/migrations/` e cada arquivo é aplicado uma vez, na ordem do nome.
 
-A regra que organiza o modelo inteiro: **o cliente le, o servidor escreve.**
+A regra que organiza o modelo inteiro: **o cliente lê, o servidor escreve.**
 `authenticated` tem `SELECT` em `orders`, `order_items` e
-`order_status_history` e nada mais. Pedido e criado e alterado por rota de
-servidor, que calcula o total a partir do catalogo — preco que chega do
-navegador e sugestao, nao preco.
+`order_status_history` e nada mais. Pedido é criado e alterado por rota de
+servidor, que calcula o total a partir do catálogo — preço que chega do
+navegador é sugestão, não preço.
 
-Sao tres barreiras, e cada uma sozinha ja barraria:
+São três barreiras, e cada uma sozinha já barraria:
 
 | Barreira | O que ela decide |
 |---|---|
 | `GRANT` | se o papel pode escrever, e em quais **colunas** |
-| RLS | quais **linhas** o papel alcanca |
-| trigger | `user_id` de pedido nao muda nem por `service_role` |
+| RLS | quais **linhas** o papel alcança |
+| trigger | `user_id` de pedido não muda nem por `service_role` |
 
-A separacao importa: policy nunca restringe coluna. Quem impede mass assignment
-em `profiles` e o `grant update (nome, telefone)`, nao a policy.
+A separação importa: policy nunca restringe coluna. Quem impede mass assignment
+em `profiles` é o `grant update (nome, telefone)`, não a policy.
 
-`supabase/tests/rls-pedidos.sql` cria dois usuarios e confere o que um alcanca
-do outro — 22 casos. Roda no SQL Editor do Supabase; ainda nao no CI, que e a
+`supabase/tests/rls-pedidos.sql` cria dois usuários e confere o que um alcança
+do outro — 22 casos. Roda no SQL Editor do Supabase; ainda não no CI, que é a
 Issue #10.
+
+### Os três clients
+
+| Arquivo | Chave | Poder |
+|---|---|---|
+| `navegador.ts` | publishable | o que a RLS deixar |
+| `servidor.ts` | publishable | o mesmo, com a sessão lida dos cookies |
+| `admin.ts` | **secreta** | tudo; ignora RLS |
+
+`servidor.ts` usa a mesma chave pública do navegador de propósito: quem define
+quem o usuário é, é a sessão, e a RLS continua valendo. Ele não tem poder
+nenhum a mais.
+
+`admin.ts` só existe para o que o usuário legitimamente não faz sozinho: criar
+pedido com preço vindo do catálogo, confirmar pagamento por webhook, mudar
+status, apagar conta. **Fora disso, use `clienteServidor()`.**
+
+Para ler o usuário no servidor, use `usuarioDaSessao()` — nunca `getSession()`.
+`getSession()` lê o cookie e acredita nele; `getUser()` manda o token ao
+Supabase, que confere a assinatura. Cookie chega do navegador, e o que chega do
+navegador é afirmação, não fato.
+
+Para a chave secreta nunca chegar ao navegador, três travas:
+
+1. `import 'server-only'` — o build quebra se o arquivo entrar em árvore de
+   client component
+2. sem prefixo `NEXT_PUBLIC_` — o Next não inlina a variável no bundle
+3. passo no CI que planta um canário no lugar da chave e o procura no `.next`
+
+E `lib/supabase/fronteira.test.ts` caminha pelos imports a partir do client do
+navegador, falhando se algum arquivo alcançável mencionar a chave.
 
 **`legacy-site.js` é intocável por padrão.** É o script do site original, mantido
 byte a byte para o diff continuar auditável contra o deploy antigo. Está fora do

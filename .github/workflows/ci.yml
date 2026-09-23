@@ -16,6 +16,10 @@ permissions:
 
 env:
   NODE_VERSION: '22'
+  # Valor sem valor nenhum: entra no build como se fosse a chave secreta do
+  # Supabase, e depois e procurado no .next. Se aparecer, a chave de verdade
+  # tambem apareceria. Ver o job `build`.
+  CANARIO: sb_secret_CANARIO_DO_CI_NAO_PODE_VAZAR
 
 jobs:
   lint:
@@ -81,7 +85,27 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      # Valores falsos de proposito. Nenhum deles vale nada; o que interessa e
+      # que a chave secreta seja um canario reconhecivel no passo seguinte.
+      # O build nao fala com o Supabase: as rotas sao force-dynamic.
       - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://projeto-falso.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_falsa_do_ci
+          SUPABASE_SECRET_KEY: ${{ env.CANARIO }}
+
+      # A terceira trava da chave secreta (#21). As outras duas sao o
+      # `import 'server-only'` e a ausencia do prefixo NEXT_PUBLIC_.
+      #
+      # Conferido na mao que a busca enxerga: plantando o canario num arquivo
+      # dentro de .next, ela acha. Nao e um grep que nunca casa com nada.
+      - name: Chave secreta fora do output do build
+        run: |
+          if grep -rl "$CANARIO" .next; then
+            echo "::error::A chave secreta apareceu no output do build (arquivos acima)."
+            exit 1
+          fi
+          echo "Canario nao aparece em nenhum arquivo do .next."
 
   secrets:
     name: secrets
