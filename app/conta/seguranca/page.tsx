@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
+import { minhasSessoes } from './lista-sessoes';
+import Sessoes from './Sessoes';
 import TrocarSenha from './TrocarSenha';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +18,8 @@ export default async function Seguranca() {
   const usuario = await usuarioDaSessao();
   if (!usuario) redirect(ENTRAR);
 
+  const sessoes = await minhasSessoes();
+
   return (
     <main className="auth conta">
       <div className="auth-scan" aria-hidden="true" />
@@ -29,6 +33,8 @@ export default async function Seguranca() {
         <p className="auth-sub">Trocar senha</p>
 
         <TrocarSenha />
+
+        <Sessoes sessoes={sessoes} />
       </section>
     </main>
   );

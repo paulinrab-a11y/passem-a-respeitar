@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { trocarSenha } from './acoes';
+import { encerrarSessao, trocarSenha } from './acoes';
 import { senhaInicial } from './estado';
+import { sessaoInicial } from './estado-sessoes';
 
 let n = 0;
 let usuario: { id: string; email: string } | null = null;
@@ -24,12 +25,24 @@ const updateUser = vi.fn(async (_: { password: string }) => ({
 const signOut = vi.fn(async (_?: { scope: string }) => ({ error: null }));
 const signInDaSessao = vi.fn();
 
+const rpc = vi.fn(async (_f: string, _a?: unknown) => ({
+  data: true as unknown,
+  error: null as { message: string } | null,
+}));
+
 vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
+  clienteServidor: async () => ({ rpc }),
   clienteDeAuth: async () => ({
     auth: { updateUser, signOut, signInWithPassword: signInDaSessao },
   }),
 }));
+
+const revalidatePath = vi.fn();
+vi.mock('next/cache', () => ({ revalidatePath: (p: string) => revalidatePath(p) }));
+
+/** SHA-256 tem 64 caracteres hex — o formato que a lista entrega. */
+const HASH = 'a'.repeat(64);
 
 const vazada = vi.fn(async (_: string) => false);
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => vazada(s) }));
@@ -50,6 +63,7 @@ beforeEach(() => {
   signInAvulso.mockResolvedValue({ error: null });
   updateUser.mockResolvedValue({ error: null });
   vazada.mockResolvedValue(false);
+  rpc.mockResolvedValue({ data: true, error: null });
   // Usuario novo a cada caso: o rate limit guarda estado no modulo.
   usuario = { id: `1111-${n++}`, email: 'pessoa@exemplo.invalid' };
 });
@@ -198,5 +212,66 @@ describe('sessao e limites', () => {
     const texto = JSON.stringify(r);
     expect(texto).not.toContain(NOVA);
     expect(texto).not.toContain('senha-antiga-valida');
+  });
+});
+
+describe('encerrarSessao', () => {
+  it('chama a funcao do banco com o identificador', async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(rpc).toHaveBeenCalledWith('encerra_sessao', { p_identificador: HASH });
+    expect(r.recado?.tom).toBe('ok');
+    expect(r.encerrado).toBe(HASH);
+  });
+
+  // Identificador com cara errada nem chega ao banco.
+  it.each([
+    ['vazio', ''],
+    ['curto', 'abc'],
+    ['com letra fora do hex', `${'z'.repeat(64)}`],
+    ['uuid, que e o id interno', '52bfa91f-ae27-41bc-8cf4-d9e123e9dcc7'],
+  ])('recusa identificador %s sem consultar o banco', async (_nome, id) => {
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: id }));
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('recusa sem sessao', async () => {
+    usuario = null;
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // O banco devolve false para sessao de outro, para a atual e para uma que ja
+  // caiu. As tres respondem igual: dizer qual delas e contaria algo a quem
+  // estava tentando adivinhar.
+  it('responde igual quando o banco recusa', async () => {
+    rpc.mockResolvedValue({ data: false, error: null });
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.encerrado).toBe(null);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('avisa sem repassar a mensagem do banco', async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'permission denied for table sessions' },
+    });
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(r.recado?.texto).not.toMatch(/permission denied/);
+  });
+
+  it('revalida a pagina depois de encerrar', async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(revalidatePath).toHaveBeenCalledWith('/conta/seguranca');
   });
 });

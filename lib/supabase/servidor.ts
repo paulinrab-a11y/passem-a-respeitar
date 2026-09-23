@@ -7,10 +7,29 @@
 import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { opcoesDeSessao } from './cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import type { Database } from './tipos';
+
+/**
+ * User-agent e IP de quem pediu, para o Supabase gravar na sessao.
+ *
+ * O IP so vale em producao: rodando local nao ha `x-forwarded-for`, e o
+ * Supabase registra o IP de saida desta maquina.
+ */
+async function cabecalhosDeOrigem() {
+  const h = await headers();
+  const saida: Record<string, string> = {};
+
+  const agente = h.get('user-agent');
+  if (agente) saida['User-Agent'] = agente.slice(0, 400);
+
+  const ip = h.get('x-forwarded-for');
+  if (ip) saida['X-Forwarded-For'] = ip.split(',')[0].trim().slice(0, 64);
+
+  return saida;
+}
 
 /**
  * Client para as acoes que ESCREVEM a sessao: login, cadastro, logout.
@@ -25,6 +44,14 @@ export async function clienteDeAuth(lembrar: boolean) {
   const jar = await cookies();
 
   return createServerClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    // Repassa quem esta do outro lado. Sem isto o Supabase grava na sessao o
+    // user-agent do NOSSO servidor, porque e ele quem faz o login — e a tela
+    // de aparelhos conectados (#38) mostraria "Desconhecido" para todo mundo,
+    // que e pior do que nao ter a tela.
+    //
+    // Valor de terceiro, entao vai cortado: cabecalho gigante viraria linha
+    // gigante em auth.sessions.
+    global: { headers: await cabecalhosDeOrigem() },
     cookies: {
       getAll() {
         return jar.getAll();

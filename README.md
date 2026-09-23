@@ -20,7 +20,7 @@ app/
     HomeRuntime.tsx     carrega three.js e GSAP por dynamic import
     legacy-site.js      script original, verbatim, embrulhado numa função
   entrar/               login (#31)
-  conta/                perfil, foto (#35), senha (#37), sair (#33)
+  conta/                perfil (#35), senha e sessões (#37, #38), sair (#33)
   api/convite/route.ts  validação do código de convite (servidor)
   api/conta/foto/       upload da foto de perfil (#26)
 lib/
@@ -31,6 +31,7 @@ lib/
     foto.ts             regras de upload: tipo real, tamanho, normalização
     senha.ts            medidor de força (roda nos dois lados)
     senha-servidor.ts   checagem contra vazamento por k-anonymity
+    sessoes.ts          leitura de user-agent e rede, mapper da lista
   supabase/
     env.ts              lê as variáveis, falha fechada
     tipos.ts            gerado do schema

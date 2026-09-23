@@ -172,6 +172,18 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      encerra_sessao: { Args: { p_identificador: string }; Returns: boolean };
+      minhas_sessoes: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          identificador: string;
+          criada_em: string;
+          ultimo_acesso: string;
+          agente: string | null;
+          rede: string | null;
+          e_a_atual: boolean;
+        }[];
+      };
       pedido_e_meu: { Args: { p_order_id: string }; Returns: boolean };
     };
     Enums: {

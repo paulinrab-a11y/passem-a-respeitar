@@ -537,3 +537,35 @@ footer.assina a:hover{color:var(--vermelho)}
 .conta-atalho{margin-top:18px;font-size:13px;letter-spacing:.06em}
 .conta-atalho a{color:var(--prata-2);text-decoration:none;border-bottom:1px solid var(--prata-3)}
 .conta-atalho a:hover{color:var(--vermelho);border-color:var(--vermelho)}
+
+/* Sessoes ativas (#38) ------------------------------------------------------ */
+.sessoes{margin-top:44px;padding-top:26px;border-top:1px solid var(--prata-3)}
+.sessoes h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:#fff}
+.sessoes-nota{margin-top:8px;font-size:13px;line-height:1.5;color:var(--prata-2);max-width:44ch}
+.sessoes ul{list-style:none;margin-top:18px;display:flex;flex-direction:column}
+
+@keyframes sessao-entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Saida mais curta e so para a esquerda: a linha esta indo embora, nao
+   chegando. Sem altura animada — isso e layout, e a lista pode ser longa. */
+@keyframes sessao-sai{from{opacity:1;transform:none}to{opacity:0;transform:translateX(-10px)}}
+.sessoes li{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid #16171a;animation:sessao-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.sessoes li:first-child{border-top:0}
+.sessoes li.saindo{animation:sessao-sai .16s cubic-bezier(.4,0,1,1) forwards;pointer-events:none}
+.sessoes-quem{min-width:0}
+.sessoes-aparelho{font-size:14px;letter-spacing:.04em;color:var(--prata)}
+.sessoes-selo{display:inline-block;margin-left:10px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata-2);border:1px solid var(--prata-3);padding:2px 7px;vertical-align:middle}
+.sessoes-detalhe{margin-top:5px;font-size:12px;letter-spacing:.06em;color:var(--prata-3)}
+.sessoes-agora{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3);white-space:nowrap}
+.sessoes form{margin:0}
+.sessoes button{padding:0;white-space:nowrap}
+
+@media (max-width:767px){
+  .sessoes li{gap:12px}
+  .sessoes-aparelho{font-size:var(--t-small)}
+  .sessoes button{min-height:44px;display:flex;align-items:center}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .sessoes li{animation-duration:.01ms}
+  .sessoes li.saindo{animation-duration:.01ms}
+}
