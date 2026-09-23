@@ -1,9 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { esquemaNome } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
-import { clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
+import { COOKIE_LEMBRAR } from '@/lib/supabase/cookies';
+import { clienteDeAuth, clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoNome, EstadoVerificacao } from './estado';
 
 /**
@@ -84,4 +87,38 @@ export async function reenviarVerificacao(
     recado: { tom: 'ok', texto: 'Enviei de novo. Confira a caixa de entrada e o spam.' },
     tentativa,
   };
+}
+
+/**
+ * Sair.
+ *
+ * `signOut` do Supabase faz duas coisas: revoga o refresh token no servidor e
+ * manda apagar os cookies. A primeira e a que importa — sem ela, "sair" seria
+ * so limpar o navegador, e quem tivesse copiado o token continuaria entrando
+ * com ele ate expirar.
+ *
+ * `scope: 'global'` derruba todas as sessoes da conta, nao so esta. E o que
+ * alguem clica depois de perceber que esqueceu o computador aberto em algum
+ * lugar, entao precisa valer para o outro lugar, nao para este.
+ */
+async function encerra(escopo: 'local' | 'global') {
+  // O `lembrar` aqui nao importa: o que este client vai fazer e mandar apagar
+  // cookie, e apagar nao tem validade.
+  const supabase = await clienteDeAuth(false);
+  await supabase.auth.signOut({ scope: escopo });
+
+  // O Supabase apaga os cookies dele; o par_lembrar e nosso. Deixar para tras
+  // faria a proxima sessao herdar a escolha de quem usou o navegador antes.
+  (await cookies()).delete(COOKIE_LEMBRAR);
+
+  // Fora de try/catch: `redirect` funciona lancando.
+  redirect('/');
+}
+
+export async function sair() {
+  await encerra('local');
+}
+
+export async function sairDeTodos() {
+  await encerra('global');
 }

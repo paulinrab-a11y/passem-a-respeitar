@@ -412,3 +412,29 @@ footer.assina a:hover{color:var(--vermelho)}
   .conta-recado{animation:none}
   .conta-progresso i{transition:none}
 }
+
+/* Sair (#33) --------------------------------------------------------------- */
+.conta-sair{margin-top:42px;padding-top:26px;border-top:1px solid var(--prata-3);display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.conta-sair .auth-link{padding:0}
+
+@keyframes conta-confirma-entra{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+/* Saida mais curta e com menos deslocamento que a entrada: a atencao de quem
+   cancelou ja foi embora, nao ha o que anunciar. */
+@keyframes conta-confirma-sai{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-3px)}}
+.conta-confirma{display:flex;flex-direction:column;gap:14px;border-left:2px solid var(--vermelho);padding-left:14px;animation:conta-confirma-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.conta-confirma.saindo{animation:conta-confirma-sai .13s cubic-bezier(.4,0,1,1) forwards}
+.conta-confirma p{font-size:13px;line-height:1.5;letter-spacing:.02em;color:var(--prata-2);max-width:44ch}
+.conta-confirma-acoes{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+
+@media (max-width:767px){
+  .conta-sair{margin-top:32px}
+  .conta-sair form,.conta-sair .btn{width:100%}
+  .conta-sair .btn{justify-content:center;min-height:52px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  /* Sem animacao, mas o desmonte ainda espera o animationend — por isso a
+     duracao vira quase zero em vez de `animation:none`, que nunca dispara o
+     evento e deixaria o bloco preso na tela para sempre. */
+  .conta-confirma,.conta-confirma.saindo{animation-duration:.01ms}
+}

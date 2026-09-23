@@ -209,8 +209,9 @@ motion e carregamento.
 - Botão "Comprar" da merch sem destino — checkout Mercado Pago (#44, #45)
 - Link de pré-save ainda não existe; o botão mostra "em breve" (#58)
 - Clipe fora do ar até subir no YouTube (#75)
-- Área de conta em construção: login (#31) e perfil (#35) prontos; falta
-  cadastro (#30), recuperação de senha (#32) e pedidos (#41, #42)
+- Área de conta em construção: login (#31), perfil (#35) e logout (#33)
+  prontos; falta cadastro (#30), recuperação de senha (#32) e pedidos (#41, #42)
+- Nenhum link do site leva à área de conta ainda — é a #34
 - Sem skeleton de carregamento: qualquer `<Suspense>` no carregamento inicial
   prende a página no fallback nesta versão do Next (#46)
 - Rate limit em memória, por instância — trocar por Upstash (#22)
