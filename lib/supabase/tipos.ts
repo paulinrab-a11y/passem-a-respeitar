@@ -175,7 +175,9 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      autenticado_recentemente: { Args: { p_minutos?: number }; Returns: boolean };
       encerra_sessao: { Args: { p_identificador: string }; Returns: boolean };
+      minha_sessao_atual: { Args: Record<PropertyKey, never>; Returns: string };
       minhas_sessoes: {
         Args: Record<PropertyKey, never>;
         Returns: {

@@ -598,3 +598,28 @@ footer.assina a:hover{color:var(--vermelho)}
 @media (prefers-reduced-motion:reduce){
   .excluir-caixa,.excluir-caixa.saindo{animation-duration:.01ms}
 }
+
+/* Modal (#40) --------------------------------------------------------------- */
+@keyframes modal-entra{from{opacity:0}to{opacity:1}}
+@keyframes modal-sai{from{opacity:1}to{opacity:0}}
+@keyframes modal-caixa-entra{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+
+.modal{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:var(--gutter);animation:modal-entra .18s ease-out backwards}
+.modal.saindo{animation:modal-sai .13s ease-in forwards}
+.modal-fundo{position:absolute;inset:0;background:rgba(0,0,0,.82);cursor:pointer}
+.modal-caixa{position:relative;width:min(420px,100%);background:#060607;border:1px solid var(--prata-3);padding:26px 24px;animation:modal-caixa-entra .22s cubic-bezier(.22,1,.36,1) backwards}
+.modal-caixa h2{font-family:var(--display);text-transform:uppercase;font-size:22px;letter-spacing:.04em;color:#fff}
+.modal-caixa>p{margin-top:10px;font-size:13px;line-height:1.5;color:var(--prata-2)}
+.modal-caixa form{margin-top:20px;display:flex;flex-direction:column;gap:14px}
+.modal-acoes{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+
+@media (max-width:767px){
+  .modal-caixa{padding:22px 18px}
+  .modal-acoes .btn{width:100%;justify-content:center;min-height:52px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  /* Duracao quase zero, nao `none`: o desmonte tem o prazo do hook, mas o
+     evento continua sendo o caminho rapido. */
+  .modal,.modal.saindo,.modal-caixa{animation-duration:.01ms}
+}

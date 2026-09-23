@@ -1,12 +1,11 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { senhaConfere } from '@/lib/conta/reautenticacao';
 import { limita } from '@/lib/rate-limit';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { COOKIE_LEMBRAR } from '@/lib/supabase/cookies';
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 import { clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoExclusao } from './estado-exclusao';
 
@@ -54,15 +53,7 @@ export async function excluirConta(
 
   // Client descartavel, como na troca de senha: usar o da sessao rotacionaria
   // o token de quem esta prestes a nao ter mais conta.
-  const avulso = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { error: erroSenha } = await avulso.auth.signInWithPassword({
-    email: usuario.email,
-    password: senha,
-  });
-
-  if (erroSenha) {
+  if (!(await senhaConfere(usuario.email, senha))) {
     return erro('A senha está incorreta.');
   }
 

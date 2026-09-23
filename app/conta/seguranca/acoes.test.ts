@@ -1,29 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { encerrarSessao, trocarSenha } from './acoes';
+import { encerrarSessao, reautenticarEEncerrar, trocarSenha } from './acoes';
 import { senhaInicial } from './estado';
 import { sessaoInicial } from './estado-sessoes';
 
 let n = 0;
 let usuario: { id: string; email: string } | null = null;
 
-/** Client avulso: so confere a senha atual, nunca escreve cookie. */
-const signInAvulso = vi.fn(async (_: { email: string; password: string }) => ({
-  error: null as { message: string } | null,
-}));
-const opcoesDoAvulso = vi.fn();
-
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: (_url: string, _chave: string, opcoes: unknown) => {
-    opcoesDoAvulso(opcoes);
-    return { auth: { signInWithPassword: signInAvulso } };
-  },
-}));
-
 const updateUser = vi.fn(async (_: { password: string }) => ({
   error: null as { message: string } | null,
 }));
 const signOut = vi.fn(async (_?: { scope: string }) => ({ error: null }));
-const signInDaSessao = vi.fn();
 
 const rpc = vi.fn(async (_f: string, _a?: unknown) => ({
   data: true as unknown,
@@ -34,7 +20,7 @@ vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
   clienteServidor: async () => ({ rpc }),
   clienteDeAuth: async () => ({
-    auth: { updateUser, signOut, signInWithPassword: signInDaSessao },
+    auth: { updateUser, signOut },
   }),
 }));
 
@@ -46,6 +32,17 @@ const HASH = 'a'.repeat(64);
 
 const vazada = vi.fn(async (_: string) => false);
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => vazada(s) }));
+
+/** A conferencia de senha virou helper compartilhado na #40. */
+const confere = vi.fn(async (_email: string, _senha: string) => true);
+const recente = vi.fn(async () => true);
+const refaz = vi.fn(async (_senha: string) => true);
+vi.mock('@/lib/conta/reautenticacao', () => ({
+  JANELA_MINUTOS: 15,
+  autenticadoRecentemente: () => recente(),
+  reautenticar: (senha: string) => refaz(senha),
+  senhaConfere: (email: string, senha: string) => confere(email, senha),
+}));
 
 const NOVA = 'zumbido-de-jabuticaba-42';
 
@@ -60,10 +57,12 @@ const completo = (extra: Record<string, string> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  signInAvulso.mockResolvedValue({ error: null });
+  confere.mockResolvedValue(true);
   updateUser.mockResolvedValue({ error: null });
   vazada.mockResolvedValue(false);
   rpc.mockResolvedValue({ data: true, error: null });
+  recente.mockResolvedValue(true);
+  refaz.mockResolvedValue(true);
   // Usuario novo a cada caso: o rate limit guarda estado no modulo.
   usuario = { id: `1111-${n++}`, email: 'pessoa@exemplo.invalid' };
 });
@@ -94,28 +93,11 @@ describe('conferencia da senha atual', () => {
   it('confere antes de trocar', async () => {
     await trocarSenha(senhaInicial, completo());
 
-    expect(signInAvulso).toHaveBeenCalledWith({
-      email: usuario?.email,
-      password: 'senha-antiga-valida',
-    });
-  });
-
-  // Se a conferencia usasse o client da sessao, `signInWithPassword`
-  // rotacionaria o token e reescreveria os cookies: a pessoa acabaria com
-  // uma sessao nova so por ter digitado a senha certa num formulario.
-  it('usa um client descartavel, que nao persiste sessao', async () => {
-    await trocarSenha(senhaInicial, completo());
-
-    expect(opcoesDoAvulso).toHaveBeenCalledWith(
-      expect.objectContaining({
-        auth: expect.objectContaining({ persistSession: false, autoRefreshToken: false }),
-      })
-    );
-    expect(signInDaSessao).not.toHaveBeenCalled();
+    expect(confere).toHaveBeenCalledWith(usuario?.email, 'senha-antiga-valida');
   });
 
   it('recusa quando a senha atual esta errada', async () => {
-    signInAvulso.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    confere.mockResolvedValue(false);
     const r = await trocarSenha(senhaInicial, completo());
 
     expect(r.recado?.tom).toBe('erro');
@@ -143,7 +125,7 @@ describe('politica de senha', () => {
   // Ordem importa: conferir a senha atual antes gasta menos e nao manda a
   // senha de quem nem provou quem e para um servico de fora.
   it('so consulta o vazamento depois de a senha atual conferir', async () => {
-    signInAvulso.mockResolvedValue({ error: { message: 'nao' } });
+    confere.mockResolvedValue(false);
     await trocarSenha(senhaInicial, completo());
 
     expect(vazada).not.toHaveBeenCalled();
@@ -182,11 +164,11 @@ describe('sessao e limites', () => {
     const r = await trocarSenha(senhaInicial, completo());
 
     expect(r.recado?.tom).toBe('erro');
-    expect(signInAvulso).not.toHaveBeenCalled();
+    expect(confere).not.toHaveBeenCalled();
   });
 
   it('bloqueia depois de cinco tentativas', async () => {
-    signInAvulso.mockResolvedValue({ error: { message: 'nao' } });
+    confere.mockResolvedValue(false);
 
     for (let i = 0; i < 5; i++) {
       const r = await trocarSenha(senhaInicial, completo());
@@ -206,7 +188,7 @@ describe('sessao e limites', () => {
   });
 
   it('nenhuma senha aparece no que volta para a tela', async () => {
-    signInAvulso.mockResolvedValue({ error: { message: 'nao' } });
+    confere.mockResolvedValue(false);
     const r = await trocarSenha(senhaInicial, completo());
 
     const texto = JSON.stringify(r);
@@ -273,5 +255,82 @@ describe('encerrarSessao', () => {
     await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
 
     expect(revalidatePath).toHaveBeenCalledWith('/conta/seguranca');
+  });
+});
+
+describe('janela de autenticacao recente (#40)', () => {
+  // Derrubar a sessao de outro aparelho e o que quem sequestrou uma sessao
+  // aberta usaria para expulsar o dono da propria conta.
+  it('pede a senha quando a janela venceu, sem encerrar nada', async () => {
+    recente.mockResolvedValue(false);
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(r.precisaReautenticar).toBe(true);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('encerra direto quando a janela esta aberta', async () => {
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(r.precisaReautenticar).toBeUndefined();
+    expect(rpc).toHaveBeenCalled();
+  });
+
+  // A verificacao acontece depois da sessao e antes do banco: nao adianta
+  // gastar ida ao banco de quem vai ser barrado.
+  it('a janela e conferida no servidor, nao na tela', async () => {
+    recente.mockResolvedValue(false);
+    await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(recente).toHaveBeenCalled();
+  });
+});
+
+describe('reautenticarEEncerrar', () => {
+  // O criterio da Issue: depois de reautenticar, a acao original continua de
+  // onde parou. O identificador vem no mesmo formulario, entao nada se perde.
+  it('refaz a acao com o mesmo identificador', async () => {
+    const r = await reautenticarEEncerrar(
+      sessaoInicial,
+      form({ identificador: HASH, senha: 'certa' })
+    );
+
+    expect(refaz).toHaveBeenCalledWith('certa');
+    expect(rpc).toHaveBeenCalledWith('encerra_sessao', { p_identificador: HASH });
+    expect(r.recado?.tom).toBe('ok');
+  });
+
+  it('recusa senha errada e continua pedindo', async () => {
+    refaz.mockResolvedValue(false);
+    const r = await reautenticarEEncerrar(
+      sessaoInicial,
+      form({ identificador: HASH, senha: 'errada' })
+    );
+
+    expect(r.precisaReautenticar).toBe(true);
+    expect(r.recado?.tom).toBe('erro');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // Reautenticar cria sessao nova, entao a janela reabre sozinha — mas a acao
+  // continua passando pelas mesmas checagens de sempre.
+  it('nao pula a validacao do identificador', async () => {
+    const r = await reautenticarEEncerrar(
+      sessaoInicial,
+      form({ identificador: 'nao-e-hash', senha: 'certa' })
+    );
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('a senha nao aparece no que volta para a tela', async () => {
+    refaz.mockResolvedValue(false);
+    const r = await reautenticarEEncerrar(
+      sessaoInicial,
+      form({ identificador: HASH, senha: 'minha-senha-secreta' })
+    );
+
+    expect(JSON.stringify(r)).not.toContain('minha-senha-secreta');
   });
 });

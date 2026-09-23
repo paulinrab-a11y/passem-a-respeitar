@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { JANELA_MINUTOS } from '@/lib/conta/reautenticacao';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import ExcluirConta from './ExcluirConta';
@@ -35,7 +36,7 @@ export default async function Seguranca() {
 
         <TrocarSenha />
 
-        <Sessoes sessoes={sessoes} />
+        <Sessoes sessoes={sessoes} janelaMinutos={JANELA_MINUTOS} />
 
         <ExcluirConta email={usuario.email ?? ''} />
       </section>
