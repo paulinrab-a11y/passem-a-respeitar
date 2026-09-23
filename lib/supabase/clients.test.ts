@@ -28,8 +28,15 @@ const jar = {
   set: vi.fn(),
 };
 
+/** O clienteDeAuth repassa user-agent e IP de quem pediu (#38). */
+const cabecalhos = new Headers({
+  'user-agent': 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120.0 Mobile Safari/537.36',
+  'x-forwarded-for': '203.0.113.7, 70.41.3.18',
+});
+
 vi.mock('next/headers', () => ({
   cookies: async () => jar,
+  headers: async () => cabecalhos,
 }));
 
 beforeEach(() => {
@@ -162,6 +169,37 @@ describe('clienteDeAuth', () => {
       'sb-token',
       'abc',
       expect.objectContaining({ maxAge: undefined })
+    );
+  });
+
+  it('repassa o user-agent de quem pediu, nao o do servidor', async () => {
+    const { clienteDeAuth } = await import('./servidor');
+    await clienteDeAuth(true);
+
+    const opcoes = criaServidor.mock.calls[0][2] as { global: { headers: Record<string, string> } };
+    expect(opcoes.global.headers['User-Agent']).toMatch(/Pixel 8/);
+  });
+
+  // Sem isto, a tela de aparelhos conectados mostraria o IP de saida da
+  // Vercel para todo mundo — e um alarme falso numa tela de seguranca.
+  it('repassa so o primeiro IP do x-forwarded-for', async () => {
+    const { clienteDeAuth } = await import('./servidor');
+    await clienteDeAuth(true);
+
+    const opcoes = criaServidor.mock.calls[0][2] as { global: { headers: Record<string, string> } };
+    expect(opcoes.global.headers['X-Forwarded-For']).toBe('203.0.113.7');
+  });
+
+  it('corta cabecalho gigante', async () => {
+    cabecalhos.set('user-agent', 'a'.repeat(5000));
+    const { clienteDeAuth } = await import('./servidor');
+    await clienteDeAuth(true);
+
+    const opcoes = criaServidor.mock.calls[0][2] as { global: { headers: Record<string, string> } };
+    expect(opcoes.global.headers['User-Agent'].length).toBeLessThanOrEqual(400);
+    cabecalhos.set(
+      'user-agent',
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120.0 Mobile Safari/537.36'
     );
   });
 

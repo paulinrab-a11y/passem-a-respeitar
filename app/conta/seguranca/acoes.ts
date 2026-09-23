@@ -1,12 +1,14 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { revalidatePath } from 'next/cache';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import { esquemaTrocarSenha } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
-import { clienteDeAuth, usuarioDaSessao } from '@/lib/supabase/servidor';
+import { clienteDeAuth, clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoSenha } from './estado';
+import type { EstadoSessao } from './estado-sessoes';
 
 /** Cinco tentativas por hora. O alvo aqui e quem sentou no computador alheio. */
 const LIMITE = { maximo: 5, janelaMs: 60 * 60 * 1000 };
@@ -100,4 +102,50 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
     },
     tentativa,
   };
+}
+
+/**
+ * Encerra uma sessao pelo identificador opaco que a lista entregou.
+ *
+ * Nao ha o que validar do lado de ca: a funcao do banco so acha o hash entre
+ * as sessoes DESTE usuario, e recusa a atual. Um identificador inventado
+ * simplesmente nao casa com nada.
+ */
+export async function encerrarSessao(
+  _anterior: EstadoSessao,
+  form: FormData
+): Promise<EstadoSessao> {
+  const identificador = String(form.get('identificador') ?? '');
+
+  if (!/^[0-9a-f]{64}$/.test(identificador)) {
+    return { recado: { tom: 'erro', texto: 'Sessão inválida.' }, encerrado: null };
+  }
+
+  if (!(await usuarioDaSessao())) {
+    return {
+      recado: { tom: 'erro', texto: 'Sua sessão expirou. Entre de novo.' },
+      encerrado: null,
+    };
+  }
+
+  const supabase = await clienteServidor();
+  const { data, error } = await supabase.rpc('encerra_sessao', {
+    p_identificador: identificador,
+  });
+
+  if (error) {
+    return { recado: { tom: 'erro', texto: 'Não consegui encerrar agora.' }, encerrado: null };
+  }
+
+  if (!data) {
+    // Ou nao e sua, ou e a atual, ou ja tinha caido. As tres respondem igual:
+    // dizer qual delas e contaria algo a quem tentou adivinhar.
+    return {
+      recado: { tom: 'erro', texto: 'Essa sessão não está mais na lista.' },
+      encerrado: null,
+    };
+  }
+
+  revalidatePath('/conta/seguranca');
+  return { recado: { tom: 'ok', texto: 'Sessão encerrada.' }, encerrado: identificador };
 }
