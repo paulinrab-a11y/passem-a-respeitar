@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SENHA_MAX, SENHA_MIN } from './conta/senha';
 
 /**
  * Schemas de entrada. Tudo que chega de formulario passa por aqui antes de
@@ -9,13 +10,6 @@ import { z } from 'zod';
  * vira propriedade no objeto que segue adiante. Isso e o anti mass assignment
  * da Issue #19 na forma mais barata que existe.
  */
-
-/**
- * Limite alto de proposito. Nao e regra de senha — isso e a Issue #25, e vale
- * no cadastro. No login, recusar por tamanho seria contar ao atacante qual e a
- * regra de senha do site. O que ha aqui e teto contra corpo gigante.
- */
-const SENHA_MAX = 200;
 
 export const esquemaEntrar = z.object({
   email: z
@@ -38,3 +32,21 @@ export const esquemaEntrar = z.object({
 export const esquemaNome = z.object({
   nome: z.string().trim().min(2).max(80),
 });
+
+/**
+ * Troca de senha. O minimo de 8 e a Issue #25; o teto e para nao mandar um
+ * megabyte de texto ao bcrypt.
+ *
+ * A confirmacao e conferida aqui, e nao so no cliente: o formulario e HTML, e
+ * qualquer um monta um POST sem ela.
+ */
+export const esquemaTrocarSenha = z
+  .object({
+    atual: z.string().min(1).max(SENHA_MAX),
+    nova: z.string().min(SENHA_MIN).max(SENHA_MAX),
+    confirmacao: z.string().min(1).max(SENHA_MAX),
+  })
+  .refine((d) => d.nova === d.confirmacao, { path: ['confirmacao'] })
+  // Trocar a senha pela mesma senha nao e troca; e a pessoa achando que fez
+  // algo enquanto a senha comprometida continua valendo.
+  .refine((d) => d.nova !== d.atual, { path: ['nova'] });

@@ -20,7 +20,7 @@ app/
     HomeRuntime.tsx     carrega three.js e GSAP por dynamic import
     legacy-site.js      script original, verbatim, embrulhado numa função
   entrar/               login (#31)
-  conta/                perfil, edição de nome, foto (#35)
+  conta/                perfil, foto (#35), senha (#37), sair (#33)
   api/convite/route.ts  validação do código de convite (servidor)
   api/conta/foto/       upload da foto de perfil (#26)
 lib/
@@ -29,6 +29,8 @@ lib/
   conta/
     perfil.ts           consulta e mapper explícito da resposta
     foto.ts             regras de upload: tipo real, tamanho, normalização
+    senha.ts            medidor de força (roda nos dois lados)
+    senha-servidor.ts   checagem contra vazamento por k-anonymity
   supabase/
     env.ts              lê as variáveis, falha fechada
     tipos.ts            gerado do schema
@@ -209,8 +211,9 @@ motion e carregamento.
 - Botão "Comprar" da merch sem destino — checkout Mercado Pago (#44, #45)
 - Link de pré-save ainda não existe; o botão mostra "em breve" (#58)
 - Clipe fora do ar até subir no YouTube (#75)
-- Área de conta em construção: login (#31), perfil (#35) e logout (#33)
-  prontos; falta cadastro (#30), recuperação de senha (#32) e pedidos (#41, #42)
+- Área de conta em construção: login (#31), perfil (#35), logout (#33), troca
+  de senha (#37) e a entrada na barra (#34) prontos; falta cadastro (#30),
+  recuperação de senha (#32) e pedidos (#41, #42)
 - Sem skeleton de carregamento: qualquer `<Suspense>` no carregamento inicial
   prende a página no fallback nesta versão do Next (#46)
 - Rate limit em memória, por instância — trocar por Upstash (#22)

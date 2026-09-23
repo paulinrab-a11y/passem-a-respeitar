@@ -80,6 +80,10 @@ export default async function Conta() {
 
         <NomeForm nome={perfil.nome ?? ''} />
 
+        <p className="conta-atalho">
+          <a href="/conta/seguranca">Trocar senha</a>
+        </p>
+
         <Sair />
       </section>
     </main>
