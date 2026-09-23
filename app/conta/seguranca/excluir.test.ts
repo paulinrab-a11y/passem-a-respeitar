@@ -2,15 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { exclusaoInicial } from './estado-exclusao';
 import { excluirConta } from './excluir';
 
+/** A conferencia de senha virou helper compartilhado na #40. */
+
 let n = 0;
 let usuario: { id: string; email: string } | null = null;
 
-const signInAvulso = vi.fn(async (_: { email: string; password: string }) => ({
-  error: null as { message: string } | null,
-}));
-
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({ auth: { signInWithPassword: signInAvulso } }),
+const confere = vi.fn(async (_email: string, _senha: string) => true);
+vi.mock('@/lib/conta/reautenticacao', () => ({
+  senhaConfere: (email: string, senha: string) => confere(email, senha),
 }));
 
 let fotoCaminho: string | null = null;
@@ -72,7 +71,7 @@ const certo = (extra: Record<string, string> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  signInAvulso.mockResolvedValue({ error: null });
+  confere.mockResolvedValue(true);
   deleteUser.mockResolvedValue({ error: null });
   fotoCaminho = null;
   // Usuario novo a cada caso: o rate limit guarda estado no modulo.
@@ -87,7 +86,7 @@ describe('confirmacao', () => {
 
     expect(r.recado?.tom).toBe('erro');
     expect(deleteUser).not.toHaveBeenCalled();
-    expect(signInAvulso).not.toHaveBeenCalled();
+    expect(confere).not.toHaveBeenCalled();
   });
 
   it('aceita o e-mail em qualquer caixa', async () => {
@@ -99,7 +98,7 @@ describe('confirmacao', () => {
   // A senha e a reautenticacao: sem ela, quem sentou no computador alheio
   // apaga a conta de outra pessoa.
   it('recusa quando a senha esta errada', async () => {
-    signInAvulso.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    confere.mockResolvedValue(false);
     const r = await excluirConta(exclusaoInicial, certo());
 
     expect(r.recado?.tom).toBe('erro');
@@ -115,7 +114,7 @@ describe('confirmacao', () => {
   });
 
   it('bloqueia depois de tres tentativas', async () => {
-    signInAvulso.mockResolvedValue({ error: { message: 'nao' } });
+    confere.mockResolvedValue(false);
 
     for (let i = 0; i < 3; i++) await excluirConta(exclusaoInicial, certo());
     const r = await excluirConta(exclusaoInicial, certo());
@@ -203,7 +202,7 @@ describe('quando o Supabase recusa', () => {
 
 describe('a senha nunca escapa', () => {
   it('nao aparece no que volta para a tela', async () => {
-    signInAvulso.mockResolvedValue({ error: { message: 'nao' } });
+    confere.mockResolvedValue(false);
     const r = await excluirConta(exclusaoInicial, certo());
 
     expect(JSON.stringify(r)).not.toContain(SENHA);

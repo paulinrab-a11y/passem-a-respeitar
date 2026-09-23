@@ -1,8 +1,9 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useRef, useState } from 'react';
+import Reautenticar from '@/app/_ui/Reautenticar';
 import type { Sessao } from '@/lib/conta/sessoes';
-import { encerrarSessao } from './acoes';
+import { encerrarSessao, reautenticarEEncerrar } from './acoes';
 import { sessaoInicial } from './estado-sessoes';
 
 const quando = new Intl.DateTimeFormat('pt-BR', {
@@ -12,8 +13,28 @@ const quando = new Intl.DateTimeFormat('pt-BR', {
   minute: '2-digit',
 });
 
-export default function Sessoes({ sessoes }: { sessoes: Sessao[] }) {
+export default function Sessoes({
+  sessoes,
+  janelaMinutos,
+}: {
+  sessoes: Sessao[];
+  janelaMinutos: number;
+}) {
   const [estado, acao, pendente] = useActionState(encerrarSessao, sessaoInicial);
+  const [reautenticado, acaoComSenha, pendenteComSenha] = useActionState(
+    reautenticarEEncerrar,
+    sessaoInicial
+  );
+
+  // O identificador do que a pessoa tentou encerrar. E isto que faz a acao
+  // "continuar de onde parou" depois da senha: nada e redigitado, nada se
+  // perde, e ela nao precisa procurar a linha de novo numa lista que pode ter
+  // mudado de ordem enquanto o modal estava aberto.
+  const tentado = useRef<string | null>(null);
+
+  const [modalFechado, setModalFechado] = useState(false);
+  const atual = reautenticado.recado || reautenticado.precisaReautenticar ? reautenticado : estado;
+  const pedindoSenha = Boolean(atual.precisaReautenticar) && !modalFechado;
 
   if (sessoes.length === 0) return null;
 
@@ -26,12 +47,7 @@ export default function Sessoes({ sessoes }: { sessoes: Sessao[] }) {
         {sessoes.map((s, i) => (
           <li
             key={s.identificador}
-            // A linha que acabou de ser encerrada ainda chega do servidor uma
-            // vez; a classe deixa ela sair animada em vez de sumir de um
-            // quadro para o outro.
-            className={estado.encerrado === s.identificador ? 'saindo' : undefined}
-            // Stagger de 40ms limitado aos quatro primeiros: numa lista longa,
-            // esperar o decimo item aparecer vira lentidao, nao elegancia.
+            className={atual.encerrado === s.identificador ? 'saindo' : undefined}
             style={i < 4 ? { animationDelay: `${i * 40}ms` } : undefined}
           >
             <div className="sessoes-quem">
@@ -47,12 +63,15 @@ export default function Sessoes({ sessoes }: { sessoes: Sessao[] }) {
             </div>
 
             {s.atual ? (
-              // Sem botao na atual, de proposito: encerrar a si mesmo por um
-              // botao de lista e "sair" disfarcado, e sair tem o proprio
-              // botao, na tela de conta.
               <span className="sessoes-agora">em uso</span>
             ) : (
-              <form action={acao}>
+              <form
+                action={acao}
+                onSubmit={() => {
+                  tentado.current = s.identificador;
+                  setModalFechado(false);
+                }}
+              >
                 <input type="hidden" name="identificador" value={s.identificador} />
                 <button type="submit" className="auth-link" disabled={pendente}>
                   Encerrar
@@ -63,11 +82,31 @@ export default function Sessoes({ sessoes }: { sessoes: Sessao[] }) {
         ))}
       </ul>
 
-      {estado.recado ? (
-        <p className={`conta-recado ${estado.recado.tom}`} role="status">
-          {estado.recado.texto}
+      {atual.recado ? (
+        <p className={`conta-recado ${atual.recado.tom}`} role="status">
+          {atual.recado.texto}
         </p>
       ) : null}
+
+      {/* O formulario do modal carrega o identificador guardado. A acao do
+          servidor reautentica e chama a mesma funcao de antes — nao ha um
+          segundo caminho de encerramento para sair do lugar. */}
+      <form action={acaoComSenha} ref={(f) => f?.classList.add('sr')}>
+        <input type="hidden" name="identificador" value={tentado.current ?? ''} />
+        <Reautenticar
+          aberto={pedindoSenha}
+          minutos={janelaMinutos}
+          pendente={pendenteComSenha}
+          erro={reautenticado.precisaReautenticar ? (reautenticado.recado?.texto ?? null) : null}
+          onCancelar={() => setModalFechado(true)}
+          onConfirmar={(senha) => {
+            const dados = new FormData();
+            dados.append('identificador', tentado.current ?? '');
+            dados.append('senha', senha);
+            acaoComSenha(dados);
+          }}
+        />
+      </form>
     </section>
   );
 }

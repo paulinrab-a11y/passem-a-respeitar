@@ -1,11 +1,10 @@
 'use server';
 
-import { createClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
+import { autenticadoRecentemente, reautenticar, senhaConfere } from '@/lib/conta/reautenticacao';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import { esquemaTrocarSenha } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 import { clienteDeAuth, clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoSenha } from './estado';
 import type { EstadoSessao } from './estado-sessoes';
@@ -15,25 +14,6 @@ const LIMITE = { maximo: 5, janelaMs: 60 * 60 * 1000 };
 
 function erro(texto: string, tentativa: number): EstadoSenha {
   return { recado: { tom: 'erro', texto }, tentativa };
-}
-
-/**
- * Confere a senha atual sem encostar na sessao.
- *
- * `signInWithPassword` no client de sessao rotacionaria o token e
- * reescreveria os cookies — a pessoa acabaria com uma sessao nova so por ter
- * digitado a senha certa num formulario de conferencia.
- *
- * Este client e descartavel: `persistSession: false`, sem cookies, sem
- * storage. Ele existe por tres linhas e some.
- */
-async function senhaAtualConfere(email: string, senha: string) {
-  const avulso = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { error } = await avulso.auth.signInWithPassword({ email, password: senha });
-  return !error;
 }
 
 export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promise<EstadoSenha> {
@@ -72,7 +52,7 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
 
   const { atual, nova } = dados.data;
 
-  if (!(await senhaAtualConfere(usuario.email, atual))) {
+  if (!(await senhaConfere(usuario.email, atual))) {
     return erro('A senha atual está incorreta.', tentativa);
   }
 
@@ -128,6 +108,13 @@ export async function encerrarSessao(
     };
   }
 
+  // Derrubar a sessao de outro aparelho e acao sensivel: e o primeiro botao
+  // que quem sequestrou uma sessao aberta usaria para expulsar o dono da
+  // propria conta. A janela e conferida antes de falar com o banco.
+  if (!(await autenticadoRecentemente())) {
+    return { recado: null, encerrado: null, precisaReautenticar: true };
+  }
+
   const supabase = await clienteServidor();
   const { data, error } = await supabase.rpc('encerra_sessao', {
     p_identificador: identificador,
@@ -148,4 +135,28 @@ export async function encerrarSessao(
 
   revalidatePath('/conta/seguranca');
   return { recado: { tom: 'ok', texto: 'Sessão encerrada.' }, encerrado: identificador };
+}
+
+/**
+ * Confirma a senha e refaz a acao que estava pendente (#40).
+ *
+ * Quem decide o que refazer e a tela, que guardou o identificador. Aqui so se
+ * reautentica e se delega — assim esta acao serve para qualquer outra que
+ * venha a precisar da janela.
+ */
+export async function reautenticarEEncerrar(
+  anterior: EstadoSessao,
+  form: FormData
+): Promise<EstadoSessao> {
+  const senha = String(form.get('senha') ?? '');
+
+  if (!(await reautenticar(senha))) {
+    return {
+      recado: { tom: 'erro', texto: 'A senha está incorreta.' },
+      encerrado: null,
+      precisaReautenticar: true,
+    };
+  }
+
+  return encerrarSessao(anterior, form);
 }

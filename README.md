@@ -31,6 +31,7 @@ lib/
     foto.ts             regras de upload: tipo real, tamanho, normalização
     senha.ts            medidor de força (roda nos dois lados)
     senha-servidor.ts   checagem contra vazamento por k-anonymity
+    reautenticacao.ts   janela de autenticação recente, lida do banco
     sessoes.ts          leitura de user-agent e rede, mapper da lista
   supabase/
     env.ts              lê as variáveis, falha fechada
