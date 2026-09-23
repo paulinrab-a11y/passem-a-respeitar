@@ -29,7 +29,7 @@ export async function meusPedidos(pagina: number): Promise<PaginaDePedidos | nul
     // Colunas nomeadas, nunca `select *`. O que nao esta escrito aqui nao
     // chega nem a sair do banco. (#20)
     .select(
-      'numero, criado_em, status, total_centavos, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos)'
+      'id, numero, criado_em, status, total_centavos, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos)'
     )
     // A RLS ja garantiria isto sozinha. O filtro explicito e a primeira
     // barreira: se um dia esta funcao rodar com um client de service_role, o

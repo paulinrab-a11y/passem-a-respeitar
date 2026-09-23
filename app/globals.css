@@ -689,3 +689,67 @@ footer.assina a:hover{color:var(--vermelho)}
      animacao por um piscar. */
   .pedidos>li{animation-duration:.01ms;animation-delay:0ms!important}
 }
+
+/* Detalhe do pedido (#42) ---------------------------------------------------- */
+.pedido-topo h2 a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}
+.pedido-topo h2 a:hover{color:var(--vermelho);border-color:var(--vermelho)}
+
+.detalhe-topo{margin-top:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3)}
+
+/* `min-height:0` desfaz a regra de base `section{min-height:100vh}` (linha 59),
+   que existe para as secoes de tela cheia da home. Sem isto cada bloco daqui
+   nasce com 812px de altura no telefone e a linha do tempo cai mil pixels
+   abaixo do total. Medido, nao suposto. */
+.detalhe-bloco{min-height:0;margin-top:40px;padding-top:24px;border-top:1px solid var(--prata-3)}
+.detalhe-bloco h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:#fff;margin-bottom:18px}
+.detalhe-bloco .pedido-itens{margin-top:0}
+.detalhe-nota{font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);max-width:48ch;margin-bottom:18px}
+
+/* A fila. `border-left` no <li> desenha o fio que liga as etapas, e o ::before
+   do primeiro/ultimo apara as pontas — sem elemento extra so para a linha. */
+.etapas{list-style:none;margin:0;padding:0}
+.etapas li{position:relative;padding:0 0 22px 28px;border-left:1px solid #1c1d20;display:grid;grid-template-columns:1fr auto;gap:4px 14px;align-items:baseline}
+.etapas li:last-child{border-left-color:transparent;padding-bottom:0}
+
+.etapa-marca{position:absolute;left:-5px;top:4px;width:9px;height:9px;border:1px solid var(--prata-3);background:var(--preto)}
+.etapa-nome{font-size:14px;letter-spacing:.04em;color:var(--prata-3)}
+.etapa-quando{font-size:12px;letter-spacing:.06em;color:var(--prata-3);white-space:nowrap;text-align:right}
+
+.etapas .feita .etapa-marca{background:var(--prata-2);border-color:var(--prata-2)}
+.etapas .feita .etapa-nome{color:var(--prata)}
+.etapas .feita{border-left-color:var(--prata-3)}
+
+.etapas .atual .etapa-marca{background:var(--vermelho);border-color:var(--vermelho);width:11px;height:11px;left:-6px;top:3px}
+.etapas .atual .etapa-nome{color:#fff}
+.etapas .atual .etapa-quando{color:var(--prata-2)}
+
+/* Nao aconteceu e nao vai acontecer: fica visivel, mas riscado. So a cor nao
+   contaria isso, e o texto para leitor de tela esta no .sr do componente. */
+.etapas .nao-aconteceu .etapa-nome{text-decoration:line-through;opacity:.45}
+
+.etapas .ramo .etapa-marca{background:var(--vermelho);border-color:var(--vermelho);transform:rotate(45deg)}
+.etapas .ramo .etapa-nome{color:var(--vermelho);letter-spacing:.06em}
+.etapas .ramo .etapa-quando{color:var(--prata-2)}
+
+/* Entrada da fila: fade + 6px, 200ms. Stagger por nth-child e nao inline — a
+   fila tem no maximo seis linhas, entao o CSS da conta sozinho, e o bloco de
+   movimento reduzido abaixo desliga tudo com um `animation:none` limpo. */
+@keyframes etapa-entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.etapas li{animation:etapa-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.etapas li:nth-child(2){animation-delay:.05s}
+.etapas li:nth-child(3){animation-delay:.1s}
+.etapas li:nth-child(4){animation-delay:.15s}
+.etapas li:nth-child(5){animation-delay:.2s}
+.etapas li:nth-child(6){animation-delay:.25s}
+
+@media (max-width:767px){
+  .detalhe-bloco{margin-top:32px}
+  .etapas li{grid-template-columns:1fr;gap:3px}
+  .etapa-quando{text-align:left;white-space:normal}
+}
+
+@media (prefers-reduced-motion:reduce){
+  /* `animation:none` e nao duracao curta: o shorthand zera o atraso junto, e
+     aqui o atraso vem do proprio CSS. Sem style inline, sem !important. */
+  .etapas li{animation:none}
+}
