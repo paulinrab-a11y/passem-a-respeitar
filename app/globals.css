@@ -457,11 +457,9 @@ footer.assina a:hover{color:var(--vermelho)}
 .menu-conta-in{transform-origin:top right;min-width:210px;background:rgba(6,6,7,.96);border:1px solid var(--prata-3);display:flex;flex-direction:column;animation:menu-conta-entra .17s cubic-bezier(.22,1,.36,1) backwards}
 .menu-conta.fechando .menu-conta-in{animation:menu-conta-sai .12s cubic-bezier(.4,0,1,1) forwards}
 
-.menu-conta-in a,.menu-conta-in button,.menu-conta-in .off{display:block;width:100%;text-align:left;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata);text-decoration:none;padding:14px 18px;position:relative}
+.menu-conta-in a,.menu-conta-in button{display:block;width:100%;text-align:left;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata);text-decoration:none;padding:14px 18px;position:relative}
 .menu-conta-in a+a,.menu-conta-in>*+*{border-top:1px solid #16171a}
 .menu-conta-in a:hover,.menu-conta-in button:hover{color:#000;background:var(--vermelho)}
-.menu-conta-in .off{color:var(--prata-3);cursor:default}
-.menu-conta-in .off i{font-style:normal;font-size:10px;letter-spacing:.12em;color:var(--prata-3);opacity:.8}
 .menu-conta-in form{margin:0}
 .menu-conta-in .sair{color:var(--prata-2)}
 .menu-conta-in .sair:hover{color:#000}
@@ -472,7 +470,7 @@ footer.assina a:hover{color:var(--vermelho)}
      alvo de toque maior e menos chance de encostar fora sem querer. */
   .menu-conta{top:50px;left:var(--gutter);right:var(--gutter)}
   .menu-conta-in{min-width:0}
-  .menu-conta-in a,.menu-conta-in button,.menu-conta-in .off{padding:16px 18px;font-size:var(--t-small);min-height:52px}
+  .menu-conta-in a,.menu-conta-in button{padding:16px 18px;font-size:var(--t-small);min-height:52px}
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -534,7 +532,7 @@ footer.assina a:hover{color:var(--vermelho)}
      evento ainda e o caminho rapido e `animation:none` nunca o dispara. */
   .toast,.toast.saindo{animation-duration:.01ms}
 }
-.conta-atalho{margin-top:18px;font-size:13px;letter-spacing:.06em}
+.conta-atalho{margin-top:18px;font-size:13px;letter-spacing:.06em;display:flex;gap:22px;flex-wrap:wrap}
 .conta-atalho a{color:var(--prata-2);text-decoration:none;border-bottom:1px solid var(--prata-3)}
 .conta-atalho a:hover{color:var(--vermelho);border-color:var(--vermelho)}
 
@@ -622,4 +620,66 @@ footer.assina a:hover{color:var(--vermelho)}
   /* Duracao quase zero, nao `none`: o desmonte tem o prazo do hook, mas o
      evento continua sendo o caminho rapido. */
   .modal,.modal.saindo,.modal-caixa{animation-duration:.01ms}
+}
+
+/* Meus pedidos (#41) -------------------------------------------------------- */
+.pedidos{list-style:none;margin-top:34px;display:flex;flex-direction:column;gap:14px}
+
+/* Entrada dos cards: fade + 8px de subida, 220ms. A mesma curva e a mesma
+   ideia das linhas de sessao — quem ja viu uma lista deste site reconhece o
+   movimento. Stagger de 40ms nos quatro primeiros, aplicado inline pelo
+   componente: do quinto em diante a cascata so atrasa a leitura. */
+@keyframes pedido-entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pedidos>li{animation:pedido-entra .22s cubic-bezier(.22,1,.36,1) backwards}
+
+.pedidos article{border:1px solid var(--prata-3);border-left:2px solid var(--prata-3);padding:18px 18px 16px;background:#08080a}
+/* A borda da esquerda repete o tom do status. E o que deixa "aguardando
+   pagamento" — o unico estado em que a pessoa precisa fazer algo — achavel
+   sem ler card por card. */
+.pedidos article.atencao{border-left-color:var(--vermelho)}
+.pedidos article.apagado{border-left-color:#1c1d20}
+
+.pedido-topo{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.pedido-topo h2{font-family:var(--display);text-transform:uppercase;font-size:19px;letter-spacing:.04em;color:#fff}
+.pedido-status{font-size:10px;letter-spacing:.16em;text-transform:uppercase;border:1px solid;padding:3px 8px;white-space:nowrap}
+.pedido-status.atencao{color:var(--vermelho);border-color:var(--vermelho)}
+.pedido-status.normal{color:var(--prata);border-color:var(--prata-3)}
+.pedido-status.apagado{color:var(--prata-3);border-color:#1c1d20}
+.pedido-data{margin-top:7px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3)}
+
+.pedido-itens{list-style:none;margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.pedido-itens li{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.pedido-item-nome{font-size:14px;letter-spacing:.02em;color:var(--prata);min-width:0}
+.pedido-item-detalhe{font-size:12px;letter-spacing:.06em;color:var(--prata-3);white-space:nowrap}
+
+.pedido-total{margin-top:16px;padding-top:12px;border-top:1px solid #16171a;display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.pedido-total span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-3)}
+.pedido-total strong{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
+
+.pedidos-vazio{margin-top:34px;border-left:2px solid var(--vermelho);padding-left:16px;display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.pedidos-vazio p{font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);max-width:46ch}
+/* Especificidade maior de proposito: `.pedidos-vazio p` acima alcanca este
+   paragrafo tambem, e uma classe sozinha perderia para ele. */
+.pedidos-vazio p.pedidos-vazio-titulo{font-family:var(--display);text-transform:uppercase;font-size:24px;letter-spacing:.04em;line-height:1;color:#fff;max-width:none}
+
+.pedidos-paginas{margin-top:26px;padding-top:16px;border-top:1px solid var(--prata-3);display:flex;align-items:center;justify-content:space-between;gap:14px}
+.pedidos-paginas a{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none}
+.pedidos-paginas a:hover{color:var(--vermelho)}
+.pedidos-pagina-atual{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-3)}
+
+@media (max-width:767px){
+  .pedidos article{padding:16px 14px 14px}
+  .pedido-topo{flex-direction:column;align-items:flex-start;gap:8px}
+  .pedido-itens li{flex-direction:column;align-items:flex-start;gap:3px}
+  .pedido-item-detalhe{white-space:normal}
+  .pedidos-paginas a{min-height:44px;display:flex;align-items:center}
+  .pedidos-vazio .btn{width:100%;justify-content:center;min-height:52px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  /* O `!important` e por causa do stagger, que chega inline no style do <li>:
+     sem ele o quarto card ficaria 120ms invisivel (o fill e `backwards`) antes
+     de aparecer de uma vez. Duracao quase zero sem zerar o atraso trocaria uma
+     animacao por um piscar. */
+  .pedidos>li{animation-duration:.01ms;animation-delay:0ms!important}
 }

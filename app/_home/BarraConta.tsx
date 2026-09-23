@@ -23,13 +23,15 @@ import { sair } from '@/app/conta/acoes';
 type Resumo = { logado: true; nome: string | null; iniciais: string } | { logado: false };
 
 /**
- * `pronto: false` vira item desligado em vez de link para 404. Pedidos
- * entra em #41 e liga a propria linha aqui.
+ * As tres telas existem desde a #41. Ate ela, "Pedidos" era um item desligado
+ * com um selo "em breve"; agora nao ha mais item desligado, e o galho que
+ * desenhava um ficou fora daqui em vez de ficar de enfeite. Quando voltar a
+ * existir tela nao pronta, o git tem o desenho.
  */
 const ITENS = [
-  { href: '/conta', texto: 'Conta', pronto: true },
-  { href: '/conta/pedidos', texto: 'Pedidos', pronto: false },
-  { href: '/conta/seguranca', texto: 'Segurança', pronto: true },
+  { href: '/conta', texto: 'Conta' },
+  { href: '/conta/pedidos', texto: 'Pedidos' },
+  { href: '/conta/seguranca', texto: 'Segurança' },
 ] as const;
 
 export default function BarraConta() {
@@ -143,26 +145,11 @@ export default function BarraConta() {
             onAnimationEnd={aoFimDaAnimacao}
           >
             <div className="menu-conta-in" role="menu" aria-label="Sua conta">
-              {ITENS.map((item) =>
-                item.pronto ? (
-                  <a key={item.href} href={item.href} role="menuitem">
-                    {item.texto}
-                  </a>
-                ) : (
-                  // tabIndex -1: alcancavel pela navegacao do menu (setas),
-                  // fora da ordem do Tab. Item desligado que o leitor de tela
-                  // nao anuncia vira um buraco silencioso na lista.
-                  <span
-                    key={item.href}
-                    className="off"
-                    role="menuitem"
-                    tabIndex={-1}
-                    aria-disabled="true"
-                  >
-                    {item.texto} <i>em breve</i>
-                  </span>
-                )
-              )}
+              {ITENS.map((item) => (
+                <a key={item.href} href={item.href} role="menuitem">
+                  {item.texto}
+                </a>
+              ))}
 
               {/* A acao do servidor, chamada direto. Link para uma tela que
                   so tem um botao seria um passo a mais por nada — e sair e o

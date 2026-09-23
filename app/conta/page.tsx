@@ -80,7 +80,11 @@ export default async function Conta() {
 
         <NomeForm nome={perfil.nome ?? ''} />
 
+        {/* O menu da barra so existe na home. Sem estes dois links, quem esta
+            em /conta nao tem como chegar nas outras telas da conta a nao ser
+            digitando o endereco. */}
         <p className="conta-atalho">
+          <a href="/conta/pedidos">Meus pedidos</a>
           <a href="/conta/seguranca">Trocar senha</a>
         </p>
 
