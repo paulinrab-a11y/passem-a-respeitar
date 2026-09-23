@@ -1,6 +1,23 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // `server-only` existe para explodir quando importado fora do servidor,
+      // e e exatamente isso que ele faz aqui — o Vitest nao roda na condicao
+      // `react-server`, entao pega a versao que lanca. A propria biblioteca
+      // publica um `empty` para este caso.
+      //
+      // O que `server-only` protege continua protegido: quem garante que a
+      // chave secreta nao vai para o navegador e o build do Next, e o teste
+      // em fronteira.test.ts confere a mesma propriedade lendo o codigo.
+      //
+      // Caminho de arquivo, nao 'server-only/empty': o package.json so exporta
+      // '.', entao o subpath nao resolve.
+      'server-only': fileURLToPath(new URL('node_modules/server-only/empty.js', import.meta.url)),
+    },
+  },
   test: {
     environment: 'node',
     include: ['lib/**/*.test.ts', 'app/**/*.test.ts'],
