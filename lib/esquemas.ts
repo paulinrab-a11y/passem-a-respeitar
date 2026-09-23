@@ -29,3 +29,12 @@ export const esquemaEntrar = z.object({
   // Checkbox nao enviado nao aparece no FormData; por isso o default.
   lembrar: z.boolean().default(false),
 });
+
+/**
+ * Nome de exibicao. O limite de 80 bate com o check constraint da tabela
+ * (migration 20260923120000) — se divergissem, o banco recusaria depois de o
+ * formulario ter dito que estava tudo certo.
+ */
+export const esquemaNome = z.object({
+  nome: z.string().trim().min(2).max(80),
+});

@@ -67,6 +67,29 @@ describe('rota publica', () => {
     expect(csp).toContain("frame-ancestors 'none'");
   });
 
+  describe('o host do Supabase na CSP', () => {
+    const diretiva = (csp: string, nome: string) =>
+      csp
+        .split(';')
+        .map((d) => d.trim())
+        .find((d) => d.startsWith(`${nome} `)) ?? '';
+
+    it('entra em img-src, para a foto assinada carregar', async () => {
+      const csp = (await roda('/')).headers.get('Content-Security-Policy') ?? '';
+      expect(diretiva(csp, 'img-src')).toContain('https://projeto-de-teste.supabase.co');
+    });
+
+    // A abertura e para IMAGEM e so. Script vindo de la seria execucao de
+    // codigo de terceiro na nossa origem; connect seria exfiltracao.
+    it.each(['script-src', 'connect-src', 'frame-src', 'default-src'])(
+      'nao entra em %s',
+      async (nome) => {
+        const csp = (await roda('/')).headers.get('Content-Security-Policy') ?? '';
+        expect(diretiva(csp, nome)).not.toContain('supabase.co');
+      }
+    );
+  });
+
   it('da um nonce diferente a cada request', async () => {
     const a = (await roda('/')).headers.get('Content-Security-Policy');
     const b = (await roda('/')).headers.get('Content-Security-Policy');

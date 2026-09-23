@@ -5,12 +5,20 @@ import { COOKIE_LEMBRAR, opcoesDeSessao } from '@/lib/supabase/cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 
 // A Issue #14 trouxe imagens, modelo 3D, textura 360 e beats para public/,
-// servidos pela propria origem. Com o clipe saindo do Drive (#58, #75), nao
-// sobrou nenhum host externo: a politica inteira virou 'self'.
+// servidos pela propria origem, e o clipe saiu do Drive (#58, #75). O unico
+// host externo que sobrou e o do Storage, e so em img-src, logo abaixo.
 //
 // Quando o clipe subir no YouTube, frame-src volta como
 // 'https://www.youtube-nocookie.com' — e so isso.
 const FRAME_SRC = "'none'";
+
+// A foto de perfil e servida por URL assinada do Storage do Supabase (#26), que
+// mora em outro host. Este e o unico host externo da politica, e so para
+// imagem — nao para script, nem para frame, nem para connect.
+//
+// Derivado da variavel de ambiente, nao escrito na mao: trocar de projeto nao
+// pode deixar a CSP apontando para o projeto antigo em silencio.
+const SUPABASE_HOST = new URL(SUPABASE_URL).origin;
 
 function montaCsp(nonce: string, dev: boolean) {
   const script = [
@@ -30,7 +38,7 @@ function montaCsp(nonce: string, dev: boolean) {
     // script legado escreve style="" direto no elemento. A Issue #16 proibe
     // unsafe-inline em script-src, que e onde ele de fato e perigoso.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    `img-src 'self' data: blob: ${SUPABASE_HOST}`,
     "media-src 'self'",
     "connect-src 'self'",
     `frame-src ${FRAME_SRC}`,

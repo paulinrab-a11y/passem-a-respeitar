@@ -355,3 +355,60 @@ footer.assina a:hover{color:var(--vermelho)}
   .btn:active{transform:none}
   .auth-scan{display:none}
 }
+
+/* ===========================================================================
+   /conta (Issues #35 e #26)
+
+   Sem esqueleto de carregamento: qualquer <Suspense> no carregamento inicial
+   deixa a pagina presa no fallback nesta versao do Next. O achado esta na #46,
+   com as medidas para quando voltar.
+   =========================================================================== */
+
+.conta-caixa{width:min(520px,100%)}
+
+.conta-topo{margin-top:32px;display:flex;align-items:center;gap:20px}
+.conta-foto{position:relative;width:96px;height:96px;flex:0 0 96px;border:1px solid var(--prata-3);overflow:hidden;display:grid;place-items:center;background:#0a0a0a}
+.conta-foto img{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05)}
+.conta-iniciais{font-family:var(--display);font-size:34px;letter-spacing:.04em;color:var(--prata-3)}
+
+.conta-foto-bloco{display:flex;flex-direction:column;gap:10px}
+.conta-foto-acoes{display:flex;flex-direction:column;gap:6px}
+.conta-foto-acoes button{text-align:left;padding:0}
+.conta-foto-acoes button:disabled{color:var(--prata-3);cursor:progress}
+
+/* Barra de progresso do upload. scaleX e nao width: largura e layout, e
+   layout em 60fps durante um envio e o jeito mais simples de travar a pagina
+   de quem esta em celular velho. */
+.conta-progresso{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(0,0,0,.6)}
+.conta-progresso i{display:block;height:100%;background:var(--vermelho);transform-origin:left;transform:scaleX(0);transition:transform .18s linear}
+
+.conta-identidade{min-width:0}
+.conta-nome{font-family:var(--display);text-transform:uppercase;font-size:26px;line-height:1.1;color:#fff}
+.conta-email{margin-top:6px;font-size:14px;letter-spacing:.04em;color:var(--prata-2);word-break:break-all}
+.conta-selo{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--vermelho);border:1px solid var(--vermelho);padding:2px 7px;white-space:nowrap;vertical-align:middle}
+.conta-selo.ok{color:var(--prata-2);border-color:var(--prata-3)}
+.conta-desde{margin-top:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3)}
+
+.conta-aviso{margin-top:30px;border-left:2px solid var(--vermelho);padding-left:14px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.conta-aviso p{font-size:13px;line-height:1.5;letter-spacing:.02em;color:var(--prata-2);max-width:46ch}
+
+.conta-bloco{margin-top:30px;display:flex;flex-direction:column;gap:14px;align-items:stretch}
+.conta-bloco .auth-enviar{align-self:flex-start;margin-top:0}
+
+@keyframes conta-recado-entra{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.conta-recado{font-size:13px;letter-spacing:.04em;line-height:1.45;animation:conta-recado-entra .16s cubic-bezier(.22,1,.36,1) backwards}
+.conta-recado.ok{color:var(--prata)}
+.conta-recado.erro{color:var(--vermelho)}
+
+@media (max-width:767px){
+  .conta-topo{gap:var(--s-4)}
+  .conta-foto{width:76px;height:76px;flex-basis:76px}
+  .conta-iniciais{font-size:28px}
+  .conta-nome{font-size:22px}
+  .conta-bloco .auth-enviar{align-self:stretch}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .conta-recado{animation:none}
+  .conta-progresso i{transition:none}
+}

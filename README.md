@@ -19,10 +19,16 @@ app/
     config.ts           CONFIG tipado (links, assets, faixas, beats)
     HomeRuntime.tsx     carrega three.js e GSAP por dynamic import
     legacy-site.js      script original, verbatim, embrulhado numa função
+  entrar/               login (#31)
+  conta/                perfil, edição de nome, foto (#35)
   api/convite/route.ts  validação do código de convite (servidor)
+  api/conta/foto/       upload da foto de perfil (#26)
 lib/
   convite.ts            hash, comparação em tempo constante, cookie assinado
   rate-limit.ts         limite por IP (provisório, em memória — ver #22)
+  conta/
+    perfil.ts           consulta e mapper explícito da resposta
+    foto.ts             regras de upload: tipo real, tamanho, normalização
   supabase/
     env.ts              lê as variáveis, falha fechada
     tipos.ts            gerado do schema
@@ -92,6 +98,28 @@ Para a chave secreta nunca chegar ao navegador, três travas:
 
 E `lib/supabase/fronteira.test.ts` caminha pelos imports a partir do client do
 navegador, falhando se algum arquivo alcançável mencionar a chave.
+
+### A foto de perfil
+
+É o único upload do site, e passa por quatro peneiras, da mais barata para a
+mais cara:
+
+1. `content-length` — corta antes de ler o corpo
+2. extensão — `.jpg`, `.jpeg`, `.png`, `.webp`
+3. **bytes mágicos** — o `Content-Type` do formulário é escolhido por quem
+   envia; um `.php` renomeado chega anunciando `image/png`
+4. `sharp` — reescreve em WebP 512×512, o que também joga fora o EXIF (e com
+   ele a coordenada de GPS que a câmera do celular grava sem avisar)
+
+SVG fica de fora de propósito: é XML, aceita `<script>` dentro, e servido na
+origem certa vira XSS.
+
+O bucket é **privado**. Bucket público serve por URL adivinhável — quem
+descobre o padrão lista a foto de qualquer usuário a partir do id dele. A
+leitura sai por URL assinada de 10 minutos, gerada no servidor.
+
+`supabase/tests/rls-avatares.sql` confere que um usuário não alcança o arquivo
+do outro.
 
 **`legacy-site.js` é intocável por padrão.** É o script do site original, mantido
 byte a byte para o diff continuar auditável contra o deploy antigo. Está fora do
@@ -181,7 +209,9 @@ motion e carregamento.
 - Botão "Comprar" da merch sem destino — checkout Mercado Pago (#44, #45)
 - Link de pré-save ainda não existe; o botão mostra "em breve" (#58)
 - Clipe fora do ar até subir no YouTube (#75)
-- Schema e RLS prontos (#18), mas sem cliente Supabase nem área de conta
-  (#29 a #45)
+- Área de conta em construção: login (#31) e perfil (#35) prontos; falta
+  cadastro (#30), recuperação de senha (#32) e pedidos (#41, #42)
+- Sem skeleton de carregamento: qualquer `<Suspense>` no carregamento inicial
+  prende a página no fallback nesta versão do Next (#46)
 - Rate limit em memória, por instância — trocar por Upstash (#22)
 - Branch protection não disponível: exige GitHub Pro em repositório privado (#7)
