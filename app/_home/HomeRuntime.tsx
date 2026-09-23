@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { levaAteAAncora } from '@/lib/ancora';
 import { CONFIG } from './config';
 
 // three.js, GLTFLoader, GSAP e ScrollTrigger entram por dynamic import: ficam
@@ -10,6 +11,7 @@ import { CONFIG } from './config';
 export default function HomeRuntime() {
   useEffect(() => {
     let cancelado = false;
+    let soltaAncora = () => {};
 
     (async () => {
       const [THREE, gltf, gsapMod, stMod, legacy] = await Promise.all([
@@ -32,10 +34,16 @@ export default function HomeRuntime() {
       gsapMod.gsap.registerPlugin(stMod.ScrollTrigger);
 
       legacy.default(CONFIG);
+
+      // Depois do init, nao antes: e neste instante que a intro ja pos (ou nao
+      // pos) a trava de rolagem, e e a trava que diz se ha o que esperar antes
+      // de levar a pessoa ate a ancora com que ela chegou. (Issue #92.)
+      soltaAncora = levaAteAAncora(window);
     })();
 
     return () => {
       cancelado = true;
+      soltaAncora();
     };
   }, []);
 
