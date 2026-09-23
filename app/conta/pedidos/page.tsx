@@ -67,7 +67,14 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
                     a borda da esquerda e deixa a lista escaneavel de longe. */}
                 <article className={pedido.tom}>
                   <div className="pedido-topo">
-                    <h2>Pedido #{pedido.numero}</h2>
+                    {/* O link envolve so o numero, e nao o card inteiro: card
+                        clicavel transforma selecionar um texto em navegacao, e
+                        obriga a inventar semantica para o que ja e uma lista.
+                        Aqui o alvo e o nome do pedido, que e como a pessoa se
+                        refere a ele. (#42) */}
+                    <h2>
+                      <a href={`${AQUI}/${pedido.id}`}>Pedido #{pedido.numero}</a>
+                    </h2>
                     <span className={`pedido-status ${pedido.tom}`}>{pedido.rotulo}</span>
                   </div>
 
