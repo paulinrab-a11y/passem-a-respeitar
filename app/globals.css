@@ -564,7 +564,13 @@ footer.assina a:hover{color:var(--vermelho)}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .sessoes li{animation-duration:.01ms}
+  /* O `!important` e por causa do stagger, que chega inline no style do <li>.
+     Zerar so a duracao deixava o quarto item 120ms invisivel — o fill e
+     `backwards` — e depois aparecendo de uma vez: a animacao virava um piscar
+     atrasado, que e pior do que a animacao que a pessoa pediu para nao ver.
+     Mesma regra em `.pedidos>li`; quem garante que a dupla nao se separa e
+     app/movimento-reduzido.test.ts. (#52) */
+  .sessoes li{animation-duration:.01ms;animation-delay:0ms!important}
   .sessoes li.saindo{animation-duration:.01ms}
 }
 
