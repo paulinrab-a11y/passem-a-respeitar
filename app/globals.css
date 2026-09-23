@@ -438,3 +438,67 @@ footer.assina a:hover{color:var(--vermelho)}
      evento e deixaria o bloco preso na tela para sempre. */
   .conta-confirma,.conta-confirma.saindo{animation-duration:.01ms}
 }
+
+/* Menu da conta na barra (#34) ---------------------------------------------
+   Vive no <body>, fora de #bar, porque a barra tem mix-blend-mode:difference
+   e blenda o elemento inteiro — filho nenhum escapa. Dentro dela, este painel
+   sairia com as cores invertidas e mudando conforme a pagina rola.
+
+   Posicao fixa alinhada a direita pelo mesmo --gutter da barra: nao precisa
+   medir o gatilho, e nao sai do lugar quando o nome e curto ou comprido. */
+.menu-conta{position:fixed;top:58px;right:var(--gutter);z-index:30}
+
+/* transform-origin no canto de cima a direita: o painel cresce a partir do
+   gatilho, nao do proprio meio. */
+@keyframes menu-conta-entra{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+/* Saida mais curta e sem escala: quem fechou ja seguiu adiante. */
+@keyframes menu-conta-sai{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-4px)}}
+
+.menu-conta-in{transform-origin:top right;min-width:210px;background:rgba(6,6,7,.96);border:1px solid var(--prata-3);display:flex;flex-direction:column;animation:menu-conta-entra .17s cubic-bezier(.22,1,.36,1) backwards}
+.menu-conta.fechando .menu-conta-in{animation:menu-conta-sai .12s cubic-bezier(.4,0,1,1) forwards}
+
+.menu-conta-in a,.menu-conta-in button,.menu-conta-in .off{display:block;width:100%;text-align:left;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata);text-decoration:none;padding:14px 18px;position:relative}
+.menu-conta-in a+a,.menu-conta-in>*+*{border-top:1px solid #16171a}
+.menu-conta-in a:hover,.menu-conta-in button:hover{color:#000;background:var(--vermelho)}
+.menu-conta-in .off{color:var(--prata-3);cursor:default}
+.menu-conta-in .off i{font-style:normal;font-size:10px;letter-spacing:.12em;color:var(--prata-3);opacity:.8}
+.menu-conta-in form{margin:0}
+.menu-conta-in .sair{color:var(--prata-2)}
+.menu-conta-in .sair:hover{color:#000}
+.menu-conta-in button:disabled{color:var(--prata-3);cursor:progress;background:none}
+
+@media (max-width:767px){
+  /* Ocupa a largura util em vez de uma coluna estreita encostada no canto:
+     alvo de toque maior e menos chance de encostar fora sem querer. */
+  .menu-conta{top:50px;left:var(--gutter);right:var(--gutter)}
+  .menu-conta-in{min-width:0}
+  .menu-conta-in a,.menu-conta-in button,.menu-conta-in .off{padding:16px 18px;font-size:var(--t-small);min-height:52px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  /* Fade simples, sem deslocamento nem escala. A duracao nao vira zero: o
+     desmonte espera o animationend, e `animation:none` nunca dispara o evento
+     — o painel ficaria preso na tela para sempre. */
+  @keyframes menu-conta-entra{from{opacity:0}to{opacity:1}}
+  @keyframes menu-conta-sai{from{opacity:1}to{opacity:0}}
+  .menu-conta-in{animation-duration:.12s}
+  .menu-conta.fechando .menu-conta-in{animation-duration:.1s}
+}
+
+/* Barra: o que cabe em cada largura (#34).
+   Sete itens nao cabem em 375px — medido: a barra ia de 66 para 82px porque o
+   texto quebrava dentro do item. */
+.so-estreito{display:none}
+@media (max-width:767px){
+  #bar .right .so-largo{display:none}
+  .so-estreito{display:inline}
+}
+
+/* A barra ja estava no limite exato em 375px: 309px de conteudo para 309px de
+   espaco. Qualquer item novo empurrava "som" e "pré-save" para duas linhas, e
+   a barra ia de 66 para 82px.
+   O `nowrap` impede a quebra; o respiro menor devolve a largura que o item de
+   conta ocupa. Medido em 375px e em 360px. */
+@media (max-width:767px){
+  #bar .right{gap:11px;letter-spacing:.06em;white-space:nowrap}
+}

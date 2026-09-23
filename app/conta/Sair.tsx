@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
+import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
 import { sair, sairDeTodos } from './acoes';
 
 /**
@@ -15,10 +16,8 @@ import { sair, sairDeTodos } from './acoes';
  * o desmonte espera o `animationend`. E o suficiente para um bloco; quando o
  * menu da #34 chegar, vale reavaliar.
  */
-type Fase = 'parado' | 'confirmando' | 'saindo';
-
 export default function Sair() {
-  const [fase, setFase] = useState<Fase>('parado');
+  const { montado: confirmando, saindo, abrir, fechar, aoFimDaAnimacao } = useDesmonteAnimado(300);
   const [pendente, comecar] = useTransition();
 
   return (
@@ -29,18 +28,10 @@ export default function Sair() {
         </button>
       </form>
 
-      {fase === 'parado' ? (
-        <button type="button" className="auth-link" onClick={() => setFase('confirmando')}>
-          Sair de todos os dispositivos
-        </button>
-      ) : (
+      {confirmando ? (
         <div
-          className={`conta-confirma${fase === 'saindo' ? ' saindo' : ''}`}
-          // Só desmonta quando a animação de saída termina. Sem isso, a de
-          // entrada dispararia de novo se a pessoa reabrir no meio.
-          onAnimationEnd={() => {
-            if (fase === 'saindo') setFase('parado');
-          }}
+          className={`conta-confirma${saindo ? ' saindo' : ''}`}
+          onAnimationEnd={aoFimDaAnimacao}
         >
           <p>
             Isso derruba a sessão em todos os aparelhos, inclusive nos que você não tem em mãos
@@ -58,16 +49,15 @@ export default function Sair() {
               </button>
             </form>
 
-            <button
-              type="button"
-              className="auth-link"
-              onClick={() => setFase('saindo')}
-              disabled={pendente}
-            >
+            <button type="button" className="auth-link" onClick={fechar} disabled={pendente}>
               Cancelar
             </button>
           </div>
         </div>
+      ) : (
+        <button type="button" className="auth-link" onClick={abrir}>
+          Sair de todos os dispositivos
+        </button>
       )}
     </div>
   );

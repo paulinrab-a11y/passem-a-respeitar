@@ -1,3 +1,4 @@
+import BarraConta from './_home/BarraConta';
 import HomeRuntime from './_home/HomeRuntime';
 
 // A CSP do middleware.ts carrega um nonce novo a cada request, e o Next so
@@ -38,6 +39,7 @@ export default function Home() {
           <a href="#fim" id="linkConvite">
             convite
           </a>
+          <BarraConta />
         </nav>
       </header>
 
