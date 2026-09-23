@@ -120,6 +120,69 @@ describe('clienteServidor', () => {
   });
 });
 
+describe('clienteDeAuth', () => {
+  it('tambem usa a chave publishable, nao a secreta', async () => {
+    vi.stubEnv('SUPABASE_SECRET_KEY', SECRETA_FALSA);
+    const { clienteDeAuth } = await import('./servidor');
+    await clienteDeAuth(true);
+
+    const [url, chave] = criaServidor.mock.calls[0] as [string, string];
+    expect(url).toBe(URL_FALSA);
+    expect(chave).toBe(PUBLISHABLE_FALSA);
+  });
+
+  it('grava o cookie endurecido', async () => {
+    const { clienteDeAuth } = await import('./servidor');
+    await clienteDeAuth(true);
+
+    const opcoes = criaServidor.mock.calls[0][2] as {
+      cookies: { setAll: (l: unknown[]) => void };
+    };
+    opcoes.cookies.setAll([
+      { name: 'sb-token', value: 'abc', options: { httpOnly: false, sameSite: 'none' } },
+    ]);
+
+    expect(jar.set).toHaveBeenCalledWith(
+      'sb-token',
+      'abc',
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax', path: '/' })
+    );
+  });
+
+  it('sem "manter conectado" o token vira cookie de sessao', async () => {
+    const { clienteDeAuth } = await import('./servidor');
+    await clienteDeAuth(false);
+
+    const opcoes = criaServidor.mock.calls[0][2] as {
+      cookies: { setAll: (l: unknown[]) => void };
+    };
+    opcoes.cookies.setAll([{ name: 'sb-token', value: 'abc', options: { maxAge: 31536000 } }]);
+
+    expect(jar.set).toHaveBeenCalledWith(
+      'sb-token',
+      'abc',
+      expect.objectContaining({ maxAge: undefined })
+    );
+  });
+
+  // Ao contrario de clienteServidor, este NAO engole o erro de escrever
+  // cookie. Numa Server Action a escrita funciona; falhar calado deixaria a
+  // pessoa sem sessao depois de um login que disse ter dado certo.
+  it('deixa o erro de escrita estourar', async () => {
+    jar.set.mockImplementation(() => {
+      throw new Error('falhou');
+    });
+
+    const { clienteDeAuth } = await import('./servidor');
+    await clienteDeAuth(true);
+
+    const opcoes = criaServidor.mock.calls[0][2] as {
+      cookies: { setAll: (l: unknown[]) => void };
+    };
+    expect(() => opcoes.cookies.setAll([{ name: 'x', value: 'y', options: {} }])).toThrow();
+  });
+});
+
 describe('usuarioDaSessao', () => {
   it('usa getUser, que confere a assinatura, e nao getSession', async () => {
     const getUser = vi.fn(async () => ({ data: { user: { id: 'u1' } }, error: null }));
