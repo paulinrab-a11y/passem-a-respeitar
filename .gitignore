@@ -52,4 +52,8 @@ yarn-error.log*
 .agents/
 .claude/skills/
 
+# ambiente: o `vercel env pull` escreve `.env*` aqui sozinho. A excecao e
+# manual — o .env.example so tem NOMES de variavel e precisa ficar versionado,
+# senao ninguem sabe o que cadastrar.
 .env*
+!.env.example
