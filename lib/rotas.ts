@@ -7,10 +7,18 @@
 
 export const ENTRAR = '/entrar';
 const CONTA = '/conta';
+const CHECKOUT = '/checkout';
 
-/** Rotas que exigem sessao. */
+/**
+ * Rotas que exigem sessao.
+ *
+ * O checkout entra aqui (#106) e isso tem consequencia boa de graca: quem
+ * clica em Comprar deslogado cai no login com `next=/checkout?...`, e
+ * `destinoSeguro` devolve para o checkout com o tamanho que a pessoa tinha
+ * escolhido. Sem isso, voltar para a home e refazer a escolha.
+ */
 export function exigeSessao(pathname: string) {
-  return pathname === CONTA || pathname.startsWith(`${CONTA}/`);
+  return pathname === CONTA || pathname.startsWith(`${CONTA}/`) || pathname === CHECKOUT;
 }
 
 /**

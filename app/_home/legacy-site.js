@@ -594,7 +594,14 @@ const Loja = (()=>{
   const el = $('#loja'), vit = $('#vitrine'), canvas = $('#glLoja');
   let renderer, scene, camera, camisa, brasao, rotY = 0.35, rotX = 0.05, velY = 0, arrastando = false, ux = 0, uy = 0, aberto = false, pronto = false;
   let tam = $('#tamLoja').dataset.padrao || '';
-  const link = ()=>{ $('#comprarLoja').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
+  // Destino do Comprar: /checkout com a escolha na query (#106). O slug vem do
+  // dataset, carimbado pelo servidor a partir do catalogo — nao ha nome de
+  // produto escrito neste arquivo desde a #99.
+  const slugDoProduto = () => $('#tamLoja').dataset.slug || '';
+  const link = ()=>{
+    const slug = slugDoProduto();
+    $('#comprarLoja').href = slug ? `/checkout?p=${encodeURIComponent(slug)}&tam=${encodeURIComponent(tam)}` : '#';
+  };
   $('#tamLoja').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
     $$('#tamLoja button').forEach(x=>x.classList.toggle('on', x===b)); tam = b.dataset.t; link();

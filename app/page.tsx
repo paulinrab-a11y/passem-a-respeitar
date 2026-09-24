@@ -154,6 +154,7 @@ export default async function Home() {
               role="group"
               aria-label="Tamanho"
               data-padrao={tamanhoPadrao}
+              data-slug={camiseta?.slug ?? ''}
             >
               {camiseta?.variacoes.map((v) => (
                 <button
@@ -236,6 +237,7 @@ export default async function Home() {
               role="group"
               aria-label="Tamanho"
               data-padrao={tamanhoPadrao}
+              data-slug={camiseta?.slug ?? ''}
             >
               {camiseta?.variacoes.map((v) => (
                 <button
