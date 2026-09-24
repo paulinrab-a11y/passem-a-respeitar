@@ -62,10 +62,13 @@ beforeEach(() => {
 });
 
 describe('sucesso', () => {
-  it('leva para o pedido criado', async () => {
+  // A costura que a #113 encontrou solta: o pedido nasce aguardando pagamento,
+  // e a tela de pagar nao tinha nenhum caminho ate ela.
+  it('leva para o PAGAMENTO do pedido criado, nao para o detalhe', async () => {
     await expect(enviar()).rejects.toThrow('NEXT_REDIRECT');
 
-    expect(redirect).toHaveBeenCalledWith('/conta/pedidos/ped-1');
+    expect(redirect).toHaveBeenCalledWith('/checkout/pagamento/ped-1');
+    expect(redirect).not.toHaveBeenCalledWith('/conta/pedidos/ped-1');
   });
 
   it('manda para a criacao so escolha, nunca valor', async () => {

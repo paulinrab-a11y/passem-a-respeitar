@@ -75,6 +75,10 @@ export async function finalizarCompra(
   if (!criado.ok) return erro(criado.motivo);
 
   // `redirect` lanca — por isso fica fora de try. O pedido ja existe neste
-  // ponto; daqui em diante a tela de detalhe e a fonte de verdade.
-  redirect(`/conta/pedidos/${criado.id}`);
+  // ponto; daqui em diante o banco e a fonte de verdade.
+  //
+  // Para o PAGAMENTO, nao para o detalhe (#113): o pedido nasce
+  // `aguardando_pagamento`, e mandar a pessoa para uma tela que so descreve o
+  // pedido deixava a tela de pagar sem nenhum caminho ate ela.
+  redirect(`/checkout/pagamento/${criado.id}`);
 }

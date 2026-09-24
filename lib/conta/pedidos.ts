@@ -91,6 +91,8 @@ export type Pedido = {
   rotulo: string;
   tom: Tom;
   total: string;
+  /** Ainda espera pagamento: e o unico status em que faz sentido oferecer pagar (#113). */
+  aguardandoPagamento: boolean;
   itens: ItemDoPedido[];
 };
 
@@ -146,6 +148,7 @@ export function mapeiaPedidos(linhas: LinhaPedido[]): Pedido[] {
       rotulo,
       tom,
       total: reais(l.total_centavos),
+      aguardandoPagamento: l.status === 'aguardando_pagamento',
       itens: mapeiaItens(l.order_items),
     };
   });

@@ -32,6 +32,12 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
   if (resultado.tipo === 'nao-achei') notFound();
 
   const { pedido } = resultado;
+
+  // Pedido pago, cancelado ou ja em andamento nao tem o que pagar. `cobra()`
+  // ja recusaria (`pedido-ja-pago`), mas mostrar o Brick para depois recusar
+  // e convidar para uma porta fechada. (#113)
+  if (!pedido.aguardandoPagamento) redirect(`/conta/pedidos/${id}`);
+
   const usuario = await usuarioDaSessao();
   const chave = chavePublica();
 
