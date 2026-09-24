@@ -126,3 +126,47 @@ export function conferaAssinatura({
     ? { valida: true }
     : { valida: false, motivo: 'nao-confere' };
 }
+
+/**
+ * DIAGNOSTICO TEMPORARIO — remover antes do merge.
+ *
+ * A notificacao real do provedor chegou e nao conferiu. Ha duas causas
+ * possiveis e elas pedem acoes opostas: segredo errado (mexer na Vercel) ou
+ * manifesto errado (mexer no codigo). Isto separa as duas em um deploy.
+ *
+ * Testa as variacoes ambiguas da documentacao e diz QUAL fecha. Nao imprime
+ * segredo nem hash: so o nome da variacao. Se nenhuma fechar, o segredo e que
+ * esta errado.
+ */
+export function qualManifesto({
+  assinatura,
+  requestId,
+  recursoId,
+  segredo,
+}: Omit<EntradaDaAssinatura, 'agoraMs'>): string {
+  if (!segredo || !assinatura || !recursoId) return 'entrada-incompleta';
+
+  const campos = partes(assinatura);
+  const ts = campos.get('ts');
+  const v1 = campos.get('v1');
+  if (!ts || !v1) return 'header-malformado';
+
+  const minusculo = /^\d+$/.test(recursoId) ? recursoId : recursoId.toLowerCase();
+  const req = requestId ?? '';
+
+  const candidatos: [string, string][] = [
+    ['id-como-veio', `id:${recursoId};request-id:${req};ts:${ts};`],
+    ['id-minusculo', `id:${minusculo};request-id:${req};ts:${ts};`],
+    ['sem-request-id', `id:${recursoId};ts:${ts};`],
+    ['sem-request-id-minusculo', `id:${minusculo};ts:${ts};`],
+    ['sem-ponto-final', `id:${recursoId};request-id:${req};ts:${ts}`],
+    ['id-maiusculo', `id:${recursoId.toUpperCase()};request-id:${req};ts:${ts};`],
+  ];
+
+  for (const [nome, manifesto] of candidatos) {
+    const esperado = createHmac('sha256', segredo).update(manifesto).digest('hex');
+    if (mesmoHash(esperado, v1.toLowerCase())) return nome;
+  }
+
+  return 'nenhuma-variacao-fecha';
+}

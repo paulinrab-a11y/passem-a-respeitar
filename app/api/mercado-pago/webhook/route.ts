@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { conferaAssinatura } from '@/lib/loja/assinatura-webhook';
+import { conferaAssinatura, qualManifesto } from '@/lib/loja/assinatura-webhook';
 import { processa } from '@/lib/loja/webhook';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +40,24 @@ export async function POST(request: NextRequest) {
     // O motivo fica no log do servidor, nao na resposta: quem esta tentando
     // forjar nao precisa saber se errou o carimbo ou o hash.
     console.warn('[webhook] recusado:', veredito.motivo);
+    // DIAGNOSTICO TEMPORARIO — remover antes do merge.
+    if (veredito.motivo === 'nao-confere') {
+      console.warn(
+        '[webhook] diagnostico:',
+        qualManifesto({
+          assinatura: request.headers.get('x-signature'),
+          requestId: request.headers.get('x-request-id'),
+          recursoId,
+          segredo: process.env.MERCADOPAGO_WEBHOOK_SECRET,
+        }),
+        '| tem request-id:',
+        request.headers.get('x-request-id') !== null,
+        '| id:',
+        recursoId,
+        '| type:',
+        url.searchParams.get('type') ?? url.searchParams.get('topic')
+      );
+    }
     return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
   }
 
