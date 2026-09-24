@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { destinoSeguro, ehRotaDeAuth, exigeSessao, precisaDeSessao } from './rotas';
+import { destinoSeguro, ehPagamento, ehRotaDeAuth, exigeSessao, precisaDeSessao } from './rotas';
 
 describe('exigeSessao', () => {
   it.each(['/conta', '/conta/', '/conta/pedidos', '/conta/seguranca', '/conta/pedidos/abc'])(
@@ -115,5 +115,29 @@ describe('checkout (#106)', () => {
   it('nao vira porta para rota que nao exige sessao', () => {
     expect(destinoSeguro('/checkoutfalso')).toBe('/conta');
     expect(destinoSeguro('//evil.com/checkout')).toBe('/conta');
+  });
+});
+
+describe('ehPagamento (#108)', () => {
+  // E a unica rota do site que abre host externo na CSP. Errar para mais abre
+  // o Mercado Pago onde nao precisa; errar para menos quebra o Brick.
+  it('reconhece a tela de pagamento', () => {
+    expect(ehPagamento('/checkout/pagamento/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')).toBe(true);
+  });
+
+  it.each([
+    '/checkout',
+    '/checkout/pagamento',
+    '/checkout/pagamentos/123',
+    '/conta/pedidos/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    '/',
+    '/entrar',
+    '/checkoutfalso/pagamento/1',
+  ])('nao abre host externo em %s', (caminho) => {
+    expect(ehPagamento(caminho)).toBe(false);
+  });
+
+  it('a tela de pagamento tambem exige sessao', () => {
+    expect(exigeSessao('/checkout/pagamento/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')).toBe(true);
   });
 });

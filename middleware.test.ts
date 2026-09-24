@@ -296,3 +296,80 @@ describe('http', () => {
     expect(r.headers.get('location')).toMatch(/^https:/);
   });
 });
+
+describe('os hosts do Mercado Pago na CSP (#108)', () => {
+  const diretiva = (csp: string, nome: string) =>
+    csp
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => d.startsWith(`${nome} `) || d === nome) ?? '';
+
+  const PAGAMENTO = '/checkout/pagamento/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+
+  const cspDe = async (caminho: string) =>
+    (await roda(caminho)).headers.get('Content-Security-Policy') ?? '';
+
+  // A lista saiu de medicao: montei o Brick e li as violacoes, uma rodada por
+  // vez. Cada host aqui apareceu numa delas.
+  it.each([
+    ['https://api.mercadopago.com', 'connect-src'],
+    ['https://api-static.mercadopago.com', 'connect-src'],
+    ['https://secure-fields.mercadopago.com', 'connect-src'],
+    ['https://http2.mlstatic.com', 'connect-src'],
+    ['https://secure-fields.mercadopago.com', 'frame-src'],
+  ])('%s entra em %s na tela de pagamento', async (host, nome) => {
+    expect(diretiva(await cspDe(PAGAMENTO), nome)).toContain(host);
+  });
+
+  // O ponto da Issue: o host novo vale numa rota so. Se alguem trocar a
+  // condicao por um booleano global, estes testes caem.
+  it.each(['/', '/conta', '/conta/pedidos', '/checkout', '/entrar'])(
+    '%s continua sem host do Mercado Pago',
+    async (caminho) => {
+      const csp = await cspDe(caminho);
+
+      expect(csp).not.toContain('mercadopago.com');
+      expect(csp).not.toContain('mlstatic.com');
+    }
+  );
+
+  it('fora do pagamento, frame-src continua none', async () => {
+    expect(diretiva(await cspDe('/'), 'frame-src')).toBe("frame-src 'none'");
+  });
+
+  // `strict-dynamic` faz host em script-src ser IGNORADO. Listar o SDK ali
+  // seria linha morta, e linha morta numa politica de seguranca confunde quem
+  // for revisar depois.
+  it('nao lista host em script-src, nem no pagamento', async () => {
+    const script = diretiva(await cspDe(PAGAMENTO), 'script-src');
+
+    expect(script).toContain("'strict-dynamic'");
+    expect(script).not.toContain('mercadopago');
+    expect(script).not.toContain('mlstatic');
+  });
+
+  // Nada de curinga nas diretivas que o Brick pediu: `*.mercadopago.com`
+  // cobriria subdominio que ninguem revisou.
+  //
+  // `style-src 'unsafe-inline'` fica de fora da varredura de proposito: ele e
+  // anterior a esta Issue, tem motivo escrito no middleware (o Next injeta
+  // <style> inline) e nao tem nada a ver com o Brick.
+  it.each(['connect-src', 'frame-src'])('%s nao usa curinga', async (nome) => {
+    const d = diretiva(await cspDe(PAGAMENTO), nome);
+
+    expect(d).not.toContain('*');
+    expect(d).not.toContain("'unsafe");
+  });
+
+  it('script-src continua sem unsafe em producao', async () => {
+    const script = diretiva(await cspDe(PAGAMENTO), 'script-src');
+
+    expect(script).not.toContain("'unsafe-inline'");
+  });
+
+  // Telemetria e fingerprint do Mercado Livre continuam barrados. O Brick
+  // monta sem eles — conferido no preview.
+  it.each(['mercadolibre.com', 'mercadolivre.com'])('nao libera %s', async (host) => {
+    expect(await cspDe(PAGAMENTO)).not.toContain(host);
+  });
+});

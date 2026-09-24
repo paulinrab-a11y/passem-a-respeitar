@@ -249,6 +249,8 @@ describe('mapeiaDetalhe', () => {
       'rotulo',
       'tom',
       'total',
+      // Entrou na #108: o Payment Brick recebe numero, nao texto formatado.
+      'totalCentavos',
     ]);
     expect(serializado).not.toContain('11111111-2222-4333-8444-555555555555');
     expect(serializado).not.toContain('anotacao interna');

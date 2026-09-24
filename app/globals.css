@@ -786,3 +786,10 @@ footer.assina a:hover{color:var(--vermelho)}
   .campo-inteiro,.campo-dois-tercos,.campo-terco{grid-column:span 1}
   .entrega .auth-enviar{min-height:52px}
 }
+
+/* Payment Brick (#108) ------------------------------------------------------- */
+/* O Brick traz o proprio layout e tema — o que sobra para ca e o encaixe: a
+   largura da caixa e o recado enquanto ele nao montou. */
+.brick{margin-top:4px}
+.brick .detalhe-nota{margin-bottom:0}
+.pagamento-valor{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
