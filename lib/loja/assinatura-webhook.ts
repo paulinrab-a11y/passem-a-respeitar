@@ -153,6 +153,7 @@ export function qualManifesto({
 
   const minusculo = /^\d+$/.test(recursoId) ? recursoId : recursoId.toLowerCase();
   const req = requestId ?? '';
+  const limpo = segredo.trim();
 
   const candidatos: [string, string][] = [
     ['id-como-veio', `id:${recursoId};request-id:${req};ts:${ts};`],
@@ -163,10 +164,20 @@ export function qualManifesto({
     ['id-maiusculo', `id:${recursoId.toUpperCase()};request-id:${req};ts:${ts};`],
   ];
 
-  for (const [nome, manifesto] of candidatos) {
-    const esperado = createHmac('sha256', segredo).update(manifesto).digest('hex');
-    if (mesmoHash(esperado, v1.toLowerCase())) return nome;
+  // Duas chaves: o valor como esta e o valor sem espaco em volta. Colagem com
+  // quebra de linha e o erro mais comum e o mais invisivel.
+  for (const [rotulo, chave] of [
+    ['', segredo],
+    ['+trim', limpo],
+  ] as [string, string][]) {
+    if (rotulo && chave === segredo) continue;
+    for (const [nome, manifesto] of candidatos) {
+      const esperado = createHmac('sha256', chave).update(manifesto).digest('hex');
+      if (mesmoHash(esperado, v1.toLowerCase())) return nome + rotulo;
+    }
   }
 
-  return 'nenhuma-variacao-fecha';
+  // O comprimento nao revela o segredo e separa 'colei errado' de 'colei
+  // truncado'. O do provedor tem 64 caracteres hexadecimais.
+  return `nenhuma-variacao-fecha (segredo: ${segredo.length} chars, ${limpo.length} sem espaco)`;
 }
