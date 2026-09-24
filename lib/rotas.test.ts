@@ -98,3 +98,22 @@ describe('destinoSeguro', () => {
     }
   });
 });
+
+describe('checkout (#106)', () => {
+  it('exige sessao', () => {
+    expect(exigeSessao('/checkout')).toBe(true);
+  });
+
+  // Quem clica em Comprar deslogado tem que voltar para o checkout COM o
+  // tamanho escolhido. Perder a escolha no meio do caminho e perder a venda.
+  it('e destino valido depois do login, com a escolha preservada', () => {
+    expect(destinoSeguro('/checkout?p=camiseta-cbac&tam=GG')).toBe(
+      '/checkout?p=camiseta-cbac&tam=GG'
+    );
+  });
+
+  it('nao vira porta para rota que nao exige sessao', () => {
+    expect(destinoSeguro('/checkoutfalso')).toBe('/conta');
+    expect(destinoSeguro('//evil.com/checkout')).toBe('/conta');
+  });
+});

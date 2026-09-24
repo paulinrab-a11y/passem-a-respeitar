@@ -753,3 +753,36 @@ footer.assina a:hover{color:var(--vermelho)}
      aqui o atraso vem do proprio CSS. Sem style inline, sem !important. */
   .etapas li{animation:none}
 }
+
+/* Checkout (#106) ------------------------------------------------------------ */
+.checkout-caixa{width:min(560px,100%)}
+
+.resumo{margin-top:18px;padding-top:14px;border-top:1px solid #16171a}
+.resumo>div{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:5px 0}
+.resumo dt{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata-3)}
+.resumo dd{margin:0;font-size:14px;letter-spacing:.04em;color:var(--prata)}
+.resumo .resumo-total{margin-top:8px;padding-top:12px;border-top:1px solid var(--prata-3)}
+.resumo .resumo-total dt{color:var(--prata-2)}
+.resumo .resumo-total dd{font-family:var(--display);font-weight:400;font-size:24px;letter-spacing:.04em;color:#fff}
+
+/* Grade de 3 colunas: CEP e Número ocupam um terço, Rua e Cidade dois. No
+   telefone tudo vira uma coluna — endereço em duas colunas de 160px é pior
+   que endereço comprido. */
+.entrega-campos{margin-top:4px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.campo-inteiro{grid-column:span 3}
+.campo-dois-tercos{grid-column:span 2}
+.campo-terco{grid-column:span 1}
+
+.entrega{display:flex;flex-direction:column;gap:18px}
+.entrega .auth-enviar{margin-top:2px}
+.entrega-nota{font-size:12px;letter-spacing:.06em;color:var(--prata-3);text-align:center}
+
+/* O campo que o servidor apontou. Borda vermelha E foco: cor sozinha não
+   conta nada para quem não a distingue. */
+.entrega input[aria-invalid='true']{border-color:var(--vermelho)}
+
+@media (max-width:767px){
+  .entrega-campos{grid-template-columns:1fr;gap:14px}
+  .campo-inteiro,.campo-dois-tercos,.campo-terco{grid-column:span 1}
+  .entrega .auth-enviar{min-height:52px}
+}
