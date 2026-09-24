@@ -1,3 +1,5 @@
+import { vitrine } from '@/lib/loja/catalogo';
+import { precoNaFicha } from '@/lib/loja/precos';
 import BarraConta from './_home/BarraConta';
 import HomeRuntime from './_home/HomeRuntime';
 
@@ -10,7 +12,22 @@ export const dynamic = 'force-dynamic';
 // Markup portado de src/index.html sem alteracao de conteudo, cor, fonte ou
 // espacamento. Renderizado no servidor; o comportamento (intro VHS, elos,
 // three.js, GSAP, loja 3D, beats, convite) e ligado por HomeRuntime no cliente.
-export default function Home() {
+export default async function Home() {
+  // O preco e o nome vem do banco desde a #99. Antes moravam aqui no JSX, em
+  // dois lugares — `#merch` e `#loja` — com a descricao escrita de dois jeitos
+  // diferentes. Enquanto foi assim, nao havia preco no servidor para o checkout
+  // recalcular.
+  const [camiseta] = await vitrine();
+
+  // Catalogo fora do ar nao derruba a home. Mostrar um preco antigo gravado no
+  // codigo seria pior do que nao mostrar preco: a pessoa veria um numero que
+  // ninguem garante.
+  const temMerch = Boolean(camiseta);
+  const tamanhoPadrao =
+    camiseta?.variacoes.find((v) => v.tamanho === 'M')?.tamanho ??
+    camiseta?.variacoes[0]?.tamanho ??
+    '';
+
   return (
     <>
       {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: canvas decorativo (WebGL de fundo e grain VHS), sem tabindex, logo nao focavel. O aria-hidden e proposital para o leitor de tela ignorar. */}
@@ -120,27 +137,34 @@ export default function Home() {
         <section id="merch">
           <div className="ficha">
             <h2>Merch</h2>
-            <div className="nome">Camiseta CBAC x Passem a Respeitar</div>
-            <div className="preco">
-              <small>R$</small>120
-            </div>
+            <div className="nome">{camiseta?.nome ?? 'Merch'}</div>
+            {temMerch ? (
+              <div className="preco">
+                <small>R$</small>
+                {precoNaFicha(camiseta.precoCentavos)}
+              </div>
+            ) : null}
             <p className="desc">
-              Preta, oversized, estampa branca do brasão CBAC no peito. Edição do EP.
+              {camiseta?.descricao ?? 'Indisponível no momento. Volte daqui a pouco.'}
             </p>
             {/* biome-ignore lint/a11y/useSemanticElements: trocar por <fieldset> traz borda, padding e min-width proprios e mexeria no layout do seletor de tamanho. Tratar na Issue #59. */}
-            <div className="tam" id="tamanhos" role="group" aria-label="Tamanho">
-              <button type="button" data-t="P">
-                P
-              </button>
-              <button type="button" data-t="M" className="on">
-                M
-              </button>
-              <button type="button" data-t="G">
-                G
-              </button>
-              <button type="button" data-t="GG">
-                GG
-              </button>
+            <div
+              className="tam"
+              id="tamanhos"
+              role="group"
+              aria-label="Tamanho"
+              data-padrao={tamanhoPadrao}
+            >
+              {camiseta?.variacoes.map((v) => (
+                <button
+                  key={v.tamanho}
+                  type="button"
+                  data-t={v.tamanho ?? ''}
+                  className={v.tamanho === tamanhoPadrao ? 'on' : undefined}
+                >
+                  {v.tamanho}
+                </button>
+              ))}
             </div>
             <div className="acoes">
               {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
@@ -150,7 +174,9 @@ export default function Home() {
             </div>
             <p className="aviso">Envio para todo o Brasil.</p>
           </div>
-          <div className="galeria" id="galeriaMerch"></div>
+          {/* O `data-alt` existe para o script legado nao precisar repetir o
+              nome do produto no alt das fotos — era a terceira copia dele. */}
+          <div className="galeria" id="galeriaMerch" data-alt={camiseta?.nome ?? ''}></div>
         </section>
 
         <footer className="assina">
@@ -190,26 +216,37 @@ export default function Home() {
             <div className="dica">arrasta pra girar</div>
           </div>
           <div>
-            <h3 id="lojaTitulo">Camiseta CBAC x Passem a Respeitar</h3>
-            <div className="preco">
-              <small>R$</small>120
-            </div>
-            <p className="desc">Preta, oversized, brasão CBAC em branco no peito. Edição do EP.</p>
+            <h3 id="lojaTitulo">{camiseta?.nome ?? 'Merch'}</h3>
+            {temMerch ? (
+              <div className="preco">
+                <small>R$</small>
+                {precoNaFicha(camiseta.precoCentavos)}
+              </div>
+            ) : null}
+            {/* A descricao e a MESMA de #merch. Antes eram dois textos dizendo a
+                mesma coisa com palavras diferentes; agora ha uma so, no banco. */}
+            <p className="desc">
+              {camiseta?.descricao ?? 'Indisponível no momento. Volte daqui a pouco.'}
+            </p>
             <div className="rotulo">tamanho</div>
             {/* biome-ignore lint/a11y/useSemanticElements: trocar por <fieldset> traz borda, padding e min-width proprios e mexeria no layout do seletor de tamanho. Tratar na Issue #59. */}
-            <div className="tam" id="tamLoja" role="group" aria-label="Tamanho">
-              <button type="button" data-t="P">
-                P
-              </button>
-              <button type="button" data-t="M" className="on">
-                M
-              </button>
-              <button type="button" data-t="G">
-                G
-              </button>
-              <button type="button" data-t="GG">
-                GG
-              </button>
+            <div
+              className="tam"
+              id="tamLoja"
+              role="group"
+              aria-label="Tamanho"
+              data-padrao={tamanhoPadrao}
+            >
+              {camiseta?.variacoes.map((v) => (
+                <button
+                  key={v.tamanho}
+                  type="button"
+                  data-t={v.tamanho ?? ''}
+                  className={v.tamanho === tamanhoPadrao ? 'on' : undefined}
+                >
+                  {v.tamanho}
+                </button>
+              ))}
             </div>
             <div className="acoes">
               {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
