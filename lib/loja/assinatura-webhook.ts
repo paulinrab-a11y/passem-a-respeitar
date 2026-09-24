@@ -192,17 +192,30 @@ export function qualManifesto({
     ['id-maiusculo', `id:${recursoId.toUpperCase()};request-id:${req};ts:${ts};`],
   ];
 
-  // Cada chave e testada como esta e sem espaco em volta: colagem com quebra
-  // de linha e o erro mais comum e o mais invisivel.
+  // Tres formas de chave, porque 64 caracteres hexadecimais sao 32 bytes: se o
+  // provedor tratar o segredo como chave binaria e nos como texto, nenhum
+  // manifesto do mundo fecha. O trim cobre colagem com quebra de linha, que e
+  // o erro mais comum e o mais invisivel.
   for (const [onde, bruta] of chaves) {
-    for (const [rotulo, chave] of [
+    for (const [comoTexto, texto] of [
       ['', bruta],
       ['+trim', bruta.trim()],
     ] as [string, string][]) {
-      if (rotulo && chave === bruta) continue;
-      for (const [nome, manifesto] of candidatos) {
-        const esperado = createHmac('sha256', chave).update(manifesto).digest('hex');
-        if (mesmoHash(esperado, v1.toLowerCase())) return `${onde}: ${nome}${rotulo}`;
+      if (comoTexto && texto === bruta) continue;
+
+      const formas: [string, string | Buffer][] = [
+        ['texto', texto],
+        ['hex', Buffer.from(texto, 'hex')],
+        ['base64', Buffer.from(texto, 'base64')],
+      ];
+
+      for (const [forma, chave] of formas) {
+        for (const [nome, manifesto] of candidatos) {
+          const esperado = createHmac('sha256', chave).update(manifesto).digest('hex');
+          if (mesmoHash(esperado, v1.toLowerCase())) {
+            return `${onde}/${forma}: ${nome}${comoTexto}`;
+          }
+        }
       }
     }
   }
