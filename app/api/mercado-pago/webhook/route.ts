@@ -8,15 +8,17 @@ export const dynamic = 'force-dynamic';
 /**
  * Webhook do Mercado Pago (Issue #45).
  *
- * Endpoint PUBLICO — nao tem sessao nem cookie para se apoiar. A unica coisa
- * que separa uma confirmacao de pagamento de qualquer pessoa da internet e a
- * assinatura, e por isso ela e a primeira coisa que acontece aqui.
+ * Endpoint PUBLICO — nao tem sessao nem cookie para se apoiar. O que separa
+ * uma confirmacao de pagamento de qualquer pessoa da internet e a assinatura
+ * e, atras dela, a consulta server-to-server que decide de verdade
+ * (lib/loja/webhook.ts — inclusive o porque de existir um caminho sem
+ * assinatura restrito a ordem de teste).
  *
  * Sobre os codigos de resposta: o provedor REENVIA quando nao recebe 2xx.
  * Entao a escolha de codigo e uma instrucao para ele:
  *
  *   200  processado, ou ja tinha sido. Nao precisa reenviar.
- *   401  assinatura invalida. Reenviar nao vai ajudar.
+ *   401  sem prova de origem e fora do sandbox. Reenviar nao vai ajudar.
  *   429  IP passou da cota. Reenviar depois.
  *   500  nao consegui confirmar agora. REENVIE.
  *
@@ -27,8 +29,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Por IP, por minuto. Notificacao legitima chega de poucos IPs e em rajadas
- * curtas; isto segura quem descobrir a URL e tentar nos fazer trabalhar em
- * loop.
+ * curtas; isto segura quem descobrir a URL e tentar nos fazer consultar o
+ * provedor em loop.
  */
 const LIMITE = { maximo: 60, janelaMs: 60 * 1000 };
 
@@ -54,19 +56,21 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  if (!veredito.valida) {
-    // O motivo fica no log do servidor, nao na resposta: quem esta tentando
-    // forjar nao precisa saber se errou o carimbo ou o hash.
-    console.warn('[webhook] recusado:', veredito.motivo);
-    return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
+  // O motivo fica no log do servidor, nao na resposta: quem esta tentando
+  // forjar nao precisa saber se errou o carimbo ou o hash.
+  if (veredito.valida) {
+    console.info('[webhook] assinatura de:', veredito.origem);
+  } else {
+    console.warn('[webhook] sem assinatura valida:', veredito.motivo);
   }
 
-  // Qual configuracao do painel assinou. So no log: a resposta nao conta nada
-  // a quem nao passou.
-  console.info('[webhook] assinatura de:', veredito.origem);
-
   const corpo = await request.json().catch(() => null);
-  const r = await processa(corpo, recursoId);
+  const r = await processa(corpo, recursoId, { assinada: veredito.valida });
+
+  if (r.tipo === 'recusado') {
+    console.warn('[webhook] recusado:', r.motivo);
+    return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
+  }
 
   if (r.tipo === 'tente-de-novo') {
     console.warn('[webhook] nao processado:', r.motivo);
