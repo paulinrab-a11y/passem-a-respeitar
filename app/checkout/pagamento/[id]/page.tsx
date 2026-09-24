@@ -62,7 +62,9 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
             <Brick
               chavePublica={chave}
               valor={emReais(pedido.totalCentavos)}
+              valorEscrito={pedido.total}
               email={usuario?.email ?? ''}
+              pedido={id}
             />
           ) : (
             <p className="detalhe-nota">

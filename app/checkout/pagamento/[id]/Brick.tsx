@@ -1,7 +1,9 @@
 'use client';
 
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import Pix, { type DadosDoPix } from './Pix';
 
 /**
  * Payment Brick (Issue #108).
@@ -24,10 +26,20 @@ export type Pagavel = {
   chavePublica: string;
   /** Em reais, como o Brick espera. A conversao de centavos ja aconteceu. */
   valor: number;
+  valorEscrito: string;
   email: string;
+  pedido: string;
 };
 
-export default function Brick({ chavePublica, valor, email }: Pagavel) {
+/** O que o Brick entrega no submit. Nada aqui e valor de dinheiro. */
+type DadosDoBrick = {
+  payment_method_id?: string;
+  token?: string;
+  installments?: number;
+  payer?: { identification?: { type?: string; number?: string } };
+};
+
+export default function Brick({ chavePublica, valor, valorEscrito, email, pedido }: Pagavel) {
   /**
    * O `<Payment>` so entra na arvore DEPOIS do `initMercadoPago`.
    *
@@ -39,6 +51,8 @@ export default function Brick({ chavePublica, valor, email }: Pagavel) {
   const [sdkPronto, setSdkPronto] = useState(false);
   const [montado, setMontado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [pix, setPix] = useState<DadosDoPix | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     initMercadoPago(chavePublica, { locale: 'pt-BR' });
@@ -92,17 +106,55 @@ export default function Brick({ chavePublica, valor, email }: Pagavel) {
         </p>
       ) : null}
 
-      {sdkPronto ? (
+      {pix ? <Pix dados={pix} valor={valorEscrito} /> : null}
+
+      {sdkPronto && !pix ? (
         <Payment
           initialization={inicializacao}
           customization={customizacao}
           onReady={() => setMontado(true)}
           onError={() => setErro('Não consegui carregar o pagamento. Recarregue a página.')}
-          onSubmit={async () => {
-            // A cobranca entra na proxima Issue. Recusar aqui e mais honesto
-            // que um botao que parece funcionar e nao cobra nada.
-            setErro('O pagamento ainda não está ligado. Em breve.');
-            throw new Error('pagamento ainda nao ligado');
+          onSubmit={async ({ formData }) => {
+            setErro(null);
+            const d = (formData ?? {}) as DadosDoBrick;
+
+            // So escolha vai no corpo. Valor, total e moeda nao existem aqui —
+            // o servidor le de `orders.total_centavos`.
+            const r = await fetch('/api/checkout/pagamento', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                pedido,
+                payment_method_id: d.payment_method_id,
+                token: d.token,
+                installments: d.installments,
+                payer: d.payer?.identification
+                  ? { identification: d.payer.identification }
+                  : undefined,
+              }),
+            }).catch(() => null);
+
+            if (!r) {
+              setErro('Não consegui falar com o pagamento. Tente de novo.');
+              throw new Error('rede');
+            }
+
+            const corpo = await r.json().catch(() => ({}));
+
+            if (!r.ok) {
+              setErro(corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.');
+              // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
+              // de limpar o formulario e obrigar a redigitar o cartao.
+              throw new Error('recusado');
+            }
+
+            if (corpo.pix) {
+              setPix(corpo.pix);
+              return;
+            }
+
+            // Cartao aprovado ou em analise: o pedido e quem conta a historia.
+            router.push(`/conta/pedidos/${pedido}`);
           }}
         />
       ) : null}
