@@ -379,6 +379,15 @@ export type Database = {
     };
     Functions: {
       autenticado_recentemente: { Args: { p_minutos?: number }; Returns: boolean };
+      cria_pedido: {
+        Args: {
+          p_user_id: string;
+          p_total_centavos: number;
+          p_endereco: Json;
+          p_itens: Json;
+        };
+        Returns: { pedido_id: string; pedido_numero: number }[];
+      };
       encerra_sessao: { Args: { p_identificador: string }; Returns: boolean };
       minha_sessao_atual: { Args: Record<PropertyKey, never>; Returns: string };
       minhas_sessoes: {
