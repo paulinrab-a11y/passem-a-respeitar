@@ -63,6 +63,14 @@ export async function POST(request: NextRequest) {
         '| type:',
         url.searchParams.get('type') ?? url.searchParams.get('topic')
       );
+      // A requisicao crua. Nada aqui e segredo: o digest nao se inverte e os
+      // cabecalhos ja vieram pela rede. Depois de 72 combinacoes sem fechar,
+      // o que falta e parar de adivinhar a entrada e olhar para ela.
+      console.warn('[webhook] query:', url.search);
+      console.warn('[webhook] x-signature:', request.headers.get('x-signature'));
+      console.warn('[webhook] x-request-id:', request.headers.get('x-request-id'));
+      const cru = await request.clone().text();
+      console.warn('[webhook] corpo:', cru.slice(0, 600));
     }
     return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
   }
