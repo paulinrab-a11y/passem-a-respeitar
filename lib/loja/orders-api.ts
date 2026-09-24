@@ -129,13 +129,18 @@ function corpo(dados: DadosDaCobranca) {
  * justamente no retry, que e quando ela importa.
  */
 export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobranca> {
+  // FORA do try, de proposito. Dentro, o `catch` de rede engoliria a falta da
+  // variavel e ela viraria "provedor indisponivel" — justamente o diagnostico
+  // ruim que a mensagem de `token()` existe para evitar. Um teste guarda isto.
+  const autorizacao = `Bearer ${token()}`;
+
   let resposta: Response;
 
   try {
     resposta = await fetch(`${BASE}/v1/orders`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token()}`,
+        Authorization: autorizacao,
         'Content-Type': 'application/json',
         'X-Idempotency-Key': dados.idempotencia,
       },
