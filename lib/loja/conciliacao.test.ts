@@ -203,13 +203,28 @@ describe('webhook e conciliacao no mesmo evento', () => {
   });
 
   it('a mesma varredura duas vezes conta o repetido, nao o muda', async () => {
-    linhas = [pendente('a')];
+    linhas = [pendente('a', { estado: 'aprovado' })];
     repetidos.add('conciliacao:ORD01a:processed');
 
     const b = await concilia({ agoraMs: AGORA });
 
     expect(b.repetidos).toBe(1);
-    expect(atualizados).toEqual([]);
+    expect(atualizados.some((a) => a.tabela === 'pagamentos')).toBe(false);
+    expect(atualizados.some((a) => a.tabela === 'orders')).toBe(false);
+  });
+
+  // O buraco que a rodada ao vivo mostrou: evento ja registrado, estado que
+  // nao acompanhou (processo caiu entre gravar o evento e atualizar). Se o
+  // repetido encerrasse antes de aplicar, ficaria preso para sempre.
+  it('evento repetido com estado atrasado e curado, nao ignorado', async () => {
+    linhas = [pendente('a')];
+    repetidos.add('conciliacao:ORD01a:processed');
+
+    const b = await concilia({ agoraMs: AGORA });
+
+    expect(b.mudados).toBe(1);
+    expect(b.repetidos).toBe(0);
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
   });
 });
 

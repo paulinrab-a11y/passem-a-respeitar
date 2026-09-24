@@ -163,9 +163,20 @@ export async function confirmaPeloProvedor(
   const eventoId = `${origem}:${recursoId}:${resumo.status}`;
 
   const registro = await registra(admin, eventoId, pagamento.id, null, origem);
-  if (registro) return registro;
+  if (registro?.tipo === 'tente-de-novo') return registro;
 
-  return aplica(admin, pagamento, resumo, eventoId);
+  // Evento repetido NAO encerra aqui, e isso e de proposito. O indice unico
+  // deduplica a auditoria; quem deduplica a aplicacao e `podeAvancar`, que ja
+  // e idempotente. Encerrar no repetido deixaria um buraco sem cura: processo
+  // caindo entre gravar o evento e atualizar o estado, e o pagamento preso
+  // para sempre — exatamente o que a conciliacao existe para consertar.
+  const resultado = await aplica(admin, pagamento, resumo, eventoId);
+
+  // Repetido e sem nada a aplicar continua contando como repetido: o balanco
+  // da conciliacao distingue "ja tinha visto" de "olhou e nao mudou".
+  if (registro && resultado.tipo === 'ignorado') return registro;
+
+  return resultado;
 }
 
 /** `null` = registrado agora. Senao, o motivo de nao seguir. */
