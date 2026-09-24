@@ -40,7 +40,7 @@ type Recusa =
   | 'nao-confere';
 
 /** Qual das configuracoes do painel assinou. Vai para o log, nunca na resposta. */
-export type Origem = 'principal' | 'alternativo';
+type Origem = 'principal' | 'alternativo';
 
 export type Veredito = { valida: true; origem: Origem } | { valida: false; motivo: Recusa };
 
@@ -149,79 +149,4 @@ export function conferaAssinatura({
   }
 
   return { valida: false, motivo: 'nao-confere' };
-}
-
-/**
- * DIAGNOSTICO TEMPORARIO — remover antes do merge.
- *
- * A notificacao real do provedor chegou e nao conferiu. Ha duas causas
- * possiveis e elas pedem acoes opostas: segredo errado (mexer na Vercel) ou
- * manifesto errado (mexer no codigo). Isto separa as duas em um deploy.
- *
- * Testa as variacoes ambiguas da documentacao e diz QUAL fecha. Nao imprime
- * segredo nem hash: so o nome da variacao. Se nenhuma fechar, o segredo e que
- * esta errado.
- */
-export function qualManifesto({
-  assinatura,
-  requestId,
-  recursoId,
-  segredos,
-}: Omit<EntradaDaAssinatura, 'agoraMs'>): string {
-  const chaves: [string, string][] = [
-    ['principal', segredos.principal ?? ''],
-    ['alternativo', segredos.alternativo ?? ''],
-  ].filter((par): par is [string, string] => Boolean(par[1]));
-
-  if (chaves.length === 0 || !assinatura || !recursoId) return 'entrada-incompleta';
-
-  const campos = partes(assinatura);
-  const ts = campos.get('ts');
-  const v1 = campos.get('v1');
-  if (!ts || !v1) return 'header-malformado';
-
-  const minusculo = /^\d+$/.test(recursoId) ? recursoId : recursoId.toLowerCase();
-  const req = requestId ?? '';
-
-  const candidatos: [string, string][] = [
-    ['id-como-veio', `id:${recursoId};request-id:${req};ts:${ts};`],
-    ['id-minusculo', `id:${minusculo};request-id:${req};ts:${ts};`],
-    ['sem-request-id', `id:${recursoId};ts:${ts};`],
-    ['sem-request-id-minusculo', `id:${minusculo};ts:${ts};`],
-    ['sem-ponto-final', `id:${recursoId};request-id:${req};ts:${ts}`],
-    ['id-maiusculo', `id:${recursoId.toUpperCase()};request-id:${req};ts:${ts};`],
-  ];
-
-  // Tres formas de chave, porque 64 caracteres hexadecimais sao 32 bytes: se o
-  // provedor tratar o segredo como chave binaria e nos como texto, nenhum
-  // manifesto do mundo fecha. O trim cobre colagem com quebra de linha, que e
-  // o erro mais comum e o mais invisivel.
-  for (const [onde, bruta] of chaves) {
-    for (const [comoTexto, texto] of [
-      ['', bruta],
-      ['+trim', bruta.trim()],
-    ] as [string, string][]) {
-      if (comoTexto && texto === bruta) continue;
-
-      const formas: [string, string | Buffer][] = [
-        ['texto', texto],
-        ['hex', Buffer.from(texto, 'hex')],
-        ['base64', Buffer.from(texto, 'base64')],
-      ];
-
-      for (const [forma, chave] of formas) {
-        for (const [nome, manifesto] of candidatos) {
-          const esperado = createHmac('sha256', chave).update(manifesto).digest('hex');
-          if (mesmoHash(esperado, v1.toLowerCase())) {
-            return `${onde}/${forma}: ${nome}${comoTexto}`;
-          }
-        }
-      }
-    }
-  }
-
-  // O comprimento nao revela o segredo e separa 'colei errado' de 'colei
-  // truncado'. O do provedor tem 64 caracteres hexadecimais.
-  const forma = chaves.map(([onde, k]) => `${onde}=${k.length}`).join(' ');
-  return `nenhuma-variacao-fecha (${forma})`;
 }

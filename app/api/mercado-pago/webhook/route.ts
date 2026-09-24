@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { conferaAssinatura, qualManifesto } from '@/lib/loja/assinatura-webhook';
-import { varre } from '@/lib/loja/varredura-assinatura';
+import { conferaAssinatura } from '@/lib/loja/assinatura-webhook';
 import { processa } from '@/lib/loja/webhook';
+import { ipDoRequest, limita } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,13 +17,27 @@ export const dynamic = 'force-dynamic';
  *
  *   200  processado, ou ja tinha sido. Nao precisa reenviar.
  *   401  assinatura invalida. Reenviar nao vai ajudar.
+ *   429  IP passou da cota. Reenviar depois.
  *   500  nao consegui confirmar agora. REENVIE.
  *
  * Devolver 200 para o que nao foi processado perderia a notificacao para
  * sempre; devolver 500 para o que ja foi processado faria o provedor insistir
  * em algo que nao muda mais.
  */
+
+/**
+ * Por IP, por minuto. Notificacao legitima chega de poucos IPs e em rajadas
+ * curtas; isto segura quem descobrir a URL e tentar nos fazer trabalhar em
+ * loop.
+ */
+const LIMITE = { maximo: 60, janelaMs: 60 * 1000 };
+
 export async function POST(request: NextRequest) {
+  const cota = limita(`webhook-mp:${ipDoRequest(request.headers)}`, LIMITE.maximo, LIMITE.janelaMs);
+  if (!cota.permitido) {
+    return NextResponse.json({ ok: false }, { status: 429 });
+  }
+
   const url = new URL(request.url);
 
   // O provedor manda o id do recurso em `data.id`; ha integracoes antigas que
@@ -44,50 +58,6 @@ export async function POST(request: NextRequest) {
     // O motivo fica no log do servidor, nao na resposta: quem esta tentando
     // forjar nao precisa saber se errou o carimbo ou o hash.
     console.warn('[webhook] recusado:', veredito.motivo);
-    // DIAGNOSTICO TEMPORARIO — remover antes do merge.
-    if (veredito.motivo === 'nao-confere') {
-      console.warn(
-        '[webhook] diagnostico:',
-        qualManifesto({
-          assinatura: request.headers.get('x-signature'),
-          requestId: request.headers.get('x-request-id'),
-          recursoId,
-          segredos: {
-            principal: process.env.MERCADOPAGO_WEBHOOK_SECRET,
-            alternativo: process.env.MERCADOPAGO_WEBHOOK_SECRET_ALT,
-          },
-        }),
-        '| tem request-id:',
-        request.headers.get('x-request-id') !== null,
-        '| id:',
-        recursoId,
-        '| type:',
-        url.searchParams.get('type') ?? url.searchParams.get('topic')
-      );
-      // A requisicao crua. Nada aqui e segredo: o digest nao se inverte e os
-      // cabecalhos ja vieram pela rede. Depois de 72 combinacoes sem fechar,
-      // o que falta e parar de adivinhar a entrada e olhar para ela.
-      console.warn('[webhook] query:', url.search);
-      console.warn('[webhook] x-signature:', request.headers.get('x-signature'));
-      console.warn('[webhook] x-request-id:', request.headers.get('x-request-id'));
-      const cru = await request.clone().text();
-      console.warn('[webhook] corpo:', cru.slice(0, 600));
-      console.warn(
-        '[webhook] varredura:',
-        varre({
-          assinatura: request.headers.get('x-signature'),
-          requestId: request.headers.get('x-request-id'),
-          recursoId,
-          externalReference: url.searchParams.get('data.external_reference'),
-          tipo: url.searchParams.get('type') ?? url.searchParams.get('topic'),
-          corpoCru: cru,
-          segredos: [
-            process.env.MERCADOPAGO_WEBHOOK_SECRET,
-            process.env.MERCADOPAGO_WEBHOOK_SECRET_ALT,
-          ],
-        })
-      );
-    }
     return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
   }
 
