@@ -141,7 +141,7 @@ describe('assinatura forjada', () => {
   it('hash de tamanho errado nao passa nem explode', () => {
     const a = assina();
 
-    expect(confere({ ...a, assinatura: 'ts=' + AGORA + ',v1=abc' })).toEqual({
+    expect(confere({ ...a, assinatura: `ts=${AGORA},v1=abc` })).toEqual({
       valida: false,
       motivo: 'nao-confere',
     });
