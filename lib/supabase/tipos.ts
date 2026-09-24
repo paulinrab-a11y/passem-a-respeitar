@@ -13,6 +13,11 @@
 // user_id como escreviveis. E so o TypeScript descrevendo colunas — ele nao
 // sabe de GRANT nem de RLS. Pelo cliente do navegador essas escritas sao
 // recusadas pelo banco. Ver supabase/migrations/20260923120000.
+//
+// Vale igual para produtos e produto_variacoes: `preco_centavos` aparece como
+// escrevivel e `estoque` como legivel, e nenhum dos dois e verdade pelo
+// cliente. O GRANT e por coluna e nao ha policy de escrita. Ver a migration
+// 20260924100000.
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -140,6 +145,80 @@ export type Database = {
           status?: Database['public']['Enums']['status_pedido'];
           total_centavos?: number;
           user_id?: string | null;
+        };
+        Relationships: [];
+      };
+      produto_variacoes: {
+        Row: {
+          ativo: boolean;
+          atualizado_em: string;
+          criado_em: string;
+          estoque: number | null;
+          id: string;
+          ordem: number;
+          preco_centavos: number;
+          produto_id: string;
+          tamanho: string | null;
+        };
+        Insert: {
+          ativo?: boolean;
+          atualizado_em?: string;
+          criado_em?: string;
+          estoque?: number | null;
+          id?: string;
+          ordem?: number;
+          preco_centavos: number;
+          produto_id: string;
+          tamanho?: string | null;
+        };
+        Update: {
+          ativo?: boolean;
+          atualizado_em?: string;
+          criado_em?: string;
+          estoque?: number | null;
+          id?: string;
+          ordem?: number;
+          preco_centavos?: number;
+          produto_id?: string;
+          tamanho?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'produto_variacoes_produto_id_fkey';
+            columns: ['produto_id'];
+            isOneToOne: false;
+            referencedRelation: 'produtos';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      produtos: {
+        Row: {
+          ativo: boolean;
+          atualizado_em: string;
+          criado_em: string;
+          descricao: string | null;
+          id: string;
+          nome: string;
+          slug: string;
+        };
+        Insert: {
+          ativo?: boolean;
+          atualizado_em?: string;
+          criado_em?: string;
+          descricao?: string | null;
+          id?: string;
+          nome: string;
+          slug: string;
+        };
+        Update: {
+          ativo?: boolean;
+          atualizado_em?: string;
+          criado_em?: string;
+          descricao?: string | null;
+          id?: string;
+          nome?: string;
+          slug?: string;
         };
         Relationships: [];
       };

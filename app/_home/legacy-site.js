@@ -82,8 +82,11 @@ const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googl
 (function merch(){
   $('#comprar').addEventListener('click', e=>{ e.preventDefault(); Loja.abre(tam); });
   const g = $('#galeriaMerch');
-  g.innerHTML = CONFIG.merchFotos.map((id,i)=>`<figure><img src="${drive(id, i===0?1800:1000)}" alt="Camiseta CBAC x Passem a Respeitar" loading="${i<3?'eager':'lazy'}" decoding="async"></figure>`).join('');
-  let tam = 'M';
+  // Nome e tamanho padrao vem do catalogo (#99), carimbados no dataset pelo
+  // servidor. Antes eram a terceira e a quarta copia do produto no codigo.
+  const nomeProduto = g.dataset.alt || '';
+  g.innerHTML = CONFIG.merchFotos.map((id,i)=>`<figure><img src="${drive(id, i===0?1800:1000)}" alt="${nomeProduto}" loading="${i<3?'eager':'lazy'}" decoding="async"></figure>`).join('');
+  let tam = $('#tamanhos').dataset.padrao || '';
   const link = ()=>{ $('#comprar').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
   $('#tamanhos').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
@@ -590,7 +593,7 @@ ScrollTrigger.create({
 const Loja = (()=>{
   const el = $('#loja'), vit = $('#vitrine'), canvas = $('#glLoja');
   let renderer, scene, camera, camisa, brasao, rotY = 0.35, rotX = 0.05, velY = 0, arrastando = false, ux = 0, uy = 0, aberto = false, pronto = false;
-  let tam = 'M';
+  let tam = $('#tamLoja').dataset.padrao || '';
   const link = ()=>{ $('#comprarLoja').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
   $('#tamLoja').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
