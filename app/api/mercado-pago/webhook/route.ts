@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
     assinatura: request.headers.get('x-signature'),
     requestId: request.headers.get('x-request-id'),
     recursoId,
-    segredo: process.env.MERCADOPAGO_WEBHOOK_SECRET,
+    segredos: {
+      principal: process.env.MERCADOPAGO_WEBHOOK_SECRET,
+      alternativo: process.env.MERCADOPAGO_WEBHOOK_SECRET_ALT,
+    },
   });
 
   if (!veredito.valida) {
@@ -48,7 +51,10 @@ export async function POST(request: NextRequest) {
           assinatura: request.headers.get('x-signature'),
           requestId: request.headers.get('x-request-id'),
           recursoId,
-          segredo: process.env.MERCADOPAGO_WEBHOOK_SECRET,
+          segredos: {
+            principal: process.env.MERCADOPAGO_WEBHOOK_SECRET,
+            alternativo: process.env.MERCADOPAGO_WEBHOOK_SECRET_ALT,
+          },
         }),
         '| tem request-id:',
         request.headers.get('x-request-id') !== null,
@@ -60,6 +66,10 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
   }
+
+  // Qual configuracao do painel assinou. So no log: a resposta nao conta nada
+  // a quem nao passou.
+  console.info('[webhook] assinatura de:', veredito.origem);
 
   const corpo = await request.json().catch(() => null);
   const r = await processa(corpo, recursoId);

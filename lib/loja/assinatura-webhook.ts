@@ -39,7 +39,10 @@ type Recusa =
   | 'velha-demais'
   | 'nao-confere';
 
-export type Veredito = { valida: true } | { valida: false; motivo: Recusa };
+/** Qual das configuracoes do painel assinou. Vai para o log, nunca na resposta. */
+export type Origem = 'principal' | 'alternativo';
+
+export type Veredito = { valida: true; origem: Origem } | { valida: false; motivo: Recusa };
 
 /** `ts=123,v1=abc` → `{ ts: '123', v1: 'abc' }`. Ordem e espaco nao importam. */
 function partes(assinatura: string): Map<string, string> {
@@ -73,7 +76,20 @@ export type EntradaDaAssinatura = {
   requestId: string | null;
   /** O `data.id` da query. */
   recursoId: string | null;
-  segredo: string | undefined;
+  /**
+   * Os segredos aceitos, em ordem de tentativa.
+   *
+   * Sao dois porque o painel do provedor tem uma configuracao por modo, cada
+   * uma com o SEU segredo, e as duas podem apontar para esta mesma URL. Com um
+   * segredo so, metade das notificacoes seria recusada por construcao — e a
+   * recusa pareceria ataque, nao configuracao.
+   *
+   * O segundo serve tambem para trocar o segredo sem derrubar nada: cadastra o
+   * novo no alternativo, troca no painel, promove a principal.
+   *
+   * Aceitar dois nao afrouxa: cada um continua exigindo o HMAC correto.
+   */
+  segredos: { principal: string | undefined; alternativo?: string | undefined };
   /** Injetavel para o teste nao depender do relogio. */
   agoraMs?: number;
 };
@@ -82,13 +98,18 @@ export function conferaAssinatura({
   assinatura,
   requestId,
   recursoId,
-  segredo,
+  segredos,
   agoraMs = Date.now(),
 }: EntradaDaAssinatura): Veredito {
+  const configurados: [Origem, string][] = [
+    ['principal', segredos.principal],
+    ['alternativo', segredos.alternativo],
+  ].filter((par): par is [Origem, string] => Boolean(par[1]));
+
   // Falha fechada: sem segredo cadastrado, NADA e aceito. A alternativa —
   // "deixa passar enquanto nao configurou" — e um endpoint aberto esperando
   // ser encontrado.
-  if (!segredo) return { valida: false, motivo: 'sem-segredo' };
+  if (configurados.length === 0) return { valida: false, motivo: 'sem-segredo' };
   if (!assinatura) return { valida: false, motivo: 'sem-assinatura' };
   if (!recursoId) return { valida: false, motivo: 'sem-id' };
 
@@ -120,11 +141,14 @@ export function conferaAssinatura({
 
   // A ordem e o ponto e virgula final sao literais. Nao "arrumar".
   const manifesto = `id:${id};request-id:${requestId ?? ''};ts:${ts};`;
-  const esperado = createHmac('sha256', segredo).update(manifesto).digest('hex');
+  const recebido = v1.toLowerCase();
 
-  return mesmoHash(esperado, v1.toLowerCase())
-    ? { valida: true }
-    : { valida: false, motivo: 'nao-confere' };
+  for (const [origem, segredo] of configurados) {
+    const esperado = createHmac('sha256', segredo).update(manifesto).digest('hex');
+    if (mesmoHash(esperado, recebido)) return { valida: true, origem };
+  }
+
+  return { valida: false, motivo: 'nao-confere' };
 }
 
 /**
@@ -142,9 +166,14 @@ export function qualManifesto({
   assinatura,
   requestId,
   recursoId,
-  segredo,
+  segredos,
 }: Omit<EntradaDaAssinatura, 'agoraMs'>): string {
-  if (!segredo || !assinatura || !recursoId) return 'entrada-incompleta';
+  const chaves: [string, string][] = [
+    ['principal', segredos.principal ?? ''],
+    ['alternativo', segredos.alternativo ?? ''],
+  ].filter((par): par is [string, string] => Boolean(par[1]));
+
+  if (chaves.length === 0 || !assinatura || !recursoId) return 'entrada-incompleta';
 
   const campos = partes(assinatura);
   const ts = campos.get('ts');
@@ -153,7 +182,6 @@ export function qualManifesto({
 
   const minusculo = /^\d+$/.test(recursoId) ? recursoId : recursoId.toLowerCase();
   const req = requestId ?? '';
-  const limpo = segredo.trim();
 
   const candidatos: [string, string][] = [
     ['id-como-veio', `id:${recursoId};request-id:${req};ts:${ts};`],
@@ -164,20 +192,23 @@ export function qualManifesto({
     ['id-maiusculo', `id:${recursoId.toUpperCase()};request-id:${req};ts:${ts};`],
   ];
 
-  // Duas chaves: o valor como esta e o valor sem espaco em volta. Colagem com
-  // quebra de linha e o erro mais comum e o mais invisivel.
-  for (const [rotulo, chave] of [
-    ['', segredo],
-    ['+trim', limpo],
-  ] as [string, string][]) {
-    if (rotulo && chave === segredo) continue;
-    for (const [nome, manifesto] of candidatos) {
-      const esperado = createHmac('sha256', chave).update(manifesto).digest('hex');
-      if (mesmoHash(esperado, v1.toLowerCase())) return nome + rotulo;
+  // Cada chave e testada como esta e sem espaco em volta: colagem com quebra
+  // de linha e o erro mais comum e o mais invisivel.
+  for (const [onde, bruta] of chaves) {
+    for (const [rotulo, chave] of [
+      ['', bruta],
+      ['+trim', bruta.trim()],
+    ] as [string, string][]) {
+      if (rotulo && chave === bruta) continue;
+      for (const [nome, manifesto] of candidatos) {
+        const esperado = createHmac('sha256', chave).update(manifesto).digest('hex');
+        if (mesmoHash(esperado, v1.toLowerCase())) return `${onde}: ${nome}${rotulo}`;
+      }
     }
   }
 
   // O comprimento nao revela o segredo e separa 'colei errado' de 'colei
   // truncado'. O do provedor tem 64 caracteres hexadecimais.
-  return `nenhuma-variacao-fecha (segredo: ${segredo.length} chars, ${limpo.length} sem espaco)`;
+  const forma = chaves.map(([onde, k]) => `${onde}=${k.length}`).join(' ');
+  return `nenhuma-variacao-fecha (${forma})`;
 }

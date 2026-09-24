@@ -25,11 +25,11 @@ function assina({
 }
 
 const confere = (extra: Record<string, unknown> = {}) =>
-  conferaAssinatura({ ...assina(), segredo: SEGREDO, agoraMs: AGORA, ...extra });
+  conferaAssinatura({ ...assina(), segredos: { principal: SEGREDO }, agoraMs: AGORA, ...extra });
 
 describe('assinatura valida', () => {
   it('aceita o que o provedor assinou', () => {
-    expect(confere()).toEqual({ valida: true });
+    expect(confere()).toEqual({ valida: true, origem: 'principal' });
   });
 
   it('a ordem dos campos no header nao importa', () => {
@@ -40,30 +40,33 @@ describe('assinatura valida', () => {
       conferaAssinatura({
         ...resto,
         assinatura: `${v1}, ${ts}`,
-        segredo: SEGREDO,
+        segredos: { principal: SEGREDO },
         agoraMs: AGORA,
       })
-    ).toEqual({ valida: true });
+    ).toEqual({ valida: true, origem: 'principal' });
   });
 
   it('aceita o hash em maiuscula', () => {
     const a = assina();
     const emMaiuscula = a.assinatura.replace(/v1=(.+)$/, (_, h) => `v1=${h.toUpperCase()}`);
 
-    expect(confere({ ...a, assinatura: emMaiuscula })).toEqual({ valida: true });
+    expect(confere({ ...a, assinatura: emMaiuscula })).toEqual({
+      valida: true,
+      origem: 'principal',
+    });
   });
 
   // Id alfanumerico vai em minuscula no manifesto, conforme a documentacao.
   it('normaliza id alfanumerico para minuscula', () => {
     const a = assina({ recursoId: 'ORD01ABC' });
 
-    expect(confere({ ...a, recursoId: 'ORD01ABC' })).toEqual({ valida: true });
+    expect(confere({ ...a, recursoId: 'ORD01ABC' })).toEqual({ valida: true, origem: 'principal' });
   });
 
   it('id numerico fica como esta', () => {
     const a = assina({ recursoId: '123456789' });
 
-    expect(confere({ ...a })).toEqual({ valida: true });
+    expect(confere({ ...a })).toEqual({ valida: true, origem: 'principal' });
   });
 
   // O provedor ja mandou em segundos; aceitar os dois evita recusar
@@ -72,7 +75,7 @@ describe('assinatura valida', () => {
     const emSegundos = String(Math.floor(AGORA / 1000));
     const a = assina({ ts: emSegundos });
 
-    expect(confere({ ...a })).toEqual({ valida: true });
+    expect(confere({ ...a })).toEqual({ valida: true, origem: 'principal' });
   });
 });
 
@@ -80,13 +83,18 @@ describe('falha fechada', () => {
   // A alternativa — "deixa passar enquanto nao configurou" — e um endpoint
   // aberto esperando ser encontrado.
   it('sem segredo cadastrado, nada passa', () => {
-    expect(confere({ segredo: undefined })).toEqual({ valida: false, motivo: 'sem-segredo' });
+    expect(confere({ segredos: { principal: undefined } })).toEqual({
+      valida: false,
+      motivo: 'sem-segredo',
+    });
   });
 
   it('sem segredo recusa ATE uma assinatura que seria valida', () => {
     const a = assina();
 
-    expect(conferaAssinatura({ ...a, segredo: '', agoraMs: AGORA }).valida).toBe(false);
+    expect(conferaAssinatura({ ...a, segredos: { principal: '' }, agoraMs: AGORA }).valida).toBe(
+      false
+    );
   });
 
   it.each([
@@ -184,12 +192,109 @@ describe('replay', () => {
   it.each([0, 60_000, 4 * 60_000, 5 * 60_000])('aceita atraso de %i ms', (atraso) => {
     const a = assina();
 
-    expect(confere({ ...a, agoraMs: AGORA + atraso })).toEqual({ valida: true });
+    expect(confere({ ...a, agoraMs: AGORA + atraso })).toEqual({
+      valida: true,
+      origem: 'principal',
+    });
   });
 
   it('recusa um segundo depois do limite', () => {
     const a = assina();
 
     expect(confere({ ...a, agoraMs: AGORA + 5 * 60_000 + 1 }).valida).toBe(false);
+  });
+});
+
+/**
+ * O painel do provedor tem uma configuracao por modo, cada uma com o SEU
+ * segredo, e as duas podem apontar para a mesma URL. Com um segredo so,
+ * metade das notificacoes seria recusada por construcao — e a recusa
+ * pareceria ataque, quando e configuracao.
+ */
+describe('dois segredos', () => {
+  const OUTRO = 'segredo-da-outra-configuracao-do-painel';
+
+  it('aceita o que foi assinado com o principal', () => {
+    const a = assina({ segredo: SEGREDO });
+
+    expect(
+      conferaAssinatura({
+        ...a,
+        segredos: { principal: SEGREDO, alternativo: OUTRO },
+        agoraMs: AGORA,
+      })
+    ).toEqual({ valida: true, origem: 'principal' });
+  });
+
+  it('aceita o que foi assinado com o alternativo', () => {
+    const a = assina({ segredo: OUTRO });
+
+    expect(
+      conferaAssinatura({
+        ...a,
+        segredos: { principal: SEGREDO, alternativo: OUTRO },
+        agoraMs: AGORA,
+      })
+    ).toEqual({ valida: true, origem: 'alternativo' });
+  });
+
+  // Sem isto o log nao serve para nada: saber QUE passou nao diz qual
+  // configuracao do painel esta viva.
+  it('diz qual dos dois fechou', () => {
+    const doAlternativo = conferaAssinatura({
+      ...assina({ segredo: OUTRO }),
+      segredos: { principal: SEGREDO, alternativo: OUTRO },
+      agoraMs: AGORA,
+    });
+
+    expect(doAlternativo).toMatchObject({ origem: 'alternativo' });
+  });
+
+  it('um terceiro segredo continua sem passar', () => {
+    const a = assina({ segredo: 'segredo-de-quem-esta-tentando' });
+
+    expect(
+      conferaAssinatura({
+        ...a,
+        segredos: { principal: SEGREDO, alternativo: OUTRO },
+        agoraMs: AGORA,
+      })
+    ).toEqual({ valida: false, motivo: 'nao-confere' });
+  });
+
+  // Aceitar dois nao pode virar aceitar qualquer um: cada barreira que nao e
+  // o hash continua valendo igual.
+  it('o alternativo nao escapa do limite de idade', () => {
+    const a = assina({ segredo: OUTRO });
+
+    expect(
+      conferaAssinatura({
+        ...a,
+        segredos: { principal: SEGREDO, alternativo: OUTRO },
+        agoraMs: AGORA + 10 * 60 * 1000,
+      })
+    ).toEqual({ valida: false, motivo: 'velha-demais' });
+  });
+
+  it('so o alternativo cadastrado ja basta', () => {
+    const a = assina({ segredo: OUTRO });
+
+    expect(
+      conferaAssinatura({
+        ...a,
+        segredos: { principal: undefined, alternativo: OUTRO },
+        agoraMs: AGORA,
+      })
+    ).toEqual({ valida: true, origem: 'alternativo' });
+  });
+
+  it('os dois vazios e falha fechada, como antes', () => {
+    expect(
+      conferaAssinatura({
+        ...assina(),
+        segredos: { principal: undefined, alternativo: '' },
+        agoraMs: AGORA,
+      })
+    ).toEqual({ valida: false, motivo: 'sem-segredo' });
   });
 });
