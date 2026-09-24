@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { pareceUuid } from '@/lib/conta/pedidos';
+import { conciliaPedido } from '@/lib/loja/conciliacao';
 import { ENTRAR } from '@/lib/rotas';
 import { meuPedido } from './busca-pedido';
 
@@ -42,7 +43,7 @@ export default async function DetalheDoPedido({ params }: { params: Promise<{ id
   // esta chutando endereco.
   if (!pareceUuid(id)) notFound();
 
-  const resultado = await meuPedido(id);
+  let resultado = await meuPedido(id);
 
   // Segunda verificacao de sessao, depois do middleware (#29).
   if (resultado.tipo === 'sem-sessao') redirect(ENTRAR);
@@ -50,6 +51,15 @@ export default async function DetalheDoPedido({ params }: { params: Promise<{ id
   // Nao existe, ou e de outra pessoa. A mesma resposta para os dois, porque a
   // consulta tambem nao sabe qual dos dois e. (Criterio da #42: 404, nao 403.)
   if (resultado.tipo === 'nao-achei') notFound();
+
+  // Quem mais quer saber se pagou e quem pagou, e ela abre esta tela antes de
+  // qualquer cron. So depois de `meuPedido` provar que o pedido e dela, e so
+  // enquanto ainda espera pagamento. Se mudou, reconsulta pelo caminho normal,
+  // com RLS — a conciliacao nao devolve nada alem de "mudou". (#114)
+  if (resultado.pedido.aguardandoPagamento && (await conciliaPedido(id))) {
+    const denovo = await meuPedido(id);
+    if (denovo.tipo === 'ok') resultado = denovo;
+  }
 
   const { pedido } = resultado;
   const linha = pedido.linhaDoTempo;

@@ -361,13 +361,30 @@ describe('sem assinatura', () => {
   });
 
   it('o mesmo estado de novo e repetido', async () => {
-    banco({ eventoRepetido: true });
+    banco({
+      pagamento: { id: 'pag-1', order_id: 'ped-1', estado: 'aprovado' },
+      eventoRepetido: true,
+    });
 
     expect(await semAssinatura(notificacao(), SANDBOX)).toEqual({
       tipo: 'ignorado',
       motivo: 'evento-repetido',
     });
-    expect(atualizados).toEqual([]);
+    expect(atualizados.some((a) => a.tabela === 'pagamentos')).toBe(false);
+    expect(atualizados.some((a) => a.tabela === 'orders')).toBe(false);
+  });
+
+  // Evento ja registrado, estado que nao acompanhou: o repetido deduplica a
+  // auditoria, nao a aplicacao. Senao um processo caindo entre gravar e
+  // atualizar deixaria o pagamento preso para sempre.
+  it('evento repetido com estado atrasado ainda aplica', async () => {
+    banco({ eventoRepetido: true });
+
+    expect(await semAssinatura(notificacao(), SANDBOX)).toEqual({
+      tipo: 'aplicado',
+      estado: 'aprovado',
+    });
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
   });
 
   it('pendente nao derruba aprovado, como no caminho assinado', async () => {
