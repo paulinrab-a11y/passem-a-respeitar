@@ -185,6 +185,11 @@ export type PedidoDetalhado = {
   rotulo: string;
   tom: Tom;
   total: string;
+  /**
+   * O mesmo valor em centavos. Entrou na #108: o Payment Brick recebe numero,
+   * e reconverter `total` de volta para numero seria formatar para desformatar.
+   */
+  totalCentavos: number;
   itens: ItemDoPedido[];
   /**
    * Ja montada aqui, e nao na pagina. Assim a pagina nao ve os eventos crus —
@@ -214,6 +219,7 @@ export function mapeiaDetalhe(linha: LinhaDetalhe): PedidoDetalhado {
     rotulo,
     tom,
     total: reais(linha.total_centavos),
+    totalCentavos: linha.total_centavos,
     itens: mapeiaItens(linha.order_items),
     linhaDoTempo: montaLinhaDoTempo(linha.status, linha.order_status_history),
   };

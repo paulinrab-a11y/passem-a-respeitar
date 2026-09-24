@@ -1,6 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
-import { destinoSeguro, ENTRAR, ehRotaDeAuth, exigeSessao, precisaDeSessao } from '@/lib/rotas';
+import {
+  destinoSeguro,
+  ENTRAR,
+  ehPagamento,
+  ehRotaDeAuth,
+  exigeSessao,
+  precisaDeSessao,
+} from '@/lib/rotas';
 import { COOKIE_LEMBRAR, opcoesDeSessao } from '@/lib/supabase/cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 
@@ -20,7 +27,38 @@ const FRAME_SRC = "'none'";
 // pode deixar a CSP apontando para o projeto antigo em silencio.
 const SUPABASE_HOST = new URL(SUPABASE_URL).origin;
 
-function montaCsp(nonce: string, dev: boolean) {
+/**
+ * Hosts do Mercado Pago, so na tela de pagamento (Issue #108).
+ *
+ * Escritos um a um, e a lista saiu de MEDICAO, nao de tutorial: montei o
+ * Payment Brick com a politica de antes e li as violacoes que o navegador
+ * reportou. Foram estas duas, e mais nada:
+ *
+ *   api.mercadopago.com   /v1/payment_methods/search e /v1/devices/widgets
+ *   http2.mlstatic.com    os textos em pt do Brick (i18n/pt/payment/index.json)
+ *
+ * `script-src` nao precisou de nada, e vale registrar por que: com
+ * `strict-dynamic`, host em script-src e IGNORADO. Quem confere confianca e o
+ * nonce, e o script do SDK e criado por codigo que ja veio com nonce — entao
+ * herda a confianca. Listar `sdk.mercadopago.com` ali seria linha morta.
+ */
+const MP_CONEXAO = [
+  'https://api.mercadopago.com',
+  // Os campos seguros — o iframe que guarda numero e CVV. Sem este host os
+  // tres iframes sensiveis nascem com altura zero e o cartao nao existe.
+  'https://api-static.mercadopago.com',
+  'https://secure-fields.mercadopago.com',
+  'https://http2.mlstatic.com',
+];
+
+/** Iframes do Brick. E dentro deles que o numero do cartao vive — nunca no nosso DOM. */
+const MP_FRAME = [
+  // Onde o numero do cartao e o CVV de fato moram.
+  'https://secure-fields.mercadopago.com',
+  'https://www.mercadopago.com',
+];
+
+function montaCsp(nonce: string, dev: boolean, pagamento: boolean) {
   const script = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -40,8 +78,10 @@ function montaCsp(nonce: string, dev: boolean) {
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' data: blob: ${SUPABASE_HOST}`,
     "media-src 'self'",
-    "connect-src 'self'",
-    `frame-src ${FRAME_SRC}`,
+    // Os hosts externos novos valem SO na tela de pagamento. Na home e no
+    // resto da conta a politica continua sendo exatamente a de antes.
+    ['connect-src', "'self'", ...(pagamento ? MP_CONEXAO : [])].join(' '),
+    ['frame-src', ...(pagamento ? MP_FRAME : [FRAME_SRC])].join(' '),
     "font-src 'self'",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
@@ -117,7 +157,10 @@ export async function middleware(request: NextRequest) {
   crypto.getRandomValues(bytes);
   const nonce = btoa(String.fromCharCode(...bytes));
 
-  const csp = montaCsp(nonce, dev);
+  // A tela de pagamento e a unica que carrega o Payment Brick, e a unica que
+  // abre host externo. Conferir pelo caminho, e nao por um booleano global,
+  // mantem a politica apertada em todo o resto do site.
+  const csp = montaCsp(nonce, dev, ehPagamento(request.nextUrl.pathname));
 
   // O Next le o nonce do header de CSP do request para carimbar os proprios
   // scripts inline de hidratacao. Por isso o header vai no request tambem,

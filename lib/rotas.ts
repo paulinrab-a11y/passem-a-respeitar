@@ -18,7 +18,24 @@ const CHECKOUT = '/checkout';
  * escolhido. Sem isso, voltar para a home e refazer a escolha.
  */
 export function exigeSessao(pathname: string) {
-  return pathname === CONTA || pathname.startsWith(`${CONTA}/`) || pathname === CHECKOUT;
+  return (
+    pathname === CONTA ||
+    pathname.startsWith(`${CONTA}/`) ||
+    pathname === CHECKOUT ||
+    pathname.startsWith(`${CHECKOUT}/`)
+  );
+}
+
+/**
+ * A tela que monta o Payment Brick (#108).
+ *
+ * E a unica rota do site que abre host externo na CSP. Por isso a pergunta
+ * existe aqui, pura e testavel, em vez de virar um `startsWith` solto dentro do
+ * middleware: abrir host para o site inteiro seria abrir para a home, que nao
+ * precisa de nada disso.
+ */
+export function ehPagamento(pathname: string) {
+  return pathname.startsWith(`${CHECKOUT}/pagamento/`);
 }
 
 /**
