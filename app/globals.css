@@ -793,3 +793,21 @@ footer.assina a:hover{color:var(--vermelho)}
 .brick{margin-top:4px}
 .brick .detalhe-nota{margin-bottom:0}
 .pagamento-valor{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
+
+/* Pix gerado (#110) ---------------------------------------------------------- */
+.pix{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+.pix-valor{font-family:var(--display);font-weight:400;font-size:34px;letter-spacing:.04em;color:#fff}
+/* Fundo branco no QR nao e escolha estetica: leitor de codigo precisa de
+   contraste, e QR claro sobre preto falha em boa parte dos aparelhos. */
+.pix-qr{background:#fff;padding:10px;width:240px;height:240px}
+.pix-codigo{display:flex;flex-direction:column;gap:8px;width:100%}
+.pix-codigo span{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2)}
+.pix-codigo input{font:inherit;font-size:12px;letter-spacing:.02em;background:transparent;color:var(--prata-2);border:1px solid var(--prata-3);padding:12px 14px;width:100%;text-align:center;text-overflow:ellipsis}
+.pix .btn{width:100%;justify-content:center}
+.pix-espera{font-size:12px;letter-spacing:.06em;color:var(--prata-3);display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+.pix .detalhe-nota{max-width:42ch;margin:0}
+
+@media (max-width:767px){
+  .pix-qr{width:200px;height:200px}
+  .pix .btn{min-height:52px}
+}
