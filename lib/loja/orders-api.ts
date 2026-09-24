@@ -129,13 +129,18 @@ function corpo(dados: DadosDaCobranca) {
  * justamente no retry, que e quando ela importa.
  */
 export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobranca> {
+  // FORA do try, de proposito. Dentro, o `catch` de rede engoliria a falta da
+  // variavel e ela viraria "provedor indisponivel" — justamente o diagnostico
+  // ruim que a mensagem de `token()` existe para evitar. Um teste guarda isto.
+  const autorizacao = `Bearer ${token()}`;
+
   let resposta: Response;
 
   try {
     resposta = await fetch(`${BASE}/v1/orders`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token()}`,
+        Authorization: autorizacao,
         'Content-Type': 'application/json',
         'X-Idempotency-Key': dados.idempotencia,
       },
@@ -179,4 +184,36 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
         }
       : {}),
   };
+}
+
+/**
+ * Consulta a ordem no provedor (Issue #45).
+ *
+ * E a diferenca entre "o webhook disse que foi pago" e "o Mercado Pago
+ * confirmou que foi pago". O corpo que chega por HTTP e afirmacao — ate
+ * assinado, ele so prova que a notificacao e autentica, nao que o estado ali
+ * dentro ainda vale. Quem decide dinheiro e esta chamada.
+ */
+export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedor | null> {
+  try {
+    const r = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+      signal: AbortSignal.timeout(PRAZO_MS),
+      cache: 'no-store',
+    });
+
+    if (!r.ok) return null;
+
+    const ordem = (await r.json()) as OrdemDoProvedor;
+    const pagamento = ordem.transactions?.payments?.[0];
+
+    return montaEstado(
+      pagamento?.status ?? ordem.status,
+      pagamento?.status_detail ?? ordem.status_detail
+    );
+  } catch {
+    // Nao conseguir confirmar nao e o mesmo que confirmar. `null` faz o
+    // webhook devolver erro, e o provedor reenvia depois.
+    return null;
+  }
 }
