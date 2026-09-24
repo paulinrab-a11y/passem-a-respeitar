@@ -111,6 +111,14 @@ export type Database = {
           anonimizado_em: string | null;
           atualizado_em: string;
           criado_em: string;
+          entrega_bairro: string | null;
+          entrega_cep: string | null;
+          entrega_cidade: string | null;
+          entrega_complemento: string | null;
+          entrega_logradouro: string | null;
+          entrega_nome: string | null;
+          entrega_numero: string | null;
+          entrega_uf: string | null;
           id: string;
           moeda: string;
           numero: number;
@@ -124,6 +132,14 @@ export type Database = {
           anonimizado_em?: string | null;
           atualizado_em?: string;
           criado_em?: string;
+          entrega_bairro?: string | null;
+          entrega_cep?: string | null;
+          entrega_cidade?: string | null;
+          entrega_complemento?: string | null;
+          entrega_logradouro?: string | null;
+          entrega_nome?: string | null;
+          entrega_numero?: string | null;
+          entrega_uf?: string | null;
           id?: string;
           moeda?: string;
           numero?: never;
@@ -137,6 +153,14 @@ export type Database = {
           anonimizado_em?: string | null;
           atualizado_em?: string;
           criado_em?: string;
+          entrega_bairro?: string | null;
+          entrega_cep?: string | null;
+          entrega_cidade?: string | null;
+          entrega_complemento?: string | null;
+          entrega_logradouro?: string | null;
+          entrega_nome?: string | null;
+          entrega_numero?: string | null;
+          entrega_uf?: string | null;
           id?: string;
           moeda?: string;
           numero?: never;
@@ -147,6 +171,106 @@ export type Database = {
           user_id?: string | null;
         };
         Relationships: [];
+      };
+      pagamento_eventos: {
+        Row: {
+          evento_id: string;
+          id: string;
+          ocorrido_em: string | null;
+          pagamento_id: string | null;
+          provedor: string;
+          provedor_status: string | null;
+          recebido_em: string;
+          tipo: string | null;
+        };
+        Insert: {
+          evento_id: string;
+          id?: string;
+          ocorrido_em?: string | null;
+          pagamento_id?: string | null;
+          provedor?: string;
+          provedor_status?: string | null;
+          recebido_em?: string;
+          tipo?: string | null;
+        };
+        Update: {
+          evento_id?: string;
+          id?: string;
+          ocorrido_em?: string | null;
+          pagamento_id?: string | null;
+          provedor?: string;
+          provedor_status?: string | null;
+          recebido_em?: string;
+          tipo?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'pagamento_eventos_pagamento_id_fkey';
+            columns: ['pagamento_id'];
+            isOneToOne: false;
+            referencedRelation: 'pagamentos';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      pagamentos: {
+        Row: {
+          atualizado_em: string;
+          criado_em: string;
+          estado: Database['public']['Enums']['estado_pagamento'];
+          id: string;
+          idempotency_key: string;
+          metodo: string | null;
+          moeda: string;
+          order_id: string;
+          provedor: string;
+          provedor_pagamento_id: string | null;
+          provedor_status: string | null;
+          provedor_status_detail: string | null;
+          tentativa: number;
+          valor_centavos: number;
+        };
+        Insert: {
+          atualizado_em?: string;
+          criado_em?: string;
+          estado?: Database['public']['Enums']['estado_pagamento'];
+          id?: string;
+          idempotency_key?: string;
+          metodo?: string | null;
+          moeda?: string;
+          order_id: string;
+          provedor?: string;
+          provedor_pagamento_id?: string | null;
+          provedor_status?: string | null;
+          provedor_status_detail?: string | null;
+          tentativa: number;
+          valor_centavos: number;
+        };
+        Update: {
+          atualizado_em?: string;
+          criado_em?: string;
+          estado?: Database['public']['Enums']['estado_pagamento'];
+          id?: string;
+          idempotency_key?: string;
+          metodo?: string | null;
+          moeda?: string;
+          order_id?: string;
+          provedor?: string;
+          provedor_pagamento_id?: string | null;
+          provedor_status?: string | null;
+          provedor_status_detail?: string | null;
+          tentativa?: number;
+          valor_centavos?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'pagamentos_order_id_fkey';
+            columns: ['order_id'];
+            isOneToOne: false;
+            referencedRelation: 'orders';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       produto_variacoes: {
         Row: {
@@ -271,6 +395,7 @@ export type Database = {
       pedido_e_meu: { Args: { p_order_id: string }; Returns: boolean };
     };
     Enums: {
+      estado_pagamento: 'criado' | 'pendente' | 'aprovado' | 'recusado' | 'cancelado' | 'estornado';
       status_pedido:
         | 'aguardando_pagamento'
         | 'pago'
@@ -387,6 +512,7 @@ export type Enums<
 export const Constants = {
   public: {
     Enums: {
+      estado_pagamento: ['criado', 'pendente', 'aprovado', 'recusado', 'cancelado', 'estornado'],
       status_pedido: [
         'aguardando_pagamento',
         'pago',
