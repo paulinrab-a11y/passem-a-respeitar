@@ -811,3 +811,8 @@ footer.assina a:hover{color:var(--vermelho)}
   .pix-qr{width:200px;height:200px}
   .pix .btn{min-height:52px}
 }
+
+/* Acoes do pedido (#113): o botao de pagar, so enquanto espera pagamento. */
+.detalhe-acoes{margin-top:18px;display:flex;gap:12px;flex-wrap:wrap}
+.pedido-acoes{margin-top:12px}
+.pedido-acoes .btn{font-size:12px;padding:10px 16px}

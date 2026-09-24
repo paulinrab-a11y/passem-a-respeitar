@@ -92,6 +92,8 @@ describe('mapeiaPedidos', () => {
     const [pedido] = mapeiaPedidos([comSujeira]);
 
     expect(Object.keys(pedido).sort()).toEqual([
+      // Entrou na #113: a lista oferece pagar so enquanto isto for true.
+      'aguardandoPagamento',
       'criadoEm',
       // Entrou na #42: e o endereco da pagina de detalhe. O resto da linha
       // continua fora.
@@ -265,5 +267,52 @@ describe('mapeiaDetalhe', () => {
 
     expect(pedido.itens).toEqual([]);
     expect(pedido.linhaDoTempo.semRegistro).toBe(true);
+  });
+});
+
+/**
+ * A oferta de pagar depende do status, e so dele (#113). Nao e o rotulo nem o
+ * tom que decidem: e a coluna crua, para nao herdar ambiguidade de texto.
+ */
+describe('aguardandoPagamento', () => {
+  const base = {
+    id: '11111111-1111-4111-8111-111111111111',
+    numero: 1,
+    criado_em: '2026-09-24T10:00:00Z',
+    total_centavos: 12000,
+    order_items: [],
+  };
+
+  it('na lista, so o pedido aguardando pagamento oferece pagar', () => {
+    const [espera, pago, cancelado] = mapeiaPedidos([
+      { ...base, status: 'aguardando_pagamento' },
+      { ...base, numero: 2, status: 'pago' },
+      { ...base, numero: 3, status: 'cancelado' },
+    ]);
+
+    expect(espera.aguardandoPagamento).toBe(true);
+    expect(pago.aguardandoPagamento).toBe(false);
+    expect(cancelado.aguardandoPagamento).toBe(false);
+  });
+
+  it.each([
+    'pago',
+    'em_separacao',
+    'enviado',
+    'entregue',
+    'cancelado',
+    'reembolsado',
+    'status-novo',
+  ])('no detalhe, %s nao oferece pagar', (status) => {
+    expect(mapeiaDetalhe({ ...base, status, order_status_history: [] }).aguardandoPagamento).toBe(
+      false
+    );
+  });
+
+  it('no detalhe, aguardando_pagamento oferece', () => {
+    expect(
+      mapeiaDetalhe({ ...base, status: 'aguardando_pagamento', order_status_history: [] })
+        .aguardandoPagamento
+    ).toBe(true);
   });
 });

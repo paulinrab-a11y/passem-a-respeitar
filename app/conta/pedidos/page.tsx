@@ -98,6 +98,15 @@ export default async function Pedidos({ searchParams }: { searchParams: Promise<
                     <span>Total</span>
                     <strong>{pedido.total}</strong>
                   </p>
+
+                  {/* So enquanto espera pagamento (#113). */}
+                  {pedido.aguardandoPagamento ? (
+                    <p className="pedido-acoes">
+                      <a className="btn" href={`/checkout/pagamento/${pedido.id}`}>
+                        Pagar
+                      </a>
+                    </p>
+                  ) : null}
                 </article>
               </li>
             ))}

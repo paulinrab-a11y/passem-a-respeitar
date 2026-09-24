@@ -104,6 +104,17 @@ export default async function DetalheDoPedido({ params }: { params: Promise<{ id
             <span>Total</span>
             <strong>{pedido.total}</strong>
           </p>
+
+          {/* So enquanto espera pagamento. Pedido pago, cancelado ou enviado
+              nao oferece pagar — e a ausencia do botao e o que diz isso, sem
+              precisar de um botao desabilitado explicando por que. (#113) */}
+          {pedido.aguardandoPagamento ? (
+            <p className="detalhe-acoes">
+              <a className="btn cheio" href={`/checkout/pagamento/${id}`}>
+                Pagar agora
+              </a>
+            </p>
+          ) : null}
         </section>
 
         <section className="detalhe-bloco">
