@@ -242,6 +242,8 @@ describe('mapeiaDetalhe', () => {
     const serializado = JSON.stringify(pedido);
 
     expect(Object.keys(pedido).sort()).toEqual([
+      // Entrou na #114: a tela so pergunta ao provedor enquanto isto for true.
+      'aguardandoPagamento',
       'criadoEm',
       'itens',
       'linhaDoTempo',

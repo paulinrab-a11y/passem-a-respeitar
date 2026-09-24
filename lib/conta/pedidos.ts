@@ -190,6 +190,12 @@ export type PedidoDetalhado = {
    * e reconverter `total` de volta para numero seria formatar para desformatar.
    */
   totalCentavos: number;
+  /**
+   * O pedido ainda espera pagamento. Entrou na #114: e o unico status em que
+   * vale perguntar ao provedor se algo mudou — e, na #113, em que faz sentido
+   * oferecer pagar.
+   */
+  aguardandoPagamento: boolean;
   itens: ItemDoPedido[];
   /**
    * Ja montada aqui, e nao na pagina. Assim a pagina nao ve os eventos crus —
@@ -220,6 +226,7 @@ export function mapeiaDetalhe(linha: LinhaDetalhe): PedidoDetalhado {
     tom,
     total: reais(linha.total_centavos),
     totalCentavos: linha.total_centavos,
+    aguardandoPagamento: linha.status === 'aguardando_pagamento',
     itens: mapeiaItens(linha.order_items),
     linhaDoTempo: montaLinhaDoTempo(linha.status, linha.order_status_history),
   };

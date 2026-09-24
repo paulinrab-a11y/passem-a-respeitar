@@ -35,6 +35,10 @@ import 'server-only';
  * Em producao isso e inerte por construcao: `pagamentos` nunca tem
  * `ORDTST…`, entao a busca falha antes de qualquer consulta, e ordem real
  * (`ORD01…`) sem assinatura e recusada na primeira linha.
+ *
+ * Esse mesmo "confirma primeiro, grava depois" e o que a conciliacao (#114)
+ * usa — `confirmaPeloProvedor` e exportada por isso. Nao e um segundo caminho
+ * de decisao: e o mesmo, iniciado por nos em vez de pelo provedor.
  */
 
 import { clienteAdmin } from '@/lib/supabase/admin';
@@ -62,7 +66,13 @@ type Notificacao = {
 /** Marca do provedor em ordem criada com credencial de teste. */
 const PREFIXO_SANDBOX = 'ORDTST';
 
-type Pagamento = { id: string; order_id: string; estado: string };
+/**
+ * Quem iniciou uma confirmacao sem assinatura. Vira o prefixo do `evento_id`
+ * e o `tipo` em `pagamento_eventos`, para a auditoria saber de onde veio.
+ */
+export type OrigemDaConfirmacao = 'nao-assinado' | 'conciliacao';
+
+export type PagamentoEmAberto = { id: string; order_id: string; estado: string };
 type Admin = ReturnType<typeof clienteAdmin>;
 type Resumo = NonNullable<Awaited<ReturnType<typeof consultaOrdem>>>;
 
@@ -93,16 +103,20 @@ export async function processa(
     .eq('provedor_pagamento_id', recursoId)
     .maybeSingle();
 
-  return assinada
-    ? processaAssinada(admin, n, recursoId, pagamento)
-    : processaSandbox(admin, recursoId, pagamento);
+  if (assinada) return processaAssinada(admin, n, recursoId, pagamento);
+
+  // Sem prova de origem, ruido nao entra na auditoria: quem nao provou nada
+  // nao ganha uma linha em `pagamento_eventos`.
+  if (!pagamento) return { tipo: 'ignorado', motivo: 'pagamento-desconhecido' };
+
+  return confirmaPeloProvedor(admin, pagamento, recursoId, 'nao-assinado');
 }
 
 async function processaAssinada(
   admin: Admin,
   n: Notificacao,
   recursoId: string,
-  pagamento: Pagamento | null
+  pagamento: PagamentoEmAberto | null
 ): Promise<ResultadoDoWebhook> {
   // Identidade do EVENTO, nao da entrega. O provedor reenvia a mesma
   // notificacao com o mesmo `id` de corpo; usar o `x-request-id`, que muda a
@@ -126,27 +140,29 @@ async function processaAssinada(
   return aplica(admin, pagamento, resumo, eventoId);
 }
 
-async function processaSandbox(
+/**
+ * Confirma um pagamento conhecido pelo provedor e aplica o que ele disser.
+ *
+ * Ordem inversa da assinada, de proposito: aqui a unica fonte de verdade e a
+ * consulta, entao nada e gravado antes dela responder.
+ */
+export async function confirmaPeloProvedor(
   admin: Admin,
+  pagamento: PagamentoEmAberto,
   recursoId: string,
-  pagamento: Pagamento | null
+  origem: OrigemDaConfirmacao
 ): Promise<ResultadoDoWebhook> {
-  // Sem prova de origem, ruido nao entra na auditoria: quem nao provou nada
-  // nao ganha uma linha em `pagamento_eventos`.
-  if (!pagamento) return { tipo: 'ignorado', motivo: 'pagamento-desconhecido' };
-
-  // Confirma ANTES de gravar qualquer coisa. Ordem inversa da assinada, de
-  // proposito: aqui a unica fonte de verdade e a consulta.
   const resumo = await consultaOrdem(recursoId);
   if (!resumo) return { tipo: 'tente-de-novo', motivo: 'nao-consegui-confirmar' };
 
-  // A identidade do evento vem do que o PROVEDOR respondeu, nao do corpo. Um
-  // corpo forjado nao escolhe o id — e por isso nao consegue ocupar de
-  // antemao o id de um evento legitimo para fazer o real cair como repetido.
-  // Mesmo estado de novo colide e vira "repetido"; estado novo processa.
-  const eventoId = `nao-assinado:${recursoId}:${resumo.status}`;
+  // A identidade do evento vem do que o PROVEDOR respondeu, nao de quem
+  // pediu. Um corpo forjado nao escolhe o id — e por isso nao consegue ocupar
+  // de antemao o id de um evento legitimo para fazer o real cair como
+  // repetido. Mesmo estado de novo colide e vira "repetido"; estado novo
+  // processa.
+  const eventoId = `${origem}:${recursoId}:${resumo.status}`;
 
-  const registro = await registra(admin, eventoId, pagamento.id, null);
+  const registro = await registra(admin, eventoId, pagamento.id, null, origem);
   if (registro) return registro;
 
   return aplica(admin, pagamento, resumo, eventoId);
@@ -157,12 +173,13 @@ async function registra(
   admin: Admin,
   eventoId: string,
   pagamentoId: string | null,
-  n: Notificacao | null
+  n: Notificacao | null,
+  origem?: OrigemDaConfirmacao
 ): Promise<ResultadoDoWebhook | null> {
   const { error } = await admin.from('pagamento_eventos').insert({
     pagamento_id: pagamentoId,
     evento_id: eventoId,
-    tipo: n ? (n.type ?? n.topic ?? n.action ?? null) : 'nao-assinado',
+    tipo: n ? (n.type ?? n.topic ?? n.action ?? null) : (origem ?? null),
   });
 
   if (!error) return null;
@@ -173,7 +190,7 @@ async function registra(
 
 async function aplica(
   admin: Admin,
-  pagamento: Pagamento,
+  pagamento: PagamentoEmAberto,
   resumo: Resumo,
   eventoId: string
 ): Promise<ResultadoDoWebhook> {
