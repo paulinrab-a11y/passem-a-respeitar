@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { conferaAssinatura, qualManifesto } from '@/lib/loja/assinatura-webhook';
+import { varre } from '@/lib/loja/varredura-assinatura';
 import { processa } from '@/lib/loja/webhook';
 
 export const dynamic = 'force-dynamic';
@@ -71,6 +72,21 @@ export async function POST(request: NextRequest) {
       console.warn('[webhook] x-request-id:', request.headers.get('x-request-id'));
       const cru = await request.clone().text();
       console.warn('[webhook] corpo:', cru.slice(0, 600));
+      console.warn(
+        '[webhook] varredura:',
+        varre({
+          assinatura: request.headers.get('x-signature'),
+          requestId: request.headers.get('x-request-id'),
+          recursoId,
+          externalReference: url.searchParams.get('data.external_reference'),
+          tipo: url.searchParams.get('type') ?? url.searchParams.get('topic'),
+          corpoCru: cru,
+          segredos: [
+            process.env.MERCADOPAGO_WEBHOOK_SECRET,
+            process.env.MERCADOPAGO_WEBHOOK_SECRET_ALT,
+          ],
+        })
+      );
     }
     return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
   }
