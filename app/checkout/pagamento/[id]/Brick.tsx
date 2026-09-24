@@ -57,6 +57,26 @@ export default function Brick({ chavePublica, valor, email }: Pagavel) {
             bankTransfer: 'all',
             creditCard: 'all',
           },
+          visual: {
+            // Sem isto o Brick sai branco no meio de uma pagina preta, e
+            // parece um site dentro do outro. As variaveis sao as mesmas do
+            // globals.css, escritas aqui porque o Brick vive em iframe e nao
+            // enxerga a nossa folha de estilo.
+            style: {
+              theme: 'dark',
+              customVariables: {
+                baseColor: '#e0161f',
+                textPrimaryColor: '#cdd0d5',
+                textSecondaryColor: '#7d8188',
+                formBackgroundColor: '#08080a',
+                inputBackgroundColor: '#050505',
+                borderRadiusSmall: '0px',
+                borderRadiusMedium: '0px',
+                borderRadiusLarge: '0px',
+                formPadding: '18px',
+              },
+            },
+          },
         }}
         onReady={() => setPronto(true)}
         onError={() => setErro('Não consegui carregar o pagamento. Recarregue a página.')}
