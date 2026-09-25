@@ -18,8 +18,11 @@
   },
   "dependencies": {
     "@mercadopago/sdk-react": "^1.0.7",
+    "@sentry/nextjs": "^11.0.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.1",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "gsap": "3.15.0",
     "next": "15.5.25",
     "react": "19.3.0",

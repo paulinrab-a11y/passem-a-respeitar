@@ -1,3 +1,5 @@
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Anton, Pirata_One } from 'next/font/google';
 import './globals.css';
@@ -38,7 +40,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR" className={`${anton.variable} ${pirata.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Vercel Analytics e Speed Insights (#8). Os scripts vem da propria
+            origem (/_vercel/...) e sao inseridos por codigo que ja tem nonce,
+            entao passam na CSP com strict-dynamic sem host novo. Sem cookie,
+            sem identificador de pessoa — e a Vercel que agrega. */}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }

@@ -9,6 +9,9 @@ const clienteDeAuth = vi.fn(async (_lembrar: boolean) => ({
   auth: { signInWithPassword },
 }));
 
+const captureMessage = vi.fn();
+vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a) }));
+
 vi.mock('@/lib/supabase/servidor', () => ({
   clienteDeAuth: (lembrar: boolean) => clienteDeAuth(lembrar),
 }));
@@ -283,5 +286,31 @@ describe('tempo de resposta', () => {
     const t0 = Date.now();
     await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
     expect(Date.now() - t0).toBeLessThan(200);
+  });
+});
+
+describe('sinal para o alerta (#8)', () => {
+  it('bater no limite manda um aviso ao Sentry, sem e-mail nem IP', async () => {
+    signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    const alvo = email();
+    for (let i = 0; i < 6; i++)
+      await entrar(estadoInicial, formulario({ email: alvo, senha: 'x' }));
+
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+    const [mensagem, contexto] = captureMessage.mock.calls[0] as [
+      string,
+      { tags: Record<string, string> },
+    ];
+    expect(mensagem).toMatch(/limite/);
+    expect(contexto.tags).toEqual({ por: 'email' });
+    expect(JSON.stringify(captureMessage.mock.calls)).not.toContain(alvo);
+    expect(JSON.stringify(captureMessage.mock.calls)).not.toMatch(/203.0.113/);
+  });
+
+  it('tentativa errada comum nao vira evento', async () => {
+    signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+
+    expect(captureMessage).not.toHaveBeenCalled();
   });
 });
