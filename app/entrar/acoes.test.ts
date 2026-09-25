@@ -10,7 +10,11 @@ const clienteDeAuth = vi.fn(async (_lembrar: boolean) => ({
 }));
 
 const captureMessage = vi.fn();
-vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a) }));
+const flush = vi.fn(async () => true);
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: (...a: unknown[]) => captureMessage(...a),
+  flush: () => flush(),
+}));
 
 vi.mock('@/lib/supabase/servidor', () => ({
   clienteDeAuth: (lembrar: boolean) => clienteDeAuth(lembrar),
@@ -305,6 +309,19 @@ describe('sinal para o alerta (#8)', () => {
     expect(contexto.tags).toEqual({ por: 'email' });
     expect(JSON.stringify(captureMessage.mock.calls)).not.toContain(alvo);
     expect(JSON.stringify(captureMessage.mock.calls)).not.toMatch(/203.0.113/);
+  });
+
+  // Serverless congela ao responder; sem flush o evento morre na fila.
+  it('faz flush depois de capturar, antes de responder', async () => {
+    signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    const alvo = email();
+    for (let i = 0; i < 6; i++)
+      await entrar(estadoInicial, formulario({ email: alvo, senha: 'x' }));
+
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(captureMessage.mock.invocationCallOrder[0]).toBeLessThan(
+      flush.mock.invocationCallOrder[0]
+    );
   });
 
   it('tentativa errada comum nao vira evento', async () => {

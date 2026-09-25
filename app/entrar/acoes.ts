@@ -83,6 +83,11 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
       level: 'warning',
       tags: { por: cotaEmail.permitido ? 'ip' : 'email' },
     });
+    // Server action em serverless: a funcao congela assim que responde, e o
+    // SDK envia em segundo plano — sem isto o evento nunca sai. Conferido ao
+    // vivo: zero eventos chegaram ate o flush entrar. Dois segundos de teto;
+    // e o caminho raro do limite, nao o login normal.
+    await Sentry.flush(2000);
 
     const esperar = Math.max(cotaIp.esperarS, cotaEmail.esperarS);
     const minutos = Math.ceil(esperar / 60);
