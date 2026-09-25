@@ -92,9 +92,12 @@ section{position:relative}
 .tocando.on{opacity:1;transform:none;pointer-events:auto}
 .tocando:hover{color:var(--vermelho)}
 .tocando .eq{display:flex;gap:3px;align-items:flex-end;height:14px}
-.tocando .eq i{width:3px;background:var(--vermelho);animation:eq .6s ease-in-out infinite alternate}
+/* Altura fixa e escala em transform: animar `height` reflui o layout a cada
+   quadro, e e uma das propriedades que a #52 proibe. A origem embaixo faz a
+   barra crescer para cima, como antes. */
+.tocando .eq i{width:3px;height:14px;transform-origin:bottom;background:var(--vermelho);animation:eq .6s ease-in-out infinite alternate}
 .tocando .eq i:nth-child(2){animation-delay:.15s}.tocando .eq i:nth-child(3){animation-delay:.3s}.tocando .eq i:nth-child(4){animation-delay:.45s}
-@keyframes eq{from{height:3px}to{height:14px}}
+@keyframes eq{from{transform:scaleY(.21)}to{transform:scaleY(1)}}
 
 #clipe{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:12vh var(--gutter)}
 #clipe .in{width:min(1040px,100%)}
@@ -276,6 +279,11 @@ footer.assina a:hover{color:var(--vermelho)}
   .elo .box{opacity:1;transform:none;transition:none}
   #hero .desce::after{animation:none}
   #manifesto .l{opacity:1;filter:none;transform:none}
+  /* Os dois loops infinitos que sobravam (#52). O REC vira um ponto aceso; o
+     equalizador vira barras paradas a meia altura — continua dizendo "tocando",
+     so nao pulsa. */
+  #rec i{animation:none}
+  .tocando .eq i{animation:none;transform:scaleY(.5)}
 }
 
 /* ===========================================================================
