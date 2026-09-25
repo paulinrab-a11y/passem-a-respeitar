@@ -127,6 +127,35 @@ function montaCsp(nonce: string, dev: boolean, pagamento: boolean) {
   ].join('; ');
 }
 
+const METODOS_QUE_LEEM = new Set(['GET', 'HEAD']);
+
+/**
+ * Barreira de origem para /api (#17).
+ *
+ * Preflight (OPTIONS) responde vazio e SEM cabecalho de CORS: e assim que se
+ * diz "nao" a um fetch cross-site — o navegador le a ausencia e desiste.
+ * Request de escrita com `Origin` de outro site leva 403 antes de tocar em
+ * qualquer rota. Leitura passa: sem Allow-Origin a resposta nao chega a quem
+ * pediu de fora, e a home mesma faz GET em /api/conta/resumo.
+ */
+function barreiraDeOrigem(request: NextRequest): NextResponse | null {
+  const { pathname, origin } = request.nextUrl;
+  if (!pathname.startsWith('/api/')) return null;
+
+  if (request.method === 'OPTIONS') {
+    return new NextResponse(null, { status: 204 });
+  }
+
+  if (METODOS_QUE_LEEM.has(request.method)) return null;
+
+  const vindoDe = request.headers.get('origin');
+  if (vindoDe && vindoDe !== origin) {
+    return NextResponse.json({ erro: 'origem nao permitida' }, { status: 403 });
+  }
+
+  return null;
+}
+
 /**
  * Confere a sessao e, de quebra, renova o token.
  *
@@ -186,6 +215,19 @@ export async function middleware(request: NextRequest) {
     url.protocol = 'https:';
     return NextResponse.redirect(url, 301);
   }
+
+  // CORS restrito a propria origem (#17). Nenhuma rota emite
+  // Access-Control-Allow-Origin, entao o navegador ja nao deixa outro site LER
+  // a resposta. O que esta guarda acrescenta e barrar a ESCRITA: um POST
+  // cross-site simples (form-encoded) chega ao servidor mesmo sem CORS, e com
+  // SameSite=Lax o cookie fica de fora — mas o webhook e o convite nao dependem
+  // de cookie, e barrar na porta e mais barato que confiar em cada rota.
+  //
+  // Sem `Origin` passa: e request de servidor (Mercado Pago, cron) ou
+  // navegacao, nunca fetch de outro site — navegador sempre manda Origin em
+  // POST cross-site.
+  const barrado = barreiraDeOrigem(request);
+  if (barrado) return barrado;
 
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);

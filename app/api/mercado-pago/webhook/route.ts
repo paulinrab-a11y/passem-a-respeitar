@@ -37,7 +37,12 @@ const LIMITE = { maximo: 60, janelaMs: 60 * 1000 };
 export async function POST(request: NextRequest) {
   const cota = limita(`webhook-mp:${ipDoRequest(request.headers)}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
-    return NextResponse.json({ ok: false }, { status: 429 });
+    // Retry-After e para o provedor tambem: ele reenvia em nao-2xx, e o
+    // cabecalho diz quando vale a pena.
+    return NextResponse.json(
+      { ok: false },
+      { status: 429, headers: { 'Retry-After': String(cota.esperarS) } }
+    );
   }
 
   const url = new URL(request.url);

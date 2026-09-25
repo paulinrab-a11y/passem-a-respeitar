@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { entrar } from './acoes';
 import { estadoInicial } from './estado';
 
@@ -53,6 +53,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   signInWithPassword.mockResolvedValue({ error: null });
   deIpNovo();
+  // O piso de tempo (#23) e testado num caso proprio; nos outros ele so
+  // deixaria a suite lenta.
+  vi.stubEnv('LOGIN_PISO_MS', '0');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe('login com sucesso', () => {
@@ -161,11 +168,11 @@ describe('mensagem generica', () => {
 });
 
 describe('rate limit', () => {
-  it('bloqueia depois de seis tentativas no mesmo e-mail', async () => {
+  it('bloqueia depois de cinco tentativas no mesmo e-mail', async () => {
     signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     const alvo = email();
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 5; i++) {
       const r = await entrar(estadoInicial, formulario({ email: alvo, senha: 'x' }));
       expect(r.erro).not.toMatch(/Muitas tentativas/);
     }
@@ -180,7 +187,7 @@ describe('rate limit', () => {
     signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     const alvo = email();
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 5; i++) {
       cabecalhos = new Headers({ 'x-forwarded-for': `198.51.100.${i}` });
       await entrar(estadoInicial, formulario({ email: alvo, senha: 'x' }));
     }
@@ -194,7 +201,7 @@ describe('rate limit', () => {
     signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     const alvo = email();
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) {
       await entrar(estadoInicial, formulario({ email: alvo, senha: 'x' }));
     }
     signInWithPassword.mockClear();
@@ -209,7 +216,7 @@ describe('rate limit', () => {
     signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     const alvo = email();
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) {
       await entrar(estadoInicial, formulario({ email: alvo, senha: 'x' }));
     }
 
@@ -221,12 +228,60 @@ describe('rate limit', () => {
     signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     const alvo = email();
 
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) {
       await entrar(estadoInicial, formulario({ email: alvo, senha: 'x' }));
     }
 
     deIpNovo();
     const outro = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
     expect(outro.erro).not.toMatch(/Muitas tentativas/);
+  });
+});
+
+describe('tempo de resposta', () => {
+  // A mensagem ja era igual; o tempo ainda contava. Sem hash para comparar, o
+  // provedor responde mais rapido para e-mail que nao existe — e quem mede
+  // milissegundos enumera contas do mesmo jeito.
+  it('e-mail inexistente nao responde mais rapido que senha errada', async () => {
+    vi.stubEnv('LOGIN_PISO_MS', '80');
+
+    // Conta que "nao existe": o provedor responde na hora.
+    signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
+    const t0 = Date.now();
+    await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+    const inexistente = Date.now() - t0;
+
+    // Conta que existe: o provedor demora comparando o hash.
+    deIpNovo();
+    signInWithPassword.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 40));
+      return { error: { message: 'Invalid login credentials' } };
+    });
+    const t1 = Date.now();
+    await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+    const existente = Date.now() - t1;
+
+    expect(inexistente).toBeGreaterThanOrEqual(75);
+    expect(existente).toBeGreaterThanOrEqual(75);
+  });
+
+  it('o piso vale tambem para o sucesso', async () => {
+    vi.stubEnv('LOGIN_PISO_MS', '80');
+    const t0 = Date.now();
+    await expect(
+      entrar(estadoInicial, formulario({ email: email(), senha: 'certa' }))
+    ).rejects.toThrow();
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(75);
+  });
+
+  it('nao segura alem do piso quando o provedor ja demorou', async () => {
+    vi.stubEnv('LOGIN_PISO_MS', '50');
+    signInWithPassword.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 120));
+      return { error: { message: 'Invalid login credentials' } };
+    });
+    const t0 = Date.now();
+    await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+    expect(Date.now() - t0).toBeLessThan(200);
   });
 });
