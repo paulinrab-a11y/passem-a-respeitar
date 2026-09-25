@@ -13,7 +13,7 @@ const captureMessage = vi.fn();
 const flush = vi.fn(async () => true);
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: (...a: unknown[]) => captureMessage(...a),
-  flush: (...a: unknown[]) => flush(...a),
+  flush: () => flush(),
 }));
 
 vi.mock('@/lib/supabase/servidor', () => ({
