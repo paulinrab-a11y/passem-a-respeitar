@@ -816,3 +816,9 @@ footer.assina a:hover{color:var(--vermelho)}
 .detalhe-acoes{margin-top:18px;display:flex;gap:12px;flex-wrap:wrap}
 .pedido-acoes{margin-top:12px}
 .pedido-acoes .btn{font-size:12px;padding:10px 16px}
+
+/* Administracao de pedidos (#43). */
+.admin-acoes{margin-top:14px;display:grid;gap:10px}
+.admin-botoes{display:flex;gap:10px;flex-wrap:wrap}
+.admin-botoes .btn{font-size:12px;padding:10px 16px}
+.admin-final{margin-top:12px;margin-bottom:0}
