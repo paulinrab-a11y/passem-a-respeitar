@@ -51,6 +51,29 @@ const MP_CONEXAO = [
   'https://http2.mlstatic.com',
 ];
 
+/**
+ * Antifraude do Mercado Pago (Issue #109) — so na tela de pagamento.
+ *
+ * Estes tres recursos ficaram BLOQUEADOS de proposito na #108: sao telemetria
+ * e fingerprint de navegador (o `armor` carrega lista de plugins, versao,
+ * referer). O Brick monta e funciona sem eles, mas o SDK avisa
+ * `DeviceProfile could not be loaded`, e o device profile alimenta o score
+ * antifraude — cartao pode ser recusado mais.
+ *
+ * Decisao do dono em 25/09/2026: liberar, e dizer isso na politica de
+ * privacidade (/privacidade). E tratamento de dado pessoal; nao entra em
+ * silencio. Continua restrito a esta rota: a home nao precisa de fingerprint.
+ */
+const MP_ANTIFRAUDE_CONEXAO = [
+  // telemetria (/tracks) e device profile (/jms/lgz/background/etid)
+  'https://api.mercadolibre.com',
+  'https://www.mercadolibre.com',
+];
+const MP_ANTIFRAUDE_IMG = [
+  // o pixel `armor` do device profile
+  'https://www.mercadolivre.com',
+];
+
 /** Iframes do Brick. E dentro deles que o numero do cartao vive — nunca no nosso DOM. */
 const MP_FRAME = [
   // Onde o numero do cartao e o CVV de fato moram.
@@ -76,11 +99,20 @@ function montaCsp(nonce: string, dev: boolean, pagamento: boolean) {
     // script legado escreve style="" direto no elemento. A Issue #16 proibe
     // unsafe-inline em script-src, que e onde ele de fato e perigoso.
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: ${SUPABASE_HOST}`,
+    [
+      'img-src',
+      "'self'",
+      'data:',
+      'blob:',
+      SUPABASE_HOST,
+      ...(pagamento ? MP_ANTIFRAUDE_IMG : []),
+    ].join(' '),
     "media-src 'self'",
     // Os hosts externos novos valem SO na tela de pagamento. Na home e no
     // resto da conta a politica continua sendo exatamente a de antes.
-    ['connect-src', "'self'", ...(pagamento ? MP_CONEXAO : [])].join(' '),
+    ['connect-src', "'self'", ...(pagamento ? [...MP_CONEXAO, ...MP_ANTIFRAUDE_CONEXAO] : [])].join(
+      ' '
+    ),
     ['frame-src', ...(pagamento ? MP_FRAME : [FRAME_SRC])].join(' '),
     "font-src 'self'",
     "worker-src 'self' blob:",

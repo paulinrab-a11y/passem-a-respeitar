@@ -77,6 +77,14 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
               O pagamento está fora do ar no momento. Seu pedido está salvo — volte daqui a pouco.
             </p>
           )}
+
+          {/* Nesta tela, e so nela, o Mercado Pago coleta dados do dispositivo
+              para antifraude (#109). Quem esta sendo perfilado merece saber
+              onde e por que — e o link vai para o texto inteiro. */}
+          <p className="detalhe-nota">
+            Nesta tela o Mercado Pago coleta dados do seu dispositivo para prevenir fraude. Mais em{' '}
+            <a href="/privacidade">privacidade</a>.
+          </p>
         </section>
       </section>
     </main>

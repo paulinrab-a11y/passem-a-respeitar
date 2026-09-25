@@ -194,6 +194,8 @@ export default async function Home() {
             WhyNot Records
           </a>
           <span>CBAC x P.A.R</span>
+          {/* A politica existe desde a #109. Rodape e onde a pessoa procura. */}
+          <a href="/privacidade">privacidade</a>
         </footer>
       </main>
 

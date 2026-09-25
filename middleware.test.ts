@@ -367,9 +367,33 @@ describe('os hosts do Mercado Pago na CSP (#108)', () => {
     expect(script).not.toContain("'unsafe-inline'");
   });
 
-  // Telemetria e fingerprint do Mercado Livre continuam barrados. O Brick
-  // monta sem eles — conferido no preview.
-  it.each(['mercadolibre.com', 'mercadolivre.com'])('nao libera %s', async (host) => {
-    expect(await cspDe(PAGAMENTO)).not.toContain(host);
+  // Telemetria e fingerprint do Mercado Livre (#109). Ficaram barrados na #108
+  // e foram liberados por decisao do dono em 25/09/2026, com a contrapartida
+  // de constar na politica de privacidade. Cada host na diretiva em que foi
+  // medido, e em nenhuma outra.
+  it.each([
+    ['https://api.mercadolibre.com', 'connect-src'],
+    ['https://www.mercadolibre.com', 'connect-src'],
+    ['https://www.mercadolivre.com', 'img-src'],
+  ])('%s entra em %s na tela de pagamento (#109)', async (host, nome) => {
+    expect(diretiva(await cspDe(PAGAMENTO), nome)).toContain(host);
   });
+
+  it('o pixel de fingerprint nao ganha connect-src, nem o de telemetria img-src', async () => {
+    const csp = await cspDe(PAGAMENTO);
+
+    expect(diretiva(csp, 'connect-src')).not.toContain('mercadolivre.com');
+    expect(diretiva(csp, 'img-src')).not.toContain('mercadolibre.com');
+  });
+
+  // Fingerprint e para quem esta pagando, nao para quem esta na home.
+  it.each(['/', '/conta', '/conta/pedidos', '/checkout', '/entrar', '/privacidade'])(
+    '%s continua sem os hosts de antifraude',
+    async (caminho) => {
+      const csp = await cspDe(caminho);
+
+      expect(csp).not.toContain('mercadolibre.com');
+      expect(csp).not.toContain('mercadolivre.com');
+    }
+  );
 });
