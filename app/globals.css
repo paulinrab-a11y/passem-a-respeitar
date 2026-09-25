@@ -56,7 +56,11 @@ img,canvas,svg{display:block}
 #ligar:hover{border-color:var(--vermelho);color:var(--prata)}
 
 main{position:relative;z-index:5}
-section{position:relative;min-height:100vh}
+/* So position. O min-height de tela cheia e de cada secao da home (#hero, #clipe,
+   #merch, #fim), nao de todo <section> do site: a regra generica vazava para os
+   blocos de conteudo das telas de conta e abria buracos de uma tela inteira
+   entre eles (#96). */
+section{position:relative}
 #hero{min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;padding:0 var(--gutter) 9vh}
 #hero h1{font-family:var(--logo);font-size:clamp(60px, 13.5vw, 200px);line-height:.84;color:#fff;text-shadow:0 0 40px var(--vermelho-luz);letter-spacing:0;max-width:11ch}
 #hero h1 img{width:min(760px,88vw);height:auto;filter:drop-shadow(0 0 40px var(--vermelho-luz))}
@@ -700,7 +704,7 @@ footer.assina a:hover{color:var(--vermelho)}
    que existe para as secoes de tela cheia da home. Sem isto cada bloco daqui
    nasce com 812px de altura no telefone e a linha do tempo cai mil pixels
    abaixo do total. Medido, nao suposto. */
-.detalhe-bloco{min-height:0;margin-top:40px;padding-top:24px;border-top:1px solid var(--prata-3)}
+.detalhe-bloco{margin-top:40px;padding-top:24px;border-top:1px solid var(--prata-3)}
 .detalhe-bloco h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:#fff;margin-bottom:18px}
 .detalhe-bloco .pedido-itens{margin-top:0}
 .detalhe-nota{font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);max-width:48ch;margin-bottom:18px}
