@@ -50,3 +50,36 @@ export const esquemaTrocarSenha = z
   // Trocar a senha pela mesma senha nao e troca; e a pessoa achando que fez
   // algo enquanto a senha comprometida continua valendo.
   .refine((d) => d.nova !== d.atual, { path: ['nova'] });
+
+/**
+ * Cadastro (Issue #30).
+ *
+ * O aceite e `z.literal(true)`, nao `boolean`: a caixa desmarcada nao e
+ * "false", e recusa. E conferido aqui, no servidor, porque o `required` do
+ * HTML e sugestao — qualquer um monta o POST sem ele.
+ *
+ * A senha e so tamanho neste ponto; vazamento e checado depois, em
+ * senha-servidor.ts, porque e uma ida a rede e nao cabe num schema.
+ */
+export const esquemaCriarConta = z
+  .object({
+    nome: z.string().trim().min(2).max(80),
+    email: z.string().trim().toLowerCase().min(1).max(254).email(),
+    senha: z.string().min(SENHA_MIN).max(SENHA_MAX),
+    confirmacao: z.string().min(1).max(SENHA_MAX),
+    aceite: z.literal(true),
+  })
+  .refine((d) => d.senha === d.confirmacao, { path: ['confirmacao'] });
+
+/** Pedido de recuperacao (#32): so o e-mail, normalizado como no login. */
+export const esquemaEmail = z.object({
+  email: z.string().trim().toLowerCase().min(1).max(254).email(),
+});
+
+/** Redefinicao (#32): nova senha e confirmacao. A sessao de recuperacao ja provou quem e. */
+export const esquemaRedefinirSenha = z
+  .object({
+    nova: z.string().min(SENHA_MIN).max(SENHA_MAX),
+    confirmacao: z.string().min(1).max(SENHA_MAX),
+  })
+  .refine((d) => d.nova === d.confirmacao, { path: ['confirmacao'] });

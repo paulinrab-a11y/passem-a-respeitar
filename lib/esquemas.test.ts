@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { esquemaEntrar } from './esquemas';
+import { esquemaCriarConta, esquemaEmail, esquemaEntrar, esquemaRedefinirSenha } from './esquemas';
 
 const valido = { email: 'pessoa@exemplo.com', senha: 'senha-qualquer', lembrar: false };
 
@@ -60,5 +60,82 @@ describe('esquemaEntrar', () => {
 
     expect(Object.keys(r).sort()).toEqual(['email', 'lembrar', 'senha']);
     expect(r.admin).toBeUndefined();
+  });
+});
+
+describe('esquemaCriarConta (#30)', () => {
+  const bom = {
+    nome: 'Fulana',
+    email: 'Fulana@Exemplo.test ',
+    senha: 'uma senha razoavel',
+    confirmacao: 'uma senha razoavel',
+    aceite: true,
+  };
+
+  it('aceita o cadastro completo e normaliza o e-mail', () => {
+    const r = esquemaCriarConta.safeParse(bom);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.email).toBe('fulana@exemplo.test');
+  });
+
+  // A caixa desmarcada nao e "false": e recusa.
+  it.each([false, undefined, 'on', 'true', 1])('aceite %s nao passa', (aceite) => {
+    expect(esquemaCriarConta.safeParse({ ...bom, aceite }).success).toBe(false);
+  });
+
+  it('confirmacao diferente cai no campo confirmacao', () => {
+    const r = esquemaCriarConta.safeParse({ ...bom, confirmacao: 'outra' });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.path).toEqual(['confirmacao']);
+  });
+
+  it('senha curta nao passa', () => {
+    expect(
+      esquemaCriarConta.safeParse({ ...bom, senha: '1234567', confirmacao: '1234567' }).success
+    ).toBe(false);
+  });
+
+  it('nome de uma letra nao passa; 80 passa; 81 nao', () => {
+    expect(esquemaCriarConta.safeParse({ ...bom, nome: 'A' }).success).toBe(false);
+    expect(esquemaCriarConta.safeParse({ ...bom, nome: 'A'.repeat(80) }).success).toBe(true);
+    expect(esquemaCriarConta.safeParse({ ...bom, nome: 'A'.repeat(81) }).success).toBe(false);
+  });
+
+  // Anti mass assignment: campo a mais nao vira propriedade.
+  it('descarta campo que nao esta no schema', () => {
+    const r = esquemaCriarConta.safeParse({ ...bom, admin: true, role: 'admin' });
+    expect(r.success).toBe(true);
+    if (r.success)
+      expect(Object.keys(r.data).sort()).toEqual([
+        'aceite',
+        'confirmacao',
+        'email',
+        'nome',
+        'senha',
+      ]);
+  });
+});
+
+describe('esquemaEmail e esquemaRedefinirSenha (#32)', () => {
+  it('normaliza o e-mail', () => {
+    const r = esquemaEmail.safeParse({ email: ' Alguem@Exemplo.test' });
+    expect(r.success && r.data.email).toBe('alguem@exemplo.test');
+  });
+
+  it('recusa o que nao e e-mail', () => {
+    expect(esquemaEmail.safeParse({ email: 'nao-e' }).success).toBe(false);
+  });
+
+  it('redefinir exige minimo e confirmacao igual', () => {
+    expect(esquemaRedefinirSenha.safeParse({ nova: 'curta', confirmacao: 'curta' }).success).toBe(
+      false
+    );
+    expect(
+      esquemaRedefinirSenha.safeParse({ nova: 'senha nova boa', confirmacao: 'x' }).success
+    ).toBe(false);
+    expect(
+      esquemaRedefinirSenha.safeParse({ nova: 'senha nova boa', confirmacao: 'senha nova boa' })
+        .success
+    ).toBe(true);
   });
 });
