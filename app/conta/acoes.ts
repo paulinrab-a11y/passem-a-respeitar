@@ -68,7 +68,7 @@ export async function reenviarVerificacao(
     return { recado: { tom: 'ok', texto: 'Seu e-mail já está verificado.' }, tentativa };
   }
 
-  const cota = limita(`verificacao:${usuario.id}`, VERIFICACAO.maximo, VERIFICACAO.janelaMs);
+  const cota = await limita(`verificacao:${usuario.id}`, VERIFICACAO.maximo, VERIFICACAO.janelaMs);
   if (!cota.permitido) {
     return {
       recado: { tom: 'erro', texto: 'Já enviei alguns. Confira o spam e tente mais tarde.' },

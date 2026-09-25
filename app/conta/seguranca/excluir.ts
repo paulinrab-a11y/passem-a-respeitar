@@ -37,7 +37,7 @@ export async function excluirConta(
     return erro('Sua sessão expirou. Entre de novo.');
   }
 
-  const cota = limita(`excluir:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
+  const cota = await limita(`excluir:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
     return erro('Muitas tentativas. Tente de novo mais tarde.');
   }

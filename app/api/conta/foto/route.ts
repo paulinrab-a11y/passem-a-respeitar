@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
   // Por usuario, e nao so por IP: quem ja esta logado nao precisa de botnet
   // para encher o bucket, basta um laco.
-  const cota = limita(`foto:${usuario.id}`, MAXIMO, JANELA_MS);
+  const cota = await limita(`foto:${usuario.id}`, MAXIMO, JANELA_MS);
   if (!cota.permitido) {
     return NextResponse.json(
       { ok: false, erro: 'Muitas trocas de foto seguidas. Espere um pouco.' },
