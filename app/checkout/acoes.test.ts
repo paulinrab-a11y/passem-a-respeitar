@@ -65,14 +65,23 @@ describe('sucesso', () => {
   // A costura que a #113 encontrou solta: o pedido nasce aguardando pagamento,
   // e a tela de pagar nao tinha nenhum caminho ate ela.
   it('leva para o PAGAMENTO do pedido criado, nao para o detalhe', async () => {
-    await expect(enviar()).rejects.toThrow('NEXT_REDIRECT');
+    const r = await enviar();
 
-    expect(redirect).toHaveBeenCalledWith('/checkout/pagamento/ped-1');
-    expect(redirect).not.toHaveBeenCalledWith('/conta/pedidos/ped-1');
+    expect(r.irPara).toBe('/checkout/pagamento/ped-1');
+    expect(r.recado).toBeNull();
+  });
+
+  // `redirect()` em server action e navegacao suave, e a tela de pagamento
+  // chegaria sem a propria CSP. Quem navega e o cliente, com carregamento
+  // completo. Se alguem voltar ao `redirect()`, este teste cai. (#118)
+  it('nao usa redirect(): o cliente faz a navegacao completa', async () => {
+    await enviar();
+
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it('manda para a criacao so escolha, nunca valor', async () => {
-    await expect(enviar()).rejects.toThrow('NEXT_REDIRECT');
+    expect((await enviar()).irPara).toBeTruthy();
 
     const [entrada] = vi.mocked(criaPedido).mock.calls[0];
     expect(entrada).toEqual({
@@ -84,7 +93,7 @@ describe('sucesso', () => {
   // Campo oculto adulterado no DevTools muda O QUE se compra, nunca quanto
   // custa — o preco e recalculado dentro da criaPedido.
   it('quantidade do campo oculto vale como escolha', async () => {
-    await expect(enviar({ quantidade: '3' })).rejects.toThrow('NEXT_REDIRECT');
+    expect((await enviar({ quantidade: '3' })).irPara).toBeTruthy();
 
     expect(vi.mocked(criaPedido).mock.calls[0][0]).toMatchObject({
       itens: [{ quantidade: 3 }],
@@ -92,9 +101,9 @@ describe('sucesso', () => {
   });
 
   it('campo de dinheiro injetado no formulario nem chega na criacao', async () => {
-    await expect(
-      enviar({ total: '1', preco: '1', desconto: '11900', user_id: 'outro' })
-    ).rejects.toThrow('NEXT_REDIRECT');
+    expect(
+      (await enviar({ total: '1', preco: '1', desconto: '11900', user_id: 'outro' })).irPara
+    ).toBeTruthy();
 
     expect(JSON.stringify(vi.mocked(criaPedido).mock.calls[0][0])).not.toMatch(
       /total|preco|desconto|user_id/
@@ -121,7 +130,7 @@ describe('erro de entrega', () => {
   });
 
   it('complemento vazio nao e erro', async () => {
-    await expect(enviar({ complemento: '' })).rejects.toThrow('NEXT_REDIRECT');
+    expect((await enviar({ complemento: '' })).irPara).toBeTruthy();
   });
 });
 
