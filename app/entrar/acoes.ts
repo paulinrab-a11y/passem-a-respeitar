@@ -1,5 +1,6 @@
 'use server';
 
+import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { esquemaEntrar } from '@/lib/esquemas';
@@ -75,6 +76,14 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
   const cotaEmail = limita(`entrar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
 
   if (!cotaIp.permitido || !cotaEmail.permitido) {
+    // O sinal para o alerta de "pico de falha de login" (#8): bater no
+    // limite e forca bruta em andamento. Vai so a dimensao — por IP ou por
+    // e-mail —, nunca o IP nem o e-mail.
+    Sentry.captureMessage('login: limite de tentativas atingido', {
+      level: 'warning',
+      tags: { por: cotaEmail.permitido ? 'ip' : 'email' },
+    });
+
     const esperar = Math.max(cotaIp.esperarS, cotaEmail.esperarS);
     const minutos = Math.ceil(esperar / 60);
 

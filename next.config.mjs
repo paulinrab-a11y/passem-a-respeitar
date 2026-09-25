@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs/config';
+
 /**
  * Headers que nao dependem de nonce ficam aqui, aplicados a todas as rotas.
  * A Content-Security-Policy e montada por request no middleware.ts, porque
@@ -49,4 +51,22 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry no build (#8): source maps sobem so quando ha SENTRY_AUTH_TOKEN, org e
+ * projeto — sem eles o plugin so avisa e o build segue. E o caso do CI e de
+ * quem nao tem conta.
+ *
+ * `tunnelRoute`: o navegador manda o erro para o proprio site, que repassa.
+ * Sem host novo na CSP (connect-src continua 'self') e sem bloqueador de
+ * anuncio derrubando o envio.
+ */
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  tunnelRoute: '/monitoramento',
+  widenClientFileUpload: true,
+  disableLogger: true,
+  sourcemaps: { deleteSourcemapsAfterUpload: true },
+});
