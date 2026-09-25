@@ -14,7 +14,15 @@ import { criarContaInicial } from './estado';
  */
 export default function Formulario() {
   const [estado, acao, pendente] = useActionState(criarConta, criarContaInicial);
+  // Todos os campos sao controlados, e nao so a senha: o React 19 reseta os
+  // campos nao-controlados de um <form action> assim que a acao responde —
+  // inclusive quando ela responde com ERRO. Sem isto, errar o aceite apagava
+  // nome, e-mail e confirmacao, e a pessoa recomecava do zero. Medido no
+  // preview da #30.
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [confirmacao, setConfirmacao] = useState('');
   const forca = forcaDaSenha(senha);
   const form = useRef<HTMLFormElement>(null);
 
@@ -58,6 +66,8 @@ export default function Formulario() {
           maxLength={80}
           required
           disabled={pendente}
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
           aria-invalid={invalido('nome')}
         />
       </label>
@@ -70,6 +80,8 @@ export default function Formulario() {
           autoComplete="email"
           required
           disabled={pendente}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           aria-invalid={invalido('email')}
         />
       </label>
@@ -107,6 +119,8 @@ export default function Formulario() {
           autoComplete="new-password"
           required
           disabled={pendente}
+          value={confirmacao}
+          onChange={(e) => setConfirmacao(e.target.value)}
           aria-invalid={invalido('confirmacao')}
         />
       </label>
