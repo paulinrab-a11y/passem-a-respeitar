@@ -390,6 +390,18 @@ export type Database = {
       };
       encerra_sessao: { Args: { p_identificador: string }; Returns: boolean };
       minha_sessao_atual: { Args: Record<PropertyKey, never>; Returns: string };
+      muda_status_pedido: {
+        Args: {
+          p_order_id: string;
+          p_para: Database['public']['Enums']['status_pedido'];
+          p_autor: string;
+          p_motivo?: string | null;
+        };
+        Returns: {
+          de: Database['public']['Enums']['status_pedido'];
+          para: Database['public']['Enums']['status_pedido'];
+        }[];
+      };
       minhas_sessoes: {
         Args: Record<PropertyKey, never>;
         Returns: {
