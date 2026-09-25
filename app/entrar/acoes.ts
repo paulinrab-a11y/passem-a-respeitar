@@ -72,8 +72,8 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
   const { email, senha, lembrar } = dados.data;
 
   const ip = ipDoRequest(await headers());
-  const cotaIp = limita(`entrar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
-  const cotaEmail = limita(`entrar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
+  const cotaIp = await limita(`entrar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
+  const cotaEmail = await limita(`entrar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
 
   if (!cotaIp.permitido || !cotaEmail.permitido) {
     // O sinal para o alerta de "pico de falha de login" (#8): bater no

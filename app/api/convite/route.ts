@@ -25,7 +25,7 @@ const ERRO_GENERICO = 'Esse código não abre nada aqui.';
 
 export async function POST(request: Request) {
   const ip = ipDoRequest(request.headers);
-  const cota = limita(`convite:${ip}`, MAXIMO, JANELA_MS);
+  const cota = await limita(`convite:${ip}`, MAXIMO, JANELA_MS);
 
   if (!cota.permitido) {
     return NextResponse.json(

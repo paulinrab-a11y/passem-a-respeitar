@@ -111,7 +111,7 @@ export async function concilia({
  * rajada no provedor.
  */
 export async function conciliaPedido(orderId: string, agoraMs = Date.now()): Promise<boolean> {
-  const cota = limita(`concilia:${orderId}`, 1, 60 * 1000);
+  const cota = await limita(`concilia:${orderId}`, 1, 60 * 1000);
   if (!cota.permitido) return false;
 
   const admin = clienteAdmin();

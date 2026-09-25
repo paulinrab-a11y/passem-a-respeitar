@@ -37,7 +37,7 @@ export async function finalizarCompra(
   const usuario = await usuarioDaSessao();
   if (!usuario) return erro('sem-sessao');
 
-  const cota = limita(`checkout:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
+  const cota = await limita(`checkout:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
     return { recado: { tom: 'erro', texto: 'Muitas tentativas. Tente de novo mais tarde.' } };
   }

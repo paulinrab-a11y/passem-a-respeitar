@@ -36,7 +36,7 @@ const LIMITE = { maximo: 10, janelaMs: 60 * 1000 };
 export async function GET(request: NextRequest) {
   // Antes da autorizacao, de proposito: quem esta chutando o segredo tambem
   // e limitado.
-  const cota = limita(`cron:${ipDoRequest(request.headers)}`, LIMITE.maximo, LIMITE.janelaMs);
+  const cota = await limita(`cron:${ipDoRequest(request.headers)}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
     return NextResponse.json(
       { erro: 'nao autorizado' },

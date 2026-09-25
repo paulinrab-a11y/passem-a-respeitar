@@ -27,7 +27,11 @@ export const dynamic = 'force-dynamic';
 const LIMITE = { maximo: 120, janelaMs: 60 * 1000 };
 
 export async function GET(request: NextRequest) {
-  const cota = limita(`resumo:${ipDoRequest(request.headers)}`, LIMITE.maximo, LIMITE.janelaMs);
+  const cota = await limita(
+    `resumo:${ipDoRequest(request.headers)}`,
+    LIMITE.maximo,
+    LIMITE.janelaMs
+  );
   if (!cota.permitido) {
     return NextResponse.json(
       { logado: false },

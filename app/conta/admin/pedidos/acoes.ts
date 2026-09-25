@@ -49,7 +49,7 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
     return NAO_ENCONTRADO;
   }
 
-  const cota = limita(`admin-status:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
+  const cota = await limita(`admin-status:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
     return {
       recado: { tom: 'erro', texto: 'Muitas mudanças em pouco tempo. Espere um pouco.' },

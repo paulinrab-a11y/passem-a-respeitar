@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ erro: RECADOS['sem-sessao'] }, { status: 401 });
   }
 
-  const cota = limita(`cobranca:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
+  const cota = await limita(`cobranca:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
     return NextResponse.json(
       { erro: RECADOS['tentativas-demais'] },

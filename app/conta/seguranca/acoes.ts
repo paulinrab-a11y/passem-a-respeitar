@@ -24,7 +24,7 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
     return erro('Sua sessão expirou. Entre de novo.', tentativa);
   }
 
-  const cota = limita(`senha:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
+  const cota = await limita(`senha:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
     return erro('Muitas tentativas. Tente de novo mais tarde.', tentativa);
   }
