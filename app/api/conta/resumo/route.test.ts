@@ -86,7 +86,7 @@ describe('limite por IP (#22)', () => {
     const bloqueado = await GET(pede(ip));
 
     expect(bloqueado.status).toBe(429);
-    expect(bloqueado.headers.get('Retry-After')).toMatch(/^d+$/);
+    expect(bloqueado.headers.get('Retry-After')).toMatch(/^\d+$/);
     // Bloqueado nao conta nada: nem que existe alguem logado.
     expect(await bloqueado.json()).toEqual({ logado: false });
   });
