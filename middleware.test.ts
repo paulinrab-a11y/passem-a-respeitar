@@ -400,3 +400,76 @@ describe('os hosts do Mercado Pago na CSP (#108)', () => {
     }
   );
 });
+
+describe('barreira de origem em /api (#17)', () => {
+  const ORIGEM = 'https://passem-a-respeitar.test';
+  const OUTRA = 'https://site-que-imita.com';
+
+  function pedeApi(metodo: string, cabecalhos: Record<string, string> = {}) {
+    return new NextRequest(`${ORIGEM}/api/convite`, { method: metodo, headers: cabecalhos });
+  }
+
+  async function rodaApi(metodo: string, cabecalhos?: Record<string, string>) {
+    const { middleware } = await import('./middleware');
+    return middleware(pedeApi(metodo, cabecalhos));
+  }
+
+  it('POST de outra origem leva 403 antes de chegar na rota', async () => {
+    const r = await rodaApi('POST', { origin: OUTRA });
+
+    expect(r.status).toBe(403);
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it.each(['PUT', 'PATCH', 'DELETE'])('%s de outra origem tambem leva 403', async (metodo) => {
+    expect((await rodaApi(metodo, { origin: OUTRA })).status).toBe(403);
+  });
+
+  it('POST da propria origem passa', async () => {
+    const r = await rodaApi('POST', { origin: ORIGEM });
+
+    expect(r.status).not.toBe(403);
+  });
+
+  // Mercado Pago e cron nao sao navegador: nao mandam Origin. Barrar sem
+  // Origin quebraria o webhook.
+  it('POST sem Origin passa (servidor para servidor)', async () => {
+    expect((await rodaApi('POST')).status).not.toBe(403);
+  });
+
+  // Sem Allow-Origin o navegador nao entrega a resposta a quem pediu de fora.
+  // Barrar a leitura seria redundante e quebraria a home, que faz GET aqui.
+  it('GET de outra origem passa, mas sem cabecalho de CORS', async () => {
+    const r = await rodaApi('GET', { origin: OUTRA });
+
+    expect(r.status).not.toBe(403);
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('preflight responde vazio e sem nenhum cabecalho de CORS', async () => {
+    const r = await rodaApi('OPTIONS', {
+      origin: OUTRA,
+      'access-control-request-method': 'POST',
+    });
+
+    expect(r.status).toBe(204);
+    expect(r.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    expect(r.headers.get('Access-Control-Allow-Methods')).toBeNull();
+  });
+
+  it('nunca responde Allow-Origin curinga', async () => {
+    for (const metodo of ['GET', 'POST', 'OPTIONS']) {
+      const r = await rodaApi(metodo, { origin: OUTRA });
+      expect(r.headers.get('Access-Control-Allow-Origin')).not.toBe('*');
+    }
+  });
+
+  it('fora de /api a barreira nao existe', async () => {
+    const { middleware } = await import('./middleware');
+    const r = await middleware(
+      new NextRequest(`${ORIGEM}/entrar`, { method: 'POST', headers: { origin: OUTRA } })
+    );
+
+    expect(r.status).not.toBe(403);
+  });
+});

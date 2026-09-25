@@ -49,7 +49,10 @@ export async function POST(request: NextRequest) {
 
   const cota = limita(`cobranca:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
-    return NextResponse.json({ erro: RECADOS['tentativas-demais'] }, { status: 429 });
+    return NextResponse.json(
+      { erro: RECADOS['tentativas-demais'] },
+      { status: 429, headers: { 'Retry-After': String(cota.esperarS) } }
+    );
   }
 
   const corpo = await request.json().catch(() => null);

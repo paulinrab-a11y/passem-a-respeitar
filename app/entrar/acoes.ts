@@ -33,7 +33,25 @@ const POR_IP = { maximo: 20, janelaMs: 15 * 60 * 1000 };
  * por IP nao pega — botnet troca de IP a cada tentativa, mas o alvo continua
  * o mesmo.
  */
-const POR_EMAIL = { maximo: 6, janelaMs: 15 * 60 * 1000 };
+const POR_EMAIL = { maximo: 5, janelaMs: 15 * 60 * 1000 };
+
+/**
+ * Piso de tempo de resposta, em ms (#23).
+ *
+ * A mensagem ja e a mesma para e-mail inexistente e senha errada; o TEMPO
+ * ainda podia contar: o provedor devolve mais rapido quando nem acha a conta,
+ * porque nao ha hash para comparar. Quem mede milissegundos enumera contas
+ * do mesmo jeito. O piso cobre os dois casos com o mesmo tempo minimo.
+ *
+ * Lido por request, e nao no topo do modulo, para o teste poder zerar sem
+ * esperar de verdade.
+ */
+const pisoMs = () => Number(process.env.LOGIN_PISO_MS ?? 300);
+
+async function segura(inicio: number) {
+  const resto = inicio + pisoMs() - Date.now();
+  if (resto > 0) await new Promise((r) => setTimeout(r, resto));
+}
 
 export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<EstadoEntrar> {
   const tentativa = anterior.tentativa + 1;
@@ -67,8 +85,13 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
     };
   }
 
+  const inicio = Date.now();
   const supabase = await clienteDeAuth(lembrar);
   const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+
+  // O piso vale para erro E para sucesso: so o erro ter piso faria o sucesso
+  // ser o unico caminho rapido, o que tambem e informacao.
+  await segura(inicio);
 
   if (error) {
     return { erro: ERRO_GENERICO, tentativa };

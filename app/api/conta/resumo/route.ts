@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { iniciais, perfilDaSessao } from '@/lib/conta/perfil';
+import { ipDoRequest, limita } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,21 @@ export const dynamic = 'force-dynamic';
  * Tres campos, e nenhum deles sensivel. Mesma disciplina do perfil (#20): a
  * resposta e uma lista fechada, nao um recorte do que sobrou.
  */
-export async function GET() {
+/**
+ * Generoso, porque a barra chama isto a cada visita e uma rede compartilhada
+ * (faculdade, evento) e um IP so. O alvo e loop de script, nao gente. (#22)
+ */
+const LIMITE = { maximo: 120, janelaMs: 60 * 1000 };
+
+export async function GET(request: NextRequest) {
+  const cota = limita(`resumo:${ipDoRequest(request.headers)}`, LIMITE.maximo, LIMITE.janelaMs);
+  if (!cota.permitido) {
+    return NextResponse.json(
+      { logado: false },
+      { status: 429, headers: { 'Retry-After': String(cota.esperarS) } }
+    );
+  }
+
   const perfil = await perfilDaSessao();
 
   const corpo = perfil

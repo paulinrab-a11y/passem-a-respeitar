@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { type NextRequest, NextResponse } from 'next/server';
 import { concilia } from '@/lib/loja/conciliacao';
+import { ipDoRequest, limita } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,20 @@ function autorizado(cabecalho: string | null): boolean {
   return timingSafeEqual(Buffer.from(cabecalho), Buffer.from(esperado));
 }
 
+/** O cron legitimo chama uma vez por dia. Dez por minuto ja e ataque. (#22) */
+const LIMITE = { maximo: 10, janelaMs: 60 * 1000 };
+
 export async function GET(request: NextRequest) {
+  // Antes da autorizacao, de proposito: quem esta chutando o segredo tambem
+  // e limitado.
+  const cota = limita(`cron:${ipDoRequest(request.headers)}`, LIMITE.maximo, LIMITE.janelaMs);
+  if (!cota.permitido) {
+    return NextResponse.json(
+      { erro: 'nao autorizado' },
+      { status: 429, headers: { 'Retry-After': String(cota.esperarS) } }
+    );
+  }
+
   if (!autorizado(request.headers.get('authorization'))) {
     return NextResponse.json({ erro: 'nao autorizado' }, { status: 401 });
   }
