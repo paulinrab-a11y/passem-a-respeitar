@@ -70,7 +70,9 @@ const MP_ANTIFRAUDE_CONEXAO = [
   'https://www.mercadolibre.com',
 ];
 const MP_ANTIFRAUDE_IMG = [
-  // o pixel `armor` do device profile
+  // o pixel `armor` do device profile — medido nos DOIS dominios, .com e
+  // .com.br disfarcado de mercadolivre. Sem um deles o SDK segue avisando.
+  'https://www.mercadolibre.com',
   'https://www.mercadolivre.com',
 ];
 

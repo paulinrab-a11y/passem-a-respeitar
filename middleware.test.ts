@@ -374,16 +374,19 @@ describe('os hosts do Mercado Pago na CSP (#108)', () => {
   it.each([
     ['https://api.mercadolibre.com', 'connect-src'],
     ['https://www.mercadolibre.com', 'connect-src'],
+    ['https://www.mercadolibre.com', 'img-src'],
     ['https://www.mercadolivre.com', 'img-src'],
   ])('%s entra em %s na tela de pagamento (#109)', async (host, nome) => {
     expect(diretiva(await cspDe(PAGAMENTO), nome)).toContain(host);
   });
 
-  it('o pixel de fingerprint nao ganha connect-src, nem o de telemetria img-src', async () => {
+  // Cada host so na diretiva em que foi medido: mercadolivre.com so serve
+  // imagem (o pixel), e api.mercadolibre.com so recebe conexao (telemetria).
+  it('o pixel nao ganha connect-src, e a telemetria nao ganha img-src', async () => {
     const csp = await cspDe(PAGAMENTO);
 
     expect(diretiva(csp, 'connect-src')).not.toContain('mercadolivre.com');
-    expect(diretiva(csp, 'img-src')).not.toContain('mercadolibre.com');
+    expect(diretiva(csp, 'img-src')).not.toContain('api.mercadolibre.com');
   });
 
   // Fingerprint e para quem esta pagando, nao para quem esta na home.
