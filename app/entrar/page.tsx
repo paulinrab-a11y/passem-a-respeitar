@@ -16,9 +16,9 @@ export const metadata: Metadata = {
 export default async function Entrar({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; erro?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, erro } = await searchParams;
 
   // Validado aqui tambem, e nao so na acao. O valor volta para dentro de um
   // campo do formulario; se chegasse cru, o proximo passo seria o navegador
@@ -37,6 +37,14 @@ export default async function Entrar({
 
         <h1>Entrar</h1>
         <p className="auth-sub">Sua conta, seus pedidos.</p>
+
+        {/* O callback dos links de e-mail (#30, #32) volta para ca quando o
+            link e velho, usado ou inventado. Uma frase, sem dizer qual. */}
+        {erro === 'link' ? (
+          <p className="auth-erro" role="alert">
+            Esse link não vale mais. Entre com sua senha ou peça um novo.
+          </p>
+        ) : null}
 
         <Formulario next={destino} />
       </section>

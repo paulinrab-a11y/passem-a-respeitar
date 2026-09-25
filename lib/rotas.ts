@@ -6,7 +6,7 @@
  */
 
 export const ENTRAR = '/entrar';
-const CONTA = '/conta';
+export const CONTA = '/conta';
 const CHECKOUT = '/checkout';
 
 /**
@@ -44,10 +44,10 @@ export function ehPagamento(pathname: string) {
  */
 export function ehRotaDeAuth(pathname: string) {
   return (
-    pathname === ENTRAR ||
-    pathname === '/criar-conta' ||
-    pathname === '/recuperar-senha' ||
-    pathname === '/redefinir-senha'
+    pathname === ENTRAR || pathname === '/criar-conta' || pathname === '/recuperar-senha'
+    // /redefinir-senha NAO esta aqui de proposito (#32): quem chega la tem
+    // sessao — a de recuperacao, criada pelo link do e-mail. Se estivesse,
+    // o middleware mandaria a pessoa para /conta antes de ela trocar a senha.
   );
 }
 

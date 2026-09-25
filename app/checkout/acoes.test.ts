@@ -52,6 +52,7 @@ beforeEach(() => {
   vi.mocked(usuarioDaSessao).mockResolvedValue({
     id: `usuario-${Math.random()}`,
     email: 'quem@exemplo.test',
+    email_confirmed_at: '2026-09-01T00:00:00Z',
   } as never);
   vi.mocked(criaPedido).mockResolvedValue({
     ok: true,
@@ -135,6 +136,20 @@ describe('erro de entrega', () => {
 });
 
 describe('recusa', () => {
+  // O "acesso limitado" da conta nao verificada (#30).
+  it('e-mail nao verificado nao cria pedido', async () => {
+    vi.mocked(usuarioDaSessao).mockResolvedValue({
+      id: 'nao-verificado',
+      email: 'x@exemplo.test',
+      email_confirmed_at: null,
+    } as never);
+
+    const r = await enviar();
+
+    expect(r.recado?.texto).toMatch(/confirme seu e-mail/i);
+    expect(criaPedido).not.toHaveBeenCalled();
+  });
+
   it('sem sessao', async () => {
     vi.mocked(usuarioDaSessao).mockResolvedValue(null);
 
@@ -172,7 +187,10 @@ describe('recusa', () => {
   });
 
   it('para depois de dez tentativas na mesma hora', async () => {
-    vi.mocked(usuarioDaSessao).mockResolvedValue({ id: 'sempre-o-mesmo' } as never);
+    vi.mocked(usuarioDaSessao).mockResolvedValue({
+      id: 'sempre-o-mesmo',
+      email_confirmed_at: '2026-09-01T00:00:00Z',
+    } as never);
     vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo: 'nao-consegui-gravar' });
 
     for (let i = 0; i < 10; i++) await enviar();

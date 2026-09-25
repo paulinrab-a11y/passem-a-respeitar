@@ -14,6 +14,8 @@ const LIMITE = { maximo: 10, janelaMs: 60 * 60 * 1000 };
 const RECADOS: Record<string, string> = {
   'entrada-invalida': 'Confira os dados de entrega.',
   'sem-sessao': 'Sua sessão expirou. Entre de novo.',
+  'email-nao-verificado':
+    'Confirme seu e-mail antes de comprar — é por ele que avisamos do pedido. O link está na sua caixa de entrada, ou reenvie em Conta.',
   'produto-indisponivel': 'Esse produto não está disponível agora.',
   'quantidade-invalida': 'Quantidade inválida.',
   'carrinho-vazio': 'Escolha um produto antes de finalizar.',
@@ -36,6 +38,11 @@ export async function finalizarCompra(
 ): Promise<EstadoDoCheckout> {
   const usuario = await usuarioDaSessao();
   if (!usuario) return erro('sem-sessao');
+
+  // O "acesso limitado" da conta nao verificada (#30): olhar pedidos pode,
+  // criar nao. Sem e-mail confirmado nao ha como avisar de nada — e e o
+  // e-mail que o Mercado Pago recebe como pagador.
+  if (!usuario.email_confirmed_at) return erro('email-nao-verificado');
 
   const cota = await limita(`checkout:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {

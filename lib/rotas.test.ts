@@ -20,12 +20,16 @@ describe('exigeSessao', () => {
 });
 
 describe('ehRotaDeAuth', () => {
-  it.each(['/entrar', '/criar-conta', '/recuperar-senha', '/redefinir-senha'])(
-    'reconhece %s',
-    (rota) => {
-      expect(ehRotaDeAuth(rota)).toBe(true);
-    }
-  );
+  // Quem chega em /redefinir-senha TEM sessao (a de recuperacao). Se a rota
+  // contasse como "de auth", o middleware a mandaria para /conta antes de
+  // trocar a senha. (#32)
+  it('/redefinir-senha nao e rota de auth', () => {
+    expect(ehRotaDeAuth('/redefinir-senha')).toBe(false);
+  });
+
+  it.each(['/entrar', '/criar-conta', '/recuperar-senha'])('reconhece %s', (rota) => {
+    expect(ehRotaDeAuth(rota)).toBe(true);
+  });
 
   it.each(['/', '/conta', '/entrar/extra'])('nao confunde %s', (rota) => {
     expect(ehRotaDeAuth(rota)).toBe(false);
