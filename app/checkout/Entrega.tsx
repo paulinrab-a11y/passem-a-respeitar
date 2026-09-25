@@ -41,8 +41,19 @@ export default function Entrega({
   quantidade: number;
   total: string;
 }) {
-  const [estado, acao, pendente] = useActionState(finalizarCompra, checkoutInicial);
+  const [estado, acao, emVoo] = useActionState(finalizarCompra, checkoutInicial);
+  // Continua "pendente" enquanto o navegador troca de pagina: soltar o botao
+  // entre a resposta e a navegacao e convidar para o segundo clique.
+  const pendente = emVoo || Boolean(estado.irPara);
   const form = useRef<HTMLFormElement>(null);
+
+  // Sucesso: navegacao COMPLETA, nao `router.push`. A tela de pagamento tem
+  // CSP propria (hosts do Mercado Pago) e so a recebe como documento novo;
+  // numa navegacao suave o Brick nasceria sob a CSP do /checkout e nao
+  // montaria. (#118)
+  useEffect(() => {
+    if (estado.irPara) window.location.assign(estado.irPara);
+  }, [estado.irPara]);
 
   // Foco no campo que errou. Sem isto a pessoa recebe "confira os dados" e
   // tem que caçar qual dos oito esta errado.
