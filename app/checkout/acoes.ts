@@ -1,6 +1,5 @@
 'use server';
 
-import { redirect } from 'next/navigation';
 import { esquemaEndereco } from '@/lib/loja/endereco';
 import { criaPedido } from '@/lib/loja/pedido';
 import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
@@ -74,11 +73,12 @@ export async function finalizarCompra(
   const criado = await criaPedido({ itens: [item.data], endereco: endereco.data });
   if (!criado.ok) return erro(criado.motivo);
 
-  // `redirect` lanca — por isso fica fora de try. O pedido ja existe neste
-  // ponto; daqui em diante o banco e a fonte de verdade.
-  //
   // Para o PAGAMENTO, nao para o detalhe (#113): o pedido nasce
   // `aguardando_pagamento`, e mandar a pessoa para uma tela que so descreve o
   // pedido deixava a tela de pagar sem nenhum caminho ate ela.
-  redirect(`/checkout/pagamento/${criado.id}`);
+  //
+  // E NAO com `redirect()`: em server action ele e navegacao suave, e a tela
+  // de pagamento chegaria sem a propria CSP — o Brick nao monta. Quem navega e
+  // o cliente, com carregamento completo. (#118)
+  return { recado: null, campo: null, irPara: `/checkout/pagamento/${criado.id}` };
 }
