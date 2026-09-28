@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef } from 'react';
 import { comErro, useCampos } from '@/app/_ui/campos';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
 import Rotulo from '@/app/_ui/Rotulo';
+import { useSaidaAutomatica } from '@/app/_ui/saida-automatica';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { trocarSenha } from './acoes';
 import { senhaInicial } from './estado';
@@ -28,7 +29,7 @@ export default function TrocarSenha() {
 
   const { montado: aviso, saindo, abrir, fechar, aoFimDaAnimacao } = useDesmonteAnimado(400);
 
-  // O toast entra quando a acao responde e sai sozinho depois de um tempo.
+  // O toast entra quando a acao responde.
   //
   // Reaparece quando a mesma mensagem acontece duas vezes seguidas porque a
   // acao devolve um `recado` novo a cada resposta — a identidade do objeto
@@ -37,14 +38,14 @@ export default function TrocarSenha() {
     if (!estado.recado) return;
     abrir();
 
-    if (estado.recado.tom === 'ok') {
-      // Senha trocada nao fica parada no formulario. Era o reset do React
-      // que esvaziava; com campo controlado, esvazia aqui.
-      limpar();
-      const t = setTimeout(fechar, 6000);
-      return () => clearTimeout(t);
-    }
-  }, [estado.recado, abrir, fechar, limpar]);
+    // Senha trocada nao fica parada no formulario. Era o reset do React
+    // que esvaziava; com campo controlado, esvazia aqui.
+    if (estado.recado.tom === 'ok') limpar();
+  }, [estado.recado, abrir, limpar]);
+
+  // E sai sozinho, erro incluido (#136). Antes o erro so saia no "x", e ficava
+  // em cima do que a pessoa queria clicar em seguida.
+  const { pausar, retomar } = useSaidaAutomatica(estado.recado, aviso, fechar);
 
   return (
     <>
@@ -105,9 +106,15 @@ export default function TrocarSenha() {
       </form>
 
       {aviso && estado.recado ? (
+        // biome-ignore lint/a11y/noStaticElementInteractions: o papel existe (alert ou status), mas e uma expressao e o lint so le papel literal. Os eventos nao sao interacao: ponteiro e foco so param o relogio da saida.
         <div
           className={`toast ${estado.recado.tom}${saindo ? ' saindo' : ''}`}
           onAnimationEnd={aoFimDaAnimacao}
+          // Quem esta lendo, ou com o foco no "x", nao perde o aviso no meio.
+          onMouseEnter={pausar}
+          onMouseLeave={retomar}
+          onFocus={pausar}
+          onBlur={retomar}
           id="aviso-da-senha"
           // Erro interrompe; sucesso espera a vez (#51).
           role={estado.recado.tom === 'erro' ? 'alert' : 'status'}
