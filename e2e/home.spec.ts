@@ -47,3 +47,48 @@ test('home: os cabecalhos de seguranca saem no build de producao', async ({ requ
   expect(cabecalhos['strict-transport-security']).toContain('max-age=31536000');
   expect(cabecalhos['x-powered-by']).toBeUndefined();
 });
+
+test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({ page }) => {
+  // A cena 3D roda por software no navegador sem tela, e rolar por ela e lento.
+  test.setTimeout(90_000);
+
+  const pedidos: { caminho: string; status: number; tipo: string }[] = [];
+  page.on('response', (resposta) => {
+    const { pathname } = new URL(resposta.url());
+    if (!pathname.startsWith('/elementos/')) return;
+    pedidos.push({
+      caminho: pathname,
+      status: resposta.status(),
+      tipo: resposta.headers()['content-type'] ?? '',
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  // Cada elemento baixa quando o elo dele chega perto (#47): e preciso passar
+  // por eles.
+  // Os cinco elementos moram nos cinco primeiros elos.
+  for (let i = 1; i <= 5; i++) {
+    await page.locator(`#elo-${i}`).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250);
+  }
+
+  await expect.poll(() => pedidos.length).toBeGreaterThanOrEqual(5);
+  // Folga para um PNG de reserva aparecer, se fosse aparecer: ele so e pedido
+  // quando o navegador nao consegue abrir o WebP.
+  await page.waitForTimeout(1000);
+
+  expect(pedidos.map((p) => p.caminho).sort()).toEqual([
+    '/elementos/corrente.webp',
+    '/elementos/mao.webp',
+    '/elementos/p.webp',
+    '/elementos/pistola.webp',
+    '/elementos/saturno.webp',
+  ]);
+  for (const pedido of pedidos) {
+    expect(pedido.status, pedido.caminho).toBe(200);
+    expect(pedido.tipo, pedido.caminho).toBe('image/webp');
+  }
+});
