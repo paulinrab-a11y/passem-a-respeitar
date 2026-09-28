@@ -851,3 +851,60 @@ footer.assina a:hover{color:var(--vermelho)}
 @media (prefers-reduced-motion:reduce){
   .troca-email-pendente{animation:none}
 }
+
+/* A area de conta ancora no topo (#46).
+   Centralizada na vertical, a caixa inteira subia ou descia a cada mudanca de
+   altura: o conteudo chegando no lugar do esqueleto, um erro aparecendo, a
+   confirmacao de exclusao abrindo. Ancorada, o que esta acima nunca se move.
+   Login e cadastro continuam centralizados: sao formularios de altura fixa.
+   So acima de 767px: abaixo disso a regra do telefone ja ancora no topo. */
+@media (min-width:768px){
+  .auth.conta{place-items:start center;padding-top:clamp(56px,12vh,128px);padding-bottom:72px}
+}
+
+/* Esqueletos (#46).
+   Cinza sobre preto, brilho discreto. O brilho e um gradiente que atravessa a
+   barra por `transform` — nada de animar `background-position`, que repinta.
+   A entrada tem atraso: consulta que volta em menos de 150 ms nao chega a
+   mostrar esqueleto, e a tela nao pisca. O espaco e reservado desde o
+   primeiro quadro, entao o atraso nao mexe no layout. */
+.auth-caixa>.esqueleto{animation:esq-aparece .2s cubic-bezier(.22,1,.36,1) .15s backwards}
+.esq,.esq-linha{position:relative;overflow:hidden;color:transparent;background:#121316}
+/* A barra tem a ALTURA DA LINHA do texto que substitui, e nao a da letra: e
+   a altura da linha que decide quanto espaco o paragrafo ocupa. O que se ve
+   e uma faixa mais fina, pintada no meio.
+   `vertical-align:top` e nao `baseline`: caixa inline com overflow escondido
+   tem a linha de base no pe, e alinhada pela base ela empurra a linha do
+   pai para cima em 4px. Medido. */
+.esq-linha{display:inline-block;max-width:100%;line-height:inherit;vertical-align:top;background:linear-gradient(#121316,#121316) left center/100% .62em no-repeat}
+.conta-atalho .esq-linha{border-bottom:1px solid transparent}
+.esq-linha.bloco{display:block}
+.esq-campo{display:block;font-size:16px;letter-spacing:.06em;padding:14px 16px;border:1px solid #1c1d20;background:#0a0a0c}
+.esq-botao{border-color:#1c1d20;background:#0a0a0c;justify-content:center}
+.esq-botao::before{display:none}
+.pedido-status.esq{border-color:#1c1d20}
+.esqueleto .pedidos article,.esqueleto .etapa-marca{border-color:#1c1d20}
+.esqueleto .pedidos>li,.esqueleto .etapas li,.esqueleto .sessoes li{animation:none}
+.esq::after,.esq-linha::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(205,208,213,.07),transparent);transform:translateX(-100%);animation:esq-brilho 1.8s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes esq-aparece{from{opacity:0}to{opacity:1}}
+@keyframes esq-brilho{to{transform:translateX(100%)}}
+
+/* Galeria da merch: o servidor ja entrega as molduras vazias, com a mesma
+   grade e a mesma proporcao, e a foto entra por cima quando carrega. */
+#merch .galeria figure{position:relative}
+#merch .galeria figure::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(205,208,213,.06),transparent);transform:translateX(-100%);animation:esq-brilho 1.8s cubic-bezier(.4,0,.2,1) infinite}
+#merch .galeria figure.ok::after{display:none}
+#merch .galeria img{opacity:0;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .6s ease,filter .4s}
+#merch .galeria figure.ok img{opacity:1}
+
+/* Player do clipe enquanto o video nao respondeu. */
+#clipe .player.carregando{position:relative;overflow:hidden}
+#clipe .player.carregando::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(205,208,213,.06),transparent);transform:translateX(-100%);animation:esq-brilho 1.8s cubic-bezier(.4,0,.2,1) infinite}
+
+@media (prefers-reduced-motion:reduce){
+  .auth-caixa>.esqueleto{animation:none}
+  .esq::after,.esq-linha::after{animation:none}
+  #merch .galeria figure::after{animation:none}
+  #clipe .player.carregando::after{animation:none}
+  #merch .galeria img{transition:none}
+}

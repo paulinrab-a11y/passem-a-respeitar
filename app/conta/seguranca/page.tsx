@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { JANELA_MINUTOS } from '@/lib/conta/reautenticacao';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
+import { EsqueletoSeguranca } from '../Esqueletos';
 import ExcluirConta from './ExcluirConta';
 import { minhasSessoes } from './lista-sessoes';
 import Sessoes from './Sessoes';
@@ -16,13 +18,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function Seguranca() {
-  // Segunda verificacao, depois do middleware (#29).
-  const usuario = await usuarioDaSessao();
-  if (!usuario) redirect(ENTRAR);
-
-  const sessoes = await minhasSessoes();
-
+/** Moldura no primeiro byte, conteudo por streaming (#46). */
+export default function Seguranca() {
   return (
     <main className="auth conta">
       <div className="auth-scan" aria-hidden="true" />
@@ -33,18 +30,40 @@ export default async function Seguranca() {
           ← Conta
         </a>
         <h1>Segurança</h1>
-        <p className="auth-sub">Trocar senha</p>
 
-        <TrocarSenha />
-
-        {/* `new_email` vem do Supabase, conferido no servidor: a tela de troca
-            pendente nao depende de nada que o navegador afirme (#36). */}
-        <TrocarEmail atual={usuario.email ?? ''} pendente={usuario.new_email || null} />
-
-        <Sessoes sessoes={sessoes} janelaMinutos={JANELA_MINUTOS} />
-
-        <ExcluirConta email={usuario.email ?? ''} />
+        <Suspense fallback={<EsqueletoSeguranca />}>
+          <Conteudo />
+        </Suspense>
       </section>
     </main>
+  );
+}
+
+/**
+ * Um boundary so para a tela inteira, e nao um por secao: a lista de
+ * aparelhos fica no MEIO da pagina, e um esqueleto de altura diferente da
+ * lista real empurraria "Excluir minha conta" quando ela chegasse.
+ */
+async function Conteudo() {
+  // Segunda verificacao, depois do middleware (#29).
+  const usuario = await usuarioDaSessao();
+  if (!usuario) redirect(ENTRAR);
+
+  const sessoes = await minhasSessoes();
+
+  return (
+    <>
+      <p className="auth-sub">Trocar senha</p>
+
+      <TrocarSenha />
+
+      {/* `new_email` vem do Supabase, conferido no servidor: a tela de troca
+            pendente nao depende de nada que o navegador afirme (#36). */}
+      <TrocarEmail atual={usuario.email ?? ''} pendente={usuario.new_email || null} />
+
+      <Sessoes sessoes={sessoes} janelaMinutos={JANELA_MINUTOS} />
+
+      <ExcluirConta email={usuario.email ?? ''} />
+    </>
   );
 }

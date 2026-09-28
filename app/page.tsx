@@ -1,6 +1,7 @@
 import { vitrine } from '@/lib/loja/catalogo';
 import { precoNaFicha } from '@/lib/loja/precos';
 import BarraConta from './_home/BarraConta';
+import { CONFIG } from './_home/config';
 import HomeRuntime from './_home/HomeRuntime';
 
 // A CSP do middleware.ts carrega um nonce novo a cada request, e o Next so
@@ -177,7 +178,15 @@ export default async function Home() {
           </div>
           {/* O `data-alt` existe para o script legado nao precisar repetir o
               nome do produto no alt das fotos — era a terceira copia dele. */}
-          <div className="galeria" id="galeriaMerch" data-alt={camiseta?.nome ?? ''}></div>
+          {/* As molduras ja saem do servidor, vazias e na grade final (#46).
+              Sem elas a galeria nascia com altura zero e empurrava o rodape
+              quando o script montava as fotos. O script troca o conteudo
+              pelas figuras com imagem; a quantidade e a mesma. */}
+          <div className="galeria" id="galeriaMerch" data-alt={camiseta?.nome ?? ''}>
+            {CONFIG.merchFotos.map((foto) => (
+              <figure key={foto} aria-hidden="true" />
+            ))}
+          </div>
         </section>
 
         <footer className="assina">
