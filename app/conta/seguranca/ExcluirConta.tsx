@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect } from 'react';
+import { useCaixinha, useCampos } from '@/app/_ui/campos';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
 import { exclusaoInicial } from './estado-exclusao';
 import { excluirConta } from './excluir';
@@ -15,8 +16,20 @@ import { excluirConta } from './excluir';
  */
 export default function ExcluirConta({ email }: { email: string }) {
   const [estado, acao, pendente] = useActionState(excluirConta, exclusaoInicial);
-  const [confirmo, setConfirmo] = useState(false);
+  // A caixinha nao e `checked` controlado: o reset do formulario a desmarcaria
+  // na tela com o estado ainda marcado, e o botao ficaria liberado sem o
+  // aceite visivel (#130).
+  const { marcada: confirmo, caixinha } = useCaixinha();
   const { montado, saindo, abrir, fechar, aoFimDaAnimacao } = useDesmonteAnimado(400);
+  // Controlados: o React 19 apagaria e-mail e senha quando a acao respondesse
+  // com erro (#130).
+  const { campo, limpar } = useCampos({ email: '', senha: '' });
+
+  // Cancelou: o que foi digitado morre com a caixa, como morria quando os
+  // campos eram do DOM. So depois da saida animada, para nada piscar.
+  useEffect(() => {
+    if (!montado) limpar();
+  }, [montado, limpar]);
 
   return (
     <section className="excluir">
@@ -36,14 +49,20 @@ export default function ExcluirConta({ email }: { email: string }) {
           <form action={acao} className="excluir-form">
             <label className="auth-campo">
               <span>Digite {email} para confirmar</span>
-              <input type="email" name="email" autoComplete="off" required disabled={pendente} />
+              <input
+                type="email"
+                {...campo('email')}
+                autoComplete="off"
+                required
+                disabled={pendente}
+              />
             </label>
 
             <label className="auth-campo">
               <span>Sua senha</span>
               <input
                 type="password"
-                name="senha"
+                {...campo('senha')}
                 autoComplete="current-password"
                 required
                 disabled={pendente}
@@ -51,12 +70,7 @@ export default function ExcluirConta({ email }: { email: string }) {
             </label>
 
             <label className="auth-caixinha">
-              <input
-                type="checkbox"
-                checked={confirmo}
-                onChange={(e) => setConfirmo(e.target.checked)}
-                disabled={pendente}
-              />
+              <input type="checkbox" {...caixinha} disabled={pendente} />
               <span>Entendi que não dá para desfazer</span>
             </label>
 

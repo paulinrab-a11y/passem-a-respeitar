@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef } from 'react';
+import { useCampos } from '@/app/_ui/campos';
 import { finalizarCompra } from './acoes';
 import { checkoutInicial } from './estado';
 
@@ -30,6 +31,22 @@ const CAMPOS = [
 /** Só o complemento é opcional — os outros sete o banco exige. */
 const OPCIONAIS = new Set(['complemento']);
 
+/**
+ * Os oito comecam vazios e ficam no cliente. Controlados porque o React 19
+ * apagaria todos quando a acao respondesse com erro: errar o CEP virava
+ * redigitar o endereco inteiro (#130).
+ */
+const VAZIOS = {
+  nome: '',
+  cep: '',
+  logradouro: '',
+  numero: '',
+  complemento: '',
+  bairro: '',
+  cidade: '',
+  uf: '',
+};
+
 export default function Entrega({
   slug,
   tamanho,
@@ -46,6 +63,7 @@ export default function Entrega({
   // entre a resposta e a navegacao e convidar para o segundo clique.
   const pendente = emVoo || Boolean(estado.irPara);
   const form = useRef<HTMLFormElement>(null);
+  const { campo: controle } = useCampos(VAZIOS);
 
   // Sucesso: navegacao COMPLETA, nao `router.push`. A tela de pagamento tem
   // CSP propria (hosts do Mercado Pago) e so a recebe como documento novo;
@@ -74,7 +92,7 @@ export default function Entrega({
           <label key={campo.nome} className={`auth-campo campo-${campo.largura}`}>
             <span>{campo.rotulo}</span>
             <input
-              name={campo.nome}
+              {...controle(campo.nome)}
               type="text"
               autoComplete={campo.auto}
               required={!OPCIONAIS.has(campo.nome)}

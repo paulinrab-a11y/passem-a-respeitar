@@ -1,11 +1,16 @@
 'use client';
 
 import { useActionState } from 'react';
+import { useCaixinha, useCampos } from '@/app/_ui/campos';
 import { entrar } from './acoes';
 import { estadoInicial } from './estado';
 
 export default function Formulario({ next }: { next: string }) {
   const [estado, acao, pendente] = useActionState(entrar, estadoInicial);
+  // Controlados: o React 19 apagaria e-mail e caixinha quando a acao
+  // respondesse com erro, e errar a senha viraria redigitar tudo (#130).
+  const { campo } = useCampos({ email: '', senha: '' });
+  const { caixinha } = useCaixinha();
 
   return (
     <form action={acao} className="auth-form" noValidate>
@@ -15,7 +20,7 @@ export default function Formulario({ next }: { next: string }) {
         <span>E-mail</span>
         <input
           type="email"
-          name="email"
+          {...campo('email')}
           autoComplete="email"
           required
           // Sem autoFocus: ele rouba o scroll em telefone e joga o teclado na
@@ -29,7 +34,7 @@ export default function Formulario({ next }: { next: string }) {
         <span>Senha</span>
         <input
           type="password"
-          name="senha"
+          {...campo('senha')}
           autoComplete="current-password"
           required
           aria-describedby={estado.erro ? 'auth-erro' : undefined}
@@ -39,7 +44,7 @@ export default function Formulario({ next }: { next: string }) {
 
       <div className="auth-linha">
         <label className="auth-caixinha">
-          <input type="checkbox" name="lembrar" disabled={pendente} />
+          <input type="checkbox" name="lembrar" {...caixinha} disabled={pendente} />
           <span>Manter conectado</span>
         </label>
 

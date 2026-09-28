@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect } from 'react';
+import { useCampos } from '@/app/_ui/campos';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { trocarSenha } from './acoes';
@@ -8,7 +9,10 @@ import { senhaInicial } from './estado';
 
 export default function TrocarSenha() {
   const [estado, acao, pendente] = useActionState(trocarSenha, senhaInicial);
-  const [nova, setNova] = useState('');
+  // Os tres controlados: o React 19 apagaria a senha atual e a confirmacao
+  // quando a acao respondesse com erro. Nenhum deles volta do servidor (#130).
+  const { valores, campo, limpar } = useCampos({ atual: '', nova: '', confirmacao: '' });
+  const { nova } = valores;
   const forca = forcaDaSenha(nova);
 
   const { montado: aviso, saindo, abrir, fechar, aoFimDaAnimacao } = useDesmonteAnimado(400);
@@ -23,10 +27,13 @@ export default function TrocarSenha() {
     abrir();
 
     if (estado.recado.tom === 'ok') {
+      // Senha trocada nao fica parada no formulario. Era o reset do React
+      // que esvaziava; com campo controlado, esvazia aqui.
+      limpar();
       const t = setTimeout(fechar, 6000);
       return () => clearTimeout(t);
     }
-  }, [estado.recado, abrir, fechar]);
+  }, [estado.recado, abrir, fechar, limpar]);
 
   return (
     <>
@@ -35,7 +42,7 @@ export default function TrocarSenha() {
           <span>Senha atual</span>
           <input
             type="password"
-            name="atual"
+            {...campo('atual')}
             autoComplete="current-password"
             required
             disabled={pendente}
@@ -46,13 +53,11 @@ export default function TrocarSenha() {
           <span>Nova senha</span>
           <input
             type="password"
-            name="nova"
+            {...campo('nova')}
             autoComplete="new-password"
             minLength={SENHA_MIN}
             required
             disabled={pendente}
-            value={nova}
-            onChange={(e) => setNova(e.target.value)}
             aria-describedby="forca-da-senha"
           />
         </label>
@@ -70,7 +75,7 @@ export default function TrocarSenha() {
           <span>Confirmar nova senha</span>
           <input
             type="password"
-            name="confirmacao"
+            {...campo('confirmacao')}
             autoComplete="new-password"
             required
             disabled={pendente}
