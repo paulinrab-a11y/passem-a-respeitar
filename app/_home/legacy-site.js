@@ -134,6 +134,24 @@ if (CONFIG.clipe.blick){
   alvos.forEach(el=> vigia.observe(el));
 })();
 
+// Convite a rolar (#156): o loop do hero para na primeira rolagem, e voltar ao
+// topo nao religa. A troca espera o fim do ciclo em andamento — ali a linha esta
+// invisivel, e parar no meio seria um corte. Com movimento reduzido o loop nem
+// existe, o evento nunca chega e nada muda.
+//
+// So conta rolagem que saiu do topo: o navegador dispara `scroll` ao restaurar a
+// posicao e a intro mexe na pagina, e nenhum dos dois e a pessoa rolando.
+(function convite(){
+  const desce = $('#hero .desce');
+  if (!desce) return;
+  const aoRolar = ()=>{
+    if (scrollY < 24) return;
+    removeEventListener('scroll', aoRolar);
+    desce.addEventListener('animationiteration', ()=> desce.classList.add('rolou'), { once:true });
+  };
+  addEventListener('scroll', aoRolar, { passive:true });
+})();
+
 (function montaElos(){
   const wrap = $('#elos');
   TRACKS.forEach((t,i)=>{
