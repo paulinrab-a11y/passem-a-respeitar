@@ -23,6 +23,13 @@ import { execSync } from 'node:child_process';
  */
 export const SITE = 'http://localhost:3000';
 
+/**
+ * O administrador da suite. O site decide quem administra por uma lista de
+ * e-mails no ambiente do servidor, entao o endereco precisa existir antes de o
+ * servidor subir. Dominio reservado para teste: nao e de ninguem.
+ */
+export const ADMIN = 'admin@e2e.test';
+
 const DESTA_MAQUINA = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 export function ehDestaMaquina(url) {

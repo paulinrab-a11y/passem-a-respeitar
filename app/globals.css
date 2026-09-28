@@ -948,6 +948,21 @@ footer.assina a:hover{color:var(--vermelho)}
 .admin-botoes{display:flex;gap:10px;flex-wrap:wrap}
 .admin-botoes .btn{font-size:12px;padding:10px 16px}
 .admin-final{margin-top:12px;margin-bottom:0}
+/* Mudanca de status (#157). O selo antigo sai, o novo entra, e os botoes da
+   etapa seguinte entram junto. So opacidade e transform: nada aqui ocupa
+   espaco a mais, e o card nao e empurrado. As entradas so valem depois de uma
+   mudanca — na carga da pagina os cinquenta cards chegam parados. */
+@keyframes selo-entra{from{opacity:0}to{opacity:1}}
+@keyframes selo-sai{from{opacity:1}to{opacity:0}}
+.pedido-status.trocou{animation:selo-entra .18s cubic-bezier(.22,1,.36,1) backwards}
+.pedido-status.saindo{animation:selo-sai .12s cubic-bezier(.4,0,1,1) forwards}
+@keyframes admin-etapa-entra{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.admin-botoes.entrou,.admin-final.entrou{animation:admin-etapa-entra .2s cubic-bezier(.22,1,.36,1) .12s backwards}
+@media (prefers-reduced-motion:reduce){
+  .pedido-status.trocou{animation-name:so-fade}
+  .pedido-status.saindo{animation-name:so-fade-sai}
+  .admin-botoes.entrou,.admin-final.entrou{animation-name:so-fade}
+}
 
 /* Troca de e-mail (#36). Mesma cara das outras secoes da tela de seguranca. */
 .troca-email{margin-top:44px;padding-top:26px;border-top:1px solid var(--prata-3)}

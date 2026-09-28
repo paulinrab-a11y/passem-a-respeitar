@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
-import { ambienteLocal } from './ambiente.mjs';
+import { ADMIN, ambienteLocal } from './ambiente.mjs';
 
 /**
  * Acesso direto ao banco LOCAL, para montar o cenario de cada teste.
@@ -45,8 +45,7 @@ export function emailNovo(quem: string) {
 }
 
 /** Usuario ja confirmado, sem passar pelo e-mail. */
-export async function criaUsuario(nome: string): Promise<Usuario> {
-  const email = emailNovo(nome.toLowerCase());
+export async function criaUsuario(nome: string, email = emailNovo(nome.toLowerCase())) {
   const senha = senhaNova();
 
   const { data, error } = await admin().auth.admin.createUser({
@@ -57,7 +56,46 @@ export async function criaUsuario(nome: string): Promise<Usuario> {
   });
   if (error || !data.user) throw new Error(`nao criei o usuario: ${error?.message}`);
 
-  return { id: data.user.id, nome, email, senha };
+  return { id: data.user.id, nome, email, senha } satisfies Usuario;
+}
+
+/**
+ * O administrador da suite: o unico e-mail que o servidor de teste aceita como tal.
+ *
+ * O endereco e fixo, entao pode ja existir: quando um teste falha o Playwright
+ * recomeca o arquivo num worker novo, e o `beforeAll` roda de novo. O que
+ * existir e apagado primeiro — administrador herdado teria uma senha que esta
+ * rodada nao conhece.
+ */
+export async function criaAdmin() {
+  const banco = admin();
+  const { data, error } = await banco.auth.admin.listUsers({ perPage: 200 });
+  if (error) throw new Error(`nao li os usuarios: ${error.message}`);
+
+  for (const u of data.users.filter((u) => u.email === ADMIN)) {
+    await banco.from('orders').delete().eq('user_id', u.id);
+    const { error: e } = await banco.auth.admin.deleteUser(u.id);
+    if (e) throw new Error(`nao apaguei o administrador antigo: ${e.message}`);
+  }
+
+  return criaUsuario('Admin', ADMIN);
+}
+
+/** O status de um pedido e a trilha dele, lidos do banco e nao da tela. */
+export async function lePedido(id: string) {
+  const banco = admin();
+
+  const { data: pedido, error } = await banco.from('orders').select('status').eq('id', id).single();
+  if (error || !pedido) throw new Error(`nao li o pedido: ${error?.message}`);
+
+  const { data: trilha, error: erroDaTrilha } = await banco
+    .from('order_status_history')
+    .select('de, para, autor, motivo')
+    .eq('order_id', id)
+    .order('criado_em', { ascending: true });
+  if (erroDaTrilha) throw new Error(`nao li a trilha: ${erroDaTrilha.message}`);
+
+  return { status: String(pedido.status), trilha: trilha ?? [] };
 }
 
 /**

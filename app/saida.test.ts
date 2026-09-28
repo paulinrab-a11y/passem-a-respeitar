@@ -58,6 +58,8 @@ describe('a saida e mais rapida que a entrada', () => {
     'auth-erro',
     'conta-recado',
     'troca-email',
+    // Selo de status no admin (#157).
+    'selo',
   ];
 
   it.each(PARES)('%s', (prefixo) => {
