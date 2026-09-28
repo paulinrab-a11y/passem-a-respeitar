@@ -834,3 +834,20 @@ footer.assina a:hover{color:var(--vermelho)}
 .admin-botoes{display:flex;gap:10px;flex-wrap:wrap}
 .admin-botoes .btn{font-size:12px;padding:10px 16px}
 .admin-final{margin-top:12px;margin-bottom:0}
+
+/* Troca de e-mail (#36). Mesma cara das outras secoes da tela de seguranca. */
+.troca-email{margin-top:44px;padding-top:26px;border-top:1px solid var(--prata-3)}
+.troca-email h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:#fff}
+.troca-email-atual{margin-top:8px;font-size:14px;letter-spacing:.04em;color:var(--prata);overflow-wrap:anywhere}
+.troca-email .conta-bloco{margin-top:22px}
+.troca-email-pendente{margin-top:18px;padding-left:14px;border-left:2px solid var(--vermelho);font-size:14px;line-height:1.5;color:var(--prata);animation:conta-recado-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.troca-email-pendente strong{color:#fff;overflow-wrap:anywhere}
+.troca-email-pendente form{margin:12px 0 0}
+.troca-email-pendente button{padding:0}
+.troca-email .conta-recado{margin-top:14px}
+@media (max-width:600px){
+  .troca-email-pendente button{min-height:44px;display:flex;align-items:center}
+}
+@media (prefers-reduced-motion:reduce){
+  .troca-email-pendente{animation:none}
+}

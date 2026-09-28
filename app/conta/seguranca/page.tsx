@@ -6,6 +6,7 @@ import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import ExcluirConta from './ExcluirConta';
 import { minhasSessoes } from './lista-sessoes';
 import Sessoes from './Sessoes';
+import TrocarEmail from './TrocarEmail';
 import TrocarSenha from './TrocarSenha';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,10 @@ export default async function Seguranca() {
         <p className="auth-sub">Trocar senha</p>
 
         <TrocarSenha />
+
+        {/* `new_email` vem do Supabase, conferido no servidor: a tela de troca
+            pendente nao depende de nada que o navegador afirme (#36). */}
+        <TrocarEmail atual={usuario.email ?? ''} pendente={usuario.new_email || null} />
 
         <Sessoes sessoes={sessoes} janelaMinutos={JANELA_MINUTOS} />
 

@@ -83,3 +83,12 @@ export const esquemaRedefinirSenha = z
     confirmacao: z.string().min(1).max(SENHA_MAX),
   })
   .refine((d) => d.nova === d.confirmacao, { path: ['confirmacao'] });
+
+/**
+ * Troca de e-mail (#36): o endereco novo, normalizado como no login, e a senha
+ * de agora. A senha e a reautenticacao: conferida no instante do pedido.
+ */
+export const esquemaTrocarEmail = z.object({
+  email: z.string().trim().toLowerCase().min(1).max(254).email(),
+  senha: z.string().min(1).max(SENHA_MAX),
+});

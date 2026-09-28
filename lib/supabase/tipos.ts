@@ -379,6 +379,7 @@ export type Database = {
     };
     Functions: {
       autenticado_recentemente: { Args: { p_minutos?: number }; Returns: boolean };
+      cancela_troca_de_email: { Args: Record<PropertyKey, never>; Returns: boolean };
       cria_pedido: {
         Args: {
           p_user_id: string;
