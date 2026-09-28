@@ -1,6 +1,8 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { comErro } from '@/app/_ui/campos';
+import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
 import { recuperarSenha } from './acoes';
 import { recuperarInicial } from './estado';
@@ -38,15 +40,11 @@ export default function Formulario() {
           disabled={pendente}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          aria-describedby={estado.erro ? 'auth-erro' : undefined}
+          {...comErro(estado.campo === 'email', 'auth-erro')}
         />
       </label>
 
-      {estado.erro ? (
-        <p key={estado.tentativa} id="auth-erro" className="auth-erro" role="alert">
-          {estado.erro}
-        </p>
-      ) : null}
+      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} />
 
       <button
         type="submit"

@@ -1003,3 +1003,20 @@ footer.assina a:hover{color:var(--vermelho)}
   .auth-link.carregando::after,.menu-conta-in .sair.carregando::after{animation:none}
   .barra-rota.on{animation:none;transform:scaleX(.6)}
 }
+
+/* Formularios (#51) -----------------------------------------------------------
+   Lugar reservado para o erro: duas linhas no computador, tres no telefone.
+   A conta e em `lh`, a altura de linha do proprio texto de erro — se a
+   tipografia do erro mudar, o lugar acompanha.
+   O lugar vazio nao e anunciado nem focavel: e so espaco. */
+.erro-vaga{font-size:13px;line-height:1.45;min-height:calc(2 * 1.45em)}
+.auth-form>.erro-vaga{margin-block:-4px}
+.troca-email>.erro-vaga{margin-top:14px}
+.troca-email>.erro-vaga>.conta-recado{margin-top:0}
+@media (max-width:767px){
+  .erro-vaga{min-height:calc(3 * 1.45em)}
+}
+
+/* Campo com erro: a borda diz onde, a mensagem diz o que. */
+.auth-campo input[aria-invalid="true"],#fim .convite input[aria-invalid="true"]{border-color:var(--vermelho)}
+.auth-caixinha input[aria-invalid="true"]{outline:1px solid var(--vermelho);outline-offset:2px}

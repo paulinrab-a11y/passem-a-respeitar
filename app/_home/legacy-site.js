@@ -832,7 +832,11 @@ const Loja = (()=>{
   form.addEventListener('submit', async e=>{
     e.preventDefault(); if(!aberto) return;
     const v = inp.value.trim().toUpperCase();
-    if (!v){ erro.textContent='Digita o código do convite.'; return; }
+    // `aria-invalid` acompanha o erro (#51): entra com ele, sai quando a pessoa
+    // tenta de novo. A ligacao com a mensagem ja esta no HTML, por
+    // aria-describedby.
+    if (!v){ erro.textContent='Digita o código do convite.'; inp.setAttribute('aria-invalid','true'); return; }
+    inp.removeAttribute('aria-invalid');
     botao.disabled = true; erro.textContent = 'Conferindo…';
     try {
       const r = await fetch('/api/convite', {
@@ -855,6 +859,7 @@ const Loja = (()=>{
         modal.abre(inp); Som.corrente(1); $('#fecharSala').focus();
       } else {
         erro.textContent = dados.erro || 'Esse código não abre nada aqui.';
+        inp.setAttribute('aria-invalid','true');
         inp.select(); Som.tick();
       }
     } catch {

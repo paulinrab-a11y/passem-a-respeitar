@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState } from 'react';
-import { useCaixinha, useCampos } from '@/app/_ui/campos';
+import { comErro, useCaixinha, useCampos } from '@/app/_ui/campos';
+import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
 import { entrar } from './acoes';
 import { estadoInicial } from './estado';
@@ -26,7 +27,7 @@ export default function Formulario({ next }: { next: string }) {
           required
           // Sem autoFocus: ele rouba o scroll em telefone e joga o teclado na
           // cara de quem so abriu a pagina.
-          aria-describedby={estado.erro ? 'auth-erro' : undefined}
+          {...comErro(estado.campo === 'credenciais', 'auth-erro')}
           disabled={pendente}
         />
       </label>
@@ -38,7 +39,7 @@ export default function Formulario({ next }: { next: string }) {
           {...campo('senha')}
           autoComplete="current-password"
           required
-          aria-describedby={estado.erro ? 'auth-erro' : undefined}
+          {...comErro(estado.campo === 'credenciais', 'auth-erro')}
           disabled={pendente}
         />
       </label>
@@ -54,14 +55,7 @@ export default function Formulario({ next }: { next: string }) {
         </a>
       </div>
 
-      {estado.erro ? (
-        // A `key` muda a cada envio: sem ela, errar a senha duas vezes seguidas
-        // mostraria a mesma mensagem parada na tela, e a pessoa ficaria sem
-        // saber se o segundo envio chegou a acontecer.
-        <p key={estado.tentativa} id="auth-erro" className="auth-erro" role="alert">
-          {estado.erro}
-        </p>
-      ) : null}
+      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} />
 
       {/* `.btn` e nao `.btn.cheio`: o fundo cheio esconde o ::before vermelho,
           que e justamente o que preenche o botao enquanto o envio acontece. */}

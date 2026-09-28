@@ -12,8 +12,8 @@ import type { EstadoSessao } from './estado-sessoes';
 /** Cinco tentativas por hora. O alvo aqui e quem sentou no computador alheio. */
 const LIMITE = { maximo: 5, janelaMs: 60 * 60 * 1000 };
 
-function erro(texto: string, tentativa: number): EstadoSenha {
-  return { recado: { tom: 'erro', texto }, tentativa };
+function erro(texto: string, tentativa: number, campo: EstadoSenha['campo'] = null): EstadoSenha {
+  return { recado: { tom: 'erro', texto }, campo, tentativa };
 }
 
 export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promise<EstadoSenha> {
@@ -39,13 +39,15 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
     // Mensagens distintas aqui nao vazam nada: quem chegou ate esta tela ja
     // provou quem e. Generico so faria a pessoa adivinhar o que errou.
     const campo = dados.error.issues[0]?.path[0];
-    if (campo === 'confirmacao') return erro('A confirmação não bate com a nova senha.', tentativa);
+    if (campo === 'confirmacao') {
+      return erro('A confirmação não bate com a nova senha.', tentativa, 'confirmacao');
+    }
     if (campo === 'nova') {
       const nova = String(form.get('nova') ?? '');
       if (nova === String(form.get('atual') ?? '')) {
-        return erro('A nova senha é igual à atual.', tentativa);
+        return erro('A nova senha é igual à atual.', tentativa, 'nova');
       }
-      return erro('A nova senha precisa de pelo menos 8 caracteres.', tentativa);
+      return erro('A nova senha precisa de pelo menos 8 caracteres.', tentativa, 'nova');
     }
     return erro('Preencha os três campos.', tentativa);
   }
@@ -53,13 +55,14 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
   const { atual, nova } = dados.data;
 
   if (!(await senhaConfere(usuario.email, atual))) {
-    return erro('A senha atual está incorreta.', tentativa);
+    return erro('A senha atual está incorreta.', tentativa, 'atual');
   }
 
   if (await senhaVazada(nova)) {
     return erro(
       'Essa senha aparece em vazamentos conhecidos. Escolha outra — não precisa ser complicada, precisa ser sua.',
-      tentativa
+      tentativa,
+      'nova'
     );
   }
 
@@ -80,6 +83,7 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
       tom: 'ok',
       texto: 'Senha trocada. As sessões abertas em outros aparelhos foram encerradas.',
     },
+    campo: null,
     tentativa,
   };
 }

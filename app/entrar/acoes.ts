@@ -66,7 +66,7 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
   // Entrada malformada responde igual a credencial errada. Dizer "e-mail
   // invalido" aqui separaria os dois casos para quem estiver medindo.
   if (!dados.success) {
-    return { erro: ERRO_GENERICO, tentativa };
+    return { erro: ERRO_GENERICO, campo: 'credenciais', tentativa };
   }
 
   const { email, senha, lembrar } = dados.data;
@@ -95,6 +95,7 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
     // Este erro pode ser diferente: ele nao diz nada sobre a conta existir.
     return {
       erro: `Muitas tentativas. Tente de novo em ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`,
+      campo: null,
       tentativa,
     };
   }
@@ -108,7 +109,7 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
   await segura(inicio);
 
   if (error) {
-    return { erro: ERRO_GENERICO, tentativa };
+    return { erro: ERRO_GENERICO, campo: 'credenciais', tentativa };
   }
 
   // Registrado antes do redirect para o middleware saber, nas renovacoes de

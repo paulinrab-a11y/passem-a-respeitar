@@ -67,3 +67,23 @@ export function useCaixinha(inicial = false) {
 
   return { marcada, caixinha };
 }
+
+/**
+ * O que um campo com erro precisa dizer a quem nao ve a borda vermelha (#51).
+ *
+ * `aria-invalid` sozinho diz "esta errado" e nao diz por que. A ligacao com a
+ * mensagem (`aria-describedby`) e o que faz o leitor de tela ler o erro quando
+ * a pessoa volta ao campo.
+ *
+ * A ligacao so existe enquanto ha erro: apontar para um id que nao esta na
+ * pagina e referencia quebrada. `outras` sao descricoes que o campo ja tinha,
+ * como o medidor de senha, e continuam valendo.
+ */
+export function comErro(errou: boolean, idDoErro: string, outras?: string) {
+  const descricoes = [outras, errou ? idDoErro : undefined].filter(Boolean).join(' ');
+
+  return {
+    'aria-invalid': errou ? (true as const) : undefined,
+    'aria-describedby': descricoes || undefined,
+  };
+}

@@ -10,6 +10,12 @@
 export type EstadoEntrar = {
   erro: string | null;
   /**
+   * O que o erro aponta, para o `aria-invalid` (#51). `credenciais` marca
+   * e-mail E senha, juntos: o erro de login nao diz qual dos dois esta errado,
+   * e a marcacao tambem nao pode dizer. Limite de tentativas nao aponta campo.
+   */
+  campo: 'credenciais' | null;
+  /**
    * Contador de envios. Vira `key` do paragrafo de erro no formulario, e e o
    * que faz a mensagem reanimar quando o erro se repete — sem isso, errar a
    * senha duas vezes deixaria o texto parado e a pessoa nao saberia se o
@@ -22,4 +28,4 @@ export type EstadoEntrar = {
   tentativa: number;
 };
 
-export const estadoInicial: EstadoEntrar = { erro: null, tentativa: 0 };
+export const estadoInicial: EstadoEntrar = { erro: null, campo: null, tentativa: 0 };

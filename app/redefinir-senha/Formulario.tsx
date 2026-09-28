@@ -1,6 +1,8 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
+import { comErro } from '@/app/_ui/campos';
+import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { redefinirSenha } from './acoes';
@@ -35,8 +37,7 @@ export default function Formulario() {
           disabled={pendente}
           value={nova}
           onChange={(e) => setNova(e.target.value)}
-          aria-describedby="forca-da-senha"
-          aria-invalid={estado.campo === 'nova' ? true : undefined}
+          {...comErro(estado.campo === 'nova', 'auth-erro', 'forca-da-senha')}
         />
       </label>
 
@@ -57,15 +58,11 @@ export default function Formulario() {
           disabled={pendente}
           value={confirmacao}
           onChange={(e) => setConfirmacao(e.target.value)}
-          aria-invalid={estado.campo === 'confirmacao' ? true : undefined}
+          {...comErro(estado.campo === 'confirmacao', 'auth-erro')}
         />
       </label>
 
-      {estado.erro ? (
-        <p key={estado.tentativa} id="auth-erro" className="auth-erro" role="alert">
-          {estado.erro}
-        </p>
-      ) : null}
+      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} />
 
       <button
         type="submit"
