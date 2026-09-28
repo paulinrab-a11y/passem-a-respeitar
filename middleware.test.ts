@@ -473,3 +473,78 @@ describe('barreira de origem em /api (#17)', () => {
     expect(r.status).not.toBe(403);
   });
 });
+
+/**
+ * Um host so em producao (#141). O que se prova: o alias vai para o
+ * principal com caminho e query intactos, e tudo o que nao e producao, ou
+ * nao e navegacao, passa como sempre passou.
+ */
+describe('host principal em producao (#141)', () => {
+  const PRINCIPAL = 'passem-a-respeitar.exemplo';
+
+  async function chega(url: string, metodo = 'GET') {
+    const { middleware } = await import('./middleware');
+    return middleware(new NextRequest(url, { method: metodo }));
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('VERCEL_PROJECT_PRODUCTION_URL', PRINCIPAL);
+  });
+
+  it('alias vai para o principal com 308, mantendo caminho e query', async () => {
+    const r = await chega('https://alias-do-time.exemplo/entrar?next=%2Fconta%2Fseguranca');
+
+    expect(r.status).toBe(308);
+    expect(r.headers.get('location')).toBe(`https://${PRINCIPAL}/entrar?next=%2Fconta%2Fseguranca`);
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it('o proprio principal passa', async () => {
+    expect((await chega(`https://${PRINCIPAL}/`)).status).toBe(200);
+  });
+
+  it('maiuscula no host nao vira laco de redirecionamento', async () => {
+    vi.stubEnv('VERCEL_PROJECT_PRODUCTION_URL', 'Passem-A-Respeitar.Exemplo');
+
+    expect((await chega(`https://${PRINCIPAL}/`)).status).toBe(200);
+  });
+
+  it('preview nao redireciona', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+
+    expect((await chega('https://alias-do-time.exemplo/')).status).toBe(200);
+  });
+
+  it('fora da Vercel nao redireciona', async () => {
+    vi.stubEnv('VERCEL_ENV', '');
+
+    expect((await chega('https://alias-do-time.exemplo/')).status).toBe(200);
+  });
+
+  it('/api nao redireciona: webhook e cron sao chamados por servidor', async () => {
+    const r = await chega('https://alias-do-time.exemplo/api/cron/conciliacao');
+
+    expect(r.status).not.toBe(308);
+    expect(r.headers.get('location')).toBeNull();
+  });
+
+  it('POST nao redireciona', async () => {
+    const r = await chega('https://alias-do-time.exemplo/conta/seguranca', 'POST');
+
+    expect(r.status).not.toBe(308);
+  });
+
+  it.each([
+    ['vazia', ''],
+    ['com protocolo', 'https://passem-a-respeitar.exemplo'],
+    ['com caminho', 'passem-a-respeitar.exemplo/conta'],
+    ['com porta', 'passem-a-respeitar.exemplo:8080'],
+    ['com arroba', 'usuario@site-falso.exemplo'],
+    ['sem ponto', 'localhost'],
+  ])('variavel %s nao redireciona', async (_nome, valor) => {
+    vi.stubEnv('VERCEL_PROJECT_PRODUCTION_URL', valor);
+
+    expect((await chega('https://alias-do-time.exemplo/')).status).toBe(200);
+  });
+});

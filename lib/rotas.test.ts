@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { destinoSeguro, ehPagamento, ehRotaDeAuth, exigeSessao, precisaDeSessao } from './rotas';
+import {
+  destinoSeguro,
+  ehPagamento,
+  ehRotaDeAuth,
+  exigeSessao,
+  hostPrincipal,
+  precisaDeSessao,
+} from './rotas';
 
 describe('exigeSessao', () => {
   it.each(['/conta', '/conta/', '/conta/pedidos', '/conta/seguranca', '/conta/pedidos/abc'])(
@@ -143,5 +150,41 @@ describe('ehPagamento (#108)', () => {
 
   it('a tela de pagamento tambem exige sessao', () => {
     expect(exigeSessao('/checkout/pagamento/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')).toBe(true);
+  });
+});
+
+describe('hostPrincipal (#141)', () => {
+  const P = 'site.exemplo';
+
+  it('em producao, host diferente do principal devolve o principal', () => {
+    expect(hostPrincipal('production', P, 'alias.exemplo')).toBe(P);
+  });
+
+  it('no proprio principal devolve null', () => {
+    expect(hostPrincipal('production', P, P)).toBeNull();
+    expect(hostPrincipal('production', P, 'SITE.exemplo')).toBeNull();
+  });
+
+  it.each(['preview', 'development', '', undefined])('ambiente %s nao redireciona', (amb) => {
+    expect(hostPrincipal(amb, P, 'alias.exemplo')).toBeNull();
+  });
+
+  it.each([
+    undefined,
+    '',
+    '   ',
+    'https://site.exemplo',
+    'site.exemplo/caminho',
+    'site.exemplo:443',
+    'a@site.exemplo',
+    'site..exemplo',
+    '-site.exemplo',
+    'semponto',
+  ])('principal %s nao e host e nao redireciona', (valor) => {
+    expect(hostPrincipal('production', valor, 'alias.exemplo')).toBeNull();
+  });
+
+  it('apara espaco e caixa do valor da variavel', () => {
+    expect(hostPrincipal('production', '  Site.Exemplo ', 'alias.exemplo')).toBe(P);
   });
 });
