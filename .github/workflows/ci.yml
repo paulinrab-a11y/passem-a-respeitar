@@ -141,3 +141,44 @@ jobs:
       # Regra do AGENTS.md: nada de vulnerabilidade alta ou critica.
       - name: npm audit
         run: npm audit --audit-level=high
+
+  # Ponta a ponta (#10): o build de producao do site, num navegador de verdade,
+  # falando com um Supabase que nasce e morre dentro deste job.
+  #
+  # Nenhum secret entra aqui. As chaves sao as do banco local, lidas do
+  # `supabase status` na hora; producao nao e alcancada em nenhum passo, e a
+  # propria suite se recusa a rodar contra endereco que nao seja da maquina.
+  e2e:
+    name: e2e
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Sobe o banco e aplica TODAS as migrations do repositorio num banco
+      # vazio. Migration que so funciona em cima do banco de producao quebra
+      # aqui, e nao no dia em que for preciso recriar o banco.
+      - name: Supabase local
+        run: npm run e2e:banco
+      - name: Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Testes de ponta a ponta
+        run: npm run test:e2e
+      - name: Guardar relatorio
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Derruba o banco
+        if: always()
+        run: npm run e2e:banco:parar
