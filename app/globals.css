@@ -84,6 +84,10 @@ section{position:relative}
 #hero .desce{position:absolute;right:var(--gutter);bottom:9vh;font-size:12px;letter-spacing:.24em;color:var(--prata-2);writing-mode:vertical-rl}
 #hero .desce::after{content:"";display:block;width:1px;height:60px;background:var(--prata-3);margin:14px auto 0;animation:desce 1.8s ease-in-out infinite;transform-origin:top}
 @keyframes desce{0%{transform:scaleY(0)}60%{transform:scaleY(1)}100%{transform:scaleY(1);opacity:0}}
+/* Depois da primeira rolagem o convite ja cumpriu o papel (#156). O script espera
+   o ciclo acabar, que e quando a linha esta invisivel, e so entao troca a
+   animacao: a linha reaparece inteira, com fade, e fica parada. */
+#hero .desce.rolou::after{animation:so-fade .25s cubic-bezier(.22,1,.36,1) both}
 
 .elo{min-height:120vh;display:flex;align-items:center;padding:0 var(--gutter)}
 /* Momento de marca: 700 ms e `ease` sao do desenho original dos elos, e a
@@ -307,7 +311,7 @@ footer.assina a:hover{color:var(--vermelho)}
 @media (prefers-reduced-motion:reduce){
   #grain,#scan,#vig{display:none}
   .elo .box{opacity:1;transform:none;transition:none}
-  #hero .desce::after{animation:none}
+  #hero .desce.rolou::after,#hero .desce::after{animation:none}
   #manifesto .l{opacity:1;filter:none;transform:none}
   /* Os dois loops infinitos que sobravam (#52). O REC vira um ponto aceso; o
      equalizador vira barras paradas a meia altura — continua dizendo "tocando",
