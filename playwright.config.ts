@@ -1,15 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
-import { ambienteLocal, SITE } from './e2e/apoio/ambiente.mjs';
+import { SITE } from './e2e/apoio/ambiente.mjs';
 
 /**
  * Testes de ponta a ponta (Issue #10).
  *
  * Rodam contra o build de producao do site, falando com o Supabase LOCAL.
  * Producao nao entra nesta historia em nenhum momento: `ambienteLocal()`
- * recusa qualquer endereco que nao seja desta maquina, e e chamado aqui, antes
- * de o primeiro teste existir.
+ * recusa qualquer endereco que nao seja desta maquina. Quem chama e o servidor
+ * de teste, antes do build, e o `globalSetup`, antes do primeiro teste.
+ *
+ * Aqui nao: este arquivo tambem e lido por quem so quer saber quais sao os
+ * arquivos de teste — o Knip, no job de lint —, e ler a configuracao nao pode
+ * exigir um banco no ar.
  */
-ambienteLocal();
 
 const noCI = Boolean(process.env.CI);
 
