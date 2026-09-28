@@ -875,6 +875,34 @@ footer.assina a:hover{color:var(--vermelho)}
 /* O Brick traz o proprio layout e tema — o que sobra para ca e o encaixe: a
    largura da caixa e o recado enquanto ele nao montou. */
 .brick{margin-top:4px}
+/* Lugar reservado do formulario de pagamento (#154).
+   359px e a altura do formulario antes de a pessoa escolher como pagar,
+   medida em 375 e em 1024 de largura: e a mesma nas duas. Esqueleto e
+   formulario dividem a celula; quando a pessoa escolhe cartao o formulario
+   cresce, e ai quem pediu foi ela.
+   O formulario fica transparente ate avisar que montou, porque ele monta em
+   quatro saltos e mostrar os saltos e o que se quer evitar. Sem clique
+   enquanto isso: botao invisivel nao pode receber toque. */
+.brick-pilha{display:grid;min-height:359px}
+.brick-pilha>*{grid-area:1/1;min-width:0}
+.brick-form{opacity:0;pointer-events:none;transition:opacity .2s cubic-bezier(.22,1,.36,1)}
+.brick-pilha[data-pronto] .brick-form{opacity:1;pointer-events:auto}
+/* As medidas sao as do formulario de verdade, lidas no navegador: fundo
+   #08080a, 16px de recuo, caixa dos meios de pagamento em 89px com 134 de
+   altura, botao em 255px com 153x48. */
+.esq-brick{height:359px;box-sizing:border-box;padding:0 16px;background:#08080a;display:flex;flex-direction:column;align-items:flex-start;pointer-events:none;animation:esq-aparece .2s cubic-bezier(.22,1,.36,1) .15s backwards;transition:opacity .15s cubic-bezier(.4,0,1,1)}
+.esq-brick-titulo{display:block;width:40%;height:16px;margin:48px 0 25px}
+.esq-brick-meios{width:100%;height:134px;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid #1c1d20}
+.esq-brick-meios>.esq{display:block;flex:1;background:#08080a}
+.esq-brick-meios>.esq+.esq{border-top:1px solid #1c1d20}
+.esq-brick-botao{display:block;width:153px;height:48px;margin-top:32px}
+/* Pronto: o esqueleto some e o brilho para. Invisivel nao precisa animar. */
+.brick-pilha[data-pronto] .esq-brick{opacity:0;visibility:hidden}
+.brick-pilha[data-pronto] .esq-brick .esq::after{animation:none}
+@media (prefers-reduced-motion:reduce){
+  .brick-form,.esq-brick{transition:none}
+  .esq-brick{animation:none}
+}
 .brick .detalhe-nota{margin-bottom:0}
 .pagamento-valor{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
 

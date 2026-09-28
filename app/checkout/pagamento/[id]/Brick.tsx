@@ -96,10 +96,12 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
 
   const inicializacao = useMemo(() => ({ amount: valor, payer: { email } }), [valor, email]);
 
+  // O esqueleto cede o lugar quando o formulario avisa que montou — ou quando
+  // ele falha: erro com esqueleto brilhando atras diria "ainda carregando".
+  const pronto = montado || Boolean(erro);
+
   return (
     <div className="brick">
-      {montado ? null : <p className="detalhe-nota">Carregando as formas de pagamento…</p>}
-
       {erro ? (
         <p className="conta-recado erro" role="alert">
           {erro}
@@ -108,56 +110,86 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
 
       {pix ? <Pix dados={pix} valor={valorEscrito} /> : null}
 
-      {sdkPronto && !pix ? (
-        <Payment
-          initialization={inicializacao}
-          customization={customizacao}
-          onReady={() => setMontado(true)}
-          onError={() => setErro('Não consegui carregar o pagamento. Recarregue a página.')}
-          onSubmit={async ({ formData }) => {
-            setErro(null);
-            const d = (formData ?? {}) as DadosDoBrick;
+      {/* Lugar reservado (#154). O formulario do Mercado Pago chega em quatro
+          saltos, de 20 a 359 px, e empurrava o aviso de privacidade 339 px
+          para baixo com a pessoa prestes a pagar. Aqui o lugar existe desde o
+          primeiro byte: esqueleto e formulario ocupam a MESMA celula, e o
+          formulario so aparece quando esta inteiro. */}
+      {pix ? null : (
+        <div className="brick-pilha" data-pronto={pronto ? '' : undefined}>
+          {pronto ? null : (
+            <p className="sr" role="status">
+              Carregando as formas de pagamento…
+            </p>
+          )}
 
-            // So escolha vai no corpo. Valor, total e moeda nao existem aqui —
-            // o servidor le de `orders.total_centavos`.
-            const r = await fetch('/api/checkout/pagamento', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                pedido,
-                payment_method_id: d.payment_method_id,
-                token: d.token,
-                installments: d.installments,
-                payer: d.payer?.identification
-                  ? { identification: d.payer.identification }
-                  : undefined,
-              }),
-            }).catch(() => null);
+          {/* Titulo, os dois meios de pagamento e o botao: o formato do
+              formulario antes de a pessoa escolher como pagar. */}
+          <div className="esq-brick" aria-hidden="true">
+            <span className="esq-brick-titulo esq" />
+            <div className="esq-brick-meios">
+              <span className="esq" />
+              <span className="esq" />
+            </div>
+            <span className="esq-brick-botao esq" />
+          </div>
 
-            if (!r) {
-              setErro('Não consegui falar com o pagamento. Tente de novo.');
-              throw new Error('rede');
-            }
+          <div className="brick-form">
+            {sdkPronto ? (
+              <Payment
+                initialization={inicializacao}
+                customization={customizacao}
+                onReady={() => setMontado(true)}
+                onError={() => setErro('Não consegui carregar o pagamento. Recarregue a página.')}
+                onSubmit={async ({ formData }) => {
+                  setErro(null);
+                  const d = (formData ?? {}) as DadosDoBrick;
 
-            const corpo = await r.json().catch(() => ({}));
+                  // So escolha vai no corpo. Valor, total e moeda nao existem aqui —
+                  // o servidor le de `orders.total_centavos`.
+                  const r = await fetch('/api/checkout/pagamento', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      pedido,
+                      payment_method_id: d.payment_method_id,
+                      token: d.token,
+                      installments: d.installments,
+                      payer: d.payer?.identification
+                        ? { identification: d.payer.identification }
+                        : undefined,
+                    }),
+                  }).catch(() => null);
 
-            if (!r.ok) {
-              setErro(corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.');
-              // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
-              // de limpar o formulario e obrigar a redigitar o cartao.
-              throw new Error('recusado');
-            }
+                  if (!r) {
+                    setErro('Não consegui falar com o pagamento. Tente de novo.');
+                    throw new Error('rede');
+                  }
 
-            if (corpo.pix) {
-              setPix(corpo.pix);
-              return;
-            }
+                  const corpo = await r.json().catch(() => ({}));
 
-            // Cartao aprovado ou em analise: o pedido e quem conta a historia.
-            router.push(`/conta/pedidos/${pedido}`);
-          }}
-        />
-      ) : null}
+                  if (!r.ok) {
+                    setErro(
+                      corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.'
+                    );
+                    // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
+                    // de limpar o formulario e obrigar a redigitar o cartao.
+                    throw new Error('recusado');
+                  }
+
+                  if (corpo.pix) {
+                    setPix(corpo.pix);
+                    return;
+                  }
+
+                  // Cartao aprovado ou em analise: o pedido e quem conta a historia.
+                  router.push(`/conta/pedidos/${pedido}`);
+                }}
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
