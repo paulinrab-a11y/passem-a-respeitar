@@ -538,6 +538,27 @@ footer.assina a:hover{color:var(--vermelho)}
 .toast button{font-size:20px;line-height:1;color:var(--prata-2);padding:0 2px}
 .toast button:hover{color:var(--prata)}
 
+/* O toast nao pode ficar em cima do que a pessoa quer clicar (#136).
+   Ele e fixo no rodape e centralizado, ou seja, na mesma faixa da coluna de
+   conteudo. Medido em 800x600 com a pagina no fim: o ultimo link ficava em
+   547–566px e o toast em 522–576px, recebendo o clique no lugar dele.
+
+   Tela larga: sobra espaco ao lado da coluna, e o toast vai para o canto. Os
+   260px sao metade da .conta-caixa; os 24px, o respiro entre os dois. */
+@media (min-width:1280px){
+  .toast{left:auto;margin-inline:0;width:min(360px,calc(50% - 260px - var(--gutter) - 24px))}
+}
+/* Tela estreita: nao ha canto livre, entao a pagina que tem toast termina com
+   espaco para o conteudo rolar ate acima dele. Fixo, e nao so enquanto o toast
+   esta na tela: espaco que aparece e some muda a altura da pagina e puxa o
+   conteudo de quem rolou ate o fim.
+   160px = 24 do rodape + 112 do toast mais alto (a mensagem de senha vazada,
+   quatro linhas em 320px) + respiro. Medido: sobram 17px entre o ultimo link
+   e o toast em 320px, 36px em 375px. */
+@media (max-width:1279px){
+  .auth.com-toast{padding-bottom:160px}
+}
+
 @media (prefers-reduced-motion:reduce){
   .senha-barra i{transition:none}
   /* Duracao quase zero, nao `none`: o desmonte tem o prazo do hook, mas o

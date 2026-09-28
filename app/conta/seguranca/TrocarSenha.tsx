@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
+import { useSaidaAutomatica } from '@/app/_ui/saida-automatica';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { trocarSenha } from './acoes';
 import { senhaInicial } from './estado';
@@ -13,20 +14,17 @@ export default function TrocarSenha() {
 
   const { montado: aviso, saindo, abrir, fechar, aoFimDaAnimacao } = useDesmonteAnimado(400);
 
-  // O toast entra quando a acao responde e sai sozinho depois de um tempo.
+  // O toast entra quando a acao responde.
   //
   // Reaparece quando a mesma mensagem acontece duas vezes seguidas porque a
   // acao devolve um `recado` novo a cada resposta — a identidade do objeto
   // muda, e o efeito roda de novo mesmo com o texto identico.
   useEffect(() => {
-    if (!estado.recado) return;
-    abrir();
+    if (estado.recado) abrir();
+  }, [estado.recado, abrir]);
 
-    if (estado.recado.tom === 'ok') {
-      const t = setTimeout(fechar, 6000);
-      return () => clearTimeout(t);
-    }
-  }, [estado.recado, abrir, fechar]);
+  // E sai sozinho, erro incluido (#136).
+  const { pausar, retomar } = useSaidaAutomatica(estado.recado, aviso, fechar);
 
   return (
     <>
@@ -90,6 +88,10 @@ export default function TrocarSenha() {
         <div
           className={`toast ${estado.recado.tom}${saindo ? ' saindo' : ''}`}
           onAnimationEnd={aoFimDaAnimacao}
+          onMouseEnter={pausar}
+          onMouseLeave={retomar}
+          onFocus={pausar}
+          onBlur={retomar}
           role="status"
         >
           <p>{estado.recado.texto}</p>

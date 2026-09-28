@@ -23,7 +23,7 @@ export default async function Seguranca() {
   const sessoes = await minhasSessoes();
 
   return (
-    <main className="auth conta">
+    <main className="auth conta com-toast">
       <div className="auth-scan" aria-hidden="true" />
       <div className="auth-vinheta" aria-hidden="true" />
 
