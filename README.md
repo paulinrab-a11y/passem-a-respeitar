@@ -187,6 +187,9 @@ código. Falha fechada, de propósito.
 | `npm test` | Vitest, uma passada |
 | `npm run test:watch` | Vitest em watch |
 | `npm run test:coverage` | Vitest com cobertura e piso |
+| `npm run e2e:banco` | sobe o Supabase local (precisa de Docker) |
+| `npm run test:e2e` | Playwright, contra o build de produção e o banco local |
+| `npm run e2e:banco:parar` | derruba o Supabase local |
 
 ## Deploy
 
@@ -197,7 +200,7 @@ Nunca dê push direto na `main` — existe um hook `pre-push` que recusa. O flux
 
 ## Qualidade
 
-O CI roda em todo PR: `lint → typecheck → test → build`, mais `secrets`
+O CI roda em todo PR: `lint → typecheck → test → build → e2e`, mais `secrets`
 (gitleaks sobre o histórico e a árvore) e `audit` (`npm audit --audit-level=high`)
 em paralelo. PR só é mergeado com tudo verde.
 
@@ -216,6 +219,34 @@ a comparação do código de convite e a assinatura do cookie.
 
 Nenhum teste usa o código de convite real, nem o hash dele. O repositório é
 público e hash de código curto cai em dicionário.
+
+### Ponta a ponta
+
+Playwright, em `e2e/`. Cobre cadastro, login, logout, troca de senha,
+recuperação de senha, pedidos e o caso negativo: um usuário tentando abrir o
+pedido de outro.
+
+```
+npm run e2e:banco     # uma vez; precisa do Docker aberto
+npm run test:e2e
+```
+
+A suíte roda contra o **build de produção** do site e contra um **Supabase
+local**, que o `e2e:banco` sobe em Docker e que recebe as migrations de
+`supabase/migrations` num banco vazio. Produção não é tocada:
+
+- `e2e/apoio/ambiente.mjs` recusa qualquer endereço que não seja desta máquina
+- `e2e/apoio/servidor.mjs` esvazia as variáveis de Redis, Sentry e Mercado
+  Pago antes do build, para o `.env.local` de quem desenvolve não entrar
+- os e-mails ficam presos no servidor de SMTP local, e é de lá que os testes
+  leem os links de confirmação
+
+Nenhuma credencial está escrita nos testes. E-mail e senha nascem de bytes
+aleatórios a cada rodada; as chaves são as do banco local, lidas do
+`supabase status`.
+
+Feche o `npm run dev` antes de rodar: a suíte faz o próprio build, usa a porta
+3000 e a pasta `.next`.
 
 ## Como trabalhar aqui
 
