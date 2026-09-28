@@ -86,6 +86,13 @@ const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googl
   // servidor. Antes eram a terceira e a quarta copia do produto no codigo.
   const nomeProduto = g.dataset.alt || '';
   g.innerHTML = CONFIG.merchFotos.map((id,i)=>`<figure><img src="${drive(id, i===0?1800:1000)}" alt="${nomeProduto}" loading="${i<3?'eager':'lazy'}" decoding="async"></figure>`).join('');
+  // A moldura brilha ate a foto responder (#46). Erro tambem encerra o
+  // brilho: foto que nao veio nao pode deixar a moldura carregando para sempre.
+  $$('#galeriaMerch img').forEach(img=>{
+    const pronto = ()=> img.parentNode.classList.add('ok');
+    if (img.complete) pronto();
+    else { img.addEventListener('load', pronto, {once:true}); img.addEventListener('error', pronto, {once:true}); }
+  });
   let tam = $('#tamanhos').dataset.padrao || '';
   const link = ()=>{ $('#comprar').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
   $('#tamanhos').addEventListener('click', e=>{
@@ -100,6 +107,12 @@ if (CONFIG.clipe.blick){
   $('#playerBlick').innerHTML = /\.(mp4|webm)(\?|$)/i.test(u)
     ? `<video src="${u}" controls playsinline preload="metadata"></video>`
     : `<iframe src="${u}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="Blick — clipe"></iframe>`;
+  // O player brilha ate o video responder (#46). A caixa ja tem a proporcao
+  // final, entao nada se move quando ele chega.
+  const player = $('#playerBlick'), midia = player.firstElementChild;
+  player.classList.add('carregando');
+  const chegou = ()=> player.classList.remove('carregando');
+  ['load','loadeddata','error'].forEach(ev=> midia.addEventListener(ev, chegou, {once:true}));
 }
 
 (function montaElos(){

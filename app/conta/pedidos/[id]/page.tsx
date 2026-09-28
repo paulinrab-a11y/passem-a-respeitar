@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { pareceUuid } from '@/lib/conta/pedidos';
 import { conciliaPedido } from '@/lib/loja/conciliacao';
 import { ENTRAR } from '@/lib/rotas';
+import { EsqueletoPedido } from '../../Esqueletos';
 import { meuPedido } from './busca-pedido';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +37,15 @@ const EM_PALAVRAS = {
   'nao-aconteceu': 'não vai acontecer',
 } as const;
 
+/**
+ * Moldura no primeiro byte, pedido por streaming (#46).
+ *
+ * O id torto e recusado AQUI, antes do primeiro byte, e por isso ainda sai
+ * com status 404 de verdade. O pedido que nao existe — ou e de outra pessoa
+ * — so e descoberto depois da consulta, ja com a resposta em andamento: a
+ * pessoa ve a mesma tela de "nao encontrado", mas o status HTTP e 200. As
+ * duas situacoes continuam indistinguiveis entre si, que e o que a #42 pede.
+ */
 export default async function DetalheDoPedido({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
@@ -43,6 +54,25 @@ export default async function DetalheDoPedido({ params }: { params: Promise<{ id
   // esta chutando endereco.
   if (!pareceUuid(id)) notFound();
 
+  return (
+    <main className="auth conta">
+      <div className="auth-scan" aria-hidden="true" />
+      <div className="auth-vinheta" aria-hidden="true" />
+
+      <section className="auth-caixa conta-caixa">
+        <a href="/conta/pedidos" className="auth-voltar">
+          ← Pedidos
+        </a>
+
+        <Suspense fallback={<EsqueletoPedido />}>
+          <Pedido id={id} />
+        </Suspense>
+      </section>
+    </main>
+  );
+}
+
+async function Pedido({ id }: { id: string }) {
   let resultado = await meuPedido(id);
 
   // Segunda verificacao de sessao, depois do middleware (#29).
@@ -65,106 +95,97 @@ export default async function DetalheDoPedido({ params }: { params: Promise<{ id
   const linha = pedido.linhaDoTempo;
 
   return (
-    <main className="auth conta">
-      <div className="auth-scan" aria-hidden="true" />
-      <div className="auth-vinheta" aria-hidden="true" />
+    <>
+      <h1>Pedido #{pedido.numero}</h1>
 
-      <section className="auth-caixa conta-caixa">
-        <a href="/conta/pedidos" className="auth-voltar">
-          ← Pedidos
-        </a>
+      <p className="detalhe-topo">
+        <span className={`pedido-status ${pedido.tom}`}>{pedido.rotulo}</span>
+        <time dateTime={pedido.criadoEm}>{dia.format(new Date(pedido.criadoEm))}</time>
+      </p>
 
-        <h1>Pedido #{pedido.numero}</h1>
+      <section className="detalhe-bloco">
+        <h2>Itens</h2>
 
-        <p className="detalhe-topo">
-          <span className={`pedido-status ${pedido.tom}`}>{pedido.rotulo}</span>
-          <time dateTime={pedido.criadoEm}>{dia.format(new Date(pedido.criadoEm))}</time>
-        </p>
-
-        <section className="detalhe-bloco">
-          <h2>Itens</h2>
-
-          {pedido.itens.length === 0 ? (
-            <p className="detalhe-nota">Este pedido não tem itens registrados.</p>
-          ) : (
-            <ul className="pedido-itens">
-              {pedido.itens.map((item) => (
-                <li key={item.id}>
-                  <span className="pedido-item-nome">{item.nome}</span>
-                  <span className="pedido-item-detalhe">
-                    {item.tamanho ? `tam. ${item.tamanho} · ` : ''}
-                    {item.quantidade} × {item.precoUnitario}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <p className="pedido-total">
-            <span>Total</span>
-            <strong>{pedido.total}</strong>
-          </p>
-
-          {/* So enquanto espera pagamento. Pedido pago, cancelado ou enviado
-              nao oferece pagar — e a ausencia do botao e o que diz isso, sem
-              precisar de um botao desabilitado explicando por que. (#113) */}
-          {pedido.aguardandoPagamento ? (
-            <p className="detalhe-acoes">
-              <a className="btn cheio" href={`/checkout/pagamento/${id}`}>
-                Pagar agora
-              </a>
-            </p>
-          ) : null}
-        </section>
-
-        <section className="detalhe-bloco">
-          <h2>Andamento</h2>
-
-          {linha.semRegistro ? (
-            <p className="detalhe-nota">
-              Este pedido não tem registro de etapas. O andamento abaixo aparece vazio porque nada
-              foi registrado — não porque nada aconteceu.
-            </p>
-          ) : null}
-
-          <ol className="etapas">
-            {linha.etapas.map((etapa) => (
-              <li
-                key={etapa.rotulo}
-                className={etapa.estado}
-                aria-current={etapa.estado === 'atual' ? 'step' : undefined}
-              >
-                <span className="etapa-marca" aria-hidden="true" />
-                <span className="etapa-nome">{etapa.rotulo}</span>
-                <span className="etapa-quando">
-                  {etapa.em ? (
-                    <time dateTime={etapa.em}>{diaEHora.format(new Date(etapa.em))}</time>
-                  ) : (
-                    <span aria-hidden="true">—</span>
-                  )}
+        {pedido.itens.length === 0 ? (
+          <p className="detalhe-nota">Este pedido não tem itens registrados.</p>
+        ) : (
+          <ul className="pedido-itens">
+            {pedido.itens.map((item) => (
+              <li key={item.id}>
+                <span className="pedido-item-nome">{item.nome}</span>
+                <span className="pedido-item-detalhe">
+                  {item.tamanho ? `tam. ${item.tamanho} · ` : ''}
+                  {item.quantidade} × {item.precoUnitario}
                 </span>
-                {/* O estado nao pode depender so da cor e da posicao. */}
-                <span className="sr">{EM_PALAVRAS[etapa.estado]}</span>
               </li>
             ))}
+          </ul>
+        )}
 
-            {linha.ramo ? (
-              <li className="ramo" aria-current="step">
-                <span className="etapa-marca" aria-hidden="true" />
-                <span className="etapa-nome">{linha.ramo.rotulo}</span>
-                <span className="etapa-quando">
-                  {linha.ramo.em ? (
-                    <time dateTime={linha.ramo.em}>{diaEHora.format(new Date(linha.ramo.em))}</time>
-                  ) : (
-                    <span aria-hidden="true">—</span>
-                  )}
-                </span>
-                <span className="sr">etapa atual</span>
-              </li>
-            ) : null}
-          </ol>
-        </section>
+        <p className="pedido-total">
+          <span>Total</span>
+          <strong>{pedido.total}</strong>
+        </p>
+
+        {/* So enquanto espera pagamento. Pedido pago, cancelado ou enviado
+              nao oferece pagar — e a ausencia do botao e o que diz isso, sem
+              precisar de um botao desabilitado explicando por que. (#113) */}
+        {pedido.aguardandoPagamento ? (
+          <p className="detalhe-acoes">
+            <a className="btn cheio" href={`/checkout/pagamento/${id}`}>
+              Pagar agora
+            </a>
+          </p>
+        ) : null}
       </section>
-    </main>
+
+      <section className="detalhe-bloco">
+        <h2>Andamento</h2>
+
+        {linha.semRegistro ? (
+          <p className="detalhe-nota">
+            Este pedido não tem registro de etapas. O andamento abaixo aparece vazio porque nada foi
+            registrado — não porque nada aconteceu.
+          </p>
+        ) : null}
+
+        <ol className="etapas">
+          {linha.etapas.map((etapa) => (
+            <li
+              key={etapa.rotulo}
+              className={etapa.estado}
+              aria-current={etapa.estado === 'atual' ? 'step' : undefined}
+            >
+              <span className="etapa-marca" aria-hidden="true" />
+              <span className="etapa-nome">{etapa.rotulo}</span>
+              <span className="etapa-quando">
+                {etapa.em ? (
+                  <time dateTime={etapa.em}>{diaEHora.format(new Date(etapa.em))}</time>
+                ) : (
+                  <span aria-hidden="true">—</span>
+                )}
+              </span>
+              {/* O estado nao pode depender so da cor e da posicao. */}
+              <span className="sr">{EM_PALAVRAS[etapa.estado]}</span>
+            </li>
+          ))}
+
+          {linha.ramo ? (
+            <li className="ramo" aria-current="step">
+              <span className="etapa-marca" aria-hidden="true" />
+              <span className="etapa-nome">{linha.ramo.rotulo}</span>
+              <span className="etapa-quando">
+                {linha.ramo.em ? (
+                  <time dateTime={linha.ramo.em}>{diaEHora.format(new Date(linha.ramo.em))}</time>
+                ) : (
+                  <span aria-hidden="true">—</span>
+                )}
+              </span>
+              <span className="sr">etapa atual</span>
+            </li>
+          ) : null}
+        </ol>
+      </section>
+    </>
   );
 }
