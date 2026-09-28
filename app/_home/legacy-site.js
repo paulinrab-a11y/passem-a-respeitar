@@ -116,6 +116,22 @@ if (CONFIG.clipe.blick){
   }
 }
 
+// Entrada de secao (#48): fade e deslocamento curto, uma vez, quando a secao
+// cruza a viewport. So nas secoes que NAO sao momento de marca — elos, hero e
+// intro tem o tratamento deles. A classe e posta aqui, e nao no HTML: se este
+// script nao rodar, nada fica invisivel.
+(function entradas(){
+  const alvos = ['#clipe .in', '#merch .ficha', '#galeriaMerch', '#fim .frase', '#fim .acoes', '#fim .convite']
+    .map(s=>$(s)).filter(Boolean);
+  alvos.forEach(el=> el.classList.add('entra'));
+  const mostra = el=> el.classList.add('vis');
+  if (!('IntersectionObserver' in window)){ alvos.forEach(mostra); return; }
+  const vigia = new IntersectionObserver(es=>{
+    es.forEach(en=>{ if (!en.isIntersecting) return; vigia.unobserve(en.target); mostra(en.target); });
+  }, { rootMargin:'0px 0px -8% 0px' });
+  alvos.forEach(el=> vigia.observe(el));
+})();
+
 (function montaElos(){
   const wrap = $('#elos');
   TRACKS.forEach((t,i)=>{

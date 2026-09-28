@@ -293,9 +293,10 @@ footer.assina a:hover{color:var(--vermelho)}
    scanline e vinheta. Sem three.js e sem GSAP — estas telas sao formulario,
    nao momento de marca, e tem que abrir instantaneas.
 
-   Motion: entrada em opacity + translateY + blur, erro inline, e o proprio
-   ::before vermelho do .btn virando barra de progresso no envio. So transform,
-   opacity e filter.
+   Motion: entrada em opacity + translateY, erro inline, e o proprio ::before
+   vermelho do .btn virando barra de progresso no envio. So transform e
+   opacity: o blur da entrada saiu na #48, porque `filter` animado repinta a
+   caixa inteira a cada quadro.
    =========================================================================== */
 
 .auth{min-height:100svh;display:grid;place-items:center;padding:var(--gutter);position:relative}
@@ -305,7 +306,7 @@ footer.assina a:hover{color:var(--vermelho)}
 
 /* Entrada: acontece uma vez por visita, entao cabe. `backwards` evita o
    piscao de conteudo em opacidade cheia antes de o atraso comecar. */
-@keyframes auth-entra{from{opacity:0;transform:translateY(8px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+@keyframes auth-entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .auth-caixa>*{animation:auth-entra .24s cubic-bezier(.22,1,.36,1) backwards}
 .auth-caixa>*:nth-child(2){animation-delay:.04s}
 .auth-caixa>*:nth-child(3){animation-delay:.08s}
@@ -360,7 +361,12 @@ footer.assina a:hover{color:var(--vermelho)}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .auth-caixa>*,.auth-erro{animation:none}
+  /* Fade simples, sem deslocamento e sem cascata (#48). Antes era
+     `animation:none`: quem pedia menos movimento recebia a pagina aparecendo
+     de uma vez, que e mais brusco que o fade. O `!important` no atraso e
+     porque a cascata vem de `:nth-child`, mais especifico que esta regra. */
+  .auth-caixa>*{animation-name:so-fade;animation-delay:0s!important}
+  .auth-erro{animation-name:so-fade}
   /* O estado final continua sendo o vermelho cheio: o botao ainda diz que
      esta trabalhando, so nao anima ate la. */
   .auth-enviar.carregando::before{transition:none}
@@ -582,7 +588,7 @@ footer.assina a:hover{color:var(--vermelho)}
      atrasado, que e pior do que a animacao que a pessoa pediu para nao ver.
      Mesma regra em `.pedidos>li`; quem garante que a dupla nao se separa e
      app/movimento-reduzido.test.ts. (#52) */
-  .sessoes li{animation-duration:.01ms;animation-delay:0ms!important}
+  .sessoes li{animation-name:so-fade;animation-delay:0ms!important}
   .sessoes li.saindo{animation-duration:.01ms}
 }
 
@@ -699,7 +705,7 @@ footer.assina a:hover{color:var(--vermelho)}
      sem ele o quarto card ficaria 120ms invisivel (o fill e `backwards`) antes
      de aparecer de uma vez. Duracao quase zero sem zerar o atraso trocaria uma
      animacao por um piscar. */
-  .pedidos>li{animation-duration:.01ms;animation-delay:0ms!important}
+  .pedidos>li{animation-name:so-fade;animation-delay:0ms!important}
 }
 
 /* Detalhe do pedido (#42) ---------------------------------------------------- */
@@ -763,7 +769,7 @@ footer.assina a:hover{color:var(--vermelho)}
 @media (prefers-reduced-motion:reduce){
   /* `animation:none` e nao duracao curta: o shorthand zera o atraso junto, e
      aqui o atraso vem do proprio CSS. Sem style inline, sem !important. */
-  .etapas li{animation:none}
+  .etapas li{animation-name:so-fade;animation-delay:0s!important}
 }
 
 /* Checkout (#106) ------------------------------------------------------------ */
@@ -907,4 +913,35 @@ footer.assina a:hover{color:var(--vermelho)}
   #merch .galeria figure::after{animation:none}
   #clipe .player.carregando::after{animation:none}
   #merch .galeria img{transition:none}
+}
+
+/* Entrada (#48) --------------------------------------------------------------
+   `so-fade` e a versao de movimento reduzido de toda entrada: mesma duracao,
+   sem deslocamento. */
+@keyframes so-fade{from{opacity:0}to{opacity:1}}
+
+/* Secoes da home que nao sao momento de marca: clipe, merch e o fecho. Os
+   elos, o hero e a intro ficam como estao.
+   A classe `entra` e posta pelo SCRIPT, e nao pelo HTML: sem JavaScript, ou
+   se o script falhar, o conteudo nasce visivel. `vis` entra quando a secao
+   cruza a viewport, uma vez so. */
+.entra{opacity:0;transform:translateY(12px)}
+.entra.vis{opacity:1;transform:none;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .25s cubic-bezier(.22,1,.36,1)}
+/* Cascata discreta: 40 ms entre blocos, e so nos primeiros. */
+#fim .acoes.entra.vis{transition-delay:40ms}
+#fim .convite.entra.vis{transition-delay:80ms}
+/* A galeria entra como um bloco so no script; a cascata das molduras e daqui.
+   Da setima em diante ninguem percebe a ordem. */
+#galeriaMerch.entra{opacity:1;transform:none}
+#galeriaMerch.entra figure{opacity:0;transform:translateY(12px)}
+#galeriaMerch.entra.vis figure{opacity:1;transform:none;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .25s cubic-bezier(.22,1,.36,1)}
+#galeriaMerch.entra.vis figure:nth-child(2){transition-delay:40ms}
+#galeriaMerch.entra.vis figure:nth-child(3){transition-delay:80ms}
+#galeriaMerch.entra.vis figure:nth-child(4){transition-delay:120ms}
+#galeriaMerch.entra.vis figure:nth-child(5){transition-delay:160ms}
+#galeriaMerch.entra.vis figure:nth-child(n+6){transition-delay:200ms}
+
+@media (prefers-reduced-motion:reduce){
+  .entra,#galeriaMerch.entra figure{transform:none}
+  .entra.vis,#galeriaMerch.entra.vis figure{transition:opacity .2s cubic-bezier(.22,1,.36,1);transition-delay:0s!important}
 }
