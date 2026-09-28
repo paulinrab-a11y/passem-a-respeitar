@@ -42,6 +42,31 @@ const REDEFINIR = '/redefinir-senha';
 
 const TIPOS = new Set(['signup', 'recovery', 'email', 'email_change', 'magiclink', 'invite']);
 
+/**
+ * Registra por que um link falhou (#139).
+ *
+ * O Supabase manda o motivo na URL (`error_code=otp_expired`, por exemplo) e
+ * sem isso uma falha em producao e so "caiu no login". O que entra no log:
+ *
+ *   - o codigo do erro, e so se tiver cara de codigo
+ *   - os NOMES dos parametros que chegaram
+ *
+ * O que nunca entra: valor de `code`, de `token_hash` ou de qualquer outro
+ * parametro. Codigo de autorizacao em log e credencial em log.
+ */
+const CARA_DE_CODIGO = /^[a-z0-9_]{1,64}$/;
+
+function registraFalha(searchParams: URLSearchParams, etapa: string) {
+  const bruto = searchParams.get('error_code') ?? '';
+  const motivo = CARA_DE_CODIGO.test(bruto) ? bruto : bruto ? 'fora_do_formato' : 'sem_codigo';
+  const nomes = [...new Set(searchParams.keys())]
+    .filter((n) => CARA_DE_CODIGO.test(n))
+    .sort()
+    .join(',');
+
+  console.warn(`auth/callback: link recusado etapa=${etapa} motivo=${motivo} parametros=${nomes}`);
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   // `destinoSeguro` so aceita rotas de conta; a redefinicao de senha (#32) e
@@ -83,6 +108,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (falhou) {
+    registraFalha(
+      searchParams,
+      code ? 'troca_do_codigo' : tokenHash ? 'token_hash' : 'sem_credencial'
+    );
+
     // Link usado, vencido ou inventado: para a recuperacao, volta ao pedido;
     // para o resto, ao login. Sem detalhe do motivo — "expirado" e "falso"
     // recebem a mesma tela.
