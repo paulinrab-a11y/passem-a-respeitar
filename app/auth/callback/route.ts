@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { destinoSeguro, ENTRAR } from '@/lib/rotas';
-import { clienteDeAuth } from '@/lib/supabase/servidor';
+import { clienteDeAuth, usuarioDaSessao } from '@/lib/supabase/servidor';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +18,20 @@ export const dynamic = 'force-dynamic';
  *
  * Os dois sao de uso unico e vencem: token repetido ou velho e recusado pelo
  * proprio Supabase, e aqui vira redirecionamento com aviso — nunca sessao.
+ *
+ * A troca de e-mail (#36) traz dois casos a mais, porque pede confirmacao nos
+ * dois enderecos e os dois links costumam ser abertos em lugares diferentes:
+ *
+ *   ?message=…                  primeira das duas confirmacoes. O Supabase
+ *                               aceitou o link e nao ha codigo para trocar:
+ *                               ainda falta o outro endereco.
+ *   ?code=… sem o verificador   segunda confirmacao aberta em outro navegador.
+ *                               A troca JA aconteceu no Supabase; so nao da
+ *                               para criar sessao aqui.
+ *
+ * Em nenhum dos dois nasce sessao. Quem ja tem sessao segue para a conta, que
+ * mostra o estado real lido do servidor; quem nao tem cai no login, sem o
+ * aviso de link invalido — o link valeu.
  *
  * `next` e validado por `destinoSeguro`: a query vem do e-mail, e e-mail e
  * texto que qualquer um forja. Sem isso o link de confirmacao seria um open
@@ -54,6 +68,18 @@ export async function GET(request: NextRequest) {
       type: tipo as 'signup' | 'recovery' | 'email' | 'email_change' | 'magiclink' | 'invite',
     });
     falhou = Boolean(error);
+  }
+
+  // `message` e so um sinal para NAO acusar link invalido. Nada e concedido
+  // por causa dele: forjar o parametro leva ao login, ou a conta de quem ja
+  // estava logado.
+  const semCodigo = !code && !tokenHash;
+  const confirmacaoParcial = semCodigo && searchParams.has('message') && !searchParams.has('error');
+
+  if (confirmacaoParcial || (falhou && code && !searchParams.has('error'))) {
+    const logado = await usuarioDaSessao();
+    if (logado) return NextResponse.redirect(new URL(next, origin));
+    if (confirmacaoParcial) return NextResponse.redirect(new URL(ENTRAR, origin));
   }
 
   if (falhou) {

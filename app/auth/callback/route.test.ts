@@ -11,8 +11,11 @@ const exchangeCodeForSession = vi.fn(async (_c: string) => ({
 }));
 const verifyOtp = vi.fn(async (_o: unknown) => ({ error: null as { message: string } | null }));
 
+let logado: { id: string } | null = null;
+
 vi.mock('@/lib/supabase/servidor', () => ({
   clienteDeAuth: async () => ({ auth: { exchangeCodeForSession, verifyOtp } }),
+  usuarioDaSessao: async () => logado,
 }));
 
 const { GET } = await import('./route');
@@ -29,6 +32,7 @@ function destino(r: Response) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  logado = null;
   exchangeCodeForSession.mockResolvedValue({ error: null });
   verifyOtp.mockResolvedValue({ error: null });
 });
@@ -100,4 +104,61 @@ describe('next nunca sai do site', () => {
       expect(d.pathname).toBe('/conta');
     }
   );
+});
+
+/**
+ * A troca de e-mail (#36) pede confirmacao nos dois enderecos. O primeiro
+ * link nao gera codigo, e o segundo costuma ser aberto em outro navegador.
+ * Nenhum dos dois pode virar sessao; nenhum dos dois merece "link invalido".
+ */
+describe('troca de e-mail', () => {
+  const PRIMEIRA = '?next=%2Fconta%2Fseguranca&message=Confirmation+link+accepted';
+
+  it('primeira confirmacao, com sessao: vai para a seguranca sem criar sessao', async () => {
+    logado = { id: 'u1' };
+    const d = destino(await chega(PRIMEIRA));
+
+    expect(d.pathname).toBe('/conta/seguranca');
+    expect(d.searchParams.get('erro')).toBeNull();
+    expect(exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('primeira confirmacao, sem sessao: login, sem aviso de link invalido', async () => {
+    const d = destino(await chega(PRIMEIRA));
+
+    expect(d.pathname).toBe('/entrar');
+    expect(d.searchParams.get('erro')).toBeNull();
+  });
+
+  it('segunda confirmacao em outro navegador, com sessao aqui: segue para o destino', async () => {
+    logado = { id: 'u1' };
+    exchangeCodeForSession.mockResolvedValue({ error: { message: 'code verifier' } });
+    const d = destino(await chega('?code=abc&next=%2Fconta%2Fseguranca'));
+
+    expect(d.pathname).toBe('/conta/seguranca');
+    expect(d.searchParams.get('erro')).toBeNull();
+  });
+
+  it('message forjada nao abre nada para quem nao tem sessao', async () => {
+    const d = destino(await chega('?message=qualquer&next=%2Fconta%2Fadmin%2Fpedidos'));
+
+    expect(d.pathname).toBe('/entrar');
+  });
+
+  it('message junto de error e erro, nao confirmacao', async () => {
+    logado = { id: 'u1' };
+    const d = destino(await chega('?message=x&error=access_denied&error_code=otp_expired'));
+
+    expect(d.pathname).toBe('/entrar');
+    expect(d.searchParams.get('erro')).toBe('link');
+  });
+
+  it('message nao leva para fora do site', async () => {
+    logado = { id: 'u1' };
+    const d = destino(await chega('?message=x&next=https%3A%2F%2Fsite-falso.test'));
+
+    expect(d.origin).toBe(ORIGEM);
+    expect(d.pathname).toBe('/conta');
+  });
 });
