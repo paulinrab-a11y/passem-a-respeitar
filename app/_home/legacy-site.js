@@ -69,7 +69,7 @@ $('#igLabel').href = CONFIG.links.igLabel;
 
 if (CONFIG.logoUrl){
   const logo = `<img src="${CONFIG.logoUrl}" alt="" draggable="false"><span>Passem a respeitar</span>`;
-  $('#logoHero').innerHTML = logo;
+  // O logo do hero ja vem do servidor, como next/image com priority (#47).
   $('#manifesto .fim').innerHTML = logo;
 }
 const driveAudio = id => /^(https?:|\/)/.test(id) ? [id] : [
@@ -81,18 +81,7 @@ const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googl
 
 (function merch(){
   $('#comprar').addEventListener('click', e=>{ e.preventDefault(); Loja.abre(tam); });
-  const g = $('#galeriaMerch');
-  // Nome e tamanho padrao vem do catalogo (#99), carimbados no dataset pelo
-  // servidor. Antes eram a terceira e a quarta copia do produto no codigo.
-  const nomeProduto = g.dataset.alt || '';
-  g.innerHTML = CONFIG.merchFotos.map((id,i)=>`<figure><img src="${drive(id, i===0?1800:1000)}" alt="${nomeProduto}" loading="${i<3?'eager':'lazy'}" decoding="async"></figure>`).join('');
-  // A moldura brilha ate a foto responder (#46). Erro tambem encerra o
-  // brilho: foto que nao veio nao pode deixar a moldura carregando para sempre.
-  $$('#galeriaMerch img').forEach(img=>{
-    const pronto = ()=> img.parentNode.classList.add('ok');
-    if (img.complete) pronto();
-    else { img.addEventListener('load', pronto, {once:true}); img.addEventListener('error', pronto, {once:true}); }
-  });
+  // A galeria e montada pelo componente Galeria, com next/image (#47).
   let tam = $('#tamanhos').dataset.padrao || '';
   const link = ()=>{ $('#comprar').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
   $('#tamanhos').addEventListener('click', e=>{
@@ -103,16 +92,28 @@ const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googl
 })();
 
 if (CONFIG.clipe.blick){
-  const u = CONFIG.clipe.blick;
-  $('#playerBlick').innerHTML = /\.(mp4|webm)(\?|$)/i.test(u)
-    ? `<video src="${u}" controls playsinline preload="metadata"></video>`
-    : `<iframe src="${u}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="Blick — clipe"></iframe>`;
-  // O player brilha ate o video responder (#46). A caixa ja tem a proporcao
-  // final, entao nada se move quando ele chega.
-  const player = $('#playerBlick'), midia = player.firstElementChild;
-  player.classList.add('carregando');
-  const chegou = ()=> player.classList.remove('carregando');
-  ['load','loadeddata','error'].forEach(ev=> midia.addEventListener(ev, chegou, {once:true}));
+  // Sob demanda (#47): o player so e montado quando a secao esta a menos de
+  // uma tela de distancia. Quem nao desce ate la nao baixa o video.
+  const montaClipe = ()=>{
+    const u = CONFIG.clipe.blick;
+    $('#playerBlick').innerHTML = /\.(mp4|webm)(\?|$)/i.test(u)
+      ? `<video src="${u}" controls playsinline preload="metadata"></video>`
+      : `<iframe src="${u}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="Blick — clipe"></iframe>`;
+    // O player brilha ate o video responder (#46). A caixa ja tem a proporcao
+    // final, entao nada se move quando ele chega.
+    const player = $('#playerBlick'), midia = player.firstElementChild;
+    player.classList.add('carregando');
+    const chegou = ()=> player.classList.remove('carregando');
+    ['load','loadeddata','error'].forEach(ev=> midia.addEventListener(ev, chegou, {once:true}));
+  };
+  if (!('IntersectionObserver' in window)) montaClipe();
+  else {
+    const vigiaClipe = new IntersectionObserver(es=>{
+      if (!es.some(e=>e.isIntersecting)) return;
+      vigiaClipe.disconnect(); montaClipe();
+    }, { rootMargin:'100% 0px' });
+    vigiaClipe.observe($('#clipe'));
+  }
 }
 
 (function montaElos(){
@@ -369,6 +370,7 @@ const GL = (()=>{
     const frag = `uniform sampler2D map; uniform float op; varying vec2 vUv;
       void main(){ vec4 c=texture2D(map,vUv); float w=min(min(c.r,c.g),c.b);
         float a=c.a*(1.0-smoothstep(0.90,0.985,w)); if(a<0.02) discard; gl_FragColor=vec4(c.rgb*1.05,a*op); }`;
+    const carregadores = new Map();
     lista.forEach(e=>{
       const monta = tex=>{
         tex.encoding = THREE.sRGBEncoding;
@@ -378,7 +380,30 @@ const GL = (()=>{
         m.userData = { elo:e.elo, lado:e.lado, fase:Math.random()*6.28 };
         scene.add(m); flutuantes.push(m);
       };
-      loader.load(drive(e.url, 900), monta, undefined, ()=>{ if (e.fallback) loader.load(e.fallback, monta); });
+      carregadores.set(e, ()=> loader.load(drive(e.url, 900), monta, undefined, ()=>{ if (e.fallback) loader.load(e.fallback, monta); }));
+    });
+
+    // Sob demanda (#47). Eram cinco PNGs, 5 MB, baixados no carregamento
+    // inicial — inclusive o do ultimo elo, que fica a muitas telas de
+    // distancia. Agora cada um baixa quando o elo dele esta a menos de uma
+    // tela e meia: o primeiro continua saindo logo, porque fica colado no hero.
+    const pedidos = new Set();
+    const carrega = e=>{ if (pedidos.has(e)) return; pedidos.add(e); carregadores.get(e)(); };
+    if (!('IntersectionObserver' in window)){ lista.forEach(carrega); return; }
+    const vigia = new IntersectionObserver(es=>{
+      es.forEach(en=>{
+        if (!en.isIntersecting) return;
+        vigia.unobserve(en.target);
+        const i = +en.target.dataset.i;
+        lista.filter(e=>e.elo===i).forEach(carrega);
+      });
+    }, { rootMargin:'150% 0px' });
+    const vigiados = new Set();
+    lista.forEach(e=>{
+      const secao = document.getElementById('elo-'+(e.elo+1));
+      // Elemento sem elo na pagina nao tem o que esperar.
+      if (!secao){ carrega(e); return; }
+      if (!vigiados.has(secao)){ vigiados.add(secao); vigia.observe(secao); }
     });
   })();
 

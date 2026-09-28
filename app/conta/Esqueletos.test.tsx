@@ -116,19 +116,3 @@ describe('estilo dos esqueletos', () => {
     );
   });
 });
-
-describe('galeria da merch', () => {
-  it('as molduras saem do servidor, uma por foto', () => {
-    const fonte = readFileSync('app/page.tsx', 'utf8');
-
-    expect(fonte).toMatch(
-      /id="galeriaMerch"[^>]*>\s*\{CONFIG\.merchFotos\.map\(\(foto\) => \(\s*<figure key=\{foto\} aria-hidden="true" \/>/
-    );
-  });
-
-  it('erro de imagem tambem encerra o brilho', () => {
-    const script = readFileSync('app/_home/legacy-site.js', 'utf8');
-
-    expect(script).toContain("img.addEventListener('error', pronto, {once:true})");
-  });
-});
