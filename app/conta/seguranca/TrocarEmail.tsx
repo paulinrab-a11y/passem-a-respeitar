@@ -50,14 +50,50 @@ export default function TrocarEmail({
 
   // O recado mais recente vence: quem acabou de cancelar nao precisa reler o
   // "mandamos dois links" do pedido que cancelou, e vice-versa. Cada resposta
-  // de acao traz um objeto novo, e e isso que dispara o efeito.
-  const [recado, setRecado] = useState<EstadoEmail['recado']>(null);
-  useEffect(() => {
-    if (estado.recado) setRecado(estado.recado);
-  }, [estado.recado]);
-  useEffect(() => {
-    if (cancelamento.recado) setRecado(cancelamento.recado);
-  }, [cancelamento.recado]);
+  // de acao traz um objeto novo, e e por ele que se sabe qual das duas respondeu.
+  //
+  // Decidido no render, e nao num efeito (#155). Efeito roda depois de a tela
+  // ser desenhada: no quadro da resposta do cancelamento o recado ainda era o
+  // do pedido, que aparecia e era trocado em seguida. Era um quadro; com a
+  // saida animada viraria um recado velho inteiro, entrando e saindo.
+  const [visto, setVisto] = useState<{
+    pedido: EstadoEmail['recado'];
+    cancelamento: EstadoEmail['recado'];
+    pendente: string | null;
+    recado: EstadoEmail['recado'];
+  }>({
+    pedido: estado.recado,
+    cancelamento: cancelamento.recado,
+    pendente: paraOnde,
+    recado: null,
+  });
+
+  if (
+    estado.recado !== visto.pedido ||
+    cancelamento.recado !== visto.cancelamento ||
+    paraOnde !== visto.pendente
+  ) {
+    let novo = visto.recado;
+
+    // A troca pendente saiu da tela — cancelada, confirmada ou vencida. O
+    // "mandamos dois links" falava dela, e era ela que o escondia: sem isto
+    // ele reapareceria agora, falando de links que nao valem mais.
+    if (visto.pendente && !paraOnde && novo === visto.pedido && novo?.tom === 'ok') novo = null;
+
+    // Resposta sem recado nao apaga o que esta na tela.
+    if (estado.recado !== visto.pedido && estado.recado) novo = estado.recado;
+    if (cancelamento.recado !== visto.cancelamento && cancelamento.recado) {
+      novo = cancelamento.recado;
+    }
+
+    setVisto({
+      pedido: estado.recado,
+      cancelamento: cancelamento.recado,
+      pendente: paraOnde,
+      recado: novo,
+    });
+  }
+  const { recado } = visto;
 
   const {
     mostrado: pendenteNaTela,

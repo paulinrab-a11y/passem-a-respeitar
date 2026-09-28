@@ -179,3 +179,40 @@ describe('troca entre formulario e troca pendente (#155)', () => {
     expect(container.querySelector('.troca-email-pendente')).not.toBeNull();
   });
 });
+
+describe('recado do pedido depois que a troca pendente sai (#155)', () => {
+  async function pedeEMostraPendente() {
+    resposta.tom = 'ok';
+    const tela = render(<TrocarEmail atual={ATUAL} pendente={null} />);
+
+    await preencheEEnvia(tela.container);
+    tela.rerender(<TrocarEmail atual={ATUAL} pendente="nova@exemplo.invalid" />);
+    fimDaAnimacao(tela.container.querySelector('form') as HTMLFormElement);
+    fimDaAnimacao(screen.getByText('Mandamos dois links.'));
+    expect(screen.queryByText('Mandamos dois links.')).toBeNull();
+
+    return tela;
+  }
+
+  // O recado do pedido continuava guardado, e sem a troca pendente na tela
+  // nada mais o escondia: ele entrava, falando de links que nao valem mais.
+  it('a pagina revalida sem pendente: o recado do pedido nao volta', async () => {
+    const { rerender } = await pedeEMostraPendente();
+
+    rerender(<TrocarEmail atual={ATUAL} pendente={null} />);
+
+    expect(screen.queryByText('Mandamos dois links.')).toBeNull();
+  });
+
+  it('quem cancela ve o recado do cancelamento, e so ele', async () => {
+    const { container, rerender } = await pedeEMostraPendente();
+
+    await act(async () => {
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    });
+    rerender(<TrocarEmail atual={ATUAL} pendente={null} />);
+
+    expect(screen.queryByText('Mandamos dois links.')).toBeNull();
+    expect(screen.getByText('Troca cancelada.')).toBeTruthy();
+  });
+});
