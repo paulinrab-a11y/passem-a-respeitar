@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useCampos } from '@/app/_ui/campos';
 import { proximosDe, type StatusPedido, VERBO } from '@/lib/loja/status-do-pedido';
 import { mudarStatus } from './acoes';
@@ -17,6 +17,9 @@ import { adminInicial } from './estado';
 export default function MudarStatus({ pedido, status }: { pedido: string; status: StatusPedido }) {
   const [estado, acao, pendente] = useActionState(mudarStatus, adminInicial);
   const destinos = proximosDe(status);
+  // Qual botao foi clicado. `pendente` e do formulario inteiro; sem isto as
+  // tres transicoes carregariam juntas e nao daria para saber qual saiu (#50).
+  const [clicado, setClicado] = useState<string | null>(null);
   // Controlado: o React 19 apagaria o motivo quando a acao respondesse com
   // erro (#130). No sucesso ele sai, para nao valer para a proxima etapa.
   const { campo, limpar } = useCampos({ motivo: '' });
@@ -46,7 +49,8 @@ export default function MudarStatus({ pedido, status }: { pedido: string; status
             name="para"
             value={para}
             disabled={pendente}
-            className={`btn${para === 'cancelado' || para === 'reembolsado' ? '' : ' cheio'}${pendente ? ' carregando' : ''}`}
+            onClick={() => setClicado(para)}
+            className={`btn${para === 'cancelado' || para === 'reembolsado' ? '' : ' cheio'}${pendente && clicado === para ? ' carregando' : ''}`}
           >
             {VERBO[para]}
           </button>

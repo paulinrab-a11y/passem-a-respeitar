@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from 'react';
 import { useCaixinha, useCampos } from '@/app/_ui/campos';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
+import Rotulo from '@/app/_ui/Rotulo';
 import { exclusaoInicial } from './estado-exclusao';
 import { excluirConta } from './excluir';
 
@@ -86,7 +87,7 @@ export default function ExcluirConta({ email }: { email: string }) {
                 className={`btn perigo${pendente ? ' carregando' : ''}`}
                 disabled={pendente || !confirmo}
               >
-                {pendente ? 'Excluindo…' : 'Excluir minha conta'}
+                <Rotulo parado="Excluir minha conta" agindo="Excluindo…" ativo={pendente} />
               </button>
 
               <button type="button" className="auth-link" onClick={fechar} disabled={pendente}>

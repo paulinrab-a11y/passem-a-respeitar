@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
+import Rotulo from '@/app/_ui/Rotulo';
 import { sair } from '@/app/conta/acoes';
 
 /**
@@ -155,8 +156,13 @@ export default function BarraConta() {
                   so tem um botao seria um passo a mais por nada — e sair e o
                   item que a pessoa clica com pressa. */}
               <form action={() => comecarSaida(() => void sair())}>
-                <button type="submit" role="menuitem" className="sair" disabled={saindo}>
-                  {saindo ? 'Saindo…' : 'Sair'}
+                <button
+                  type="submit"
+                  role="menuitem"
+                  className={`sair${saindo ? ' carregando' : ''}`}
+                  disabled={saindo}
+                >
+                  <Rotulo parado="Sair" agindo="Saindo…" ativo={saindo} />
                 </button>
               </form>
             </div>

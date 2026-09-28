@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Anton, Pirata_One } from 'next/font/google';
+import BarraDeRota from './_ui/BarraDeRota';
 import './globals.css';
 
 // As duas fontes da identidade. Auto-hospedadas pelo next/font em vez de virem
@@ -41,6 +42,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR" className={`${anton.variable} ${pirata.variable}`}>
       <body>
+        {/* Antes do conteudo: a barra e a primeira coisa que o leitor de tela
+            encontra quando a pagina esta saindo (#50). */}
+        <BarraDeRota />
         {children}
         {/* Vercel Analytics e Speed Insights (#8). Os scripts vem da propria
             origem (/_vercel/...) e sao inseridos por codigo que ja tem nonce,

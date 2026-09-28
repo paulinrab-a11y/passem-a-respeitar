@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { useCampos } from '@/app/_ui/campos';
+import Rotulo from '@/app/_ui/Rotulo';
 import { finalizarCompra } from './acoes';
 import { checkoutInicial } from './estado';
 
@@ -119,7 +120,7 @@ export default function Entrega({
         className={`btn cheio auth-enviar${pendente ? ' carregando' : ''}`}
         disabled={pendente}
       >
-        {pendente ? 'Criando pedido…' : `Finalizar — ${total}`}
+        <Rotulo parado={`Finalizar — ${total}`} agindo="Criando pedido…" ativo={pendente} />
       </button>
 
       <p className="entrega-nota">O pagamento vem na próxima tela. Nada é cobrado agora.</p>

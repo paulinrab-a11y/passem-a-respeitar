@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useCaixinha } from '@/app/_ui/campos';
+import Rotulo from '@/app/_ui/Rotulo';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { criarConta } from './acoes';
 import { criarContaInicial } from './estado';
@@ -157,7 +158,7 @@ export default function Formulario() {
         className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
         disabled={pendente}
       >
-        {pendente ? 'Criando…' : 'Criar conta'}
+        <Rotulo parado="Criar conta" agindo="Criando…" ativo={pendente} />
       </button>
 
       <p className="auth-rodape">

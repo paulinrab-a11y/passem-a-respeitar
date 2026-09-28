@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from 'react';
 import { useCampos } from '@/app/_ui/campos';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
+import Rotulo from '@/app/_ui/Rotulo';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { trocarSenha } from './acoes';
 import { senhaInicial } from './estado';
@@ -87,7 +88,7 @@ export default function TrocarSenha() {
           className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
           disabled={pendente}
         >
-          {pendente ? 'Trocando…' : 'Trocar senha'}
+          <Rotulo parado="Trocar senha" agindo="Trocando…" ativo={pendente} />
         </button>
       </form>
 
