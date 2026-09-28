@@ -13,6 +13,17 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{background:var(--preto);color:var(--prata);scroll-behavior:auto}
 html.locked{overflow:hidden}
+
+/* Troca de rota (#49). O site navega por documento inteiro — cada tela da
+   conta precisa do proprio nonce de CSP —, entao a transicao e a de
+   documento: a pagina antiga sai e a nova entra, sem JavaScript.
+   Navegador que nao conhece a regra ignora e troca de pagina como antes.
+   A saida e mais curta que a entrada: quem sai nao merece atencao. */
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:rota-sai .14s cubic-bezier(.4,0,1,1) both}
+::view-transition-new(root){animation:rota-entra .22s cubic-bezier(.22,1,.36,1) both}
+@keyframes rota-sai{from{opacity:1}to{opacity:0}}
+@keyframes rota-entra{from{opacity:0}to{opacity:1}}
 body{font-family:var(--body);font-weight:400;letter-spacing:.02em;-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh}
 ::selection{background:var(--vermelho);color:#000}
 a{color:inherit}
@@ -144,6 +155,13 @@ footer.assina a:hover{color:var(--vermelho)}
 
 #sala{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.94);display:none;place-items:center;padding:var(--gutter)}
 #sala.on{display:grid}
+/* Entrada e saida dos dois modais da home (#49). Antes era `display` ligando
+   e desligando: abriam e sumiam de uma vez. A saida e uma classe que dispara
+   o keyframe; quem tira o `on` e o script, no `animationend`. */
+#sala.on,#loja.on{animation:modal-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+#sala.on>.in,#loja.on>.in{animation:modal-caixa-entra .24s cubic-bezier(.22,1,.36,1) backwards}
+#sala.saindo,#loja.saindo{animation:modal-sai .15s cubic-bezier(.4,0,1,1) forwards;pointer-events:none}
+#sala.saindo>.in,#loja.saindo>.in{animation:modal-caixa-sai .15s cubic-bezier(.4,0,1,1) forwards}
 #sala .in{width:min(860px,100%)}
 #sala h3{font-family:var(--logo);font-size:clamp(34px,6vw,80px);color:#fff;line-height:.9}
 #sala p{margin-top:18px;font-size:15px;letter-spacing:.06em;color:var(--prata-2);max-width:60ch;line-height:1.5}
@@ -454,7 +472,8 @@ footer.assina a:hover{color:var(--vermelho)}
   /* Sem animacao, mas o desmonte ainda espera o animationend — por isso a
      duracao vira quase zero em vez de `animation:none`, que nunca dispara o
      evento e deixaria o bloco preso na tela para sempre. */
-  .conta-confirma,.conta-confirma.saindo{animation-duration:.01ms}
+  .conta-confirma{animation-name:so-fade}
+  .conta-confirma.saindo{animation-name:so-fade-sai}
 }
 
 /* Menu da conta na barra (#34) ---------------------------------------------
@@ -548,7 +567,8 @@ footer.assina a:hover{color:var(--vermelho)}
   .senha-barra i{transition:none}
   /* Duracao quase zero, nao `none`: o desmonte tem o prazo do hook, mas o
      evento ainda e o caminho rapido e `animation:none` nunca o dispara. */
-  .toast,.toast.saindo{animation-duration:.01ms}
+  .toast{animation-name:so-fade}
+  .toast.saindo{animation-name:so-fade-sai}
 }
 .conta-atalho{margin-top:18px;font-size:13px;letter-spacing:.06em;display:flex;gap:22px;flex-wrap:wrap}
 .conta-atalho a{color:var(--prata-2);text-decoration:none;border-bottom:1px solid var(--prata-3)}
@@ -589,7 +609,7 @@ footer.assina a:hover{color:var(--vermelho)}
      Mesma regra em `.pedidos>li`; quem garante que a dupla nao se separa e
      app/movimento-reduzido.test.ts. (#52) */
   .sessoes li{animation-name:so-fade;animation-delay:0ms!important}
-  .sessoes li.saindo{animation-duration:.01ms}
+  .sessoes li.saindo{animation-name:so-fade-sai}
 }
 
 /* Excluir conta (#39) ------------------------------------------------------- */
@@ -618,16 +638,18 @@ footer.assina a:hover{color:var(--vermelho)}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .excluir-caixa,.excluir-caixa.saindo{animation-duration:.01ms}
+  .excluir-caixa{animation-name:so-fade}
+  .excluir-caixa.saindo{animation-name:so-fade-sai}
 }
 
 /* Modal (#40) --------------------------------------------------------------- */
 @keyframes modal-entra{from{opacity:0}to{opacity:1}}
 @keyframes modal-sai{from{opacity:1}to{opacity:0}}
 @keyframes modal-caixa-entra{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes modal-caixa-sai{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px) scale(.99)}}
 
-.modal{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:var(--gutter);animation:modal-entra .18s ease-out backwards}
-.modal.saindo{animation:modal-sai .13s ease-in forwards}
+.modal{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:var(--gutter);animation:modal-entra .18s cubic-bezier(.22,1,.36,1) backwards}
+.modal.saindo{animation:modal-sai .13s cubic-bezier(.4,0,1,1) forwards}
 .modal-fundo{position:absolute;inset:0;background:rgba(0,0,0,.82);cursor:pointer}
 .modal-caixa{position:relative;width:min(420px,100%);background:#060607;border:1px solid var(--prata-3);padding:26px 24px;animation:modal-caixa-entra .22s cubic-bezier(.22,1,.36,1) backwards}
 .modal-caixa h2{font-family:var(--display);text-transform:uppercase;font-size:22px;letter-spacing:.04em;color:#fff}
@@ -643,7 +665,9 @@ footer.assina a:hover{color:var(--vermelho)}
 @media (prefers-reduced-motion:reduce){
   /* Duracao quase zero, nao `none`: o desmonte tem o prazo do hook, mas o
      evento continua sendo o caminho rapido. */
-  .modal,.modal.saindo,.modal-caixa{animation-duration:.01ms}
+  /* O fundo ja e so opacidade; a caixa perde o deslocamento e a escala. */
+  .modal-caixa,#sala.on>.in,#loja.on>.in{animation-name:so-fade}
+  #sala.saindo>.in,#loja.saindo>.in{animation-name:so-fade-sai}
 }
 
 /* Meus pedidos (#41) -------------------------------------------------------- */
@@ -919,6 +943,7 @@ footer.assina a:hover{color:var(--vermelho)}
    `so-fade` e a versao de movimento reduzido de toda entrada: mesma duracao,
    sem deslocamento. */
 @keyframes so-fade{from{opacity:0}to{opacity:1}}
+@keyframes so-fade-sai{from{opacity:1}to{opacity:0}}
 
 /* Secoes da home que nao sao momento de marca: clipe, merch e o fecho. Os
    elos, o hero e a intro ficam como estao.
