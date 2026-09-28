@@ -12,8 +12,8 @@ function monta(ativo: boolean) {
       <Rotulo parado="Salvar" agindo="Salvando…" ativo={ativo} />
     </button>
   );
-  const [parado, agindo] = [...container.querySelectorAll('.rotulo > span')];
-  return { raiz: container.querySelector('.rotulo') as HTMLElement, parado, agindo };
+  const [parado, agindo] = [...container.querySelectorAll('.rotulo-acao > span')];
+  return { raiz: container.querySelector('.rotulo-acao') as HTMLElement, parado, agindo };
 }
 
 describe('Rotulo (#50)', () => {

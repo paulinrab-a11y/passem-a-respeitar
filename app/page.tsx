@@ -33,10 +33,16 @@ export default async function Home() {
 
   return (
     <>
-      {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: canvas decorativo (WebGL de fundo e grain VHS), sem tabindex, logo nao focavel. O aria-hidden e proposital para o leitor de tela ignorar. */}
-      <canvas id="gl" aria-hidden="true"></canvas>
-      {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: idem, textura de grao puramente decorativa. */}
-      <canvas id="grain" width="160" height="90" aria-hidden="true"></canvas>
+      {/* Decorativos: o fundo em WebGL e o grao de VHS (#59).
+          O `aria-hidden` sai dos canvas e vai para um <div> em volta. O
+          efeito para o leitor de tela e o mesmo — os dois somem da arvore de
+          acessibilidade —, mas o atributo deixa de estar num elemento que o
+          navegador trata como capaz de receber foco. Os dois canvas sao de
+          posicao fixa, entao o <div> nao ocupa espaco nenhum na pagina. */}
+      <div aria-hidden="true">
+        <canvas id="gl"></canvas>
+        <canvas id="grain" width="160" height="90"></canvas>
+      </div>
       <div id="scan" aria-hidden="true"></div>
       <div id="vig" aria-hidden="true"></div>
 
@@ -165,26 +171,25 @@ export default async function Home() {
             <p className="desc">
               {camiseta?.descricao ?? 'Indisponível no momento. Volte daqui a pouco.'}
             </p>
-            {/* biome-ignore lint/a11y/useSemanticElements: trocar por <fieldset> traz borda, padding e min-width proprios e mexeria no layout do seletor de tamanho. Tratar na Issue #59. */}
-            <div
+            <fieldset
               className="tam"
               id="tamanhos"
-              role="group"
-              aria-label="Tamanho"
               data-padrao={tamanhoPadrao}
               data-slug={camiseta?.slug ?? ''}
             >
+              <legend className="sr">Tamanho</legend>
               {camiseta?.variacoes.map((v) => (
                 <button
                   key={v.tamanho}
                   type="button"
                   data-t={v.tamanho ?? ''}
                   className={v.tamanho === tamanhoPadrao ? 'on' : undefined}
+                  aria-pressed={v.tamanho === tamanhoPadrao}
                 >
                   {v.tamanho}
                 </button>
               ))}
-            </div>
+            </fieldset>
             <div className="acoes">
               {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
               <a className="btn cheio" id="comprar" href="#" target="_blank" rel="noopener">
@@ -253,27 +258,29 @@ export default async function Home() {
             <p className="desc">
               {camiseta?.descricao ?? 'Indisponível no momento. Volte daqui a pouco.'}
             </p>
-            <div className="rotulo">tamanho</div>
-            {/* biome-ignore lint/a11y/useSemanticElements: trocar por <fieldset> traz borda, padding e min-width proprios e mexeria no layout do seletor de tamanho. Tratar na Issue #59. */}
-            <div
+            {/* O nome do grupo, para quem ve. Para quem ouve, e a legenda. */}
+            <div className="rotulo" aria-hidden="true">
+              tamanho
+            </div>
+            <fieldset
               className="tam"
               id="tamLoja"
-              role="group"
-              aria-label="Tamanho"
               data-padrao={tamanhoPadrao}
               data-slug={camiseta?.slug ?? ''}
             >
+              <legend className="sr">Tamanho</legend>
               {camiseta?.variacoes.map((v) => (
                 <button
                   key={v.tamanho}
                   type="button"
                   data-t={v.tamanho ?? ''}
                   className={v.tamanho === tamanhoPadrao ? 'on' : undefined}
+                  aria-pressed={v.tamanho === tamanhoPadrao}
                 >
                   {v.tamanho}
                 </button>
               ))}
-            </div>
+            </fieldset>
             <div className="acoes">
               {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
               <a className="btn cheio" id="comprarLoja" href="#" target="_blank" rel="noopener">
