@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 
 type Estado =
@@ -119,11 +120,12 @@ export default function Foto({ url, iniciais }: { url: string | null; iniciais: 
           }}
         />
 
-        {estado.fase === 'erro' ? (
-          <p className="conta-recado erro" role="alert">
-            {estado.texto}
-          </p>
-        ) : null}
+        <Mensagem
+          texto={estado.fase === 'erro' ? estado.texto : null}
+          chave={estado.fase === 'erro' ? estado.texto : ''}
+          classe="conta-recado erro"
+          papel="alert"
+        />
       </div>
     </div>
   );

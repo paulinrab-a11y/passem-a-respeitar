@@ -6,6 +6,7 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { comErro } from './_ui/campos';
 import Erro from './_ui/Erro';
+import { fimDaAnimacao } from './_ui/fim-da-animacao';
 
 /**
  * Formularios (#51): erro com lugar reservado, campo marcado e ligado a
@@ -45,7 +46,16 @@ describe('Erro', () => {
 
     rerender(<Erro id="e" texto="Errou." tentativa={2} />);
 
-    expect(container.querySelector('p')).not.toBe(primeiro);
+    // O antigo sai primeiro (#155); o novo entra quando a saida acaba.
+    expect(container.querySelector('p')).toBe(primeiro);
+    expect(primeiro?.className).toBe('auth-erro saindo');
+
+    fimDaAnimacao(primeiro as HTMLElement);
+
+    const segundo = container.querySelector('p');
+    expect(segundo).not.toBe(primeiro);
+    expect(segundo?.className).toBe('auth-erro');
+    expect(segundo?.textContent).toBe('Errou.');
   });
 
   it('a mesma tentativa nao remonta o paragrafo', () => {
