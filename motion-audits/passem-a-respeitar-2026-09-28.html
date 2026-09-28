@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>passem-a-respeitar — audit de motion — 2026-09-28</title>
+
+<!--
+  Audit de motion do site Passem a Respeitar (Issue #53).
+  Gerado a partir do modelo da skill design-motion-principles.
+  Um arquivo so, sem JavaScript. As fontes vem do Google Fonts e, sem rede,
+  caem na pilha do sistema.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* ——— Fixed identity: COOL slate-graphite + chalk (near-achromatic) ——— */
+    --ink:        oklch(0.155 0.006 255);
+    --surface:    oklch(0.195 0.007 255);
+    --surface-2:  oklch(0.235 0.008 255);
+    --paper:      oklch(0.945 0.004 255);
+    --paper-dim:  oklch(0.800 0.006 255);
+    --muted:      oklch(0.680 0.008 255);
+    --faint:      oklch(0.505 0.008 255);
+    --line:       oklch(0.95 0.01 255 / 0.09);
+    --line-strong:oklch(0.95 0.01 255 / 0.16);
+
+    /* ——— Accent (NEUTRAL BY DEFAULT) ———
+       The report has no primary color. --accent aliases the contrast
+       neutral (--paper) so any element that historically wanted a brand
+       splash now reads as quiet chrome. An individual audit can repoint
+       these three to a sampled brand color if appropriate, but the
+       default — and the worked example — keeps the chrome neutral and
+       lets severity be the only color in the report. */
+    --accent:      var(--paper);
+    --accent-soft: var(--paper-dim);
+    --accent-tint: color-mix(in oklch, var(--paper) 12%, transparent);
+
+    /* ——— Severity (FIXED — never adaptive) ——— */
+    --crit:      oklch(0.655 0.185 25);
+    --crit-tint: oklch(0.655 0.185 25 / 0.15);
+    --imp:       oklch(0.805 0.125 78);
+    --imp-tint:  oklch(0.805 0.125 78 / 0.15);
+    --opp:       oklch(0.745 0.135 152);
+    --opp-tint:  oklch(0.745 0.135 152 / 0.15);
+
+    /* ——— Timing-budget ramp (FIXED — diagram + its legend only) ——— */
+    --t-good:  oklch(0.745 0.135 152);  /* instant + responsive */
+    --t-mid:   oklch(0.805 0.125 78);   /* deliberate           */
+    --t-slow:  oklch(0.655 0.185 25);   /* sluggish             */
+
+    /* ——— Verdict (FIXED — lens table) ——— */
+    --strong:  var(--opp);
+    --concern: var(--imp);
+    --problem: var(--crit);
+
+    /* ——— Spacing (4pt scale, semantic) ——— */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+    --s6:32px; --s7:48px; --s8:64px; --s9:96px;
+
+    --display: "Familjen Grotesk", "Hanken Grotesk", system-ui, sans-serif;
+    --sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  /* ═══════════════ LIGHT-MODE OVERRIDES ═══════════════
+     Activated when the global theme toggle is set to Light. Every token
+     above gets a counterpart here — same hue, mirrored L — so the report
+     reads cleanly on light backgrounds. Hue stays 255 (cool slate) so the
+     identity is the same character, just inverted. */
+  :root:has(#theme-light:checked) {
+    --ink:        oklch(0.985 0.003 255);  /* light page bg */
+    --surface:    oklch(0.965 0.004 255);
+    --surface-2:  oklch(0.940 0.005 255);
+    --paper:      oklch(0.180 0.006 255);  /* dark text */
+    --paper-dim:  oklch(0.330 0.008 255);
+    --muted:      oklch(0.475 0.010 255);
+    --faint:      oklch(0.640 0.009 255);
+    --line:       oklch(0.180 0.010 255 / 0.12);
+    --line-strong:oklch(0.180 0.010 255 / 0.22);
+
+    /* Accent stays aliased to --paper (now the dark ink in light mode),
+       so chrome inverts automatically. No additional override needed. */
+
+    /* Severity: same hues, deeper L for legibility on light bg */
+    --crit:      oklch(0.555 0.195 25);
+    --crit-tint: oklch(0.555 0.195 25 / 0.12);
+    --imp:       oklch(0.580 0.155 78);
+    --imp-tint:  oklch(0.580 0.155 78 / 0.14);
+    --opp:       oklch(0.555 0.140 152);
+    --opp-tint:  oklch(0.555 0.140 152 / 0.13);
+
+    /* Timing ramp follows severity */
+    --t-good: oklch(0.555 0.140 152);
+    --t-mid:  oklch(0.580 0.155 78);
+    --t-slow: oklch(0.555 0.195 25);
+  }
+
+  /* SVG dot label: light text in light-mode (deeper dots), dark text in dark-mode (lighter dots) */
+  :root:has(#theme-light:checked) .tf-dot-text { fill: oklch(0.985 0.003 255); }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--accent-tint); }
+  a { color: var(--accent-soft); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: clamp(40px, 6vw, 72px) clamp(20px, 5vw, 40px) 96px; }
+
+  /* shared micro-label */
+  .mono-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  code { font-family: var(--mono); font-size: 0.86em; color: var(--paper-dim); }
+
+  /* visually-hidden (theme + stage radios) */
+  .vh { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  /* ───────────── Global theme switch ───────────── */
+  .theme-switch { display: flex; justify-content: flex-end; margin-bottom: var(--s5); }
+  .theme-switch__pill { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--line-strong); border-radius: 100px; overflow: hidden; }
+  .theme-switch__pill label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); padding: 6px 14px; cursor: pointer; user-select: none; transition: background 0.15s ease, color 0.15s ease; }
+  #theme-dark:checked  ~ .theme-switch__pill label[for="theme-dark"],
+  #theme-light:checked ~ .theme-switch__pill label[for="theme-light"] { background: var(--accent-tint); color: var(--accent-soft); }
+
+  /* ───────────── Header ───────────── */
+  header.doc { padding-bottom: var(--s7); margin-bottom: var(--s8); border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--muted); display: inline-flex; align-items: center; gap: var(--s3);
+  }
+  .eyebrow::before { content: ""; width: 22px; height: 2px; background: var(--accent); display: inline-block; }
+  h1.title {
+    font-family: var(--display);
+    font-size: clamp(38px, 6vw, 60px);
+    font-weight: 700; letter-spacing: -0.025em; line-height: 1.02;
+    margin: var(--s5) 0 var(--s4); color: var(--paper); max-width: 17ch;
+  }
+  .lede { font-size: clamp(17px, 2.2vw, 19px); color: var(--paper-dim); max-width: 66ch; line-height: 1.6; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: var(--s6); margin-top: var(--s6); }
+  .meta-row .k { display: block; margin-bottom: 4px; }
+  .meta-row .v { font-size: 15px; color: var(--paper); }
+
+  .stats { display: flex; gap: clamp(20px, 4vw, 44px); margin-top: var(--s7); flex-wrap: wrap; }
+  .stat .num { font-family: var(--display); font-size: 40px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .stat.crit .num { color: var(--crit); }
+  .stat.imp .num  { color: var(--imp); }
+  .stat.opp .num  { color: var(--opp); }
+  .stat .lbl { margin-top: var(--s2); }
+  .stat a { color: inherit; text-decoration: none; }
+  .stat a:hover .num { text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 2px; }
+
+  /* ───────────── Section scaffolding ───────────── */
+  section { margin-bottom: var(--s9); }
+  .sec-index { font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; color: var(--accent-soft); }
+  h2.section-title {
+    font-family: var(--display);
+    font-size: clamp(24px, 3.4vw, 32px);
+    font-weight: 600; letter-spacing: -0.02em; line-height: 1.1;
+    margin: var(--s2) 0 var(--s4); color: var(--paper);
+  }
+  .section-sub { color: var(--paper-dim); max-width: 74ch; margin: 0 0 var(--s6); }
+  .section-sub em { color: var(--paper); font-style: italic; }
+
+  /* ───────────── Overall assessment ───────────── */
+  .assessment { border-top: 1px solid var(--line); padding-top: var(--s6); }
+  .assessment .mono-label { color: var(--accent-soft); }
+  .assessment p { font-family: var(--display); font-weight: 400; font-size: clamp(20px, 2.8vw, 26px); line-height: 1.42; letter-spacing: -0.01em; color: var(--paper); max-width: 34ch; margin: var(--s4) 0 0; }
+  .assessment p em { font-style: italic; color: var(--accent-soft); }
+
+  /* ───────────── Lens summary table ───────────── */
+  .lens-table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); }
+  .lens-table th, .lens-table td { padding: var(--s4) var(--s5); text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .lens-table tr:last-child td { border-bottom: none; }
+  .lens-table thead th { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  .lens-table tbody tr:hover { background: oklch(0.95 0.01 255 / 0.018); }
+  .lens-name { font-weight: 600; color: var(--paper); width: 28%; }
+  .lens-name .who { display: block; margin-top: 2px; color: var(--muted); font-weight: 400; font-size: 13.5px; }
+  .lens-name .weight { display: inline-block; margin-top: 6px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-soft); }
+  .lens-read { color: var(--paper-dim); }
+  .lens-read em { color: var(--paper); font-style: italic; }
+  .verdict { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500; }
+  .verdict::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .v-strong  { color: var(--strong); }  .v-strong::before  { background: var(--strong); }
+  .v-concern { color: var(--concern); } .v-concern::before { background: var(--concern); }
+  .v-problem { color: var(--problem); } .v-problem::before { background: var(--problem); }
+  .v-mixed   { color: var(--muted); }   .v-mixed::before   { background: var(--muted); }
+
+  /* ───────────── Timing-budget diagram ───────────── */
+  .timing-grid { display: grid; grid-template-columns: 1fr 320px; gap: clamp(28px, 5vw, 56px); align-items: start; }
+  @media (max-width: 860px) { .timing-grid { grid-template-columns: 1fr; } }
+  .timing-figure { width: 100%; height: auto; }
+  .timing-key h4 { margin: 0 0 var(--s4); }
+  .key-list { list-style: none; margin: 0 0 var(--s6); padding: 0; display: grid; gap: 2px; }
+  .key-list li { display: grid; grid-template-columns: 22px 1fr auto; align-items: baseline; gap: var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--line); }
+  .key-list li:last-child { border-bottom: none; }
+  .key-list .kn { font-family: var(--mono); font-size: 12px; color: var(--paper); font-variant-numeric: tabular-nums; }
+  .key-list .ka { color: var(--paper-dim); }
+  .key-list .kt { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+  .kt.good { color: var(--t-good); }
+  .kt.mid  { color: var(--t-mid); }
+  .kt.slow { color: var(--t-slow); }
+  .kt.none { color: var(--faint); }
+  .zone-defs { display: grid; gap: var(--s3); margin-top: var(--s5); }
+  .zone-def { display: grid; grid-template-columns: 12px 1fr; gap: var(--s3); align-items: start; }
+  .zone-def .dot { width: 11px; height: 11px; border-radius: 50%; margin-top: 6px; }
+  .zone-def .zt { font-weight: 600; color: var(--paper); }
+  .zone-def .zd { font-size: 13.5px; color: var(--muted); }
+  .whats-off { margin-top: var(--s5); padding-top: var(--s5); border-top: 1px solid var(--line); }
+  .whats-off .mono-label { color: var(--accent-soft); }
+  .whats-off p { margin: var(--s2) 0 0; color: var(--paper-dim); font-size: 14px; max-width: 60ch; }
+
+  /* ───────────── Per-lens sections ───────────── */
+  .lens-sec { margin-bottom: var(--s9); padding-top: var(--s6); border-top: 1px solid var(--line); }
+  .lens-sec__head { display: flex; align-items: baseline; gap: var(--s4); flex-wrap: wrap; margin-bottom: var(--s2); }
+  .lens-sec__head h3 { font-family: var(--display); font-size: clamp(22px, 3vw, 28px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; margin: 0; color: var(--paper); }
+  .lens-sec__weight { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-soft); border: 1px solid var(--line-strong); border-radius: 100px; padding: 4px 10px; }
+  .lens-sec__verdict { margin: 0 0 var(--s6); }
+
+  .lens-block { margin: var(--s6) 0; }
+  .lens-block > .mono-label { display: block; margin-bottom: var(--s4); }
+  .lens-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s3); max-width: 78ch; }
+  .lens-list li { display: grid; grid-template-columns: 22px 1fr; gap: var(--s2); align-items: start; color: var(--paper-dim); }
+  .lens-list .mk { font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+  .lens-list.good .mk { color: var(--strong); }
+  .lens-list.opp .mk  { color: var(--accent-soft); }
+  .lens-list li em { color: var(--paper); font-style: italic; }
+
+  .lens-take { margin-top: var(--s6); background: var(--surface-2); border-radius: 10px; padding: var(--s5); }
+  .lens-take .mono-label { color: var(--accent-soft); display: block; margin-bottom: var(--s2); }
+  .lens-take p { margin: 0; color: var(--paper); max-width: 70ch; }
+
+  .lens-empty { font-style: italic; color: var(--faint); padding: var(--s3) 0; }
+
+  /* ───────────── Finding rows (prose + live demo card) ───────────── */
+  .findings { display: flex; flex-direction: column; gap: var(--s5); }
+  .finding-row { display: grid; grid-template-columns: 1fr 380px; gap: clamp(24px, 3vw, 36px); align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: clamp(22px, 3vw, 30px); }
+  .finding-row[data-sev="crit"] { border-color: var(--crit-tint); }
+  @media (max-width: 860px) { .finding-row { grid-template-columns: 1fr; } }
+
+  .find-tags { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin-bottom: var(--s3); }
+  .severity { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 500; padding: 4px 9px; border-radius: 100px; }
+  .severity.crit { background: var(--crit-tint); color: var(--crit); }
+  .severity.imp  { background: var(--imp-tint);  color: var(--imp); }
+  .severity.opp  { background: var(--opp-tint);  color: var(--opp); }
+  .lens-chip { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 4px 9px; border: 1px solid var(--line-strong); border-radius: 100px; }
+  .find-title { font-family: var(--display); font-size: clamp(19px, 2.4vw, 23px); font-weight: 600; letter-spacing: -0.015em; line-height: 1.22; margin: 0 0 var(--s4); color: var(--paper); }
+  .find-body { display: grid; gap: var(--s4); }
+  .find-body p { margin: 0; color: var(--paper-dim); }
+  .find-body p em { color: var(--paper); font-style: italic; }
+  .find-body .label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 3px; }
+  .fix { background: var(--surface-2); border-radius: 8px; padding: var(--s4) var(--s5); }
+  .fix .label { color: var(--accent-soft); }
+  .fix p { color: var(--paper); }
+  .find-loc { font-size: 13px; }
+
+  /* ───────────── Demo card (the centerpiece) ───────────── */
+  .demo { position: relative; align-self: start; position: sticky; top: var(--s5); }
+  @media (max-width: 860px) { .demo { position: static; } }
+  .demo__bar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
+  .demo__meta { min-width: 0; }
+  .demo__title { display: block; font-size: 13.5px; font-weight: 600; color: var(--paper); line-height: 1.3; }
+  .demo__timing { display: block; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .demo__controls { display: flex; align-items: center; gap: var(--s3); flex-shrink: 0; }
+  .demo__loop { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+
+  /* segmented Auto/Light/Dark stage toggle (pure CSS).
+     Auto = follow global theme via theme tokens. Light/Dark = locked overrides. */
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 100px; overflow: hidden; }
+  .seg label { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 4px 9px; cursor: pointer; user-select: none; transition: background 0.15s ease, color 0.15s ease; }
+  .demo input[id$="-a"]:checked ~ .demo__bar .seg label[for$="-a"],
+  .demo input[id$="-l"]:checked ~ .demo__bar .seg label[for$="-l"],
+  .demo input[id$="-d"]:checked ~ .demo__bar .seg label[for$="-d"] { background: var(--accent-tint); color: var(--accent-soft); }
+
+  .demo__stage {
+    /* AUTO default — stage uses the report's elevated surface, follows theme */
+    --st-bg: var(--surface-2);
+    --st-fg: var(--paper);
+    --st-line: var(--line-strong);
+    --st-dim: color-mix(in oklch, var(--paper) 55%, transparent);
+    background: var(--st-bg); color: var(--st-fg);
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: var(--s6) var(--s5); min-height: 168px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  /* Locked Light: hardcoded light, regardless of report theme */
+  .demo input[id$="-l"]:checked ~ .demo__stage {
+    --st-bg: oklch(0.985 0.003 255);
+    --st-fg: oklch(0.180 0.006 255);
+    --st-line: oklch(0.180 0.010 255 / 0.18);
+    --st-dim: oklch(0.180 0.010 255 / 0.45);
+  }
+  /* Locked Dark: hardcoded dark, regardless of report theme */
+  .demo input[id$="-d"]:checked ~ .demo__stage {
+    --st-bg: oklch(0.180 0.006 255);
+    --st-fg: oklch(0.985 0.003 255);
+    --st-line: oklch(0.985 0.010 255 / 0.18);
+    --st-dim: oklch(0.985 0.010 255 / 0.50);
+  }
+
+  /* generic demo primitives, themed by the stage vars
+     (intentionally follow --st-fg/--st-bg, NOT the page accent — so they
+     contrast correctly even when a stage is locked to a different theme
+     than the page). */
+  .ui-btn { display: inline-flex; align-items: center; justify-content: center; padding: 9px 18px; border-radius: 8px; background: var(--st-fg); color: var(--st-bg); font-family: var(--sans); font-size: 13px; font-weight: 600; }
+  .ui-card { background: var(--st-bg); border: 1px solid var(--st-line); border-radius: 10px; padding: 14px 16px; min-width: 180px; box-shadow: 0 8px 24px oklch(0 0 0 / 0.12); }
+  .ui-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--st-fg); }
+  .ui-check { width: 22px; height: 22px; border-radius: 7px; background: var(--st-fg); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ui-check svg { width: 13px; height: 13px; stroke: var(--st-bg); }
+  .ui-num { font-family: var(--display); font-size: 34px; font-weight: 700; color: var(--st-fg); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .ui-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--st-dim); }
+  /* milestone badge + sparks read off stage tokens (--st-fg disc, --st-bg ink),
+     set inline on the elements — same contract as every other stage primitive,
+     never --accent, correct in any locked stage. */
+
+  /* ───────────── Combined recommendations ───────────── */
+  .rec { margin-bottom: var(--s7); }
+  .rec .tier-label { display: flex; align-items: center; gap: var(--s4); margin: 0 0 var(--s4); }
+  .rec .tier-label .mono-label { white-space: nowrap; }
+  .rec .tier-label .rule { height: 1px; background: var(--line); flex: 1; }
+  .rec .tier-label .count { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .rec.crit .mono-label { color: var(--crit); }
+  .rec.imp  .mono-label { color: var(--imp); }
+  .rec.opp  .mono-label { color: var(--opp); }
+  .rec-table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); font-size: 14px; }
+  .rec-table th, .rec-table td { text-align: left; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--line); vertical-align: top; }
+  .rec-table tr:last-child td { border-bottom: none; }
+  .rec-table thead th { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  .rec-table td:first-child { color: var(--paper); }
+  .rec-table td:nth-child(2) { white-space: nowrap; }
+  .rec-table td { color: var(--paper-dim); }
+
+  /* ───────────── Reference summary (closing) ───────────── */
+  .ref-summary { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: clamp(24px, 4vw, 40px); }
+  .ref-summary .big { font-family: var(--display); font-size: clamp(18px, 2.4vw, 22px); font-weight: 600; letter-spacing: -0.015em; color: var(--paper); margin: var(--s2) 0 0; }
+  .ref-summary .why { color: var(--paper-dim); margin: var(--s3) 0 var(--s6); max-width: 64ch; }
+  .ref-lean { display: grid; gap: var(--s3); margin: 0; padding: 0; list-style: none; }
+  .ref-lean li { display: grid; grid-template-columns: 130px 1fr; gap: var(--s4); padding: var(--s3) 0; border-top: 1px solid var(--line); color: var(--paper-dim); font-size: 14px; }
+  .ref-lean .nm { font-weight: 600; color: var(--paper); }
+
+  footer.doc { margin-top: var(--s8); padding-top: var(--s5); border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; color: var(--faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s3); }
+
+  /* ───────────── Narrow screens ───────────── */
+  @media (max-width: 600px) {
+    .lens-table { display: block; padding: var(--s2) var(--s4); }
+    .lens-table thead { display: none; }
+    .lens-table tbody, .lens-table tr, .lens-table td { display: block; }
+    .lens-table tr { padding: var(--s4) 0; border-bottom: 1px solid var(--line); }
+    .lens-table tr:last-child { border-bottom: none; }
+    .lens-table td { padding: 0; border: none; }
+    .lens-table .lens-name { width: auto; margin-bottom: var(--s2); }
+    .lens-table .verdict { margin-bottom: var(--s2); }
+    .ref-lean li { grid-template-columns: 1fr; gap: var(--s1); }
+  }
+
+
+  /* Elementos dos demos deste audit. Estaticos: a animacao vem logo abaixo. */
+  .demo-1__mt .risco { position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--st-fg); transform-origin:left; }
+  .demo-2__mt .pilha { display:grid; }
+  .demo-2__mt .esq, .demo-2__mt .real { grid-area:1/1; display:grid; gap:8px; align-content:start; }
+  .demo-2__mt .esq { opacity:0; }
+  .demo-2__mt .barra { display:block; height:8px; background:var(--st-line); }
+  .demo-2__mt .caixa { display:block; height:30px; border:1px solid var(--st-line); }
+  .demo-2__mt .campo { height:30px; border:1px solid var(--st-line); display:flex; align-items:center; padding:0 10px; font-family:var(--mono); font-size:11px; color:var(--st-dim); }
+  .demo-2__mt .ui-label { height:8px; line-height:8px; }
+  .demo-3__mt .tam { position:relative; width:38px; height:38px; display:grid; place-items:center; border:1px solid var(--st-line); font-family:var(--mono); font-size:11px; color:var(--st-fg); }
+  .demo-3__mt .alvo { color:var(--st-bg); border-color:var(--st-fg); isolation:isolate; }
+  .demo-3__mt .alvo::before { content:""; position:absolute; inset:0; background:var(--st-fg); z-index:-1; }
+  .demo-4__mt { display:grid; gap:10px; justify-items:start; }
+  .demo-4__mt .campo-falso { width:100%; height:30px; border:1px solid var(--st-line); }
+  .demo-4__mt .erro { margin:0; min-height:18px; font-size:12px; color:var(--st-fg); opacity:0; transform:translateY(-3px); }
+
+  /* ───────────── A UNICA animacao do relatorio: os demos ───────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .lens-table tbody tr, .finding-row { transition: border-color 0.2s ease; }
+
+    /* 01 · sublinhado por scaleX — 250ms */
+    @keyframes m1 {
+      0%   { transform: scaleX(0); }
+      45%  { transform: scaleX(1); }
+      100% { transform: scaleX(1); }
+    }
+    .demo-1__mt .risco { animation: m1 3s cubic-bezier(0.22,1,0.36,1) infinite; }
+
+    /* 02 · skeleton cede o lugar — 200ms, so opacidade */
+    @keyframes m2a {
+      0%   { opacity: 1; }
+      35%  { opacity: 1; }
+      50%  { opacity: 0; }
+      100% { opacity: 0; }
+    }
+    @keyframes m2b {
+      0%   { opacity: 0; }
+      35%  { opacity: 0; }
+      55%  { opacity: 1; }
+      100% { opacity: 1; }
+    }
+    .demo-2__mt .esq  { animation: m2a 3s cubic-bezier(0.4,0,1,1) infinite; }
+    .demo-2__mt .real { animation: m2b 3s cubic-bezier(0.22,1,0.36,1) infinite; }
+
+    /* 03 · selecao de tamanho — 200ms, so o fundo do botao escolhido */
+    @keyframes m3 {
+      0%   { opacity: 0; }
+      40%  { opacity: 1; }
+      100% { opacity: 1; }
+    }
+    .demo-3__mt .alvo::before { animation: m3 3s cubic-bezier(0.22,1,0.36,1) infinite; }
+
+    /* 04 · saida da mensagem — 120ms */
+    @keyframes m4 {
+      0%   { opacity: 1; transform: translateY(0); }
+      35%  { opacity: 1; transform: translateY(0); }
+      45%  { opacity: 0; transform: translateY(-3px); }
+      100% { opacity: 0; transform: translateY(-3px); }
+    }
+    .demo-4__mt .erro { animation: m4 3s cubic-bezier(0.4,0,1,1) infinite; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .demo__loop { display: none; }
+    [class*="__mt"], [class*="__mt"] * { animation: none !important; transition: none !important; }
+    .demo-2__mt .real { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="theme-switch" role="radiogroup" aria-label="Tema do relatório">
+    <input class="vh" type="radio" name="theme" id="theme-dark" checked>
+    <input class="vh" type="radio" name="theme" id="theme-light">
+    <div class="theme-switch__pill">
+      <label for="theme-dark">Escuro</label>
+      <label for="theme-light">Claro</label>
+    </div>
+  </div>
+
+  <header class="doc">
+    <div class="eyebrow">Audit de motion · design-motion-principles</div>
+    <h1 class="title">Passem a Respeitar — o que ainda anima errado, e o que ainda não anima</h1>
+    <p class="lede">
+      Passada pela home e pela área de conta inteira depois das issues 46 a 51, lida pelas três lentes da skill
+      e ordenada pelo que a pessoa sente primeiro. Cada achado virou issue.
+    </p>
+    <div class="meta-row">
+      <div><span class="mono-label k">O que é</span><span class="v">Site do EP, com loja, conta e pagamento. Lançamento em 20/11/2026</span></div>
+      <div><span class="mono-label k">Stack</span><span class="v">Next.js 15 · React 19 · CSS puro · GSAP e three.js só na home</span></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="num">7</div><div class="mono-label lbl">Achados</div></div>
+      <div class="stat crit"><a href="#rec-crit"><div class="num">1</div><div class="mono-label lbl">Crítico</div></a></div>
+      <div class="stat imp"><a href="#rec-imp"><div class="num">3</div><div class="mono-label lbl">Importantes</div></a></div>
+      <div class="stat opp"><a href="#rec-opp"><div class="num">3</div><div class="mono-label lbl">Oportunidades</div></a></div>
+    </div>
+  </header>
+
+  <section class="assessment">
+    <span class="mono-label">Visão geral</span>
+    <p>
+      A área de conta está <em>contida e rápida</em>: entradas de 150 a 250 ms, saídas mais curtas que as entradas,
+      nada que chame atenção para si. A home guarda o espetáculo onde ele pertence. O que sobra são pontas soltas:
+      uma animação de layout no menu, a tela de pagamento sem lugar reservado, e mensagens que entram com cuidado
+      e saem sem nenhum.
+    </p>
+  </section>
+
+  <section>
+    <div class="sec-index">01</div>
+    <h2 class="section-title">Como cada lente lê o motion do site</h2>
+    <p class="section-sub">
+      O peso de cada lente é o que o projeto definiu: Emil para formulários, conta, pedidos e troca de rota;
+      Jakub para skeleton e loading; Jhey só nos momentos de marca da home.
+    </p>
+    <table class="lens-table">
+      <thead><tr><th>Lente</th><th>Veredito</th><th>Em uma linha</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="lens-name">Contenção e velocidade <span class="who">Emil Kowalski</span><span class="weight">Principal</span></td>
+          <td><span class="verdict v-strong">Forte</span></td>
+          <td class="lens-read">Durações no lugar certo e frequência respeitada. O que havia de errado era técnico: layout animado e transições sem propriedade.</td>
+        </tr>
+        <tr>
+          <td class="lens-name">Polimento de produção <span class="who">Jakub Krehel</span><span class="weight">Secundária</span></td>
+          <td><span class="verdict v-concern">Atenção</span></td>
+          <td class="lens-read">O loading ficou bom na conta e na galeria. A tela de pagamento, a mais sensível do site, <em>ficou de fora</em>.</td>
+        </tr>
+        <tr>
+          <td class="lens-name">Experimentação e encanto <span class="who">Jhey Tompkins</span><span class="weight">Seletiva</span></td>
+          <td><span class="verdict v-strong">Forte</span></td>
+          <td class="lens-read">A abertura em VHS e os elos são o que o site tem de memorável, e estão isolados na home.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <div class="sec-index">02</div>
+    <h2 class="section-title">Onde os tempos caem</h2>
+    <p class="section-sub">
+      Duração é orçamento. Entrada de página em 240 ms está certa. Os elos em 700 ms também, porque são raros e
+      são marca. O que não tem tempo nenhum é o que preocupa.
+    </p>
+    <div class="timing-grid">
+      <svg class="timing-figure" viewBox="0 0 660 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Escala de 0 a 600 milissegundos mostrando onde caem as animações do site">
+        <style>
+          /* Theme-aware: every fill below resolves via the report's CSS vars,
+             so the diagram re-tones when the global Light/Dark toggle flips. */
+          .tf-track-stop-good { stop-color: var(--t-good); }
+          .tf-track-stop-mid  { stop-color: var(--t-mid); }
+          .tf-track-stop-slow { stop-color: var(--t-slow); }
+          .tf-track-stroke { stroke: var(--line-strong); }
+          .tf-grid { stroke: var(--line-strong); }
+          .tf-axis { fill: var(--faint); }
+          .tf-freq { fill: var(--muted); }
+          .tf-bracket { stroke: var(--faint); fill: none; }
+          .tf-zone-good { fill: var(--t-good); }
+          .tf-zone-mid  { fill: var(--t-mid); }
+          .tf-zone-slow { fill: var(--t-slow); }
+          .tf-dot-good  { fill: var(--t-good); }
+          .tf-dot-mid   { fill: var(--t-mid); }
+          .tf-dot-slow  { fill: var(--t-slow); }
+          /* Dot label flips per theme — dot fills are lighter in dark mode
+             (dark text reads on them) and deeper in light mode (light text reads). */
+          .tf-dot-text  { fill: oklch(0.165 0.006 255); }
+          .tf-missing-ring { stroke: var(--faint); }
+          .tf-missing-text { fill: var(--muted); }
+        </style>
+        <defs>
+          <linearGradient id="track" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   class="tf-track-stop-good" stop-opacity="0.30"/>
+            <stop offset="50%"  class="tf-track-stop-good" stop-opacity="0.22"/>
+            <stop offset="58%"  class="tf-track-stop-mid"  stop-opacity="0.26"/>
+            <stop offset="83%"  class="tf-track-stop-mid"  stop-opacity="0.26"/>
+            <stop offset="90%"  class="tf-track-stop-slow" stop-opacity="0.36"/>
+            <stop offset="100%" class="tf-track-stop-slow" stop-opacity="0.42"/>
+          </linearGradient>
+        </defs>
+
+        <rect x="40" y="108" width="600" height="78" rx="10" fill="url(#track)" class="tf-track-stroke"/>
+
+        <g class="tf-grid" stroke-dasharray="2 5">
+          <line x1="140" y1="102" x2="140" y2="192"/>
+          <line x1="340" y1="102" x2="340" y2="192"/>
+          <line x1="540" y1="102" x2="540" y2="192"/>
+        </g>
+
+        <g font-family="Geist Mono, monospace" font-size="11" class="tf-axis" text-anchor="middle" font-variant-numeric="tabular-nums">
+          <text x="40"  y="214">0</text>
+          <text x="140" y="214">100</text>
+          <text x="340" y="214">300</text>
+          <text x="540" y="214">500</text>
+          <text x="636" y="214" text-anchor="end">600ms+</text>
+        </g>
+
+        <g font-family="Geist Mono, monospace" font-size="9.5" letter-spacing="1.6">
+          <text x="90"  y="96" text-anchor="middle" class="tf-zone-good">INSTANTÂNEO</text>
+          <text x="240" y="96" text-anchor="middle" class="tf-zone-good">RESPONSIVO</text>
+          <text x="440" y="96" text-anchor="middle" class="tf-zone-mid">DELIBERADO</text>
+          <text x="592" y="96" text-anchor="middle" class="tf-zone-slow">LENTO</text>
+        </g>
+
+        <circle cx="190" cy="147" r="12" class="tf-dot-good"/><text x="190" y="151" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-dot-text">1</text>
+        <circle cx="200" cy="171" r="12" class="tf-dot-good"/><text x="200" y="175" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-dot-text">2</text>
+        <circle cx="260" cy="147" r="12" class="tf-dot-good"/><text x="260" y="151" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-dot-text">3</text>
+        <circle cx="280" cy="123" r="12" class="tf-dot-good"/><text x="280" y="127" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-dot-text">4</text>
+        <circle cx="290" cy="171" r="12" class="tf-dot-good"/><text x="290" y="175" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-dot-text">5</text>
+        <circle cx="440" cy="147" r="12" class="tf-dot-mid"/><text x="440" y="151" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-dot-text">6</text>
+        <circle cx="632" cy="147" r="12" class="tf-dot-slow"/><text x="632" y="151" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-dot-text">7</text>
+        <circle cx="40" cy="147" r="11" fill="none" class="tf-missing-ring" stroke-width="1.5" stroke-dasharray="3 3"/>
+        <text x="40" y="151" font-family="Geist Mono, monospace" font-size="11" font-weight="600" text-anchor="middle" class="tf-missing-text">8</text>
+      </svg>
+
+      <div class="timing-key">
+        <h4 class="mono-label">As animações</h4>
+        <ol class="key-list">
+          <li><span class="kn">1</span><span class="ka">Saída de modal</span><span class="kt good">150ms</span></li>
+          <li><span class="kn">2</span><span class="ka">Erro de formulário</span><span class="kt good">160ms</span></li>
+          <li><span class="kn">3</span><span class="ka">Entrada de lista</span><span class="kt good">220ms</span></li>
+          <li><span class="kn">4</span><span class="ka">Entrada de página</span><span class="kt good">240ms</span></li>
+          <li><span class="kn">5</span><span class="ka">Seção da home</span><span class="kt good">250ms</span></li>
+          <li><span class="kn">6</span><span class="ka">Aviso de música</span><span class="kt mid">400ms</span></li>
+          <li><span class="kn">7</span><span class="ka">Elos (marca)</span><span class="kt slow">700ms</span></li>
+          <li><span class="kn">8</span><span class="ka">Formulário de pagamento</span><span class="kt none">sem</span></li>
+        </ol>
+
+        <div class="zone-defs">
+          <div class="zone-def"><span class="dot" style="background:var(--t-good)"></span><div><span class="zt">Instantâneo e responsivo</span> · 0–300ms — <span class="zd">onde quase tudo deve estar. Toque, hover, erro, entrada de página.</span></div></div>
+          <div class="zone-def"><span class="dot" style="background:var(--t-mid)"></span><div><span class="zt">Deliberado</span> · 300–500ms — <span class="zd">para superfície grande ou evento raro.</span></div></div>
+          <div class="zone-def"><span class="dot" style="background:var(--t-slow)"></span><div><span class="zt">Lento</span> · 500ms+ — <span class="zd">só para momento de marca, de propósito.</span></div></div>
+        </div>
+
+        <div class="whats-off">
+          <span class="mono-label">O que está fora</span>
+          <p>Nada está lento por engano: o único ponto à direita são os elos (7), que são marca. O problema está à esquerda, no círculo vazado: o formulário de pagamento (8) não tem transição nem lugar reservado.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lens-sec">
+    <div class="sec-index">03</div>
+    <div class="lens-sec__head">
+      <h3>Emil Kowalski — Contenção e velocidade</h3>
+      <span class="lens-sec__weight">Lente principal</span>
+    </div>
+    <p class="lens-sec__verdict"><span class="verdict v-strong">Forte</span></p>
+
+    <div class="lens-block">
+      <span class="mono-label">O que está funcionando</span>
+      <ul class="lens-list good">
+        <li><span class="mk">✓</span><span>Toda entrada da área de conta fica entre 150 e 250 ms, com a mesma curva. <code>app/globals.css — auth-entra, pedido-entra, etapa-entra, sessao-entra</code></span></li>
+        <li><span class="mk">✓</span><span>Toda saída é mais curta que a entrada correspondente, e um teste segura isso. <code>app/saida.test.ts</code></span></li>
+        <li><span class="mk">✓</span><span>Cascata de 40 ms, limitada aos primeiros itens. Do quinto card em diante ninguém percebe a ordem. <code>app/conta/pedidos/page.tsx</code></span></li>
+        <li><span class="mk">✓</span><span>Botão não muda de largura ao entrar em loading. <code>app/_ui/Rotulo.tsx</code></span></li>
+        <li><span class="mk">✓</span><span>Nenhum indicador de loading é loop: a barra do botão e a da rota enchem uma vez. <code>app/carregando.test.ts</code></span></li>
+        <li><span class="mk">✓</span><span>Movimento reduzido vira fade em toda entrada e saída, e não ausência de resposta. <code>app/entrada.test.ts</code></span></li>
+      </ul>
+    </div>
+
+    <div class="lens-block">
+      <span class="mono-label">O que resolver</span>
+      <div class="findings">
+
+        <div class="finding-row" data-sev="crit" id="finding-1">
+          <div class="finding-row__prose">
+            <div class="find-tags"><span class="severity crit">Crítico</span><span class="lens-chip">Emil</span><span class="lens-chip">Issue 152</span></div>
+            <h4 class="find-title">O sublinhado do menu da home animava a largura</h4>
+            <div class="find-body">
+              <p><span class="label">O que</span>Os itens da barra da home ganham um sublinhado vermelho no hover. Ele crescia por <code>transition: width .25s ease</code>, de 0 a 100%.</p>
+              <p><span class="label">Por que importa</span>Largura é propriedade de layout. Animar layout obriga o navegador a recalcular a posição dos vizinhos a cada quadro, numa barra que fica fixa sobre uma cena 3D. É também a única regra de motion do projeto que o código quebrava: só <code>transform</code> e <code>opacity</code>.</p>
+              <div class="fix"><p><span class="label">Motion recomendado</span>O sublinhado nasce com a largura final e <code>scaleX(0)</code>, ancorado à esquerda, e vai a <code>scaleX(1)</code> em 250 ms com a curva do projeto. Mesmo desenho, sem recalcular layout.</p></div>
+              <p><span class="label">Estado</span>Corrigido neste PR.</p>
+              <p class="find-loc"><code>app/globals.css — #bar button::after, #bar a::after</code></p>
+            </div>
+          </div>
+          <div class="demo">
+            <input class="vh" type="radio" name="st1" id="st1-a" checked>
+            <input class="vh" type="radio" name="st1" id="st1-l">
+            <input class="vh" type="radio" name="st1" id="st1-d">
+            <div class="demo__bar">
+              <div class="demo__meta"><span class="demo__title">Sublinhado por scaleX</span><span class="demo__timing">250ms · cubic-bezier(.22,1,.36,1)</span></div>
+              <div class="demo__controls">
+                <div class="seg"><label for="st1-a">Auto</label><label for="st1-l">Claro</label><label for="st1-d">Escuro</label></div>
+                <span class="demo__loop">↻</span>
+              </div>
+            </div>
+            <div class="demo__stage">
+              <div class="demo-1__mt" style="text-align:center;">
+                <span class="ui-row" style="display:inline-block;position:relative;font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase;font-size:12px;padding-bottom:6px;">merch<i class="risco"></i></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row" data-sev="imp" id="finding-3">
+          <div class="finding-row__prose">
+            <div class="find-tags"><span class="severity imp">Importante</span><span class="lens-chip">Emil</span><span class="lens-chip">Issue 153</span></div>
+            <h4 class="find-title">Transições sem propriedade declarada e com a curva padrão</h4>
+            <div class="find-body">
+              <p><span class="label">O que</span>Os botões de tamanho usavam <code>transition: .2s</code>, e o aviso de música, <code>transition: .4s</code>. Sem propriedade, o valor é <code>all</code>. A barra da home e o hover das fotos da merch usavam <code>ease</code>.</p>
+              <p><span class="label">Por que importa</span><code>all</code> anima qualquer propriedade que mudar, inclusive as de layout que alguém acrescentar depois. E <code>ease</code> é a curva que todo site tem: começa devagar, e em interação isso lê como atraso.</p>
+              <div class="fix"><p><span class="label">Motion recomendado</span>Cada transição declara o que anima. Onde havia <code>ease</code>, entra a curva do projeto, que sai rápido e assenta devagar. Os elos ficam como estão: são momento de marca.</p></div>
+              <p><span class="label">Estado</span>Corrigido neste PR.</p>
+              <p class="find-loc"><code>app/globals.css — #merch .tam button, #loja .tam button, .tocando, #bar, #merch .galeria img</code></p>
+            </div>
+          </div>
+          <div class="demo">
+            <input class="vh" type="radio" name="st3" id="st3-a" checked>
+            <input class="vh" type="radio" name="st3" id="st3-l">
+            <input class="vh" type="radio" name="st3" id="st3-d">
+            <div class="demo__bar">
+              <div class="demo__meta"><span class="demo__title">Seleção de tamanho</span><span class="demo__timing">200ms · cor e borda declaradas</span></div>
+              <div class="demo__controls">
+                <div class="seg"><label for="st3-a">Auto</label><label for="st3-l">Claro</label><label for="st3-d">Escuro</label></div>
+                <span class="demo__loop">↻</span>
+              </div>
+            </div>
+            <div class="demo__stage">
+              <div class="demo-3__mt" style="display:flex;gap:8px;justify-content:center;">
+                <span class="tam">P</span><span class="tam alvo">M</span><span class="tam">G</span><span class="tam">GG</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="lens-block">
+      <span class="mono-label">Oportunidades</span>
+      <ul class="lens-list opp">
+        <li><span class="mk">💡</span><span>O convite a rolar do hero anima em loop para sempre. Depois da primeira rolagem ele já cumpriu o papel. Issue 156. <code>app/globals.css — #hero .desce::after</code></span></li>
+      </ul>
+    </div>
+
+    <div class="lens-take">
+      <span class="mono-label">Pela lente de Emil</span>
+      <p>O site acerta o que é difícil: saber quando não animar. O que estava errado era de implementação, e duas das três pontas saem neste PR.</p>
+    </div>
+  </section>
+
+  <section class="lens-sec">
+    <div class="sec-index">04</div>
+    <div class="lens-sec__head">
+      <h3>Jakub Krehel — Polimento de produção</h3>
+      <span class="lens-sec__weight">Lente secundária</span>
+    </div>
+    <p class="lens-sec__verdict"><span class="verdict v-concern">Atenção</span></p>
+
+    <div class="lens-block">
+      <span class="mono-label">O que está funcionando</span>
+      <ul class="lens-list good">
+        <li><span class="mk">✓</span><span>Skeleton com as classes do conteúdo real: no perfil, skeleton e conteúdo têm a mesma altura, bloco a bloco. <code>app/conta/Esqueletos.tsx</code></span></li>
+        <li><span class="mk">✓</span><span>Skeleton só aparece depois de 150 ms. Consulta rápida não pisca. <code>app/globals.css — .auth-caixa>.esqueleto</code></span></li>
+        <li><span class="mk">✓</span><span>O erro de formulário entra num lugar que já existe, e o botão não anda. <code>app/_ui/Erro.tsx</code></span></li>
+        <li><span class="mk">✓</span><span>O aviso de erro sai sozinho em 10 s e espera quem está lendo. <code>app/_ui/saida-automatica.ts</code></span></li>
+        <li><span class="mk">✓</span><span>A galeria da merch reserva as molduras no servidor; a foto entra por cima com fade. <code>app/_home/Galeria.tsx</code></span></li>
+      </ul>
+    </div>
+
+    <div class="lens-block">
+      <span class="mono-label">O que resolver</span>
+      <div class="findings">
+
+        <div class="finding-row" data-sev="imp" id="finding-2">
+          <div class="finding-row__prose">
+            <div class="find-tags"><span class="severity imp">Importante</span><span class="lens-chip">Jakub</span><span class="lens-chip">Issue 154</span></div>
+            <h4 class="find-title">O formulário de pagamento chega sem lugar reservado</h4>
+            <div class="find-body">
+              <p><span class="label">O que</span>Na tela de pagamento, o formulário do Mercado Pago demora para montar. Até lá a tela mostra só a frase "Carregando as formas de pagamento…". Quando ele chega, a página cresce várias centenas de pixels de uma vez.</p>
+              <p><span class="label">Por que importa</span>É a tela em que a pessoa está com o cartão na mão. Conteúdo que pula no momento do pagamento lê como instabilidade, e instabilidade nessa tela custa venda. A área de conta e a galeria ganharam skeleton na #46; esta ficou de fora.</p>
+              <div class="fix"><p><span class="label">Motion recomendado</span>Reservar a altura do formulário desde o primeiro quadro, com skeleton no formato dele: campos e botão. Quando o formulário avisa que está pronto, o skeleton sai com fade de 200 ms e o formulário entra por cima. Nada abaixo se move.</p></div>
+              <p><span class="label">Estado</span>Issue aberta, prioridade alta.</p>
+              <p class="find-loc"><code>app/checkout/pagamento/[id]/Brick.tsx:101</code></p>
+            </div>
+          </div>
+          <div class="demo">
+            <input class="vh" type="radio" name="st2" id="st2-a" checked>
+            <input class="vh" type="radio" name="st2" id="st2-l">
+            <input class="vh" type="radio" name="st2" id="st2-d">
+            <div class="demo__bar">
+              <div class="demo__meta"><span class="demo__title">Skeleton que cede o lugar</span><span class="demo__timing">200ms · só opacidade</span></div>
+              <div class="demo__controls">
+                <div class="seg"><label for="st2-a">Auto</label><label for="st2-l">Claro</label><label for="st2-d">Escuro</label></div>
+                <span class="demo__loop">↻</span>
+              </div>
+            </div>
+            <div class="demo__stage">
+              <div class="demo-2__mt" style="width:100%;">
+                <div class="ui-card pilha" style="min-width:0;width:100%;">
+                  <div class="esq">
+                    <span class="barra" style="width:38%"></span>
+                    <span class="caixa"></span>
+                    <span class="barra" style="width:30%"></span>
+                    <span class="caixa"></span>
+                  </div>
+                  <div class="real">
+                    <div class="ui-label">Número do cartão</div>
+                    <div class="campo">•••• •••• •••• ••••</div>
+                    <div class="ui-label">Validade</div>
+                    <div class="campo">MM/AA</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="finding-row" data-sev="imp" id="finding-4">
+          <div class="finding-row__prose">
+            <div class="find-tags"><span class="severity imp">Importante</span><span class="lens-chip">Jakub</span><span class="lens-chip">Issue 155</span></div>
+            <h4 class="find-title">Recados e erros entram animados e saem de uma vez</h4>
+            <div class="find-body">
+              <p><span class="label">O que</span>As mensagens de formulário entram com fade e 4 px de deslocamento. No envio seguinte, o parágrafo é removido na hora. A troca entre o formulário de troca de e-mail e o bloco de troca pendente tem o mesmo problema.</p>
+              <p><span class="label">Por que importa</span>Entrada sem saída é o sinal mais comum de motion pela metade. Modal, aviso, menu e confirmações do site já têm saída; estas mensagens são o que sobrou.</p>
+              <div class="fix"><p><span class="label">Motion recomendado</span>Saída em 120 ms, só opacidade e 3 px, mais curta e mais discreta que a entrada de 160 ms. O lugar reservado da #51 continua reservado durante a saída.</p></div>
+              <p><span class="label">Estado</span>Issue aberta, prioridade baixa.</p>
+              <p class="find-loc"><code>app/_ui/Erro.tsx:31 · app/conta/seguranca/TrocarEmail.tsx:59</code></p>
+            </div>
+          </div>
+          <div class="demo">
+            <input class="vh" type="radio" name="st4" id="st4-a" checked>
+            <input class="vh" type="radio" name="st4" id="st4-l">
+            <input class="vh" type="radio" name="st4" id="st4-d">
+            <div class="demo__bar">
+              <div class="demo__meta"><span class="demo__title">Saída da mensagem</span><span class="demo__timing">120ms · opacidade + 3px</span></div>
+              <div class="demo__controls">
+                <div class="seg"><label for="st4-a">Auto</label><label for="st4-l">Claro</label><label for="st4-d">Escuro</label></div>
+                <span class="demo__loop">↻</span>
+              </div>
+            </div>
+            <div class="demo__stage">
+              <div class="demo-4__mt" style="width:100%;">
+                <div class="campo-falso"></div>
+                <p class="erro">A senha está incorreta.</p>
+                <span class="ui-btn" style="border-radius:0;">Entrar</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="lens-block">
+      <span class="mono-label">Oportunidades</span>
+      <ul class="lens-list opp">
+        <li><span class="mk">💡</span><span>No admin de pedidos, mudar o status troca o selo e os botões de uma vez. Quem administra vários pedidos seguidos perde a referência de qual card mudou. Issue 157. <code>app/conta/admin/pedidos/MudarStatus.tsx</code></span></li>
+      </ul>
+    </div>
+
+    <div class="lens-take">
+      <span class="mono-label">Pela lente de Jakub</span>
+      <p>O vocabulário de loading está pronto e foi aplicado com cuidado. Falta levar o mesmo cuidado à tela em que a pessoa paga.</p>
+    </div>
+  </section>
+
+  <section class="lens-sec">
+    <div class="sec-index">05</div>
+    <div class="lens-sec__head">
+      <h3>Jhey Tompkins — Experimentação e encanto</h3>
+      <span class="lens-sec__weight">Lente seletiva</span>
+    </div>
+    <p class="lens-sec__verdict"><span class="verdict v-strong">Forte</span></p>
+
+    <div class="lens-block">
+      <span class="mono-label">O que está funcionando</span>
+      <ul class="lens-list good">
+        <li><span class="mk">✓</span><span>A abertura em VHS, com o REC piscando e o ruído, é identidade e vive só dentro da intro. <code>app/_home/legacy-site.js — intro</code></span></li>
+        <li><span class="mk">✓</span><span>O equalizador só anima enquanto o som toca. Loop com função. <code>app/globals.css — .tocando .eq i</code></span></li>
+        <li><span class="mk">✓</span><span>three.js e GSAP não saem da home: nenhuma tela de conta carrega os dois. <code>app/carregamento-sob-demanda.test.ts</code></span></li>
+        <li><span class="mk">✓</span><span>Todo loop do site está numa lista com motivo, e loop novo quebra o teste. <code>app/audit-de-motion.test.ts</code></span></li>
+      </ul>
+    </div>
+
+    <div class="lens-block">
+      <span class="mono-label">O que resolver</span>
+      <p class="lens-empty">Nenhum achado nesta severidade.</p>
+    </div>
+
+    <div class="lens-block">
+      <span class="mono-label">Oportunidades</span>
+      <ul class="lens-list opp">
+        <li><span class="mk">💡</span><span>Os elos entram em 700 ms com <code>ease</code>. É momento de marca e fica como está. Se um dia forem revisitados, uma curva desenhada para eles vale mais que trocar a duração. <code>app/globals.css — .elo .box</code></span></li>
+      </ul>
+    </div>
+
+    <div class="lens-take">
+      <span class="mono-label">Pela lente de Jhey</span>
+      <p>Não precisa de mais espetáculo. O que o site tem de memorável já está no lugar certo, e a contenção no resto é o que faz esses momentos pesarem.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-index">06</div>
+    <h2 class="section-title">Na ordem em que eu resolveria</h2>
+    <p class="section-sub">
+      Pelo que a pessoa sente: <em>crítico</em> quebra uma regra do projeto em toda visita; <em>importante</em> é atrito
+      real; <em>oportunidade</em> melhora sem urgência.
+    </p>
+
+    <div class="rec crit" id="rec-crit">
+      <div class="tier-label"><span class="mono-label">Crítico · resolver</span><span class="rule"></span><span class="count">1</span></div>
+      <table class="rec-table">
+        <thead><tr><th>Achado</th><th>Issue</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>O sublinhado do menu da home animava a largura</td><td><code>152</code></td><td>Corrigido neste PR</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rec imp" id="rec-imp">
+      <div class="tier-label"><span class="mono-label">Importante · deveria resolver</span><span class="rule"></span><span class="count">3</span></div>
+      <table class="rec-table">
+        <thead><tr><th>Achado</th><th>Issue</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td>O formulário de pagamento chega sem lugar reservado</td><td><code>154</code></td><td>Issue aberta, prioridade alta</td></tr>
+          <tr><td>Transições sem propriedade declarada e com a curva padrão</td><td><code>153</code></td><td>Corrigido neste PR</td></tr>
+          <tr><td>Recados e erros entram animados e saem de uma vez</td><td><code>155</code></td><td>Issue aberta, prioridade baixa</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rec opp" id="rec-opp">
+      <div class="tier-label"><span class="mono-label">Oportunidades · poderia melhorar</span><span class="rule"></span><span class="count">3</span></div>
+      <table class="rec-table">
+        <thead><tr><th>Melhoria</th><th>Issue</th><th>Impacto</th></tr></thead>
+        <tbody>
+          <tr><td>O convite a rolar do hero anima em loop para sempre. Depois da primeira rolagem ele já cumpriu o papel.</td><td><code>156</code></td><td>Um loop a menos numa tela que já tem uma cena 3D rodando</td></tr>
+          <tr><td>No admin de pedidos, mudar o status troca o selo e os botões de uma vez. Quem administra vários pedidos seguidos perde a referência de qual card mudou.</td><td><code>157</code></td><td>Fade curto no selo diz qual card acabou de mudar</td></tr>
+          <tr><td>Os elos entram em 700 ms com <code>ease</code>. É momento de marca e fica como está. Se um dia forem revisitados, uma curva desenhada para eles vale mais que trocar a duração.</td><td><code>—</code></td><td>Nenhum agora. Registrado como exceção, não como defeito</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section style="margin-bottom: var(--s6);">
+    <div class="sec-index">07</div>
+    <h2 class="section-title">Qual lente conduziu o audit</h2>
+    <div class="ref-summary">
+      <span class="mono-label">Mais usada</span>
+      <p class="big">Emil Kowalski — Contenção e velocidade</p>
+      <p class="why">O site é loja e conta antes de ser vitrine: quem entra quer comprar, conferir o pedido e sair. Por isso a lente principal pergunta primeiro se cada coisa deveria animar. Jakub decidiu o que falta no loading. Jhey confirmou que o espetáculo está onde deve.</p>
+      <ul class="ref-lean">
+        <li><span class="nm">Mais Emil</span><span>Parar o convite a rolar depois da primeira rolagem e revisar se cada transição de cor no hover precisa existir.</span></li>
+        <li><span class="nm">Mais Jakub</span><span>Skeleton na tela de pagamento, saída para toda mensagem, e transição no selo de status do admin.</span></li>
+        <li><span class="nm">Mais Jhey</span><span>Desenhar uma curva própria para a entrada dos elos, em vez do <code>ease</code> de hoje.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="doc">
+    <span>passem-a-respeitar · audit de motion · design-motion-principles</span>
+    <span>7 achados · 1 crítico · 3 importantes · 3 oportunidades</span>
+  </footer>
+
+</div>
+</body>
+</html>
