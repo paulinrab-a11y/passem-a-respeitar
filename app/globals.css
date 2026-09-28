@@ -37,14 +37,16 @@ img,canvas,svg{display:block}
 #scan{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.22;background:repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, transparent 1px 3px)}
 #vig{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.75) 100%)}
 
-#bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:18px var(--gutter);mix-blend-mode:difference;opacity:0;transition:opacity .6s ease}
+#bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:18px var(--gutter);mix-blend-mode:difference;opacity:0;transition:opacity .6s cubic-bezier(.22,1,.36,1)}
 #bar.on{opacity:1}
 #bar .logo{width:34px;height:34px}
 #bar .logo path{fill:var(--prata)}
 #bar .right{display:flex;gap:26px;align-items:center;font-size:14px;letter-spacing:.14em}
 #bar button,#bar a{text-decoration:none;position:relative;padding:4px 0}
-#bar button::after,#bar a::after{content:"";position:absolute;left:0;bottom:-2px;height:2px;width:0;background:var(--vermelho);transition:width .25s ease}
-#bar button:hover::after,#bar a:hover::after{width:100%}
+/* O sublinhado cresce por `transform`, e nao por `width` (#53): largura e
+   layout, e animar layout recalcula a barra inteira a cada quadro. */
+#bar button::after,#bar a::after{content:"";position:absolute;left:0;bottom:-2px;height:2px;width:100%;background:var(--vermelho);transform:scaleX(0);transform-origin:left;transition:transform .25s cubic-bezier(.22,1,.36,1)}
+#bar button:hover::after,#bar a:hover::after{transform:scaleX(1)}
 #som .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--prata-2);margin-right:8px;vertical-align:middle}
 #som.on .dot{background:var(--vermelho);box-shadow:0 0 12px var(--vermelho)}
 
@@ -52,6 +54,9 @@ img,canvas,svg{display:block}
 #intro.out{pointer-events:none}
 #vhs{position:absolute;inset:0;width:100%;height:100%;opacity:.16;image-rendering:pixelated;pointer-events:none}
 #rec{position:absolute;top:26px;left:var(--gutter);font-size:15px;letter-spacing:.2em;display:flex;align-items:center;gap:10px}
+/* O ponto de REC pisca porque e isso que um REC de VHS faz: e a identidade da
+   abertura, vive so dentro dela e some com ela. Com movimento reduzido fica
+   aceso, parado. Indicador piscando em qualquer outro lugar do site e defeito. */
 #rec i{width:11px;height:11px;border-radius:50%;background:var(--vermelho);box-shadow:0 0 14px var(--vermelho);animation:blink 1s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 #tc{position:absolute;top:26px;right:var(--gutter);font-size:15px;letter-spacing:.16em;font-variant-numeric:tabular-nums}
@@ -81,6 +86,8 @@ section{position:relative}
 @keyframes desce{0%{transform:scaleY(0)}60%{transform:scaleY(1)}100%{transform:scaleY(1);opacity:0}}
 
 .elo{min-height:120vh;display:flex;align-items:center;padding:0 var(--gutter)}
+/* Momento de marca: 700 ms e `ease` sao do desenho original dos elos, e a
+   #48 manda manter. O audit da #53 registra como excecao, nao como defeito. */
 .elo .box{width:min(560px, 100%);opacity:0;transform:translateY(28px);transition:opacity .7s ease, transform .7s ease}
 .elo.vis .box{opacity:1;transform:none}
 .elo:nth-child(even){justify-content:flex-end}
@@ -99,7 +106,7 @@ section{position:relative}
 .btn.off::before{display:none}
 .btn .play{width:0;height:0;border-left:10px solid currentColor;border-top:6px solid transparent;border-bottom:6px solid transparent}
 
-.tocando{position:fixed;left:var(--gutter);bottom:24px;z-index:20;display:flex;align-items:center;gap:14px;font-size:13px;letter-spacing:.18em;opacity:0;transform:translateY(10px);transition:.4s;pointer-events:none;cursor:pointer}
+.tocando{position:fixed;left:var(--gutter);bottom:24px;z-index:20;display:flex;align-items:center;gap:14px;font-size:13px;letter-spacing:.18em;opacity:0;transform:translateY(10px);transition:opacity .4s cubic-bezier(.22,1,.36,1),transform .4s cubic-bezier(.22,1,.36,1);pointer-events:none;cursor:pointer}
 .tocando.on{opacity:1;transform:none;pointer-events:auto}
 .tocando:hover{color:var(--vermelho)}
 .tocando .eq{display:flex;gap:3px;align-items:flex-end;height:14px}
@@ -130,7 +137,7 @@ section{position:relative}
    e de cada seletor, logo abaixo. */
 fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #merch .tam{margin-top:26px;display:flex;gap:8px}
-#merch .tam button{width:46px;height:46px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:.2s}
+#merch .tam button{width:46px;height:46px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:background-color .2s,color .2s,border-color .2s}
 #merch .tam button:hover{border-color:var(--prata)}
 #merch .tam button.on{background:var(--prata);color:#000;border-color:var(--prata)}
 #merch .acoes{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap}
@@ -139,7 +146,7 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #merch .galeria figure{margin:0;overflow:hidden;background:#0a0a0a;border:1px solid #141416;aspect-ratio:3/2;grid-column:span 2}
 #merch .galeria figure:first-child{grid-column:span 6;aspect-ratio:3/2}
 #merch .galeria figure:nth-child(2),#merch .galeria figure:nth-child(3){grid-column:span 3}
-#merch .galeria img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.08);transition:transform .6s ease,filter .4s}
+#merch .galeria img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.08);transition:transform .6s cubic-bezier(.22,1,.36,1),filter .4s}
 #merch .galeria figure:hover img{transform:scale(1.03);filter:grayscale(1) contrast(1.15)}
 
 #fim{min-height:180vh;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:0 var(--gutter) 10vh;text-align:center}
@@ -191,7 +198,7 @@ footer.assina a:hover{color:var(--vermelho)}
 #loja .desc{margin-top:12px;font-size:15px;letter-spacing:.05em;line-height:1.5;color:var(--prata-2);max-width:40ch}
 #loja .rotulo{margin-top:24px;font-size:12px;letter-spacing:.22em;color:var(--prata-2)}
 #loja .tam{margin-top:10px;display:flex;gap:8px}
-#loja .tam button{width:50px;height:50px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:.2s}
+#loja .tam button{width:50px;height:50px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:background-color .2s,color .2s,border-color .2s}
 #loja .tam button:hover{border-color:var(--prata)}
 #loja .tam button.on{background:var(--prata);color:#000;border-color:var(--prata)}
 #loja .acoes{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap}
@@ -959,7 +966,7 @@ footer.assina a:hover{color:var(--vermelho)}
 #merch .galeria figure{position:relative}
 #merch .galeria figure::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(205,208,213,.06),transparent);transform:translateX(-100%);animation:esq-brilho 1.8s cubic-bezier(.4,0,.2,1) infinite}
 #merch .galeria figure.ok::after{display:none}
-#merch .galeria img{opacity:0;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .6s ease,filter .4s}
+#merch .galeria img{opacity:0;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1),filter .4s}
 #merch .galeria figure.ok img{opacity:1}
 
 /* Player do clipe enquanto o video nao respondeu. */
