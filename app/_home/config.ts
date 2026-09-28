@@ -65,19 +65,53 @@ export const CONFIG: SiteConfig = {
     '/merch/camiseta-08.jpg',
     '/merch/camiseta-09.jpg',
   ],
+  // WebP sem perda (#145): metade do peso, os mesmos pixels. "Os mesmos" e
+  // literal — o teste decodifica os dois arquivos e compara byte a byte,
+  // inclusive a cor dos pixels transparentes, que o shader le na borda.
+  //
+  // O PNG fica de `fallback`: e o que carrega se o WebP falhar, e sai do
+  // repositorio quando a home tiver sido conferida no olho.
   elementos: [
-    { nome: 'corrente', url: '/elementos/corrente.png', elo: 0, escala: 1.7, lado: -1 },
-    { nome: 'mao', url: '/elementos/mao.png', elo: 1, escala: 1.2, lado: 1 },
+    {
+      nome: 'corrente',
+      url: '/elementos/corrente.webp',
+      fallback: '/elementos/corrente.png',
+      elo: 0,
+      escala: 1.7,
+      lado: -1,
+    },
+    {
+      nome: 'mao',
+      url: '/elementos/mao.webp',
+      fallback: '/elementos/mao.png',
+      elo: 1,
+      escala: 1.2,
+      lado: 1,
+    },
     {
       nome: 'saturno',
-      url: '/elementos/saturno.png',
-      fallback: '/saturno.png',
+      url: '/elementos/saturno.webp',
+      fallback: '/elementos/saturno.png',
       elo: 2,
       escala: 1.3,
       lado: -1,
     },
-    { nome: 'p', url: '/elementos/p.png', elo: 3, escala: 1.25, lado: 1 },
-    { nome: 'pistola', url: '/elementos/pistola.png', elo: 4, escala: 1.5, lado: -1 },
+    {
+      nome: 'p',
+      url: '/elementos/p.webp',
+      fallback: '/elementos/p.png',
+      elo: 3,
+      escala: 1.25,
+      lado: 1,
+    },
+    {
+      nome: 'pistola',
+      url: '/elementos/pistola.webp',
+      fallback: '/elementos/pistola.png',
+      elo: 4,
+      escala: 1.5,
+      lado: -1,
+    },
   ],
   audio: {},
   merch360: '/merch/camiseta-360.webp',
