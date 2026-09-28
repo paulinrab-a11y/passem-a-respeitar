@@ -80,7 +80,8 @@ const driveAudio = id => /^(https?:|\/)/.test(id) ? [id] : [
 const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googleusercontent.com/d/${id}=w${w}`;
 
 (function merch(){
-  $('#comprar').addEventListener('click', e=>{ e.preventDefault(); Loja.abre(tam); });
+  // O botao vai junto: e para ele que o foco volta quando a loja fecha (#49).
+  $('#comprar').addEventListener('click', e=>{ e.preventDefault(); Loja.abre(tam, e.currentTarget); });
   // A galeria e montada pelo componente Galeria, com next/image (#47).
   let tam = $('#tamanhos').dataset.padrao || '';
   const link = ()=>{ $('#comprar').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
@@ -644,6 +645,37 @@ ScrollTrigger.create({
   $('#ligar').addEventListener('click', ()=>{ Som.liga(); $('#ligar').style.opacity=0; $('#ligar').disabled=true; });
 })();
 
+// Modal com saida animada (#49). `fecha` so poe a classe `saindo`; quem tira
+// o `on` e o fim da animacao. O prazo e rede de seguranca: aba em segundo
+// plano nao dispara `animationend`, e modal que nao fecha e pior que modal
+// que fecha sem animar.
+// O foco volta para quem abriu — sem isso, quem navega por teclado fecha o
+// modal e cai no topo da pagina.
+function modalAnimado(el, aoTerminar){
+  let quemAbriu = null, prazo = null;
+  const termina = ()=>{
+    clearTimeout(prazo);
+    if (!el.classList.contains('saindo')) return;
+    el.classList.remove('on', 'saindo');
+    aoTerminar && aoTerminar();
+    if (quemAbriu && document.contains(quemAbriu)) quemAbriu.focus({ preventScroll:true });
+    quemAbriu = null;
+  };
+  el.addEventListener('animationend', e=>{ if (e.target === el) termina(); });
+  return {
+    abre(quem){
+      clearTimeout(prazo);
+      quemAbriu = quem || document.activeElement;
+      el.classList.remove('saindo'); el.classList.add('on');
+    },
+    fecha(){
+      if (!el.classList.contains('on') || el.classList.contains('saindo')) return;
+      el.classList.add('saindo');
+      prazo = setTimeout(termina, 400);
+    },
+  };
+}
+
 const Loja = (()=>{
   const el = $('#loja'), vit = $('#vitrine'), canvas = $('#glLoja');
   let renderer, scene, camera, camisa, brasao, rotY = 0.35, rotX = 0.05, velY = 0, arrastando = false, ux = 0, uy = 0, aberto = false, pronto = false;
@@ -771,15 +803,18 @@ const Loja = (()=>{
     giroTimer = setInterval(()=>{ if (!aberto) return; mostra(quadro + 1); }, 1400);
     mostra(0);
   }
-  function abre(t){
+  function abre(t, quem){
     if (CONFIG.merch360) init360(); else init();
     if (t){ tam = t; $$('#tamLoja button').forEach(x=>x.classList.toggle('on', x.dataset.t===t)); link(); }
-    el.classList.add('on'); aberto = true; document.documentElement.classList.add('locked');
+    modal.abre(quem); aberto = true; document.documentElement.classList.add('locked');
     if (!CONFIG.merch360) requestAnimationFrame(()=>{ redimensiona(); loop(); });
     Som.corrente(0.5);
     $('#fecharLoja').focus();
   }
-  function fecha(){ el.classList.remove('on'); aberto = false; document.documentElement.classList.remove('locked'); }
+  // `aberto` e a trava de rolagem so caem no FIM da saida: a camiseta continua
+  // girando enquanto o modal some, e a pagina de tras nao rola por baixo.
+  const modal = modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); });
+  function fecha(){ modal.fecha(); }
   $('#fecharLoja').addEventListener('click', fecha);
   el.addEventListener('click', e=>{ if (e.target === el) fecha(); });
   addEventListener('keydown', e=>{ if (e.key === 'Escape') fecha(); });
@@ -788,6 +823,7 @@ const Loja = (()=>{
 
 (function convite(){
   const form=$('#formConvite'), inp=$('#cod'), erro=$('#erroCod'), sala=$('#sala'), video=$('#salaVideo');
+  const modal = modalAnimado(sala);
   const aberto = CONFIG.fase >= 3;
   if (!aberto){ inp.placeholder='em breve'; inp.disabled=true; form.querySelector('button').disabled=true; }
   // Issue #13: a validacao mora no servidor. O cliente nao conhece codigo
@@ -816,7 +852,7 @@ const Loja = (()=>{
           f.title = 'Teaser';
           video.appendChild(f);
         }
-        sala.classList.add('on'); Som.corrente(1); $('#fecharSala').focus();
+        modal.abre(inp); Som.corrente(1); $('#fecharSala').focus();
       } else {
         erro.textContent = dados.erro || 'Esse código não abre nada aqui.';
         inp.select(); Som.tick();
@@ -828,8 +864,9 @@ const Loja = (()=>{
       botao.disabled = false;
     }
   });
-  $('#fecharSala').addEventListener('click', ()=>{ sala.classList.remove('on'); inp.focus(); });
-  addEventListener('keydown', e=>{ if(e.key==='Escape') sala.classList.remove('on'); });
+  // Botao e Esc fecham pelo mesmo caminho, com a mesma animacao (#49).
+  $('#fecharSala').addEventListener('click', ()=> modal.fecha());
+  addEventListener('keydown', e=>{ if(e.key==='Escape') modal.fecha(); });
   // Quem ja tem o cookie assinado volta direto para a sala, sem redigitar.
   // A checagem e preguicosa de proposito: so custa um request para quem
   // clica em convite, nao para todo visitante que abre a home.
@@ -848,7 +885,7 @@ const Loja = (()=>{
         f.title = 'Teaser';
         video.appendChild(f);
       }
-      sala.classList.add('on'); $('#fecharSala').focus();
+      modal.abre($('#linkConvite')); $('#fecharSala').focus();
       return true;
     } catch { return false; }
   }
