@@ -34,7 +34,7 @@ export async function recuperarSenha(
 
   const dados = esquemaEmail.safeParse({ email: form.get('email') });
   if (!dados.success) {
-    return { erro: 'Confira o e-mail.', enviado: false, tentativa };
+    return { erro: 'Confira o e-mail.', campo: 'email', enviado: false, tentativa };
   }
   const { email } = dados.data;
 
@@ -46,7 +46,12 @@ export async function recuperarSenha(
   );
   const cotaEmail = await limita(`recuperar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
   if (!cotaIp.permitido || !cotaEmail.permitido) {
-    return { erro: 'Muitos pedidos. Tente de novo mais tarde.', enviado: false, tentativa };
+    return {
+      erro: 'Muitos pedidos. Tente de novo mais tarde.',
+      campo: null,
+      enviado: false,
+      tentativa,
+    };
   }
 
   const supabase = await clienteDeAuth(false);
@@ -56,5 +61,5 @@ export async function recuperarSenha(
 
   // O erro, se houver, fica aqui dentro de proposito: qualquer diferenca na
   // resposta contaria se o e-mail existe.
-  return { erro: null, enviado: true, tentativa };
+  return { erro: null, campo: null, enviado: true, tentativa };
 }

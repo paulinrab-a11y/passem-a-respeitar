@@ -1,7 +1,7 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
-import { useCampos } from '@/app/_ui/campos';
+import { useActionState, useEffect, useRef } from 'react';
+import { comErro, useCampos } from '@/app/_ui/campos';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
 import Rotulo from '@/app/_ui/Rotulo';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
@@ -15,6 +15,16 @@ export default function TrocarSenha() {
   const { valores, campo, limpar } = useCampos({ atual: '', nova: '', confirmacao: '' });
   const { nova } = valores;
   const forca = forcaDaSenha(nova);
+  const form = useRef<HTMLFormElement>(null);
+
+  // O erro aparece num aviso no pe da tela, longe do campo. O foco no campo
+  // que errou e o que liga os dois para quem nao viu o aviso entrar (#51).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tentativa reanima o foco quando o mesmo campo erra de novo
+  useEffect(() => {
+    if (!estado.campo) return;
+    const alvo = form.current?.elements.namedItem(estado.campo);
+    if (alvo instanceof HTMLInputElement) alvo.focus();
+  }, [estado.campo, estado.tentativa]);
 
   const { montado: aviso, saindo, abrir, fechar, aoFimDaAnimacao } = useDesmonteAnimado(400);
 
@@ -38,7 +48,7 @@ export default function TrocarSenha() {
 
   return (
     <>
-      <form action={acao} className="conta-bloco" autoComplete="on">
+      <form action={acao} ref={form} className="conta-bloco" autoComplete="on">
         <label className="auth-campo">
           <span>Senha atual</span>
           <input
@@ -47,6 +57,7 @@ export default function TrocarSenha() {
             autoComplete="current-password"
             required
             disabled={pendente}
+            {...comErro(estado.campo === 'atual', 'aviso-da-senha')}
           />
         </label>
 
@@ -59,7 +70,7 @@ export default function TrocarSenha() {
             minLength={SENHA_MIN}
             required
             disabled={pendente}
-            aria-describedby="forca-da-senha"
+            {...comErro(estado.campo === 'nova', 'aviso-da-senha', 'forca-da-senha')}
           />
         </label>
 
@@ -80,6 +91,7 @@ export default function TrocarSenha() {
             autoComplete="new-password"
             required
             disabled={pendente}
+            {...comErro(estado.campo === 'confirmacao', 'aviso-da-senha')}
           />
         </label>
 
@@ -96,7 +108,9 @@ export default function TrocarSenha() {
         <div
           className={`toast ${estado.recado.tom}${saindo ? ' saindo' : ''}`}
           onAnimationEnd={aoFimDaAnimacao}
-          role="status"
+          id="aviso-da-senha"
+          // Erro interrompe; sucesso espera a vez (#51).
+          role={estado.recado.tom === 'erro' ? 'alert' : 'status'}
         >
           <p>{estado.recado.texto}</p>
           <button type="button" onClick={fechar} aria-label="Fechar aviso">

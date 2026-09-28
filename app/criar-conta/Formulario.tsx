@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
-import { useCaixinha } from '@/app/_ui/campos';
+import { comErro, useCaixinha } from '@/app/_ui/campos';
+import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { criarConta } from './acoes';
@@ -57,7 +58,8 @@ export default function Formulario() {
     );
   }
 
-  const invalido = (campo: string) => (estado.campo === campo ? true : undefined);
+  const erroEm = (campo: string, outras?: string) =>
+    comErro(estado.campo === campo, 'auth-erro', outras);
 
   return (
     <form action={acao} ref={form} className="auth-form" noValidate>
@@ -72,7 +74,7 @@ export default function Formulario() {
           disabled={pendente}
           value={nome}
           onChange={(e) => setNome(e.target.value)}
-          aria-invalid={invalido('nome')}
+          {...erroEm('nome')}
         />
       </label>
 
@@ -86,7 +88,7 @@ export default function Formulario() {
           disabled={pendente}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          aria-invalid={invalido('email')}
+          {...erroEm('email')}
         />
       </label>
 
@@ -101,8 +103,7 @@ export default function Formulario() {
           disabled={pendente}
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
-          aria-describedby="forca-da-senha"
-          aria-invalid={invalido('senha')}
+          {...erroEm('senha', 'forca-da-senha')}
         />
       </label>
 
@@ -125,7 +126,7 @@ export default function Formulario() {
           disabled={pendente}
           value={confirmacao}
           onChange={(e) => setConfirmacao(e.target.value)}
-          aria-invalid={invalido('confirmacao')}
+          {...erroEm('confirmacao')}
         />
       </label>
 
@@ -137,7 +138,7 @@ export default function Formulario() {
           name="aceite"
           {...caixinha}
           disabled={pendente}
-          aria-invalid={invalido('aceite')}
+          {...erroEm('aceite')}
         />
         <span>
           Li e aceito a{' '}
@@ -147,11 +148,7 @@ export default function Formulario() {
         </span>
       </label>
 
-      {estado.erro ? (
-        <p key={estado.tentativa} id="auth-erro" className="auth-erro" role="alert">
-          {estado.erro}
-        </p>
-      ) : null}
+      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} />
 
       <button
         type="submit"

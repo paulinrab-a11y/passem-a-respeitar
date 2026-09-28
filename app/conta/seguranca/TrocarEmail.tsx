@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
-import { useCampos } from '@/app/_ui/campos';
+import { comErro, useCampos } from '@/app/_ui/campos';
 import Rotulo from '@/app/_ui/Rotulo';
 import { cancelarTrocaDeEmail, trocarEmail } from './email';
 import { cancelamentoInicial, type EstadoEmail, emailInicial } from './estado-email';
@@ -87,7 +87,7 @@ export default function TrocarEmail({
               autoComplete="email"
               required
               disabled={enviando}
-              aria-invalid={estado.campo === 'email' ? true : undefined}
+              {...comErro(estado.campo === 'email', 'recado-do-email')}
             />
           </label>
 
@@ -99,7 +99,7 @@ export default function TrocarEmail({
               autoComplete="current-password"
               required
               disabled={enviando}
-              aria-invalid={estado.campo === 'senha' ? true : undefined}
+              {...comErro(estado.campo === 'senha', 'recado-do-email')}
             />
           </label>
 
@@ -113,17 +113,22 @@ export default function TrocarEmail({
         </form>
       )}
 
-      {/* Com a troca pendente na tela, o "mandamos dois links" do pedido seria
+      {/* Lugar reservado (#51): o recado entra sem empurrar a lista de
+          aparelhos que vem logo abaixo.
+          Com a troca pendente na tela, o "mandamos dois links" do pedido seria
           a mesma frase duas vezes. Erro e cancelamento continuam aparecendo. */}
-      {recado && !(paraOnde && recado === estado.recado && recado.tom === 'ok') ? (
-        <p
-          key={`${estado.tentativa}-${recado.texto}`}
-          className={`conta-recado ${recado.tom}`}
-          role={recado.tom === 'erro' ? 'alert' : 'status'}
-        >
-          {recado.texto}
-        </p>
-      ) : null}
+      <div className="erro-vaga">
+        {recado && !(paraOnde && recado === estado.recado && recado.tom === 'ok') ? (
+          <p
+            key={`${estado.tentativa}-${recado.texto}`}
+            id="recado-do-email"
+            className={`conta-recado ${recado.tom}`}
+            role={recado.tom === 'erro' ? 'alert' : 'status'}
+          >
+            {recado.texto}
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }
