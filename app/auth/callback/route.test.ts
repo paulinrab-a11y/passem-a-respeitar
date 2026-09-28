@@ -222,3 +222,41 @@ describe('registro da falha', () => {
     expect(aviso).not.toHaveBeenCalled();
   });
 });
+
+describe('host do redirecionamento (#168)', () => {
+  // Sob `next start` o Next calcula a origem como localhost, venha o pedido
+  // por onde vier. O cookie da sessao fica no host do pedido: e para ele que
+  // se volta.
+  function chegaPor(host: string, query: string) {
+    return GET(
+      new NextRequest(`http://localhost:3000/auth/callback${query}`, {
+        headers: { host, 'x-forwarded-proto': 'http' },
+      })
+    );
+  }
+
+  it('link bom volta para o host por onde chegou', async () => {
+    const r = await chegaPor('127.0.0.1:3000', '?code=abc&next=%2Fredefinir-senha');
+
+    expect(r.headers.get('location')).toBe('http://127.0.0.1:3000/redefinir-senha');
+  });
+
+  it('link ruim tambem: o aviso aparece no mesmo host', async () => {
+    exchangeCodeForSession.mockResolvedValue({ error: { message: 'invalid' } });
+    const r = await chegaPor('127.0.0.1:3000', '?code=ruim');
+
+    expect(r.headers.get('location')).toBe('http://127.0.0.1:3000/entrar?erro=link');
+  });
+
+  it('host torto no cabecalho nao escolhe o destino', async () => {
+    const r = await chegaPor('mau.test/entrar', '?code=abc');
+
+    expect(r.headers.get('location')).toBe('http://localhost:3000/conta');
+  });
+
+  it('o host nao muda o que `next` pode ser: destino de fora continua recusado', async () => {
+    const r = await chegaPor('127.0.0.1:3000', '?code=abc&next=https%3A%2F%2Fmau.test%2Fconta');
+
+    expect(r.headers.get('location')).toBe('http://127.0.0.1:3000/conta');
+  });
+});
