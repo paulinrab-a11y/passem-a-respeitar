@@ -1,7 +1,9 @@
+import Image from 'next/image';
 import { vitrine } from '@/lib/loja/catalogo';
 import { precoNaFicha } from '@/lib/loja/precos';
 import BarraConta from './_home/BarraConta';
 import { CONFIG } from './_home/config';
+import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
 
 // A CSP do middleware.ts carrega um nonce novo a cada request, e o Next so
@@ -87,7 +89,22 @@ export default async function Home() {
 
       <main>
         <section id="hero">
-          <h1 id="logoHero">Passem a respeitar</h1>
+          {/* O logo e a unica imagem acima da dobra, e a unica com `priority`
+              (#47). Antes o script legado a injetava depois de carregar
+              three.js e GSAP: o titulo aparecia como texto e trocava por
+              imagem segundos depois. Agora ja vem no HTML. */}
+          <h1 id="logoHero">
+            <Image
+              src={CONFIG.logoUrl}
+              alt=""
+              width={1000}
+              height={624}
+              sizes="(max-width: 767px) 92vw, 760px"
+              priority
+              draggable={false}
+            />
+            <span>Passem a respeitar</span>
+          </h1>
           <div className="desce" aria-hidden="true">
             puxa a corrente
           </div>
@@ -178,14 +195,10 @@ export default async function Home() {
           </div>
           {/* O `data-alt` existe para o script legado nao precisar repetir o
               nome do produto no alt das fotos — era a terceira copia dele. */}
-          {/* As molduras ja saem do servidor, vazias e na grade final (#46).
-              Sem elas a galeria nascia com altura zero e empurrava o rodape
-              quando o script montava as fotos. O script troca o conteudo
-              pelas figuras com imagem; a quantidade e a mesma. */}
-          <div className="galeria" id="galeriaMerch" data-alt={camiseta?.nome ?? ''}>
-            {CONFIG.merchFotos.map((foto) => (
-              <figure key={foto} aria-hidden="true" />
-            ))}
+          {/* As molduras saem do servidor, vazias e na grade final (#46), e
+              cada uma ja traz a sua foto como `next/image` preguicosa (#47). */}
+          <div className="galeria" id="galeriaMerch">
+            <Galeria fotos={CONFIG.merchFotos} alt={camiseta?.nome ?? ''} />
           </div>
         </section>
 
