@@ -6,6 +6,7 @@ import {
   ehPagamento,
   ehRotaDeAuth,
   exigeSessao,
+  hostPrincipal,
   precisaDeSessao,
 } from '@/lib/rotas';
 import { COOKIE_LEMBRAR, opcoesDeSessao } from '@/lib/supabase/cookies';
@@ -214,6 +215,27 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.protocol = 'https:';
     return NextResponse.redirect(url, 301);
+  }
+
+  // Um host so em producao (#141). So navegacao: `/api` e chamado por
+  // servidor — webhook, cron —, e redirecionar POST de terceiro e apostar que
+  // ele segue redirect. 308 e nao 301: preserva o metodo, e navegador nao
+  // guarda para sempre se o dominio final mudar (#54).
+  const navegacao = request.method === 'GET' || request.method === 'HEAD';
+  if (navegacao && !request.nextUrl.pathname.startsWith('/api/')) {
+    const principal = hostPrincipal(
+      process.env.VERCEL_ENV,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+      host
+    );
+
+    if (principal) {
+      const url = request.nextUrl.clone();
+      url.protocol = 'https:';
+      url.host = principal;
+      url.port = '';
+      return NextResponse.redirect(url, 308);
+    }
   }
 
   // CORS restrito a propria origem (#17). Nenhuma rota emite

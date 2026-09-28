@@ -90,3 +90,31 @@ export function destinoSeguro(bruto: string | null | undefined) {
   const caminho = bruto.split(/[?#]/)[0];
   return exigeSessao(caminho) ? bruto : CONTA;
 }
+
+/**
+ * O host principal da producao, quando o request chegou por outro (#141).
+ *
+ * A Vercel publica a producao em mais de um endereco: o principal, um alias
+ * com o nome do time e um por deploy. Responder em todos parece inofensivo e
+ * nao e: cookie de sessao vale por host, e o link de e-mail volta sempre para
+ * um host so. Quem entrou pelo alias clicava no link e chegava sem sessao.
+ *
+ * Devolve o host para onde mandar, ou null para deixar passar. Deixa passar
+ * sempre que houver duvida: fora de producao, sem a variavel, ou com um valor
+ * que nao tem cara de host. Redirecionar errado derruba o site; nao
+ * redirecionar so mantem o que ja era.
+ */
+export function hostPrincipal(
+  ambiente: string | undefined,
+  principal: string | undefined,
+  atual: string
+) {
+  if (ambiente !== 'production') return null;
+
+  const alvo = (principal ?? '').trim().toLowerCase();
+  // Host puro: sem protocolo, sem caminho, sem porta. E o formato em que a
+  // Vercel entrega VERCEL_PROJECT_PRODUCTION_URL.
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(alvo)) return null;
+
+  return atual.toLowerCase() === alvo ? null : alvo;
+}
