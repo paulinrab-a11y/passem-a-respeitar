@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 /** Moldura no primeiro byte, conteudo por streaming (#46). */
 export default function Seguranca() {
   return (
-    <main className="auth conta">
+    <main className="auth conta com-toast">
       <div className="auth-scan" aria-hidden="true" />
       <div className="auth-vinheta" aria-hidden="true" />
 
