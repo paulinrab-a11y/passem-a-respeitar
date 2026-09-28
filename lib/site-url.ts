@@ -34,3 +34,37 @@ export function urlDeRetorno(cabecalhos: Headers, next: string): string {
   u.searchParams.set('next', next);
   return u.toString();
 }
+
+/** Nome ou IP, com porta opcional. Nada de barra, arroba, espaco ou esquema. */
+const HOST = /^(?:[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i;
+
+/**
+ * A origem por onde ESTE pedido chegou, para redirecionar de volta a ela (#168).
+ *
+ * Nao e `urlDoSite`: aquela responde "onde o site mora", e pode ser um
+ * dominio fixo. Esta responde "por onde a pessoa entrou agora", que e onde o
+ * navegador dela acabou de guardar o cookie de sessao. Redirecionar para
+ * outro host, mesmo que seja o mesmo servidor, e chegar la sem cookie.
+ *
+ * `reserva` e a origem que o Next calculou. Na Vercel as duas coincidem. Sob
+ * `next start`, num route handler, a do Next e sempre `localhost`, venha o
+ * pedido pelo endereco que vier — e por isso que o cabecalho e consultado.
+ *
+ * O cabecalho escolhe so o HOST. O caminho continua sendo de quem chama, e
+ * passa por `destinoSeguro`. E host de cabecalho nao e algo que um site de
+ * fora consiga escolher pela vitima: numa navegacao, quem escreve o `Host` e
+ * o navegador, com o endereco que a pessoa abriu. Valor que nao tenha cara de
+ * host e ignorado.
+ */
+export function origemDoPedido(cabecalhos: Headers, reserva: string): string {
+  const primeiro = (nome: string) => cabecalhos.get(nome)?.split(',')[0].trim();
+
+  const host = primeiro('x-forwarded-host') ?? primeiro('host');
+  if (!host || !HOST.test(host)) return reserva;
+
+  const dito = primeiro('x-forwarded-proto');
+  const esquema =
+    dito === 'http' || dito === 'https' ? dito : new URL(reserva).protocol.slice(0, -1);
+
+  return `${esquema}://${host.toLowerCase()}`;
+}

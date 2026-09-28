@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { destinoSeguro, ENTRAR } from '@/lib/rotas';
+import { origemDoPedido } from '@/lib/site-url';
 import { clienteDeAuth, usuarioDaSessao } from '@/lib/supabase/servidor';
 
 export const dynamic = 'force-dynamic';
@@ -68,7 +69,10 @@ function registraFalha(searchParams: URLSearchParams, etapa: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl;
+  const { searchParams } = request.nextUrl;
+  // O host por onde o pedido chegou, e nao o que o Next calculou: e nele que
+  // o navegador guarda o cookie da sessao que nasce aqui (#168).
+  const origin = origemDoPedido(request.headers, request.nextUrl.origin);
   // `destinoSeguro` so aceita rotas de conta; a redefinicao de senha (#32) e
   // a unica excecao, e e literal — nada de prefixo ou padrao.
   const pedido = searchParams.get('next');
