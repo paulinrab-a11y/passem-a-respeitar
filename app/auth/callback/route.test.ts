@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * O callback e a porta por onde um link de e-mail vira sessao. O que se
@@ -160,5 +160,65 @@ describe('troca de e-mail', () => {
 
     expect(d.origin).toBe(ORIGEM);
     expect(d.pathname).toBe('/conta');
+  });
+});
+
+/**
+ * O motivo da falha vai para o log (#139). O que se prova e o que NAO vai:
+ * nenhum valor de credencial, e nenhum texto livre vindo da URL.
+ */
+describe('registro da falha', () => {
+  const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  afterEach(() => {
+    aviso.mockClear();
+  });
+
+  const linha = () => String(aviso.mock.calls[0]?.[0] ?? '');
+
+  it('guarda o codigo do erro e os nomes dos parametros', async () => {
+    await chega(
+      '?error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid'
+    );
+
+    expect(linha()).toContain('motivo=otp_expired');
+    expect(linha()).toContain('parametros=error,error_code,error_description');
+    expect(linha()).not.toContain('Email link is invalid');
+  });
+
+  it('nunca escreve o valor do codigo de autorizacao', async () => {
+    exchangeCodeForSession.mockResolvedValue({ error: { message: 'invalid' } });
+    await chega('?code=segredo-de-uso-unico');
+
+    expect(linha()).toContain('etapa=troca_do_codigo');
+    expect(linha()).toContain('parametros=code');
+    expect(linha()).not.toContain('segredo-de-uso-unico');
+  });
+
+  it('nunca escreve o valor do token_hash', async () => {
+    verifyOtp.mockResolvedValue({ error: { message: 'expired' } });
+    await chega('?token_hash=hash-secreto&type=recovery');
+
+    expect(linha()).toContain('etapa=token_hash');
+    expect(linha()).not.toContain('hash-secreto');
+  });
+
+  it('error_code fora do formato nao e copiado para o log', async () => {
+    await chega('?error_code=%0Alinha+forjada+no+log');
+
+    expect(linha()).toContain('motivo=fora_do_formato');
+    expect(linha()).not.toContain('forjada');
+  });
+
+  it('nome de parametro fora do formato tambem nao entra', async () => {
+    await chega('?error_code=otp_expired&%0Ainjetado=1');
+
+    expect(linha()).not.toContain('injetado');
+  });
+
+  it('link bom nao escreve nada', async () => {
+    await chega('?code=abc');
+
+    expect(aviso).not.toHaveBeenCalled();
   });
 });
