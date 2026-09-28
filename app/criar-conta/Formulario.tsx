@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
+import { useCaixinha } from '@/app/_ui/campos';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { criarConta } from './acoes';
 import { criarContaInicial } from './estado';
@@ -23,6 +24,8 @@ export default function Formulario() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmacao, setConfirmacao] = useState('');
+  // A caixinha tambem: errar a senha nao pode desmarcar o aceite (#130).
+  const { caixinha } = useCaixinha();
   const forca = forcaDaSenha(senha);
   const form = useRef<HTMLFormElement>(null);
 
@@ -131,6 +134,7 @@ export default function Formulario() {
         <input
           type="checkbox"
           name="aceite"
+          {...caixinha}
           disabled={pendente}
           aria-invalid={invalido('aceite')}
         />
