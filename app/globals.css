@@ -124,6 +124,11 @@ section{position:relative}
 #merch .preco{margin-top:10px;font-family:var(--display);font-size:clamp(40px,5vw,64px);line-height:1;color:#fff}
 #merch .preco small{font-size:.42em;color:var(--prata-2);letter-spacing:.1em;vertical-align:top;margin-right:.2em}
 #merch .desc{margin-top:14px;font-size:15px;letter-spacing:.05em;line-height:1.5;color:var(--prata-2);max-width:40ch}
+/* O seletor de tamanho e um <fieldset> (#59). Zera o que o navegador poe
+   nele por conta propria — borda, recuo e a largura minima que impede o
+   grupo de encolher —, e o que sobra e a caixa de um <div>. A margem de cima
+   e de cada seletor, logo abaixo. */
+fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #merch .tam{margin-top:26px;display:flex;gap:8px}
 #merch .tam button{width:46px;height:46px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:.2s}
 #merch .tam button:hover{border-color:var(--prata)}
@@ -980,12 +985,14 @@ footer.assina a:hover{color:var(--vermelho)}
 
 /* Loading e progresso (#50) --------------------------------------------------
    Rotulo que nao muda de largura: os dois textos na mesma celula. */
-.rotulo{display:inline-grid;justify-items:center}
-.rotulo>span{grid-area:1/1}
-.rotulo>span:last-child{visibility:hidden}
-.rotulo[data-ativo]>span:first-child{visibility:hidden}
-.rotulo[data-ativo]>span:last-child{visibility:visible}
-.auth-link .rotulo,.menu-conta-in .rotulo{justify-items:start}
+/* `rotulo-acao`, e nao `rotulo`: esse nome ja era do texto "tamanho" no modal
+   da loja, e a regra daqui caia em cima dele. */
+.rotulo-acao{display:inline-grid;justify-items:center}
+.rotulo-acao>span{grid-area:1/1}
+.rotulo-acao>span:last-child{visibility:hidden}
+.rotulo-acao[data-ativo]>span:first-child{visibility:hidden}
+.rotulo-acao[data-ativo]>span:last-child{visibility:visible}
+.auth-link .rotulo-acao,.menu-conta-in .rotulo-acao{justify-items:start}
 
 /* Botao de texto trabalhando: uma linha que enche por baixo, uma vez. */
 .auth-link.carregando,.menu-conta-in .sair.carregando{position:relative;cursor:progress}

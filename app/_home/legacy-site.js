@@ -87,7 +87,8 @@ const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googl
   const link = ()=>{ $('#comprar').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
   $('#tamanhos').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
-    $$('#tamanhos button').forEach(x=>x.classList.toggle('on', x===b)); tam = b.dataset.t; link(); Som.tick();
+    // `aria-pressed` anda junto com a classe (#59): a classe pinta, o atributo diz.
+    $$('#tamanhos button').forEach(x=>{ x.classList.toggle('on', x===b); x.setAttribute('aria-pressed', String(x===b)); }); tam = b.dataset.t; link(); Som.tick();
   });
   link();
 })();
@@ -690,7 +691,7 @@ const Loja = (()=>{
   };
   $('#tamLoja').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
-    $$('#tamLoja button').forEach(x=>x.classList.toggle('on', x===b)); tam = b.dataset.t; link();
+    $$('#tamLoja button').forEach(x=>{ x.classList.toggle('on', x===b); x.setAttribute('aria-pressed', String(x===b)); }); tam = b.dataset.t; link();
   });
   link();
 
@@ -805,7 +806,7 @@ const Loja = (()=>{
   }
   function abre(t, quem){
     if (CONFIG.merch360) init360(); else init();
-    if (t){ tam = t; $$('#tamLoja button').forEach(x=>x.classList.toggle('on', x.dataset.t===t)); link(); }
+    if (t){ tam = t; $$('#tamLoja button').forEach(x=>{ x.classList.toggle('on', x.dataset.t===t); x.setAttribute('aria-pressed', String(x.dataset.t===t)); }); link(); }
     modal.abre(quem); aberto = true; document.documentElement.classList.add('locked');
     if (!CONFIG.merch360) requestAnimationFrame(()=>{ redimensiona(); loop(); });
     Som.corrente(0.5);

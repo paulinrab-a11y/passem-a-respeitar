@@ -21,7 +21,7 @@ export default function Rotulo({
   ativo: boolean;
 }) {
   return (
-    <span className="rotulo" data-ativo={ativo ? '' : undefined}>
+    <span className="rotulo-acao" data-ativo={ativo ? '' : undefined}>
       <span aria-hidden={ativo ? true : undefined}>{parado}</span>
       <span aria-hidden={ativo ? undefined : true}>{agindo}</span>
     </span>

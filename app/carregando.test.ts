@@ -100,14 +100,14 @@ describe('estilo de carregando', () => {
 
 describe('largura do rotulo', () => {
   it('os dois textos ocupam a mesma celula', () => {
-    expect(CSS).toContain('.rotulo{display:inline-grid;justify-items:center}');
-    expect(CSS).toContain('.rotulo>span{grid-area:1/1}');
+    expect(CSS).toContain('.rotulo-acao{display:inline-grid;justify-items:center}');
+    expect(CSS).toContain('.rotulo-acao>span{grid-area:1/1}');
   });
 
   it('esconde com visibility, que guarda o espaco, e nao com display', () => {
-    expect(CSS).toContain('.rotulo>span:last-child{visibility:hidden}');
-    expect(CSS).toContain('.rotulo[data-ativo]>span:first-child{visibility:hidden}');
-    expect(CSS).not.toMatch(/\.rotulo[^{]*\{[^}]*display:none/);
+    expect(CSS).toContain('.rotulo-acao>span:last-child{visibility:hidden}');
+    expect(CSS).toContain('.rotulo-acao[data-ativo]>span:first-child{visibility:hidden}');
+    expect(CSS).not.toMatch(/\.rotulo-acao[^{]*\{[^}]*display:none/);
   });
 });
 
