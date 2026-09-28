@@ -223,8 +223,8 @@ público e hash de código curto cai em dicionário.
 ### Ponta a ponta
 
 Playwright, em `e2e/`. Cobre cadastro, login, logout, troca de senha,
-recuperação de senha, pedidos e o caso negativo: um usuário tentando abrir o
-pedido de outro.
+recuperação de senha, pedidos, a tela administrativa e o caso negativo: um
+usuário tentando abrir o pedido de outro.
 
 ```
 npm run e2e:banco     # uma vez; precisa do Docker aberto

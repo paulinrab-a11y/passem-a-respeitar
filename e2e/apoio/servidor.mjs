@@ -11,7 +11,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { ambienteLocal, SITE } from './ambiente.mjs';
+import { ADMIN, ambienteLocal, SITE } from './ambiente.mjs';
 
 const local = ambienteLocal();
 const next = createRequire(import.meta.url).resolve('next/dist/bin/next');
@@ -25,7 +25,6 @@ const next = createRequire(import.meta.url).resolve('next/dist/bin/next');
  * que impede a suite de falar com Redis, Sentry ou Mercado Pago de verdade.
  */
 const DESLIGADAS = [
-  'ADMIN_EMAILS',
   'CONVITE_CODIGOS_HASH',
   'CONVITE_COOKIE_SECRET',
   'CONVITE_TEASER_EMBED',
@@ -62,6 +61,9 @@ Object.assign(env, {
   NEXT_PUBLIC_SUPABASE_URL: local.supabase,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local.chavePublica,
   SUPABASE_SECRET_KEY: local.chaveSecreta,
+  // Definida, e nao herdada: o administrador de verdade, que esta no
+  // `.env.local` de quem desenvolve, nao administra o banco de teste.
+  ADMIN_EMAILS: ADMIN,
   NEXT_TELEMETRY_DISABLED: '1',
 });
 

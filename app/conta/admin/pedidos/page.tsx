@@ -7,6 +7,7 @@ import { ENTRAR } from '@/lib/rotas';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import MudarStatus from './MudarStatus';
+import Selo from './Selo';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,7 +86,7 @@ export default async function PedidosAdmin() {
                       <h2>
                         <a href={`/conta/pedidos/${p.id}`}>Pedido #{p.numero}</a>
                       </h2>
-                      <span className={`pedido-status ${tom}`}>{rotulo}</span>
+                      <Selo rotulo={rotulo} tom={tom} />
                     </div>
 
                     <p className="pedido-data">
