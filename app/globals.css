@@ -366,6 +366,10 @@ footer.assina a:hover{color:var(--vermelho)}
 
 @keyframes auth-erro-entra{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .auth-erro{font-size:13px;letter-spacing:.04em;line-height:1.45;color:var(--vermelho);border-left:2px solid var(--vermelho);padding-left:12px;animation:auth-erro-entra .16s cubic-bezier(.22,1,.36,1) backwards}
+/* A mensagem antiga sai antes de a nova entrar (#155). So opacidade, e mais
+   curta que a entrada: o que sai nao precisa ser lido de novo. */
+@keyframes auth-erro-sai{from{opacity:1}to{opacity:0}}
+.auth-erro.saindo{animation:auth-erro-sai .12s cubic-bezier(.4,0,1,1) forwards}
 
 .auth-enviar{justify-content:center;margin-top:6px}
 /* Feedback tatil imediato, sem duracao: o dedo ja saiu antes de 100ms. */
@@ -404,6 +408,7 @@ footer.assina a:hover{color:var(--vermelho)}
      porque a cascata vem de `:nth-child`, mais especifico que esta regra. */
   .auth-caixa>*{animation-name:so-fade;animation-delay:0s!important}
   .auth-erro{animation-name:so-fade}
+  .auth-erro.saindo{animation-name:so-fade-sai}
   /* O estado final continua sendo o vermelho cheio: o botao ainda diz que
      esta trabalhando, so nao anima ate la. */
   .btn.carregando::before{transition:none}
@@ -452,6 +457,8 @@ footer.assina a:hover{color:var(--vermelho)}
 
 @keyframes conta-recado-entra{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .conta-recado{font-size:13px;letter-spacing:.04em;line-height:1.45;animation:conta-recado-entra .16s cubic-bezier(.22,1,.36,1) backwards}
+@keyframes conta-recado-sai{from{opacity:1}to{opacity:0}}
+.conta-recado.saindo{animation:conta-recado-sai .12s cubic-bezier(.4,0,1,1) forwards}
 .conta-recado.ok{color:var(--prata)}
 .conta-recado.erro{color:var(--vermelho)}
 
@@ -465,6 +472,9 @@ footer.assina a:hover{color:var(--vermelho)}
 
 @media (prefers-reduced-motion:reduce){
   .conta-recado{animation:none}
+  /* A entrada some com movimento reduzido; a saida fica, como fade (#155).
+     Sumir de uma vez e mais brusco que um fade de 120 ms. */
+  .conta-recado.saindo{animation:so-fade-sai .12s cubic-bezier(.4,0,1,1) forwards}
   .conta-progresso i{transition:none}
 }
 
@@ -945,11 +955,21 @@ footer.assina a:hover{color:var(--vermelho)}
 .troca-email-pendente form{margin:12px 0 0}
 .troca-email-pendente button{padding:0}
 .troca-email .conta-recado{margin-top:14px}
+/* Formulario e troca pendente ocupam o mesmo lugar, um de cada vez (#155). O
+   que esta na tela sai com fade, e so entao o outro entra. O formulario so
+   ganha entrada depois de uma troca: na carga da pagina ele ja vem dentro da
+   entrada da propria pagina. */
+@keyframes troca-email-entra{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@keyframes troca-email-sai{from{opacity:1}to{opacity:0}}
+.troca-email-form.entrou{animation:troca-email-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.troca-email-pendente.saindo,.troca-email-form.saindo{animation:troca-email-sai .13s cubic-bezier(.4,0,1,1) forwards;pointer-events:none}
 @media (max-width:600px){
   .troca-email-pendente button{min-height:44px;display:flex;align-items:center}
 }
 @media (prefers-reduced-motion:reduce){
   .troca-email-pendente{animation:none}
+  .troca-email-form.entrou{animation-name:so-fade}
+  .troca-email-pendente.saindo,.troca-email-form.saindo{animation:so-fade-sai .13s cubic-bezier(.4,0,1,1) forwards}
 }
 
 /* A area de conta ancora no topo (#46).

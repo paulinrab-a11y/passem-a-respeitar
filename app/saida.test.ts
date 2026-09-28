@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -54,6 +54,10 @@ describe('a saida e mais rapida que a entrada', () => {
     'excluir',
     'sessao',
     'rota',
+    // Mensagens e a troca de e-mail (#155).
+    'auth-erro',
+    'conta-recado',
+    'troca-email',
   ];
 
   it.each(PARES)('%s', (prefixo) => {
@@ -84,6 +88,66 @@ describe('a saida e mais rapida que a entrada', () => {
 
     expect(usos.length).toBeGreaterThan(15);
     expect(usos.filter((u) => !u.startsWith('cubic-bezier('))).toEqual([]);
+  });
+});
+
+describe('mensagens de formulario (#155)', () => {
+  it.each(['auth-erro', 'conta-recado', 'troca-email'])('%s-sai e so fade', (prefixo) => {
+    expect(CSS).toContain(`@keyframes ${prefixo}-sai{from{opacity:1}to{opacity:0}}`);
+  });
+
+  it.each([
+    ['.auth-erro.saindo', 'auth-erro-sai'],
+    ['.conta-recado.saindo', 'conta-recado-sai'],
+    ['.troca-email-pendente.saindo,.troca-email-form.saindo', 'troca-email-sai'],
+  ])('%s fica no estado final ate sair da tela', (seletor, nome) => {
+    const escapado = seletor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    expect(CSS).toMatch(new RegExp(`${escapado}\\{animation:${nome} [^;}]+ forwards`));
+  });
+
+  it('com movimento reduzido a saida continua existindo, como fade', () => {
+    expect(REDUZIDO).toContain('.auth-erro.saindo{animation-name:so-fade-sai}');
+    expect(REDUZIDO).toMatch(/\.conta-recado\.saindo\{animation:so-fade-sai /);
+    expect(REDUZIDO).toMatch(
+      /\.troca-email-pendente\.saindo,\.troca-email-form\.saindo\{animation:so-fade-sai /
+    );
+  });
+
+  it('o que esta saindo na troca de e-mail nao recebe clique', () => {
+    expect(CSS).toMatch(
+      /\.troca-email-pendente\.saindo,\.troca-email-form\.saindo\{[^}]*pointer-events:none/
+    );
+  });
+
+  it('o lugar reservado nao depende de haver mensagem dentro', () => {
+    expect(CSS).toMatch(/\.erro-vaga\{[^}]*min-height:calc\(2 \* 1\.45em\)/);
+    expect(CSS).not.toMatch(/\.erro-vaga:empty/);
+  });
+
+  it('nenhum formulario desenha mensagem na mao: todos passam pela Mensagem', () => {
+    const achados: string[] = [];
+    const olha = (pasta: string) => {
+      for (const item of readdirSync(pasta, { withFileTypes: true })) {
+        const caminho = `${pasta}/${item.name}`;
+        if (item.isDirectory()) olha(caminho);
+        else if (/\.tsx$/.test(item.name) && !/\.test\.tsx$/.test(item.name)) {
+          const fonte = readFileSync(caminho, 'utf8');
+          if (/<p[^>]*className=\{?[`"'][^>]*\b(?:conta-recado|auth-erro)\b/.test(fonte)) {
+            achados.push(caminho);
+          }
+        }
+      }
+    };
+    olha('app');
+
+    // As excecoes sao paginas de servidor e o formulario de pagamento: a
+    // mensagem nasce com a pagina, ou some junto com o bloco inteiro.
+    expect(achados.sort()).toEqual([
+      'app/checkout/pagamento/[id]/Brick.tsx',
+      'app/entrar/page.tsx',
+      'app/recuperar-senha/page.tsx',
+    ]);
   });
 });
 

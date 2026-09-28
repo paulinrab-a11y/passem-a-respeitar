@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { useCampos } from '@/app/_ui/campos';
+import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 import { finalizarCompra } from './acoes';
 import { checkoutInicial } from './estado';
@@ -106,11 +107,12 @@ export default function Entrega({
         ))}
       </div>
 
-      {estado.recado ? (
-        <p className={`conta-recado ${estado.recado.tom}`} role="alert">
-          {estado.recado.texto}
-        </p>
-      ) : null}
+      <Mensagem
+        texto={estado.recado?.texto}
+        chave={estado.recado?.texto ?? ''}
+        classe={`conta-recado ${estado.recado?.tom ?? 'erro'}`}
+        papel="alert"
+      />
 
       {/* `disabled` enquanto pendente e o que impede o clique duplo virar dois
           pedidos. O React tambem ignora submit de form ja em acao, mas

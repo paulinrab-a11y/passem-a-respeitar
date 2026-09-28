@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Rotulo from '@/app/_ui/Rotulo';
 import { useDesmonteAnimado } from './desmonte-animado';
+import Mensagem from './Mensagem';
 
 /**
  * Modal de reautenticacao (Issue #40).
@@ -94,11 +95,7 @@ export default function Reautenticar({
             />
           </label>
 
-          {erro ? (
-            <p className="conta-recado erro" role="alert">
-              {erro}
-            </p>
-          ) : null}
+          <Mensagem texto={erro} chave={erro ?? ''} classe="conta-recado erro" papel="alert" />
 
           <div className="modal-acoes">
             <button

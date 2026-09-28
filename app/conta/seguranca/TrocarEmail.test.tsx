@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fimDaAnimacao } from '@/app/_ui/fim-da-animacao';
 import type { EstadoCancelamento, EstadoEmail } from './estado-email';
 
 const resposta = vi.hoisted(() => ({ tom: 'erro' as 'ok' | 'erro' }));
@@ -108,7 +109,73 @@ describe('recado do pedido', () => {
     // O servidor revalida a pagina e passa a mandar o endereco pendente.
     rerender(<TrocarEmail atual={ATUAL} pendente="nova@exemplo.invalid" />);
 
+    // Os dois saem com fade (#155): o formulario e o recado dele.
+    const form = container.querySelector('form') as HTMLFormElement;
+    const recado = screen.getByText('Mandamos dois links.');
+    expect(form.className).toContain('saindo');
+    expect(recado.className).toContain('saindo');
+
+    fimDaAnimacao(form);
+    fimDaAnimacao(recado);
+
     expect(screen.queryByText('Mandamos dois links.')).toBeNull();
     expect(screen.getByText('Cancelar a troca')).toBeTruthy();
+  });
+});
+
+describe('troca entre formulario e troca pendente (#155)', () => {
+  it('na carga da pagina o formulario nao tem entrada propria nem saida', () => {
+    const { container } = render(<TrocarEmail atual={ATUAL} pendente={null} />);
+
+    expect(container.querySelector('form')?.className).toBe('conta-bloco troca-email-form');
+  });
+
+  it('o formulario sai antes de a troca pendente entrar', () => {
+    const { container, rerender } = render(<TrocarEmail atual={ATUAL} pendente={null} />);
+
+    rerender(<TrocarEmail atual={ATUAL} pendente="nova@exemplo.invalid" />);
+
+    const form = container.querySelector('form') as HTMLFormElement;
+    expect(form.className).toBe('conta-bloco troca-email-form saindo');
+    expect(container.querySelector('.troca-email-pendente')).toBeNull();
+
+    fimDaAnimacao(form);
+
+    expect(screen.queryByLabelText('Novo e-mail')).toBeNull();
+    expect(container.querySelector('.troca-email-pendente')?.className).toBe(
+      'troca-email-pendente'
+    );
+  });
+
+  it('a troca pendente sai dizendo para onde era, e o formulario volta com entrada', () => {
+    const { container, rerender } = render(
+      <TrocarEmail atual={ATUAL} pendente="nova@exemplo.invalid" />
+    );
+
+    // Cancelou: o servidor revalida e a prop vira null na hora.
+    rerender(<TrocarEmail atual={ATUAL} pendente={null} />);
+
+    const bloco = container.querySelector('.troca-email-pendente') as HTMLElement;
+    expect(bloco.className).toBe('troca-email-pendente saindo');
+    expect(bloco.textContent).toContain('nova@exemplo.invalid');
+    expect(screen.queryByLabelText('Novo e-mail')).toBeNull();
+
+    fimDaAnimacao(bloco);
+
+    expect(container.querySelector('.troca-email-pendente')).toBeNull();
+    expect((screen.getByLabelText('Novo e-mail').closest('form') as HTMLElement).className).toBe(
+      'conta-bloco troca-email-form entrou'
+    );
+  });
+
+  it('o fim da animacao do botao nao encerra a saida do bloco', () => {
+    const { container, rerender } = render(
+      <TrocarEmail atual={ATUAL} pendente="nova@exemplo.invalid" />
+    );
+    rerender(<TrocarEmail atual={ATUAL} pendente={null} />);
+
+    fimDaAnimacao(container.querySelector('.troca-email-pendente button') as HTMLElement);
+
+    expect(container.querySelector('.troca-email-pendente')).not.toBeNull();
   });
 });

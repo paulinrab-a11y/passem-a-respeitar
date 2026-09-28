@@ -148,7 +148,7 @@ export default function Formulario() {
         </span>
       </label>
 
-      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} />
+      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} enviando={pendente} />
 
       <button
         type="submit"

@@ -1,3 +1,5 @@
+import Mensagem from './Mensagem';
+
 /**
  * Erro de formulario com lugar reservado (Issue #51).
  *
@@ -10,29 +12,33 @@
  * mensagens mais longas ocupam. Mensagem maior que isso ainda empurra — e o
  * teste das mensagens existe para ninguem escrever uma.
  *
- * `role="alert"` fica no paragrafo, que nasce junto com o erro: elemento de
- * alerta inserido na pagina e anunciado na hora por leitor de tela. A `key`
- * muda a cada envio, entao o mesmo erro duas vezes seguidas e anunciado, e
- * animado, duas vezes.
+ * Quem desenha o paragrafo, com entrada e saida, e a `Mensagem` (#155). O
+ * lugar fica reservado tambem durante a saida: a caixa e esta, e ela nao sai.
  */
 export default function Erro({
   id,
   texto,
   tentativa,
+  enviando = false,
   classe = 'auth-erro',
 }: {
   id: string;
   texto: string | null | undefined;
   tentativa: number | string;
+  /** O formulario esta enviando: o erro do envio anterior sai. */
+  enviando?: boolean;
   classe?: string;
 }) {
   return (
     <div className="erro-vaga">
-      {texto ? (
-        <p key={tentativa} id={id} className={classe} role="alert">
-          {texto}
-        </p>
-      ) : null}
+      <Mensagem
+        id={id}
+        texto={texto}
+        chave={tentativa}
+        classe={classe}
+        papel="alert"
+        enviando={enviando}
+      />
     </div>
   );
 }

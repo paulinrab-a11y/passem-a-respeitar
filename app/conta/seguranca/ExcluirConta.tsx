@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from 'react';
 import { useCaixinha, useCampos } from '@/app/_ui/campos';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
+import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 import { exclusaoInicial } from './estado-exclusao';
 import { excluirConta } from './excluir';
@@ -75,11 +76,12 @@ export default function ExcluirConta({ email }: { email: string }) {
               <span>Entendi que não dá para desfazer</span>
             </label>
 
-            {estado.recado ? (
-              <p className={`conta-recado ${estado.recado.tom}`} role="alert">
-                {estado.recado.texto}
-              </p>
-            ) : null}
+            <Mensagem
+              texto={estado.recado?.texto}
+              chave={estado.recado?.texto ?? ''}
+              classe={`conta-recado ${estado.recado?.tom ?? 'erro'}`}
+              papel="alert"
+            />
 
             <div className="excluir-acoes">
               <button

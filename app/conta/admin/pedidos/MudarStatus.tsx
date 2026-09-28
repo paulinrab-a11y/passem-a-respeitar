@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { useCampos } from '@/app/_ui/campos';
+import Mensagem from '@/app/_ui/Mensagem';
 import { proximosDe, type StatusPedido, VERBO } from '@/lib/loja/status-do-pedido';
 import { mudarStatus } from './acoes';
 import { adminInicial } from './estado';
@@ -57,11 +58,12 @@ export default function MudarStatus({ pedido, status }: { pedido: string; status
         ))}
       </div>
 
-      {estado.recado && estado.pedido === pedido ? (
-        <p className={`conta-recado ${estado.recado.tom}`} role="alert">
-          {estado.recado.texto}
-        </p>
-      ) : null}
+      <Mensagem
+        texto={estado.pedido === pedido ? estado.recado?.texto : null}
+        chave={estado.recado?.texto ?? ''}
+        classe={`conta-recado ${estado.recado?.tom ?? 'erro'}`}
+        papel="alert"
+      />
     </form>
   );
 }

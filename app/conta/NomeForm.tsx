@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { useCampos } from '@/app/_ui/campos';
+import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 import { salvarNome } from './acoes';
 import { nomeInicial } from './estado';
@@ -26,16 +27,13 @@ export default function NomeForm({ nome }: { nome: string }) {
         />
       </label>
 
-      {estado.recado ? (
-        <p
-          key={estado.tentativa}
-          id="conta-recado-nome"
-          className={`conta-recado ${estado.recado.tom}`}
-          role="status"
-        >
-          {estado.recado.texto}
-        </p>
-      ) : null}
+      <Mensagem
+        id="conta-recado-nome"
+        texto={estado.recado?.texto}
+        chave={estado.tentativa}
+        classe={`conta-recado ${estado.recado?.tom ?? 'ok'}`}
+        papel="status"
+      />
 
       <button
         type="submit"

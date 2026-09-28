@@ -55,7 +55,7 @@ export default function Formulario({ next }: { next: string }) {
         </a>
       </div>
 
-      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} />
+      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} enviando={pendente} />
 
       {/* `.btn` e nao `.btn.cheio`: o fundo cheio esconde o ::before vermelho,
           que e justamente o que preenche o botao enquanto o envio acontece. */}

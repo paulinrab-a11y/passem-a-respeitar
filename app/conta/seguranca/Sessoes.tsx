@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useRef, useState } from 'react';
+import Mensagem from '@/app/_ui/Mensagem';
 import Reautenticar from '@/app/_ui/Reautenticar';
 import Rotulo from '@/app/_ui/Rotulo';
 import type { Sessao } from '@/lib/conta/sessoes';
@@ -95,11 +96,12 @@ export default function Sessoes({
         ))}
       </ul>
 
-      {atual.recado ? (
-        <p className={`conta-recado ${atual.recado.tom}`} role="status">
-          {atual.recado.texto}
-        </p>
-      ) : null}
+      <Mensagem
+        texto={atual.recado?.texto}
+        chave={atual.recado?.texto ?? ''}
+        classe={`conta-recado ${atual.recado?.tom ?? 'ok'}`}
+        papel="status"
+      />
 
       {/* O formulario do modal carrega o identificador guardado. A acao do
           servidor reautentica e chama a mesma funcao de antes — nao ha um

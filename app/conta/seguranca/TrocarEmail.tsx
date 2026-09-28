@@ -2,7 +2,9 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { comErro, useCampos } from '@/app/_ui/campos';
+import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
+import { useTrocaComSaida } from '@/app/_ui/troca-com-saida';
 import { cancelarTrocaDeEmail, trocarEmail } from './email';
 import { cancelamentoInicial, type EstadoEmail, emailInicial } from './estado-email';
 
@@ -12,6 +14,11 @@ import { cancelamentoInicial, type EstadoEmail, emailInicial } from './estado-em
  * Duas caras, decididas pelo SERVIDOR: `pendente` vem do usuario da sessao,
  * nao de estado da tela nem de parametro na URL. Com troca pendente, a tela
  * mostra para onde e oferece cancelar; sem, mostra o formulario.
+ *
+ * A troca de uma cara pela outra tem saida (#155): a que estava na tela sai
+ * com fade, e so entao a outra entra. O endereco pendente fica guardado
+ * durante a saida — cancelar zera a prop na hora, e sem isso o bloco sairia
+ * dizendo "troca pendente para" ninguem.
  */
 export default function TrocarEmail({
   atual,
@@ -52,15 +59,39 @@ export default function TrocarEmail({
     if (cancelamento.recado) setRecado(cancelamento.recado);
   }, [cancelamento.recado]);
 
+  const {
+    mostrado: pendenteNaTela,
+    saindo,
+    aoFimDaAnimacao,
+  } = useTrocaComSaida(paraOnde, {
+    // `null` aqui nao e "nada na tela": e o formulario, que tambem tem saida.
+    vazio: () => false,
+    limiteMs: 220,
+  });
+  const deSaida = saindo ? ' saindo' : '';
+
+  // Entrada so para o formulario que voltou depois de uma troca. Na carga da
+  // pagina ele ja vem dentro da entrada da propria pagina, e duas entradas
+  // uma dentro da outra somam.
+  const [trocou, setTrocou] = useState(false);
+  useEffect(() => {
+    if (saindo) setTrocou(true);
+  }, [saindo]);
+  const deEntrada = trocou && !saindo ? ' entrou' : '';
+
   return (
     <section className="troca-email">
       <h2>E-mail da conta</h2>
       <p className="troca-email-atual">{atual}</p>
 
-      {paraOnde ? (
-        <div className="troca-email-pendente" role="status">
+      {pendenteNaTela ? (
+        <div
+          className={`troca-email-pendente${deSaida}`}
+          role="status"
+          onAnimationEnd={aoFimDaAnimacao}
+        >
           <p>
-            Troca pendente para <strong>{paraOnde}</strong>.
+            Troca pendente para <strong>{pendenteNaTela}</strong>.
           </p>
           <p className="sessoes-nota">
             Mandamos um link para cada endereço. O e-mail só muda depois que os dois forem
@@ -78,7 +109,13 @@ export default function TrocarEmail({
           </form>
         </div>
       ) : (
-        <form action={acao} ref={form} className="conta-bloco" noValidate>
+        <form
+          action={acao}
+          ref={form}
+          className={`conta-bloco troca-email-form${deEntrada}${deSaida}`}
+          onAnimationEnd={aoFimDaAnimacao}
+          noValidate
+        >
           <label className="auth-campo">
             <span>Novo e-mail</span>
             <input
@@ -118,16 +155,20 @@ export default function TrocarEmail({
           Com a troca pendente na tela, o "mandamos dois links" do pedido seria
           a mesma frase duas vezes. Erro e cancelamento continuam aparecendo. */}
       <div className="erro-vaga">
-        {recado && !(paraOnde && recado === estado.recado && recado.tom === 'ok') ? (
-          <p
-            key={`${estado.tentativa}-${recado.texto}`}
-            id="recado-do-email"
-            className={`conta-recado ${recado.tom}`}
-            role={recado.tom === 'erro' ? 'alert' : 'status'}
-          >
-            {recado.texto}
-          </p>
-        ) : null}
+        <Mensagem
+          id="recado-do-email"
+          texto={
+            recado && !(paraOnde && recado === estado.recado && recado.tom === 'ok')
+              ? recado.texto
+              : null
+          }
+          chave={`${estado.tentativa}-${recado?.texto ?? ''}`}
+          classe={`conta-recado ${recado?.tom ?? 'ok'}`}
+          papel={recado?.tom === 'erro' ? 'alert' : 'status'}
+          // O lugar e reservado: o recado do envio anterior pode sair na hora
+          // do envio sem que nada abaixo se mova.
+          enviando={enviando || cancelando}
+        />
       </div>
     </section>
   );
