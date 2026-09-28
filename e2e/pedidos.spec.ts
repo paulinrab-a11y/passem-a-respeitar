@@ -94,8 +94,12 @@ test('pedidos: o detalhe abre pelo link da lista', async ({ comoAna }) => {
   await expect(comoAna.getByRole('link', { name: 'Pagar agora' })).toHaveCount(0);
 });
 
-test('pedidos: o pedido do vizinho e um pedido que nao existe', async ({ comoAna }) => {
+test('pedidos: o pedido do vizinho responde 404, como um que nao existe', async ({ comoAna }) => {
   const doVizinho = await comoAna.goto(`/conta/pedidos/${doBeto.id}`);
+
+  // 404 de verdade, no status, e nao so a tela de "nao encontrado" com 200
+  // por baixo: foi isso que esta suite achou na primeira rodada (#160).
+  expect(doVizinho?.status()).toBe(404);
   await expect(comoAna.getByText(NAO_ACHEI)).toBeVisible();
 
   // Nada do Beto chega ao navegador da Ana: nem desenhado, nem escondido no
@@ -114,7 +118,7 @@ test('pedidos: o pedido do vizinho e um pedido que nao existe', async ({ comoAna
   // diferenca entre as duas diria "este existe, so nao e seu".
   const inexistente = await comoAna.goto(`/conta/pedidos/${DE_NINGUEM}`);
   await expect(comoAna.getByText(NAO_ACHEI)).toBeVisible();
-  expect(doVizinho?.status()).toBe(inexistente?.status());
+  expect(inexistente?.status()).toBe(doVizinho?.status());
 });
 
 test('pedidos: id que nao e id responde 404', async ({ comoAna }) => {
@@ -126,6 +130,7 @@ test('pedidos: a tela de pagamento do pedido do vizinho tambem nao abre', async 
   const resposta = await comoAna.goto(`/checkout/pagamento/${doBeto.id}`);
   const corpo = (await resposta?.text()) ?? '';
 
+  expect(resposta?.status()).toBe(404);
   expect(corpo).not.toContain(DO_BETO.nome);
   expect(corpo).not.toContain('345,67');
   await expect(comoAna.getByRole('button', { name: /Pagar/ })).toHaveCount(0);
