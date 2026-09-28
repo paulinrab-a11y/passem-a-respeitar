@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Rotulo from '@/app/_ui/Rotulo';
 
 type Estado =
   | { fase: 'parado' }
@@ -55,6 +56,9 @@ export default function Foto({ url, iniciais }: { url: string | null; iniciais: 
   }
 
   const enviando = estado.fase === 'enviando';
+  // Fora do envio vale 0: o rotulo de "Enviando…" existe sempre, escondido,
+  // para reservar a largura (#50).
+  const porcento = estado.fase === 'enviando' ? estado.porcento : 0;
 
   return (
     <div className="conta-foto-bloco">
@@ -88,11 +92,17 @@ export default function Foto({ url, iniciais }: { url: string | null; iniciais: 
       <div className="conta-foto-acoes">
         <button
           type="button"
-          className="auth-link"
+          className={`auth-link${enviando ? ' carregando' : ''}`}
           onClick={() => campo.current?.click()}
           disabled={enviando}
         >
-          {enviando ? `Enviando… ${estado.porcento}%` : mostrada ? 'Trocar foto' : 'Escolher foto'}
+          {/* A porcentagem ocupa sempre tres casas: de 9% para 10% o texto
+              nao cresce, e o que esta ao lado nao anda (#50). */}
+          <Rotulo
+            parado={mostrada ? 'Trocar foto' : 'Escolher foto'}
+            agindo={`Enviando… ${String(porcento).padStart(3, '\u2007')}%`}
+            ativo={enviando}
+          />
         </button>
 
         <input

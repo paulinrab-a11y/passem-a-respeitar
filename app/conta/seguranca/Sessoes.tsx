@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState } from 'react';
 import Reautenticar from '@/app/_ui/Reautenticar';
+import Rotulo from '@/app/_ui/Rotulo';
 import type { Sessao } from '@/lib/conta/sessoes';
 import { encerrarSessao, reautenticarEEncerrar } from './acoes';
 import { sessaoInicial } from './estado-sessoes';
@@ -33,6 +34,9 @@ export default function Sessoes({
   const tentado = useRef<string | null>(null);
 
   const [modalFechado, setModalFechado] = useState(false);
+  // Qual linha a pessoa clicou. `pendente` e da lista inteira; sem isto todos
+  // os botoes diriam "Encerrando…" ao mesmo tempo (#50).
+  const [clicada, setClicada] = useState<string | null>(null);
   const atual = reautenticado.recado || reautenticado.precisaReautenticar ? reautenticado : estado;
   const pedindoSenha = Boolean(atual.precisaReautenticar) && !modalFechado;
 
@@ -69,12 +73,21 @@ export default function Sessoes({
                 action={acao}
                 onSubmit={() => {
                   tentado.current = s.identificador;
+                  setClicada(s.identificador);
                   setModalFechado(false);
                 }}
               >
                 <input type="hidden" name="identificador" value={s.identificador} />
-                <button type="submit" className="auth-link" disabled={pendente}>
-                  Encerrar
+                <button
+                  type="submit"
+                  className={`auth-link${pendente && clicada === s.identificador ? ' carregando' : ''}`}
+                  disabled={pendente}
+                >
+                  <Rotulo
+                    parado="Encerrar"
+                    agindo="Encerrando…"
+                    ativo={pendente && clicada === s.identificador}
+                  />
                 </button>
               </form>
             )}

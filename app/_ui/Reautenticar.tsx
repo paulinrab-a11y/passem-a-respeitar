@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Rotulo from '@/app/_ui/Rotulo';
 import { useDesmonteAnimado } from './desmonte-animado';
 
 /**
@@ -105,7 +106,7 @@ export default function Reautenticar({
               className={`btn${pendente ? ' carregando' : ''}`}
               disabled={pendente}
             >
-              {pendente ? 'Confirmando…' : 'Confirmar'}
+              <Rotulo parado="Confirmar" agindo="Confirmando…" ativo={pendente} />
             </button>
             <button type="button" className="auth-link" onClick={onCancelar} disabled={pendente}>
               Cancelar

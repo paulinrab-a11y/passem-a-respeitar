@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import Rotulo from '@/app/_ui/Rotulo';
 import { recuperarSenha } from './acoes';
 import { recuperarInicial } from './estado';
 
@@ -52,7 +53,7 @@ export default function Formulario() {
         className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
         disabled={pendente}
       >
-        {pendente ? 'Enviando…' : 'Enviar link'}
+        <Rotulo parado="Enviar link" agindo="Enviando…" ativo={pendente} />
       </button>
 
       <p className="auth-rodape">

@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { useCampos } from '@/app/_ui/campos';
+import Rotulo from '@/app/_ui/Rotulo';
 import { salvarNome } from './acoes';
 import { nomeInicial } from './estado';
 
@@ -41,7 +42,7 @@ export default function NomeForm({ nome }: { nome: string }) {
         className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
         disabled={pendente}
       >
-        {pendente ? 'Salvando…' : 'Salvar'}
+        <Rotulo parado="Salvar" agindo="Salvando…" ativo={pendente} />
       </button>
     </form>
   );

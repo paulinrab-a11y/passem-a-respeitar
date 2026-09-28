@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import { useDesmonteAnimado } from '@/app/_ui/desmonte-animado';
+import Rotulo from '@/app/_ui/Rotulo';
 import { sair, sairDeTodos } from './acoes';
 
 /**
@@ -24,7 +25,7 @@ export default function Sair() {
     <div className="conta-sair">
       <form action={() => comecar(() => void sair())}>
         <button type="submit" className={`btn${pendente ? ' carregando' : ''}`} disabled={pendente}>
-          {pendente ? 'Saindo…' : 'Sair'}
+          <Rotulo parado="Sair" agindo="Saindo…" ativo={pendente} />
         </button>
       </form>
 
@@ -45,7 +46,7 @@ export default function Sair() {
                 className={`btn${pendente ? ' carregando' : ''}`}
                 disabled={pendente}
               >
-                {pendente ? 'Saindo…' : 'Sair de tudo'}
+                <Rotulo parado="Sair de tudo" agindo="Saindo…" ativo={pendente} />
               </button>
             </form>
 

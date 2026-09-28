@@ -361,8 +361,15 @@ footer.assina a:hover{color:var(--vermelho)}
 /* O envio preenche o botao de vermelho e para. Nao e loop: e o mesmo wipe do
    hover, so que disparado por estado e mais lento, para durar o tempo da ida
    ao servidor sem virar enfeite piscando. */
-.auth-enviar.carregando{color:#000;border-color:var(--vermelho);cursor:progress}
-.auth-enviar.carregando::before{transform:none;transition:transform .7s cubic-bezier(.4,0,.2,1)}
+/* Todo `.btn`, e nao so o de enviar formulario (#50). Sair, Excluir, Confirmar
+   e os botoes do admin recebiam a classe `carregando` e nao havia regra para
+   ela: ficavam desabilitados, sem dizer que estavam trabalhando.
+   O fundo sai no `cheio`: a barra vermelha fica ATRAS do fundo do botao, e
+   com o fundo prata ela enchia sem ninguem ver. */
+.btn.carregando{color:#000;border-color:var(--vermelho);background:none;cursor:progress}
+.btn.carregando::before{display:block;transform:none;transition:transform .7s cubic-bezier(.4,0,.2,1)}
+.btn.perigo.carregando:disabled{color:#000;border-color:var(--vermelho);cursor:progress}
+.btn.perigo.carregando:disabled::before{display:block}
 
 .auth-rodape{margin-top:8px;font-size:13px;letter-spacing:.06em;color:var(--prata-2)}
 .auth-rodape a{color:var(--prata);text-decoration:none;border-bottom:1px solid var(--prata-3)}
@@ -387,7 +394,7 @@ footer.assina a:hover{color:var(--vermelho)}
   .auth-erro{animation-name:so-fade}
   /* O estado final continua sendo o vermelho cheio: o botao ainda diz que
      esta trabalhando, so nao anima ate la. */
-  .auth-enviar.carregando::before{transition:none}
+  .btn.carregando::before{transition:none}
   .btn:active{transform:none}
   .auth-scan{display:none}
 }
@@ -969,4 +976,30 @@ footer.assina a:hover{color:var(--vermelho)}
 @media (prefers-reduced-motion:reduce){
   .entra,#galeriaMerch.entra figure{transform:none}
   .entra.vis,#galeriaMerch.entra.vis figure{transition:opacity .2s cubic-bezier(.22,1,.36,1);transition-delay:0s!important}
+}
+
+/* Loading e progresso (#50) --------------------------------------------------
+   Rotulo que nao muda de largura: os dois textos na mesma celula. */
+.rotulo{display:inline-grid;justify-items:center}
+.rotulo>span{grid-area:1/1}
+.rotulo>span:last-child{visibility:hidden}
+.rotulo[data-ativo]>span:first-child{visibility:hidden}
+.rotulo[data-ativo]>span:last-child{visibility:visible}
+.auth-link .rotulo,.menu-conta-in .rotulo{justify-items:start}
+
+/* Botao de texto trabalhando: uma linha que enche por baixo, uma vez. */
+.auth-link.carregando,.menu-conta-in .sair.carregando{position:relative;cursor:progress}
+.auth-link.carregando::after,.menu-conta-in .sair.carregando::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:1px;background:var(--vermelho);transform-origin:left;animation:link-carrega .7s cubic-bezier(.4,0,.2,1) both}
+@keyframes link-carrega{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* Barra de progresso da troca de rota. Cresce rapido e desacelera, e nunca
+   chega ao fim: quem completa e a pagina nova aparecendo. */
+.barra-rota{position:fixed;top:0;left:0;right:0;height:2px;z-index:100;background:var(--vermelho);transform-origin:left;transform:scaleX(0);opacity:0;pointer-events:none}
+.barra-rota.on{opacity:1;animation:rota-progresso 8s cubic-bezier(.08,.6,.2,1) forwards}
+@keyframes rota-progresso{from{transform:scaleX(0)}to{transform:scaleX(.9)}}
+
+@media (prefers-reduced-motion:reduce){
+  /* A linha e a barra continuam dizendo "trabalhando", paradas. */
+  .auth-link.carregando::after,.menu-conta-in .sair.carregando::after{animation:none}
+  .barra-rota.on{animation:none;transform:scaleX(.6)}
 }

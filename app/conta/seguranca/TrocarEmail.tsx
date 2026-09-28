@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useCampos } from '@/app/_ui/campos';
+import Rotulo from '@/app/_ui/Rotulo';
 import { cancelarTrocaDeEmail, trocarEmail } from './email';
 import { cancelamentoInicial, type EstadoEmail, emailInicial } from './estado-email';
 
@@ -67,8 +68,12 @@ export default function TrocarEmail({
           </p>
 
           <form action={acaoCancelar}>
-            <button type="submit" className="auth-link" disabled={cancelando}>
-              {cancelando ? 'Cancelando…' : 'Cancelar a troca'}
+            <button
+              type="submit"
+              className={`auth-link${cancelando ? ' carregando' : ''}`}
+              disabled={cancelando}
+            >
+              <Rotulo parado="Cancelar a troca" agindo="Cancelando…" ativo={cancelando} />
             </button>
           </form>
         </div>
@@ -103,7 +108,7 @@ export default function TrocarEmail({
             className={`btn auth-enviar${enviando ? ' carregando' : ''}`}
             disabled={enviando}
           >
-            {enviando ? 'Enviando…' : 'Trocar e-mail'}
+            <Rotulo parado="Trocar e-mail" agindo="Enviando…" ativo={enviando} />
           </button>
         </form>
       )}

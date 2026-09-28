@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
+import Rotulo from '@/app/_ui/Rotulo';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { redefinirSenha } from './acoes';
 import { redefinirInicial } from './estado';
@@ -71,7 +72,7 @@ export default function Formulario() {
         className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
         disabled={pendente}
       >
-        {pendente ? 'Salvando…' : 'Salvar nova senha'}
+        <Rotulo parado="Salvar nova senha" agindo="Salvando…" ativo={pendente} />
       </button>
     </form>
   );

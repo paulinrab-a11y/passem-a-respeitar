@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { useCaixinha, useCampos } from '@/app/_ui/campos';
+import Rotulo from '@/app/_ui/Rotulo';
 import { entrar } from './acoes';
 import { estadoInicial } from './estado';
 
@@ -69,7 +70,7 @@ export default function Formulario({ next }: { next: string }) {
         className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
         disabled={pendente}
       >
-        {pendente ? 'Entrando…' : 'Entrar'}
+        <Rotulo parado="Entrar" agindo="Entrando…" ativo={pendente} />
       </button>
 
       <p className="auth-rodape">
