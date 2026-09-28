@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
+import { useCampos } from '@/app/_ui/campos';
 import { proximosDe, type StatusPedido, VERBO } from '@/lib/loja/status-do-pedido';
 import { mudarStatus } from './acoes';
 import { adminInicial } from './estado';
@@ -16,6 +17,13 @@ import { adminInicial } from './estado';
 export default function MudarStatus({ pedido, status }: { pedido: string; status: StatusPedido }) {
   const [estado, acao, pendente] = useActionState(mudarStatus, adminInicial);
   const destinos = proximosDe(status);
+  // Controlado: o React 19 apagaria o motivo quando a acao respondesse com
+  // erro (#130). No sucesso ele sai, para nao valer para a proxima etapa.
+  const { campo, limpar } = useCampos({ motivo: '' });
+
+  useEffect(() => {
+    if (estado.recado?.tom === 'ok' && estado.pedido === pedido) limpar();
+  }, [estado.recado, estado.pedido, pedido, limpar]);
 
   if (destinos.length === 0) {
     return <p className="detalhe-nota admin-final">Sem próxima etapa.</p>;
@@ -27,7 +35,7 @@ export default function MudarStatus({ pedido, status }: { pedido: string; status
 
       <label className="auth-campo">
         <span>Motivo (opcional)</span>
-        <input name="motivo" type="text" maxLength={300} disabled={pendente} />
+        <input {...campo('motivo')} type="text" maxLength={300} disabled={pendente} />
       </label>
 
       <div className="admin-botoes">
