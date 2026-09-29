@@ -106,10 +106,14 @@ export default function Foto({ url, iniciais }: { url: string | null; iniciais: 
           />
         </button>
 
+        {/* `hidden`, e nao escondido so da vista (#175). Quem abre a escolha
+            de arquivo e o botao acima, que tem nome. Escondido so da vista, o
+            campo continuava na ordem do Tab, sem nome e com o foco invisivel:
+            o leitor de tela anunciava "escolher arquivo" do nada. */}
         <input
           ref={campo}
           type="file"
-          className="sr"
+          hidden
           accept="image/jpeg,image/png,image/webp"
           onChange={(e) => {
             const arquivo = e.target.files?.[0];
