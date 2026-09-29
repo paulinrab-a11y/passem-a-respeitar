@@ -16,6 +16,8 @@
       li{margin:6px 0}
       section{margin-top:28px;padding:22px;border:1px solid #1c1d20;border-left:2px solid #e0161f;background:#0a0a0a}
       .onde{margin:0 0 16px;color:#7d8188;font-size:13px}
+      .onde b{color:#cdd0d5}
+      .onde .liga{color:#fff}
       label{display:block;margin:14px 0 6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#7d8188}
       small{letter-spacing:0;text-transform:none}
       .campo{display:flex;gap:10px;align-items:flex-start}
@@ -30,17 +32,19 @@
   <body>
     <main>
       <h1>E-mails no painel do Supabase</h1>
-      <p>São 8 modelos. Para cada um: copiar o assunto, colar; copiar o corpo, colar; salvar.</p>
+      <p>São 13 modelos, um para cada linha do painel, na mesma ordem da tela: 6 em Authentication e 7 em Security.</p>
       <ol>
-        <li>Abra <a href="https://supabase.com/dashboard/project/kmkhokjkpbysmyohaqag/auth/templates" target="_blank" rel="noopener">o painel do Supabase, em Authentication, Emails</a>.</li>
-        <li>Escolha o modelo pelo nome em inglês, que é o título de cada bloco abaixo.</li>
-        <li>No corpo, troque para a visão de código-fonte antes de colar. Colando na visão comum, o painel mostra o HTML como texto.</li>
-        <li>Salve, e passe para o próximo.</li>
+        <li>Abra <a href="https://supabase.com/dashboard/project/kmkhokjkpbysmyohaqag/auth/templates" target="_blank" rel="noopener">o painel do Supabase, em Authentication, Emails</a>. Fique na aba <b>Templates</b>.</li>
+        <li>Clique na linha com o nome do bloco abaixo. Os nomes estão em inglês, como na tela.</li>
+        <li>Copie o assunto daqui e cole no campo do assunto. Copie o corpo daqui e cole no lugar do corpo que está lá, apagando o antigo.</li>
+        <li>Se o corpo colado aparecer como código na prévia, procure a opção de editar o código-fonte do modelo e cole ali.</li>
+        <li>Salve, volte para a lista e passe para a próxima linha.</li>
+        <li>No fim, em <b>Security</b>, ligue só as chaves de Password changed e Email address changed, e clique em <b>Save changes</b>.</li>
       </ol>
 
     <section>
-      <h2><span>1 de 8</span>Confirm sign up</h2>
-      <p class="onde">Aba <b>Templates</b></p>
+      <h2><span>1 de 13</span>Confirm sign up</h2>
+      <p class="onde">Seção <b>Authentication</b></p>
 
       <label for="a0">Assunto <small>(Subject)</small></label>
       <div class="campo">
@@ -111,12 +115,12 @@
     </section>
 
     <section>
-      <h2><span>2 de 8</span>Reset password</h2>
-      <p class="onde">Aba <b>Templates</b></p>
+      <h2><span>2 de 13</span>Invite user</h2>
+      <p class="onde">Seção <b>Authentication</b></p>
 
       <label for="a1">Assunto <small>(Subject)</small></label>
       <div class="campo">
-        <input readonly value="Criar uma senha nova — Passem a Respeitar" id="a1">
+        <input readonly value="Você foi convidado — Passem a Respeitar" id="a1">
         <button type="button" data-de="a1">Copiar</button>
       </div>
 
@@ -129,7 +133,7 @@
     &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
     &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
     &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
-    &lt;title&gt;Criar uma senha nova — Passem a Respeitar&lt;/title&gt;
+    &lt;title&gt;Você foi convidado — Passem a Respeitar&lt;/title&gt;
   &lt;/head&gt;
   &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
     &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
@@ -140,19 +144,19 @@
           &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Criar uma senha nova&lt;/td&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Você foi convidado&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Recebemos um pedido para criar uma senha nova nesta conta.&lt;/td&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Você recebeu um convite para criar uma conta no site do EP Passem a Respeitar.&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link vale por uma hora e só funciona uma vez. Se você pediu mais de um, use o mais recente.&lt;/td&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link vale por tempo limitado e só funciona uma vez.&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
           &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
             &lt;tr&gt;
               &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
-                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Criar senha nova&lt;/a&gt;
+                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Aceitar o convite&lt;/a&gt;
               &lt;/td&gt;
             &lt;/tr&gt;
           &lt;/table&gt;&lt;/td&gt;
@@ -164,7 +168,7 @@
           &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
             &lt;tr&gt;
               &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
-              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Sua senha continua a mesma.&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não esperava este convite? Ignore este e-mail.&lt;/td&gt;
             &lt;/tr&gt;
           &lt;/table&gt;&lt;/td&gt;
         &lt;/tr&gt;
@@ -183,18 +187,96 @@
     </section>
 
     <section>
-      <h2><span>3 de 8</span>Change email address</h2>
-      <p class="onde">Aba <b>Templates</b></p>
+      <h2><span>3 de 13</span>Magic link or OTP</h2>
+      <p class="onde">Seção <b>Authentication</b></p>
 
       <label for="a2">Assunto <small>(Subject)</small></label>
       <div class="campo">
-        <input readonly value="Confirme a troca de e-mail — Passem a Respeitar" id="a2">
+        <input readonly value="Seu acesso — Passem a Respeitar" id="a2">
         <button type="button" data-de="a2">Copiar</button>
       </div>
 
       <label for="c2">Corpo <small>(Body, na visão de código-fonte)</small></label>
       <div class="campo">
         <textarea readonly rows="7" id="c2">&lt;!doctype html&gt;
+&lt;html lang=&quot;pt-BR&quot;&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot;&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+    &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
+    &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
+    &lt;title&gt;Seu acesso — Passem a Respeitar&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
+    &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
+      &lt;tr&gt;
+        &lt;td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;&gt;
+      &lt;table role=&quot;presentation&quot; width=&quot;560&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#0a0a0a&quot; style=&quot;width:100%;max-width:560px;background:#0a0a0a;border:1px solid #1c1d20;border-top:3px solid #e0161f;&quot;&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Seu acesso&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Use o botão abaixo para entrar na sua conta.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link e o código valem por uma hora e só funcionam uma vez.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+            &lt;tr&gt;
+              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
+                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Entrar&lt;/a&gt;
+              &lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .ConfirmationURL }}&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Ou digite este código no site:&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:10px 28px 0;font-family:'Courier New',Courier,monospace;font-size:32px;letter-spacing:8px;color:#ffffff;&quot;&gt;{{ .Token }}&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
+            &lt;tr&gt;
+              &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Ninguém entra na conta sem o clique ou sem o código, e o site nunca pede o código por telefone nem por mensagem.&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#7d8188;&quot;&gt;Passem a Respeitar · Santxx x Ch3fe · WhyNot Records&lt;br&gt;Dúvidas: &lt;a href=&quot;mailto:atendimento.paulinrabelo@gmail.com&quot; style=&quot;color:#cdd0d5;&quot;&gt;atendimento.paulinrabelo@gmail.com&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+        &lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/table&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+        <button type="button" data-de="c2">Copiar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>4 de 13</span>Change email address</h2>
+      <p class="onde">Seção <b>Authentication</b></p>
+
+      <label for="a3">Assunto <small>(Subject)</small></label>
+      <div class="campo">
+        <input readonly value="Confirme a troca de e-mail — Passem a Respeitar" id="a3">
+        <button type="button" data-de="a3">Copiar</button>
+      </div>
+
+      <label for="c3">Corpo <small>(Body, na visão de código-fonte)</small></label>
+      <div class="campo">
+        <textarea readonly rows="7" id="c3">&lt;!doctype html&gt;
 &lt;html lang=&quot;pt-BR&quot;&gt;
   &lt;head&gt;
     &lt;meta charset=&quot;utf-8&quot;&gt;
@@ -253,89 +335,17 @@
   &lt;/body&gt;
 &lt;/html&gt;
 </textarea>
-        <button type="button" data-de="c2">Copiar</button>
-      </div>
-    </section>
-
-    <section>
-      <h2><span>4 de 8</span>Magic link</h2>
-      <p class="onde">Aba <b>Templates</b></p>
-
-      <label for="a3">Assunto <small>(Subject)</small></label>
-      <div class="campo">
-        <input readonly value="Seu link de acesso — Passem a Respeitar" id="a3">
-        <button type="button" data-de="a3">Copiar</button>
-      </div>
-
-      <label for="c3">Corpo <small>(Body, na visão de código-fonte)</small></label>
-      <div class="campo">
-        <textarea readonly rows="7" id="c3">&lt;!doctype html&gt;
-&lt;html lang=&quot;pt-BR&quot;&gt;
-  &lt;head&gt;
-    &lt;meta charset=&quot;utf-8&quot;&gt;
-    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
-    &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
-    &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
-    &lt;title&gt;Seu link de acesso — Passem a Respeitar&lt;/title&gt;
-  &lt;/head&gt;
-  &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
-    &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
-      &lt;tr&gt;
-        &lt;td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;&gt;
-      &lt;table role=&quot;presentation&quot; width=&quot;560&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#0a0a0a&quot; style=&quot;width:100%;max-width:560px;background:#0a0a0a;border:1px solid #1c1d20;border-top:3px solid #e0161f;&quot;&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Seu link de acesso&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Use o botão abaixo para entrar na sua conta.&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link vale por uma hora e só funciona uma vez.&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
-            &lt;tr&gt;
-              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
-                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Entrar&lt;/a&gt;
-              &lt;/td&gt;
-            &lt;/tr&gt;
-          &lt;/table&gt;&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .ConfirmationURL }}&lt;/a&gt;&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
-            &lt;tr&gt;
-              &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
-              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Ninguém entra na conta sem o clique.&lt;/td&gt;
-            &lt;/tr&gt;
-          &lt;/table&gt;&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:26px 28px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#7d8188;&quot;&gt;Passem a Respeitar · Santxx x Ch3fe · WhyNot Records&lt;br&gt;Dúvidas: &lt;a href=&quot;mailto:atendimento.paulinrabelo@gmail.com&quot; style=&quot;color:#cdd0d5;&quot;&gt;atendimento.paulinrabelo@gmail.com&lt;/a&gt;&lt;/td&gt;
-        &lt;/tr&gt;
-      &lt;/table&gt;
-        &lt;/td&gt;
-      &lt;/tr&gt;
-    &lt;/table&gt;
-  &lt;/body&gt;
-&lt;/html&gt;
-</textarea>
         <button type="button" data-de="c3">Copiar</button>
       </div>
     </section>
 
     <section>
-      <h2><span>5 de 8</span>Invite user</h2>
-      <p class="onde">Aba <b>Templates</b></p>
+      <h2><span>5 de 13</span>Reset password</h2>
+      <p class="onde">Seção <b>Authentication</b></p>
 
       <label for="a4">Assunto <small>(Subject)</small></label>
       <div class="campo">
-        <input readonly value="Você foi convidado — Passem a Respeitar" id="a4">
+        <input readonly value="Criar uma senha nova — Passem a Respeitar" id="a4">
         <button type="button" data-de="a4">Copiar</button>
       </div>
 
@@ -348,7 +358,7 @@
     &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
     &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
     &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
-    &lt;title&gt;Você foi convidado — Passem a Respeitar&lt;/title&gt;
+    &lt;title&gt;Criar uma senha nova — Passem a Respeitar&lt;/title&gt;
   &lt;/head&gt;
   &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
     &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
@@ -359,19 +369,19 @@
           &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Você foi convidado&lt;/td&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Criar uma senha nova&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Você recebeu um convite para criar uma conta no site do EP Passem a Respeitar.&lt;/td&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Recebemos um pedido para criar uma senha nova nesta conta.&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link vale por tempo limitado e só funciona uma vez.&lt;/td&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link vale por uma hora e só funciona uma vez. Se você pediu mais de um, use o mais recente.&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
           &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
             &lt;tr&gt;
               &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
-                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Aceitar o convite&lt;/a&gt;
+                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Criar senha nova&lt;/a&gt;
               &lt;/td&gt;
             &lt;/tr&gt;
           &lt;/table&gt;&lt;/td&gt;
@@ -383,7 +393,7 @@
           &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
             &lt;tr&gt;
               &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
-              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não esperava este convite? Ignore este e-mail.&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Sua senha continua a mesma.&lt;/td&gt;
             &lt;/tr&gt;
           &lt;/table&gt;&lt;/td&gt;
         &lt;/tr&gt;
@@ -402,8 +412,8 @@
     </section>
 
     <section>
-      <h2><span>6 de 8</span>Reauthentication</h2>
-      <p class="onde">Aba <b>Templates</b></p>
+      <h2><span>6 de 13</span>Reauthentication</h2>
+      <p class="onde">Seção <b>Authentication</b></p>
 
       <label for="a5">Assunto <small>(Subject)</small></label>
       <div class="campo">
@@ -462,8 +472,8 @@
     </section>
 
     <section>
-      <h2><span>7 de 8</span>Password changed</h2>
-      <p class="onde">Aba <b>Security notifications</b>: ligue o aviso antes de colar</p>
+      <h2><span>7 de 13</span>Password changed</h2>
+      <p class="onde">Seção <b>Security</b> · <b class="liga">ligue a chave desta linha</b></p>
 
       <label for="a6">Assunto <small>(Subject)</small></label>
       <div class="campo">
@@ -534,8 +544,8 @@
     </section>
 
     <section>
-      <h2><span>8 de 8</span>Email address changed</h2>
-      <p class="onde">Aba <b>Security notifications</b>: ligue o aviso antes de colar</p>
+      <h2><span>8 de 13</span>Email address changed</h2>
+      <p class="onde">Seção <b>Security</b> · <b class="liga">ligue a chave desta linha</b></p>
 
       <label for="a7">Assunto <small>(Subject)</small></label>
       <div class="campo">
@@ -593,6 +603,369 @@
 &lt;/html&gt;
 </textarea>
         <button type="button" data-de="c7">Copiar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>9 de 13</span>Phone number changed</h2>
+      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site não pede telefone. Com a chave desligada este e-mail nunca sai.</p>
+
+      <label for="a8">Assunto <small>(Subject)</small></label>
+      <div class="campo">
+        <input readonly value="O telefone da sua conta foi trocado — Passem a Respeitar" id="a8">
+        <button type="button" data-de="a8">Copiar</button>
+      </div>
+
+      <label for="c8">Corpo <small>(Body, na visão de código-fonte)</small></label>
+      <div class="campo">
+        <textarea readonly rows="7" id="c8">&lt;!doctype html&gt;
+&lt;html lang=&quot;pt-BR&quot;&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot;&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+    &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
+    &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
+    &lt;title&gt;O telefone da sua conta foi trocado — Passem a Respeitar&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
+    &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
+      &lt;tr&gt;
+        &lt;td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;&gt;
+      &lt;table role=&quot;presentation&quot; width=&quot;560&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#0a0a0a&quot; style=&quot;width:100%;max-width:560px;background:#0a0a0a;border:1px solid #1c1d20;border-top:3px solid #e0161f;&quot;&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;O telefone da conta foi trocado&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O telefone da sua conta mudou.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Era: {{ .OldPhone }}&lt;br&gt;Agora é: {{ .Phone }}&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Se foi você, não precisa fazer nada.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+            &lt;tr&gt;
+              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
+                &lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Não fui eu&lt;/a&gt;
+              &lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .SiteURL }}/recuperar-senha&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
+            &lt;tr&gt;
+              &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Alguém está dentro da sua conta. Use o botão acima para criar uma senha nova agora.&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#7d8188;&quot;&gt;Passem a Respeitar · Santxx x Ch3fe · WhyNot Records&lt;br&gt;Dúvidas: &lt;a href=&quot;mailto:atendimento.paulinrabelo@gmail.com&quot; style=&quot;color:#cdd0d5;&quot;&gt;atendimento.paulinrabelo@gmail.com&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+        &lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/table&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+        <button type="button" data-de="c8">Copiar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>10 de 13</span>Sign-in method linked</h2>
+      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site só tem login por e-mail e senha. Com a chave desligada este e-mail nunca sai.</p>
+
+      <label for="a9">Assunto <small>(Subject)</small></label>
+      <div class="campo">
+        <input readonly value="Uma forma de entrar foi adicionada — Passem a Respeitar" id="a9">
+        <button type="button" data-de="a9">Copiar</button>
+      </div>
+
+      <label for="c9">Corpo <small>(Body, na visão de código-fonte)</small></label>
+      <div class="campo">
+        <textarea readonly rows="7" id="c9">&lt;!doctype html&gt;
+&lt;html lang=&quot;pt-BR&quot;&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot;&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+    &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
+    &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
+    &lt;title&gt;Uma forma de entrar foi adicionada — Passem a Respeitar&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
+    &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
+      &lt;tr&gt;
+        &lt;td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;&gt;
+      &lt;table role=&quot;presentation&quot; width=&quot;560&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#0a0a0a&quot; style=&quot;width:100%;max-width:560px;background:#0a0a0a;border:1px solid #1c1d20;border-top:3px solid #e0161f;&quot;&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Nova forma de entrar na conta&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Sua conta ganhou uma nova forma de entrar: {{ .Provider }}.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Se foi você, não precisa fazer nada.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+            &lt;tr&gt;
+              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
+                &lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Não fui eu&lt;/a&gt;
+              &lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .SiteURL }}/recuperar-senha&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
+            &lt;tr&gt;
+              &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Alguém está dentro da sua conta. Use o botão acima para criar uma senha nova agora.&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#7d8188;&quot;&gt;Passem a Respeitar · Santxx x Ch3fe · WhyNot Records&lt;br&gt;Dúvidas: &lt;a href=&quot;mailto:atendimento.paulinrabelo@gmail.com&quot; style=&quot;color:#cdd0d5;&quot;&gt;atendimento.paulinrabelo@gmail.com&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+        &lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/table&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+        <button type="button" data-de="c9">Copiar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>11 de 13</span>Sign-in method removed</h2>
+      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site só tem login por e-mail e senha. Com a chave desligada este e-mail nunca sai.</p>
+
+      <label for="a10">Assunto <small>(Subject)</small></label>
+      <div class="campo">
+        <input readonly value="Uma forma de entrar foi removida — Passem a Respeitar" id="a10">
+        <button type="button" data-de="a10">Copiar</button>
+      </div>
+
+      <label for="c10">Corpo <small>(Body, na visão de código-fonte)</small></label>
+      <div class="campo">
+        <textarea readonly rows="7" id="c10">&lt;!doctype html&gt;
+&lt;html lang=&quot;pt-BR&quot;&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot;&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+    &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
+    &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
+    &lt;title&gt;Uma forma de entrar foi removida — Passem a Respeitar&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
+    &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
+      &lt;tr&gt;
+        &lt;td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;&gt;
+      &lt;table role=&quot;presentation&quot; width=&quot;560&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#0a0a0a&quot; style=&quot;width:100%;max-width:560px;background:#0a0a0a;border:1px solid #1c1d20;border-top:3px solid #e0161f;&quot;&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Uma forma de entrar foi removida&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Uma forma de entrar foi removida da sua conta: {{ .Provider }}.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Se foi você, não precisa fazer nada.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+            &lt;tr&gt;
+              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
+                &lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Não fui eu&lt;/a&gt;
+              &lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .SiteURL }}/recuperar-senha&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
+            &lt;tr&gt;
+              &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Alguém está dentro da sua conta. Use o botão acima para criar uma senha nova agora.&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#7d8188;&quot;&gt;Passem a Respeitar · Santxx x Ch3fe · WhyNot Records&lt;br&gt;Dúvidas: &lt;a href=&quot;mailto:atendimento.paulinrabelo@gmail.com&quot; style=&quot;color:#cdd0d5;&quot;&gt;atendimento.paulinrabelo@gmail.com&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+        &lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/table&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+        <button type="button" data-de="c10">Copiar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>12 de 13</span>MFA method added</h2>
+      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site não tem verificação em duas etapas. Com a chave desligada este e-mail nunca sai.</p>
+
+      <label for="a11">Assunto <small>(Subject)</small></label>
+      <div class="campo">
+        <input readonly value="A verificação em duas etapas foi ligada — Passem a Respeitar" id="a11">
+        <button type="button" data-de="a11">Copiar</button>
+      </div>
+
+      <label for="c11">Corpo <small>(Body, na visão de código-fonte)</small></label>
+      <div class="campo">
+        <textarea readonly rows="7" id="c11">&lt;!doctype html&gt;
+&lt;html lang=&quot;pt-BR&quot;&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot;&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+    &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
+    &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
+    &lt;title&gt;A verificação em duas etapas foi ligada — Passem a Respeitar&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
+    &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
+      &lt;tr&gt;
+        &lt;td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;&gt;
+      &lt;table role=&quot;presentation&quot; width=&quot;560&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#0a0a0a&quot; style=&quot;width:100%;max-width:560px;background:#0a0a0a;border:1px solid #1c1d20;border-top:3px solid #e0161f;&quot;&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Verificação em duas etapas ligada&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Sua conta ganhou um método de verificação em duas etapas: {{ .FactorType }}.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Daqui em diante, entrar na conta pede a senha e esse segundo passo. Se foi você, não precisa fazer nada.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+            &lt;tr&gt;
+              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
+                &lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Não fui eu&lt;/a&gt;
+              &lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .SiteURL }}/recuperar-senha&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
+            &lt;tr&gt;
+              &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Alguém está dentro da sua conta. Use o botão acima para criar uma senha nova agora.&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#7d8188;&quot;&gt;Passem a Respeitar · Santxx x Ch3fe · WhyNot Records&lt;br&gt;Dúvidas: &lt;a href=&quot;mailto:atendimento.paulinrabelo@gmail.com&quot; style=&quot;color:#cdd0d5;&quot;&gt;atendimento.paulinrabelo@gmail.com&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+        &lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/table&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+        <button type="button" data-de="c11">Copiar</button>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>13 de 13</span>MFA method removed</h2>
+      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site não tem verificação em duas etapas. Com a chave desligada este e-mail nunca sai.</p>
+
+      <label for="a12">Assunto <small>(Subject)</small></label>
+      <div class="campo">
+        <input readonly value="Um método de verificação foi removido — Passem a Respeitar" id="a12">
+        <button type="button" data-de="a12">Copiar</button>
+      </div>
+
+      <label for="c12">Corpo <small>(Body, na visão de código-fonte)</small></label>
+      <div class="campo">
+        <textarea readonly rows="7" id="c12">&lt;!doctype html&gt;
+&lt;html lang=&quot;pt-BR&quot;&gt;
+  &lt;head&gt;
+    &lt;meta charset=&quot;utf-8&quot;&gt;
+    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+    &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
+    &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
+    &lt;title&gt;Um método de verificação foi removido — Passem a Respeitar&lt;/title&gt;
+  &lt;/head&gt;
+  &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
+    &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
+      &lt;tr&gt;
+        &lt;td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;&gt;
+      &lt;table role=&quot;presentation&quot; width=&quot;560&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#0a0a0a&quot; style=&quot;width:100%;max-width:560px;background:#0a0a0a;border:1px solid #1c1d20;border-top:3px solid #e0161f;&quot;&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Método de verificação removido&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Um método de verificação em duas etapas foi removido da sua conta: {{ .FactorType }}.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;A conta ficou com uma proteção a menos. Se foi você, não precisa fazer nada.&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
+            &lt;tr&gt;
+              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
+                &lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Não fui eu&lt;/a&gt;
+              &lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .SiteURL }}/recuperar-senha&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .SiteURL }}/recuperar-senha&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
+            &lt;tr&gt;
+              &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Alguém está dentro da sua conta. Use o botão acima para criar uma senha nova agora.&lt;/td&gt;
+            &lt;/tr&gt;
+          &lt;/table&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:26px 28px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#7d8188;&quot;&gt;Passem a Respeitar · Santxx x Ch3fe · WhyNot Records&lt;br&gt;Dúvidas: &lt;a href=&quot;mailto:atendimento.paulinrabelo@gmail.com&quot; style=&quot;color:#cdd0d5;&quot;&gt;atendimento.paulinrabelo@gmail.com&lt;/a&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+      &lt;/table&gt;
+        &lt;/td&gt;
+      &lt;/tr&gt;
+    &lt;/table&gt;
+  &lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+        <button type="button" data-de="c12">Copiar</button>
       </div>
     </section>
 

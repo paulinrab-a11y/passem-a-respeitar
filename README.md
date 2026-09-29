@@ -186,8 +186,9 @@ duas: a migração e a validação do convite no servidor.
 ## E-mails de conta
 
 Confirmação de cadastro, recuperação de senha, troca de e-mail e os avisos de
-segurança saem pelo Supabase Auth, em português (#183). São oito modelos, com
-uma moldura só.
+segurança saem pelo Supabase Auth, em português (#183, #185). São treze
+modelos, um para cada linha do painel do Supabase, com uma moldura só. O site
+dispara cinco deles; os outros existem para nenhum e-mail sair em inglês.
 
 | Onde | O que é |
 |---|---|

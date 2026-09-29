@@ -1,6 +1,7 @@
 // Os e-mails de conta (Issue #183): os textos, a moldura e o guia.
 //
-// Oito e-mails, uma moldura. Este arquivo so monta texto: nao le nem escreve
+// Treze e-mails, uma moldura: um para cada linha do painel do Supabase. Este
+// arquivo so monta texto: nao le nem escreve
 // nada, e por isso pode ser importado pelos testes. Quem grava os .html e o
 // gera.mjs, ao lado.
 //
@@ -34,20 +35,38 @@ const TITULO = "Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif";
 const TEXTO = 'Arial,Helvetica,sans-serif';
 
 /**
- * Os oito e-mails.
+ * Os treze e-mails, NA ORDEM DO PAINEL do Supabase (Authentication, Emails,
+ * aba Templates). A ordem importa: e a do guia, e o dono cola de cima para
+ * baixo com o painel aberto ao lado.
  *
  *   chave    nome do arquivo e da secao no config.toml
  *   tipo     `template` ou `notification`, que e como o config.toml separa
- *   painel   o nome do modelo no painel do Supabase, em ingles, como esta la
+ *   secao    a secao do painel: Authentication ou Security
+ *   painel   o nome da linha no painel, em ingles, como esta la
  *   botao    [rotulo, destino]; sem botao, o e-mail so avisa
  *   codigo   mostra `{{ .Token }}` em destaque
+ *   ligar    so em Security: se a chave da linha deve ficar ligada
  *
  * As chaves entre chaves duplas sao do Supabase, e ficam como estao.
  */
+
+/** Por que cinco avisos ficam com a chave desligada. */
+const SEM_USO = {
+  telefone: 'O site não pede telefone. Com a chave desligada este e-mail nunca sai.',
+  login: 'O site só tem login por e-mail e senha. Com a chave desligada este e-mail nunca sai.',
+  etapas: 'O site não tem verificação em duas etapas. Com a chave desligada este e-mail nunca sai.',
+};
+
+const NAO_FUI_EU = ['Não fui eu', '{{ .SiteURL }}/recuperar-senha'];
+const CRIE_SENHA =
+  'Não foi você? Alguém está dentro da sua conta. Use o botão acima para criar uma senha nova agora.';
+
 export const EMAILS = [
+  // --- Authentication ---
   {
     chave: 'confirmation',
     tipo: 'template',
+    secao: 'Authentication',
     painel: 'Confirm sign up',
     assunto: 'Confirme seu e-mail — Passem a Respeitar',
     titulo: 'Confirme seu e-mail',
@@ -59,21 +78,40 @@ export const EMAILS = [
     aviso: 'Não foi você? Ignore este e-mail. Sem o clique, nenhuma conta é criada.',
   },
   {
-    chave: 'recovery',
+    chave: 'invite',
     tipo: 'template',
-    painel: 'Reset password',
-    assunto: 'Criar uma senha nova — Passem a Respeitar',
-    titulo: 'Criar uma senha nova',
+    secao: 'Authentication',
+    painel: 'Invite user',
+    assunto: 'Você foi convidado — Passem a Respeitar',
+    titulo: 'Você foi convidado',
     texto: [
-      'Recebemos um pedido para criar uma senha nova nesta conta.',
-      'O link vale por uma hora e só funciona uma vez. Se você pediu mais de um, use o mais recente.',
+      'Você recebeu um convite para criar uma conta no site do EP Passem a Respeitar.',
+      'O link vale por tempo limitado e só funciona uma vez.',
     ],
-    botao: ['Criar senha nova', '{{ .ConfirmationURL }}'],
-    aviso: 'Não foi você? Ignore este e-mail. Sua senha continua a mesma.',
+    botao: ['Aceitar o convite', '{{ .ConfirmationURL }}'],
+    aviso: 'Não esperava este convite? Ignore este e-mail.',
+  },
+  {
+    chave: 'magic_link',
+    tipo: 'template',
+    secao: 'Authentication',
+    painel: 'Magic link or OTP',
+    assunto: 'Seu acesso — Passem a Respeitar',
+    titulo: 'Seu acesso',
+    texto: [
+      'Use o botão abaixo para entrar na sua conta.',
+      'O link e o código valem por uma hora e só funcionam uma vez.',
+    ],
+    botao: ['Entrar', '{{ .ConfirmationURL }}'],
+    // O mesmo modelo serve ao login por link e ao login por codigo.
+    codigo: true,
+    aviso:
+      'Não foi você? Ignore este e-mail. Ninguém entra na conta sem o clique ou sem o código, e o site nunca pede o código por telefone nem por mensagem.',
   },
   {
     chave: 'email_change',
     tipo: 'template',
+    secao: 'Authentication',
     painel: 'Change email address',
     assunto: 'Confirme a troca de e-mail — Passem a Respeitar',
     titulo: 'Confirme a troca de e-mail',
@@ -87,34 +125,23 @@ export const EMAILS = [
       'Não foi você? Não clique. Alguém com a sua senha fez este pedido: entre na conta, cancele a troca e troque a senha.',
   },
   {
-    chave: 'magic_link',
+    chave: 'recovery',
     tipo: 'template',
-    painel: 'Magic link',
-    assunto: 'Seu link de acesso — Passem a Respeitar',
-    titulo: 'Seu link de acesso',
+    secao: 'Authentication',
+    painel: 'Reset password',
+    assunto: 'Criar uma senha nova — Passem a Respeitar',
+    titulo: 'Criar uma senha nova',
     texto: [
-      'Use o botão abaixo para entrar na sua conta.',
-      'O link vale por uma hora e só funciona uma vez.',
+      'Recebemos um pedido para criar uma senha nova nesta conta.',
+      'O link vale por uma hora e só funciona uma vez. Se você pediu mais de um, use o mais recente.',
     ],
-    botao: ['Entrar', '{{ .ConfirmationURL }}'],
-    aviso: 'Não foi você? Ignore este e-mail. Ninguém entra na conta sem o clique.',
-  },
-  {
-    chave: 'invite',
-    tipo: 'template',
-    painel: 'Invite user',
-    assunto: 'Você foi convidado — Passem a Respeitar',
-    titulo: 'Você foi convidado',
-    texto: [
-      'Você recebeu um convite para criar uma conta no site do EP Passem a Respeitar.',
-      'O link vale por tempo limitado e só funciona uma vez.',
-    ],
-    botao: ['Aceitar o convite', '{{ .ConfirmationURL }}'],
-    aviso: 'Não esperava este convite? Ignore este e-mail.',
+    botao: ['Criar senha nova', '{{ .ConfirmationURL }}'],
+    aviso: 'Não foi você? Ignore este e-mail. Sua senha continua a mesma.',
   },
   {
     chave: 'reauthentication',
     tipo: 'template',
+    secao: 'Authentication',
     painel: 'Reauthentication',
     assunto: 'Seu código de confirmação — Passem a Respeitar',
     titulo: 'Seu código de confirmação',
@@ -123,24 +150,30 @@ export const EMAILS = [
     aviso:
       'Não foi você? Alguém está dentro da sua conta. Entre e troque a senha. Nunca passe este código a ninguém: o site não pede por telefone nem por mensagem.',
   },
+
+  // --- Security ---
   {
     chave: 'password_changed',
     tipo: 'notification',
+    secao: 'Security',
     painel: 'Password changed',
+    ligar: true,
     assunto: 'Sua senha foi trocada — Passem a Respeitar',
     titulo: 'Sua senha foi trocada',
     texto: [
       'A senha da conta {{ .Email }} acabou de ser trocada.',
       'Se foi você, não precisa fazer nada.',
     ],
-    botao: ['Não fui eu', '{{ .SiteURL }}/recuperar-senha'],
+    botao: NAO_FUI_EU,
     aviso:
       'Não foi você? Use o botão acima para criar uma senha nova agora. Isso tira da conta quem trocou a senha.',
   },
   {
     chave: 'email_changed',
     tipo: 'notification',
+    secao: 'Security',
     painel: 'Email address changed',
+    ligar: true,
     assunto: 'O e-mail da sua conta foi trocado — Passem a Respeitar',
     titulo: 'O e-mail da conta foi trocado',
     texto: [
@@ -149,6 +182,87 @@ export const EMAILS = [
       'Se foi você, não precisa fazer nada. Daqui em diante o login é pelo endereço novo.',
     ],
     aviso: `Não foi você? Escreva para ${CONTATO} a partir deste endereço, que era o da conta.`,
+  },
+  {
+    chave: 'phone_changed',
+    tipo: 'notification',
+    secao: 'Security',
+    painel: 'Phone number changed',
+    ligar: false,
+    semUso: SEM_USO.telefone,
+    assunto: 'O telefone da sua conta foi trocado — Passem a Respeitar',
+    titulo: 'O telefone da conta foi trocado',
+    texto: [
+      'O telefone da sua conta mudou.',
+      'Era: {{ .OldPhone }}<br>Agora é: {{ .Phone }}',
+      'Se foi você, não precisa fazer nada.',
+    ],
+    botao: NAO_FUI_EU,
+    aviso: CRIE_SENHA,
+  },
+  {
+    chave: 'identity_linked',
+    tipo: 'notification',
+    secao: 'Security',
+    painel: 'Sign-in method linked',
+    ligar: false,
+    semUso: SEM_USO.login,
+    assunto: 'Uma forma de entrar foi adicionada — Passem a Respeitar',
+    titulo: 'Nova forma de entrar na conta',
+    texto: [
+      'Sua conta ganhou uma nova forma de entrar: {{ .Provider }}.',
+      'Se foi você, não precisa fazer nada.',
+    ],
+    botao: NAO_FUI_EU,
+    aviso: CRIE_SENHA,
+  },
+  {
+    chave: 'identity_unlinked',
+    tipo: 'notification',
+    secao: 'Security',
+    painel: 'Sign-in method removed',
+    ligar: false,
+    semUso: SEM_USO.login,
+    assunto: 'Uma forma de entrar foi removida — Passem a Respeitar',
+    titulo: 'Uma forma de entrar foi removida',
+    texto: [
+      'Uma forma de entrar foi removida da sua conta: {{ .Provider }}.',
+      'Se foi você, não precisa fazer nada.',
+    ],
+    botao: NAO_FUI_EU,
+    aviso: CRIE_SENHA,
+  },
+  {
+    chave: 'mfa_factor_enrolled',
+    tipo: 'notification',
+    secao: 'Security',
+    painel: 'MFA method added',
+    ligar: false,
+    semUso: SEM_USO.etapas,
+    assunto: 'A verificação em duas etapas foi ligada — Passem a Respeitar',
+    titulo: 'Verificação em duas etapas ligada',
+    texto: [
+      'Sua conta ganhou um método de verificação em duas etapas: {{ .FactorType }}.',
+      'Daqui em diante, entrar na conta pede a senha e esse segundo passo. Se foi você, não precisa fazer nada.',
+    ],
+    botao: NAO_FUI_EU,
+    aviso: CRIE_SENHA,
+  },
+  {
+    chave: 'mfa_factor_unenrolled',
+    tipo: 'notification',
+    secao: 'Security',
+    painel: 'MFA method removed',
+    ligar: false,
+    semUso: SEM_USO.etapas,
+    assunto: 'Um método de verificação foi removido — Passem a Respeitar',
+    titulo: 'Método de verificação removido',
+    texto: [
+      'Um método de verificação em duas etapas foi removido da sua conta: {{ .FactorType }}.',
+      'A conta ficou com uma proteção a menos. Se foi você, não precisa fazer nada.',
+    ],
+    botao: NAO_FUI_EU,
+    aviso: CRIE_SENHA,
   },
 ];
 
@@ -180,7 +294,9 @@ export function html(e) {
     );
   });
 
-  if (e.codigo) {
+  const comOsDois = e.codigo && e.botao;
+
+  if (e.codigo && !comOsDois) {
     partes.push(
       linha(
         `padding:22px 28px 0;font-family:'Courier New',Courier,monospace;font-size:32px;letter-spacing:8px;color:${COR.branco};`,
@@ -210,6 +326,22 @@ export function html(e) {
       linha(
         `padding:18px 28px 0;font-family:${TEXTO};font-size:12px;line-height:1.5;color:${COR.prata2};word-break:break-all;`,
         `Se o botão não abrir, copie e cole este endereço no navegador:<br><a href="${destino}" style="color:${COR.prata};">${destino}</a>`
+      )
+    );
+  }
+
+  if (comOsDois) {
+    // Link e codigo no mesmo e-mail: o botao primeiro, que e o caminho de
+    // quase todo mundo, e o codigo depois, para quem abriu o e-mail em outro
+    // aparelho.
+    partes.push(
+      linha(
+        `padding:22px 28px 0;font-family:${TEXTO};font-size:15px;line-height:1.55;color:${COR.prata};`,
+        'Ou digite este código no site:'
+      ),
+      linha(
+        `padding:10px 28px 0;font-family:'Courier New',Courier,monospace;font-size:32px;letter-spacing:8px;color:${COR.branco};`,
+        '{{ .Token }}'
       )
     );
   }
@@ -264,11 +396,21 @@ const escapa = (t) =>
     .replaceAll('"', '&quot;');
 
 /** A pagina que o dono abre para colar os modelos no painel do Supabase. */
+/** O que fazer com a chave da linha, nos avisos de Security. */
+function onde(e) {
+  if (e.tipo !== 'notification') return '';
+  return e.ligar
+    ? ' · <b class="liga">ligue a chave desta linha</b>'
+    : ` · deixe a chave desligada. ${e.semUso}`;
+}
+
 export function guia(painel) {
+  const ligadas = EMAILS.filter((e) => e.ligar).map((e) => e.painel);
+
   const cartoes = EMAILS.map(
     (e, i) => `    <section>
       <h2><span>${i + 1} de ${EMAILS.length}</span>${e.painel}</h2>
-      <p class="onde">${e.tipo === 'template' ? 'Aba <b>Templates</b>' : 'Aba <b>Security notifications</b>: ligue o aviso antes de colar'}</p>
+      <p class="onde">Seção <b>${e.secao}</b>${onde(e)}</p>
 
       <label for="a${i}">Assunto <small>(Subject)</small></label>
       <div class="campo">
@@ -302,6 +444,8 @@ export function guia(painel) {
       li{margin:6px 0}
       section{margin-top:28px;padding:22px;border:1px solid #1c1d20;border-left:2px solid #e0161f;background:#0a0a0a}
       .onde{margin:0 0 16px;color:#7d8188;font-size:13px}
+      .onde b{color:#cdd0d5}
+      .onde .liga{color:#fff}
       label{display:block;margin:14px 0 6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#7d8188}
       small{letter-spacing:0;text-transform:none}
       .campo{display:flex;gap:10px;align-items:flex-start}
@@ -316,12 +460,14 @@ export function guia(painel) {
   <body>
     <main>
       <h1>E-mails no painel do Supabase</h1>
-      <p>São ${EMAILS.length} modelos. Para cada um: copiar o assunto, colar; copiar o corpo, colar; salvar.</p>
+      <p>São ${EMAILS.length} modelos, um para cada linha do painel, na mesma ordem da tela: ${EMAILS.filter((e) => e.secao === 'Authentication').length} em Authentication e ${EMAILS.filter((e) => e.secao === 'Security').length} em Security.</p>
       <ol>
-        <li>Abra <a href="${painel}" target="_blank" rel="noopener">o painel do Supabase, em Authentication, Emails</a>.</li>
-        <li>Escolha o modelo pelo nome em inglês, que é o título de cada bloco abaixo.</li>
-        <li>No corpo, troque para a visão de código-fonte antes de colar. Colando na visão comum, o painel mostra o HTML como texto.</li>
-        <li>Salve, e passe para o próximo.</li>
+        <li>Abra <a href="${painel}" target="_blank" rel="noopener">o painel do Supabase, em Authentication, Emails</a>. Fique na aba <b>Templates</b>.</li>
+        <li>Clique na linha com o nome do bloco abaixo. Os nomes estão em inglês, como na tela.</li>
+        <li>Copie o assunto daqui e cole no campo do assunto. Copie o corpo daqui e cole no lugar do corpo que está lá, apagando o antigo.</li>
+        <li>Se o corpo colado aparecer como código na prévia, procure a opção de editar o código-fonte do modelo e cole ali.</li>
+        <li>Salve, volte para a lista e passe para a próxima linha.</li>
+        <li>No fim, em <b>Security</b>, ligue só as chaves de ${ligadas.join(' e ')}, e clique em <b>Save changes</b>.</li>
       </ol>
 
 ${cartoes}
