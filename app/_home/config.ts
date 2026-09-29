@@ -66,52 +66,19 @@ export const CONFIG: SiteConfig = {
     '/merch/camiseta-09.jpg',
   ],
   // WebP sem perda (#145): metade do peso, os mesmos pixels. "Os mesmos" e
-  // literal — o teste decodifica os dois arquivos e compara byte a byte,
-  // inclusive a cor dos pixels transparentes, que o shader le na borda.
+  // literal — a impressao digital dos pixels dos PNGs originais esta no teste,
+  // e inclui a cor dos pixels transparentes, que o shader le na borda.
   //
-  // O PNG fica de `fallback`: e o que carrega se o WebP falhar, e sai do
-  // repositorio quando a home tiver sido conferida no olho.
+  // Os PNGs sairam do repositorio na #166, depois de a textura e a saida do
+  // shader serem comparadas dentro do navegador: zero pixel diferente. Quem
+  // precisar deles de volta os tem no historico do git, ou decodificando o
+  // WebP, que devolve os mesmos bytes.
   elementos: [
-    {
-      nome: 'corrente',
-      url: '/elementos/corrente.webp',
-      fallback: '/elementos/corrente.png',
-      elo: 0,
-      escala: 1.7,
-      lado: -1,
-    },
-    {
-      nome: 'mao',
-      url: '/elementos/mao.webp',
-      fallback: '/elementos/mao.png',
-      elo: 1,
-      escala: 1.2,
-      lado: 1,
-    },
-    {
-      nome: 'saturno',
-      url: '/elementos/saturno.webp',
-      fallback: '/elementos/saturno.png',
-      elo: 2,
-      escala: 1.3,
-      lado: -1,
-    },
-    {
-      nome: 'p',
-      url: '/elementos/p.webp',
-      fallback: '/elementos/p.png',
-      elo: 3,
-      escala: 1.25,
-      lado: 1,
-    },
-    {
-      nome: 'pistola',
-      url: '/elementos/pistola.webp',
-      fallback: '/elementos/pistola.png',
-      elo: 4,
-      escala: 1.5,
-      lado: -1,
-    },
+    { nome: 'corrente', url: '/elementos/corrente.webp', elo: 0, escala: 1.7, lado: -1 },
+    { nome: 'mao', url: '/elementos/mao.webp', elo: 1, escala: 1.2, lado: 1 },
+    { nome: 'saturno', url: '/elementos/saturno.webp', elo: 2, escala: 1.3, lado: -1 },
+    { nome: 'p', url: '/elementos/p.webp', elo: 3, escala: 1.25, lado: 1 },
+    { nome: 'pistola', url: '/elementos/pistola.webp', elo: 4, escala: 1.5, lado: -1 },
   ],
   audio: {},
   merch360: '/merch/camiseta-360.webp',
