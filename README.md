@@ -40,7 +40,7 @@ lib/
     servidor.ts         client de servidor, sessão nos cookies
     admin.ts            chave secreta, ignora RLS — só servidor
 middleware.ts           CSP com nonce por request
-public/                 logo.png, brasao.png, saturno.png
+public/                 logo.png, brasao.png, saturno.png (sem uso desde a #145)
 supabase/
   migrations/           SQL versionado, aplicado em ordem de nome
   tests/                testes de RLS
