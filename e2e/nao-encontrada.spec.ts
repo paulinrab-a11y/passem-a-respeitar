@@ -1,4 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { visitante } from './apoio/visitante';
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('nao-encontrada') });
 
 /**
  * Pagina de nao encontrado (#173).

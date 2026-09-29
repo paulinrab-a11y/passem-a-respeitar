@@ -128,6 +128,13 @@ export async function criaPedido(dono: Usuario, itens: Item[], caminho: Status[]
   return { id: String(pedido.id), numero: Number(pedido.numero) };
 }
 
+/** O e-mail que a conta tem agora, lido do banco e nao da tela. */
+export async function emailDoUsuario(id: string) {
+  const { data, error } = await admin().auth.admin.getUserById(id);
+  if (error || !data.user) throw new Error(`nao li o usuario: ${error?.message}`);
+  return data.user.email ?? '';
+}
+
 /** O usuario com este e-mail confirmou o endereco? Lido do banco, nao da tela. */
 export async function emailConfirmado(email: string) {
   const { data, error } = await admin().auth.admin.listUsers({ perPage: 200 });

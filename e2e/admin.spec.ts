@@ -8,6 +8,10 @@ import {
   type Usuario,
 } from './apoio/banco';
 import { entra, vivo } from './apoio/telas';
+import { visitante } from './apoio/visitante';
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('admin') });
 
 /**
  * Tela administrativa de pedidos (#43) e a mudanca de status (#157).

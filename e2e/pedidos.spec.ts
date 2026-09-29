@@ -1,6 +1,7 @@
 import { type BrowserContext, test as base, expect, type Page } from '@playwright/test';
 import { criaPedido, criaUsuario, type Item, type Usuario } from './apoio/banco';
 import { entra } from './apoio/telas';
+import { visitante } from './apoio/visitante';
 
 /**
  * Pedidos (#41, #42) e o caso negativo da #10: o pedido do vizinho.
@@ -53,6 +54,9 @@ const test = base.extend<{ comoAna: Page }>({
     await contexto.close();
   },
 });
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('pedidos') });
 
 test.beforeAll(async ({ browser }) => {
   ana = await criaUsuario('Ana');

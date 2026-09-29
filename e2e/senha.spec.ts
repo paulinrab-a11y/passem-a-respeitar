@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 import { criaUsuario, senhaNova } from './apoio/banco';
 import { linkDoEmail } from './apoio/correio';
 import { entra, preencheLogin, sai, vivo } from './apoio/telas';
+import { visitante } from './apoio/visitante';
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('senha') });
 
 /** Troca de senha (#25) e recuperacao de senha (#32). */
 
