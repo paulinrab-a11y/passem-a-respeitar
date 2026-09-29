@@ -358,7 +358,7 @@ export function html(e) {
     ),
     linha(
       `padding:26px 28px 28px;font-family:${TEXTO};font-size:12px;line-height:1.6;color:${COR.prata2};`,
-      `Passem a Respeitar · Santxx x Ch3fe · WhyNot Records<br>Dúvidas: <a href="mailto:${CONTATO}" style="color:${COR.prata};">${CONTATO}</a>`
+      `Passem a Respeitar · Santxx x Ch3fe · Whynot Visuals<br>Dúvidas: <a href="mailto:${CONTATO}" style="color:${COR.prata};">${CONTATO}</a>`
     )
   );
 

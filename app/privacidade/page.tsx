@@ -33,7 +33,7 @@ export default function Privacidade() {
         <h1>Privacidade</h1>
 
         <p className="detalhe-nota">
-          Este site é da WhyNot Records, para o EP <em>Passem a Respeitar</em> (Santxx x Ch3fe).
+          Este site é da Whynot Visuals, para o EP <em>Passem a Respeitar</em> (Santxx x Ch3fe).
           Aqui está o que guardamos sobre você, por quê, e o que você pode fazer a respeito.
         </p>
 

@@ -24,7 +24,7 @@ const pirata = Pirata_One({
 
 export const metadata: Metadata = {
   title: 'PASSEM A RESPEITAR — Santxx x Ch3fe',
-  description: 'EP Passem a Respeitar. Santxx x Ch3fe. WhyNot Records. 20.11.2026.',
+  description: 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals. 20.11.2026.',
   openGraph: {
     title: 'PASSEM A RESPEITAR',
     description: 'O respeito vem antes dos números. EP 20.11.2026.',

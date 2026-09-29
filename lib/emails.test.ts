@@ -109,7 +109,7 @@ describe('o que cada e-mail tem', () => {
     expect(h).toContain(`<title>${e.assunto}</title>`);
     expect(h).toContain(e.titulo);
     expect(h).toContain(`mailto:${CONTATO}`);
-    expect(h).toContain('Santxx x Ch3fe · WhyNot Records');
+    expect(h).toContain('Santxx x Ch3fe · Whynot Visuals');
     expect(e.assunto.endsWith('— Passem a Respeitar')).toBe(true);
   });
 
@@ -290,6 +290,7 @@ describe('endereco de contato', () => {
 
     expect(pagina).toContain("import { CONTATO } from '@/lib/contato';");
     expect(pagina).toMatch(/<a href=\{`mailto:\$\{CONTATO\}`\}>\{CONTATO\}<\/a>/);
-    expect(pagina).not.toContain('canal de contato da WhyNot Records');
+    // A frase de antes do endereco existir, com qualquer nome de selo.
+    expect(pagina).not.toContain('canal de contato da');
   });
 });

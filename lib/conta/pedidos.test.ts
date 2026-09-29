@@ -56,7 +56,7 @@ describe('mapeiaPedidos', () => {
     order_items: [
       {
         id: 'item-1',
-        nome: 'Camiseta CBAC x Passem a Respeitar',
+        nome: 'Camiseta CBAC',
         tamanho: 'M',
         quantidade: 2,
         preco_unitario_centavos: 12000,
@@ -190,7 +190,7 @@ describe('mapeiaDetalhe', () => {
     order_items: [
       {
         id: 'item-1',
-        nome: 'Camiseta CBAC x Passem a Respeitar',
+        nome: 'Camiseta CBAC',
         tamanho: 'M',
         quantidade: 2,
         preco_unitario_centavos: 12000,

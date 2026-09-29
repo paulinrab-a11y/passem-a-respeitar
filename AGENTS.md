@@ -3,7 +3,7 @@
 Este arquivo é lido por qualquer agente de IA (Claude Code, Cursor, Codex, Copilot etc.) que trabalhe neste repositório. Siga tudo aqui antes de qualquer tarefa.
 
 ## Projeto
-Site do EP "Passem a Respeitar" (Santxx x Ch3fe, WhyNot Records). Lançamento 20/11/2026.
+Site do EP "Passem a Respeitar" (Santxx x Ch3fe, Whynot Visuals). Lançamento 20/11/2026.
 Identidade: preto / cinza / vermelho, texturas VHS-metal-concreto, logo "P", lettering "Passem A Respeitar" em fonte Amstrong. Toda UI nova respeita essa identidade.
 Hospedagem: Vercel (projeto `passem-a-respeitar`). Produção = branch `main`.
 

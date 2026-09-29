@@ -30,7 +30,7 @@ function bancoDevolve(resultado: { data: unknown; error: unknown }) {
 
 const CAMISETA = {
   slug: 'camiseta-cbac',
-  nome: 'Camiseta CBAC x Passem a Respeitar',
+  nome: 'Camiseta CBAC',
   descricao: 'Preta, oversized.',
   produto_variacoes: [
     { tamanho: 'P', preco_centavos: 12000, ordem: 1 },
@@ -49,7 +49,7 @@ describe('vitrine', () => {
 
     const [produto] = await vitrine();
 
-    expect(produto.nome).toBe('Camiseta CBAC x Passem a Respeitar');
+    expect(produto.nome).toBe('Camiseta CBAC');
     expect(produto.variacoes.map((v) => v.tamanho)).toEqual(['P', 'M', 'G']);
   });
 
@@ -174,7 +174,7 @@ describe('orcamento', () => {
     if (!r.ok) return;
     expect(r.linhas[0]).toEqual({
       produtoSlug: 'camiseta-cbac',
-      nome: 'Camiseta CBAC x Passem a Respeitar',
+      nome: 'Camiseta CBAC',
       tamanho: 'M',
       quantidade: 2,
       precoUnitarioCentavos: 12000,

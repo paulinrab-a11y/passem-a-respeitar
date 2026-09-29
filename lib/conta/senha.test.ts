@@ -34,7 +34,7 @@ describe('forcaDaSenha', () => {
   });
 
   // Estas aparecem em qualquer lista de vazamento com o nome do EP junto.
-  it.each(['passemarespeitar', 'Santxx2026!', 'whynotrecords1'])('desconta "%s"', (s) => {
+  it.each(['passemarespeitar', 'Santxx2026!', 'whynotvisuals1'])('desconta "%s"', (s) => {
     expect(nivel(s)).toBeLessThanOrEqual(2);
   });
 

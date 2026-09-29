@@ -22,7 +22,7 @@ const USUARIO = { id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa', email: 'quem@exemp
 
 const CATALOGO = {
   slug: 'camiseta-cbac',
-  nome: 'Camiseta CBAC x Passem a Respeitar',
+  nome: 'Camiseta CBAC',
   produto_variacoes: [
     { tamanho: 'P', preco_centavos: 12000, ordem: 1 },
     { tamanho: 'M', preco_centavos: 12000, ordem: 2 },
@@ -148,7 +148,7 @@ describe('o corpo do request nao define dinheiro', () => {
       endereco: ENDERECO,
     });
 
-    expect(itensGravados()[0].nome).toBe('Camiseta CBAC x Passem a Respeitar');
+    expect(itensGravados()[0].nome).toBe('Camiseta CBAC');
   });
 });
 
@@ -158,7 +158,7 @@ describe('snapshot', () => {
 
     expect(itensGravados()[0]).toEqual({
       produto_slug: 'camiseta-cbac',
-      nome: 'Camiseta CBAC x Passem a Respeitar',
+      nome: 'Camiseta CBAC',
       tamanho: 'M',
       quantidade: 2,
       preco_unitario_centavos: 12000,

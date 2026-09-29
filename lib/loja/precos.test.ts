@@ -12,7 +12,7 @@ import {
 /** O catalogo como o banco entrega: camiseta a R$ 120,00 em quatro tamanhos. */
 const CATALOGO: VariacaoDoBanco[] = ['P', 'M', 'G', 'GG'].map((tamanho) => ({
   slug: 'camiseta-cbac',
-  nome: 'Camiseta CBAC x Passem a Respeitar',
+  nome: 'Camiseta CBAC',
   tamanho,
   precoCentavos: 12000,
 }));
@@ -82,9 +82,7 @@ describe('o preco nunca vem do navegador', () => {
       { slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1, nome: 'Camiseta de graça' },
     ] as unknown as ItemDoCarrinho[];
 
-    expect(ok(precifica(comNome, CATALOGO)).linhas[0].nome).toBe(
-      'Camiseta CBAC x Passem a Respeitar'
-    );
+    expect(ok(precifica(comNome, CATALOGO)).linhas[0].nome).toBe('Camiseta CBAC');
   });
 
   it('o schema descarta o preco antes de o objeto seguir adiante', () => {
