@@ -304,11 +304,12 @@ Esperando decisão ou conta do dono:
 - Hospedagem do clipe; até lá a home mostra "clipe em breve" (#75)
 - Link de pré-save ainda não existe; o botão mostra "Pré-save em breve"
 - Credenciais de produção do Mercado Pago, e o primeiro pagamento real (#45)
-- Vermelho da identidade em texto pequeno fica em 4,3 para 1; a WCAG pede
-  4,5 (#176)
 
 Limites que não são defeito:
 
+- O vermelho da identidade em texto pequeno fica em 4,3 para 1, e a WCAG AA
+  pede 4,5. Decisão do dono em 29/09/2026: a marca fica com um vermelho só
+  (#176). O teste de acessibilidade conta essas ocorrências, tela a tela
 - Branch protection não está disponível: exige GitHub Pro em repositório
   privado (#7). "Merge só com CI verde" é regra seguida, não regra imposta
 - Conferência com leitor de tela ainda não foi feita. A verificação automática
