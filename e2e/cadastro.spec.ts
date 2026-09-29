@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 import { emailConfirmado, emailNovo, senhaNova } from './apoio/banco';
 import { linkDoEmail } from './apoio/correio';
 import { preencheLogin, vivo } from './apoio/telas';
+import { visitante } from './apoio/visitante';
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('cadastro') });
 
 /**
  * Cadastro (#30), de ponta a ponta: formulario, e-mail, link, conta.

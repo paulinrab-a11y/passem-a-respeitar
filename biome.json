@@ -14,7 +14,8 @@
       "!package-lock.json",
       "!app/_home/legacy-site.js",
       "!app/globals.css",
-      "!motion-audits"
+      "!motion-audits",
+      "!supabase/templates/*.html"
     ]
   },
   "formatter": {

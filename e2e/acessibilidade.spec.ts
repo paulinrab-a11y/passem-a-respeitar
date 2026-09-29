@@ -15,6 +15,7 @@ import {
   type Usuario,
 } from './apoio/banco';
 import { entra, preencheLogin, vivo } from './apoio/telas';
+import { visitante } from './apoio/visitante';
 
 /**
  * Acessibilidade, por maquina (#175). WCAG 2.1 A e AA, tela por tela.
@@ -56,6 +57,9 @@ const test = base.extend<{ logada: Page; administrando: Page }>({
     await contexto.close();
   },
 });
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('acessibilidade') });
 
 async function entraEGuarda(browser: Browser, quem: Usuario) {
   const contexto = await browser.newContext();

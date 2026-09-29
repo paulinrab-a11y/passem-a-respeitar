@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CONTATO } from '@/lib/contato';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +99,7 @@ export default function Privacidade() {
           <p className="detalhe-nota">
             Pela LGPD você pode pedir para ver, corrigir ou apagar seus dados, e saber com quem eles
             foram compartilhados. Nome e foto você mesmo edita em <a href="/conta">Conta</a>; o
-            resto, é só pedir pelo canal de contato da WhyNot Records, e respondemos.
+            resto, é só pedir por <a href={`mailto:${CONTATO}`}>{CONTATO}</a>, e respondemos.
           </p>
         </section>
       </section>

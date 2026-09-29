@@ -49,6 +49,7 @@ lib/
   site-url.ts           endereço do site e origem do pedido
   admin.ts              quem administra, pela lista do ambiente
   esquemas.ts           validação de entrada, com zod
+  contato.ts            o endereço de contato do site
   conta/
     perfil.ts           consulta e mapper explícito da resposta
     pedidos.ts          rótulo, tom e mapper dos pedidos
@@ -79,6 +80,7 @@ motion-audits/          relatório do audit de motion (#53)
 supabase/
   config.toml           Supabase LOCAL, só para a suíte de ponta a ponta
   migrations/           SQL versionado, aplicado em ordem de nome
+  templates/            e-mails de conta e o guia para o painel (#183)
   tests/                testes de RLS e das funções do banco
 ```
 
@@ -181,6 +183,32 @@ byte a byte para o diff continuar auditável contra o deploy antigo. Está fora 
 Biome de propósito. Mudanças nele só com motivo declarado no commit — até hoje,
 duas: a migração e a validação do convite no servidor.
 
+## E-mails de conta
+
+Confirmação de cadastro, recuperação de senha, troca de e-mail e os avisos de
+segurança saem pelo Supabase Auth, em português (#183). São oito modelos, com
+uma moldura só.
+
+| Onde | O que é |
+|---|---|
+| `supabase/templates/modelos.mjs` | os textos e a moldura; é aqui que se mexe |
+| `supabase/templates/*.html` | saída do gerador; não editar à mão |
+| `supabase/templates/guia.html` | página para colar os modelos no painel |
+
+Para mudar um texto:
+
+```
+npm run emails:gera
+```
+
+O Supabase local lê os `.html` pelo `supabase/config.toml`, e a suíte de ponta a
+ponta confere o e-mail que chega. **Produção não lê o repositório**: os modelos
+ficam no painel do Supabase, e depois de mudar um texto é preciso abrir o
+`guia.html` no navegador e colar de novo.
+
+Os e-mails não têm imagem nem nada de fora: chegam inteiros com imagem
+bloqueada, e não avisam ninguém de que foram abertos.
+
 ## Rodar localmente
 
 ```
@@ -226,6 +254,7 @@ código. Falha fechada, de propósito.
 | `npm run e2e:banco` | sobe o Supabase local (precisa de Docker) |
 | `npm run test:e2e` | Playwright, contra o build de produção e o banco local |
 | `npm run e2e:banco:parar` | derruba o Supabase local |
+| `npm run emails:gera` | regrava os e-mails de conta e o guia do painel |
 
 ## Deploy
 
@@ -299,7 +328,8 @@ Esperando decisão ou conta do dono:
 
 - Domínio final (#54). Na troca: Site URL e Redirect URLs do Supabase,
   `NEXT_PUBLIC_SITE_URL` e os registros de e-mail do domínio
-- E-mail transacional: templates em português e endereço de contato (#55)
+- E-mail transacional: registros do domínio e teste de entrega em Gmail,
+  Outlook e Apple Mail (#55). Os modelos em português estão prontos (#183)
 - Proteção contra bot nos formulários públicos (#28)
 - Hospedagem do clipe; até lá a home mostra "clipe em breve" (#75)
 - Link de pré-save ainda não existe; o botão mostra "Pré-save em breve"

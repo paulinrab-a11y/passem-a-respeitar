@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { criaUsuario, senhaNova } from './apoio/banco';
 import { entra, preencheLogin, sai } from './apoio/telas';
+import { visitante } from './apoio/visitante';
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('login') });
 
 /** Login e logout (#29, #31). Um usuario por teste: o limite tambem e por e-mail. */
 
