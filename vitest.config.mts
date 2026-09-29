@@ -34,14 +34,14 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: 'https://projeto-de-teste.supabase.co',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_chave_de_teste',
     },
-    include: ['lib/**/*.test.ts', 'app/**/*.test.{ts,tsx}', 'middleware.test.ts'],
+    include: ['lib/**/*.test.ts', 'app/**/*.test.{ts,tsx}', 'proxy.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
       // So o que da para testar sem navegador e sem banco. app/_home e o script
       // legado portado verbatim e a pagina que o monta: quem cobre aquilo e o
       // Playwright (#10), nao teste de unidade.
-      include: ['lib/**/*.ts', 'app/**/*.ts', 'middleware.ts'],
+      include: ['lib/**/*.ts', 'app/**/*.ts', 'proxy.ts'],
       exclude: ['**/*.test.{ts,tsx}', 'lib/supabase/tipos.ts', 'app/_home/**'],
       // Piso, nao meta. Existe para que uma queda apareca no PR, nao para
       // premiar numero alto: o que importa e o que esta coberto, e aqui e a

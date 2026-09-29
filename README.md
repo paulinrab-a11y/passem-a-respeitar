@@ -66,7 +66,8 @@ lib/
     navegador.ts        client do browser, chave publishable
     servidor.ts         client de servidor, sessão nos cookies
     admin.ts            chave secreta, ignora RLS — só servidor
-middleware.ts           CSP com nonce por request, sessão, host principal
+proxy.ts                CSP com nonce por request, sessão, host principal
+                        (até o Next 15 se chamava middleware.ts)
 e2e/                    testes de ponta a ponta (Playwright)
   apoio/                ambiente, servidor de teste, cenário, e-mail, telas
 public/

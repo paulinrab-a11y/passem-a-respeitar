@@ -6,7 +6,7 @@ import { CONFIG } from './_home/config';
 import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
 
-// A CSP do middleware.ts carrega um nonce novo a cada request, e o Next so
+// A CSP do proxy.ts carrega um nonce novo a cada request, e o Next so
 // carimba esse nonce nos proprios scripts quando a rota e renderizada por
 // request. Estatico nao funciona: o HTML sairia do build sem nonce e a CSP
 // bloquearia todo o JavaScript da pagina.

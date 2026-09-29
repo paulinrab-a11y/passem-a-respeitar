@@ -199,7 +199,12 @@ async function leSessao(request: NextRequest, requestHeaders: Headers) {
   return { usuario: data.user, response };
 }
 
-export async function middleware(request: NextRequest) {
+/**
+ * O nome do arquivo e da funcao e `proxy` desde o Next 16 (#180); antes era
+ * `middleware`. O papel e o mesmo, e o resto do codigo continua chamando isto
+ * de middleware, que e o que ele e.
+ */
+export async function proxy(request: NextRequest) {
   const dev = process.env.NODE_ENV !== 'production';
 
   // Rede de seguranca para http. Na Vercel o 301 ja acontece na borda e o

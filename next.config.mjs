@@ -2,7 +2,7 @@ import { withSentryConfig } from '@sentry/nextjs/config';
 
 /**
  * Headers que nao dependem de nonce ficam aqui, aplicados a todas as rotas.
- * A Content-Security-Policy e montada por request no middleware.ts, porque
+ * A Content-Security-Policy e montada por request no proxy.ts, porque
  * precisa de um nonce novo a cada resposta.
  */
 const securityHeaders = [
