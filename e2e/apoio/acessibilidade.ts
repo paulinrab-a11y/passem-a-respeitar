@@ -42,10 +42,16 @@ const REGRAS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
  * A unica violacao aceita, e so ela (#176).
  *
  * `--vermelho` (#e0161f) sobre o preto da 4,3 para 1; em texto pequeno a WCAG
- * pede 4,5. E a cor da marca, e o AGENTS.md nao deixa mexer na identidade sem
- * aprovacao do dono. A decisao esta na issue; enquanto ela nao sai, o teste
- * conta as ocorrencias em vez de reprovar — e so aceita ESTA cor, com ESTA
- * folga. Qualquer outro texto abaixo do minimo reprova.
+ * pede 4,5. E a cor da marca.
+ *
+ * DECISAO DO DONO, em 29/09/2026: fica como esta. As alternativas eram um
+ * segundo vermelho so para texto, um pouco mais claro, ou a mensagem de erro
+ * em cinza com a barra vermelha ao lado. A marca fica com um vermelho so, e o
+ * site fica 0,2 abaixo do minimo da WCAG AA nesses textos, sabendo disso.
+ *
+ * O teste nao reprova por isso, mas conta as ocorrencias, tela a tela — e so
+ * aceita ESTA cor, com ESTA folga. Qualquer outro texto abaixo do minimo
+ * reprova, e um texto vermelho a mais tambem.
  */
 const VERMELHO_DA_IDENTIDADE = { cor: '#e0161f', minimo: 4 };
 
