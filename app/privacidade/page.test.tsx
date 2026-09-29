@@ -17,6 +17,16 @@ describe('/privacidade', () => {
     expect(html).toMatch(/só nessa tela/i);
   });
 
+  // O mesmo para a protecao contra bot (#28): a CSP abre o iframe da
+  // Cloudflare nas telas de formulario, e o texto conta isso.
+  it('conta que a Cloudflare recebe dados do navegador, e em que telas', () => {
+    expect(html).toMatch(/Turnstile, da Cloudflare/);
+    expect(html).toMatch(/endereço IP/);
+    expect(html).toMatch(/entrar, criar conta, recuperar senha e o campo de convite/);
+    expect(html).toMatch(/só nessas telas/i);
+    expect(html).toContain('https://www.cloudflare.com/pt-br/privacypolicy/');
+  });
+
   it('diz que o cartao nunca passa pelos nossos servidores', () => {
     expect(html).toMatch(/nunca passam pelos nossos servidores/i);
   });

@@ -6,6 +6,7 @@ import {
   exigeSessao,
   hostPrincipal,
   precisaDeSessao,
+  temDesafio,
 } from './rotas';
 
 describe('exigeSessao', () => {
@@ -24,6 +25,30 @@ describe('exigeSessao', () => {
       expect(exigeSessao(rota)).toBe(false);
     }
   );
+});
+
+describe('temDesafio', () => {
+  it.each(['/', '/entrar', '/criar-conta', '/recuperar-senha'])(
+    '%s tem formulario publico',
+    (rota) => {
+      expect(temDesafio(rota)).toBe(true);
+    }
+  );
+
+  // Igualdade, e nao prefixo: `/entrar-de-mentira` nao herda nada de `/entrar`.
+  it.each([
+    '/redefinir-senha',
+    '/privacidade',
+    '/conta',
+    '/checkout',
+    '/checkout/pagamento/abc',
+    '/entrar/',
+    '/entrar-de-mentira',
+    '/api/convite',
+    '',
+  ])('%s nao tem', (rota) => {
+    expect(temDesafio(rota)).toBe(false);
+  });
 });
 
 describe('ehRotaDeAuth', () => {

@@ -15,6 +15,9 @@ export const metadata: Metadata = {
  * tratamento de dado pessoal — nao entra em silencio. O resto do texto
  * descreve o que o site ja fazia.
  *
+ * A protecao contra bot (#28) entrou pelo mesmo motivo: o widget manda dado do
+ * navegador para a Cloudflare, e isso se diz aqui.
+ *
  * Escrita para ser lida, nao para parecer contrato: frases curtas, cada
  * secao responde a uma pergunta. Sem data de "ultima atualizacao" inventada
  * — a data e a do commit.
@@ -74,6 +77,27 @@ export default function Privacidade() {
               política de privacidade deles
             </a>
             .
+          </p>
+        </section>
+
+        <section className="detalhe-bloco">
+          <h2>Proteção contra robôs</h2>
+          <p className="detalhe-nota">
+            Os formulários de entrar, criar conta, recuperar senha e o campo de convite usam o
+            Turnstile, da Cloudflare, para separar gente de script. Para isso a Cloudflare recebe
+            dados do seu navegador e da sua conexão, como o endereço IP. Isso acontece{' '}
+            <strong>só nessas telas</strong>, e não serve para publicidade.
+          </p>
+          <p className="detalhe-nota">
+            Esses dados vão para a Cloudflare, não para nós, e valem a{' '}
+            <a
+              href="https://www.cloudflare.com/pt-br/privacypolicy/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              política de privacidade deles
+            </a>
+            . Nós guardamos só a resposta: passou ou não passou.
           </p>
         </section>
 

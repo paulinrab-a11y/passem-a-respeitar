@@ -39,6 +39,14 @@ export function ehPagamento(pathname: string) {
 }
 
 /**
+ * As paginas com formulario publico, onde o widget da protecao contra bot
+ * aparece (#28). So nelas a CSP abre o iframe da Cloudflare.
+ */
+export function temDesafio(pathname: string) {
+  return pathname === '/' || ehRotaDeAuth(pathname);
+}
+
+/**
  * Paginas de autenticacao. Quem ja esta logado nao tem o que fazer nelas e e
  * mandado para a conta.
  */

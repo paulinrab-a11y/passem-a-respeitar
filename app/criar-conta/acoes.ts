@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import { esquemaCriarConta } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
+import { CAMPO_DA_ISCA, CAMPO_DO_DESAFIO, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
 import { CONTA } from '@/lib/rotas';
 import { urlDeRetorno } from '@/lib/site-url';
 import { clienteDeAuth } from '@/lib/supabase/servidor';
@@ -45,6 +46,12 @@ export async function criarConta(
   anterior: EstadoCriarConta,
   form: FormData
 ): Promise<EstadoCriarConta> {
+  // Antes de tudo (#28): o que da para recusar sem gastar tentativa do limite.
+  const desafio = form.get(CAMPO_DO_DESAFIO);
+  if (await pareceRobo({ isca: form.get(CAMPO_DA_ISCA), desafio })) {
+    return erro(anterior, RECUSA);
+  }
+
   const dados = esquemaCriarConta.safeParse({
     nome: form.get('nome'),
     email: form.get('email'),
@@ -68,6 +75,12 @@ export async function criarConta(
   const cotaEmail = await limita(`criar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
   if (!cotaIp.permitido || !cotaEmail.permitido) {
     return erro(anterior, 'Muitas tentativas. Tente de novo mais tarde.');
+  }
+
+  // Depois do limite: a conferencia e uma chamada para fora. E antes da
+  // consulta de senha vazada, que e outra.
+  if (!(await desafioConfere(desafio, 'criar-conta', ip))) {
+    return erro(anterior, RECUSA);
   }
 
   if (await senhaVazada(senha)) {

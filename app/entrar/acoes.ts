@@ -5,6 +5,7 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { esquemaEntrar } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
+import { CAMPO_DA_ISCA, CAMPO_DO_DESAFIO, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
 import { destinoSeguro } from '@/lib/rotas';
 import { COOKIE_LEMBRAR, opcoesDoLembrar } from '@/lib/supabase/cookies';
 import { clienteDeAuth } from '@/lib/supabase/servidor';
@@ -57,6 +58,13 @@ async function segura(inicio: number) {
 export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<EstadoEntrar> {
   const tentativa = anterior.tentativa + 1;
 
+  // Antes de tudo (#28): isca preenchida ou envio sem token nao gasta
+  // tentativa do limite, nem de quem mandou nem do e-mail que ele escreveu.
+  const desafio = form.get(CAMPO_DO_DESAFIO);
+  if (await pareceRobo({ isca: form.get(CAMPO_DA_ISCA), desafio })) {
+    return { erro: RECUSA, campo: null, tentativa };
+  }
+
   const dados = esquemaEntrar.safeParse({
     email: form.get('email'),
     senha: form.get('senha'),
@@ -98,6 +106,11 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
       campo: null,
       tentativa,
     };
+  }
+
+  // Depois do limite: a conferencia e uma chamada para fora.
+  if (!(await desafioConfere(desafio, 'entrar', ip))) {
+    return { erro: RECUSA, campo: null, tentativa };
   }
 
   const inicio = Date.now();

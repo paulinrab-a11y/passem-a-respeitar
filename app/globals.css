@@ -1119,6 +1119,26 @@ footer.assina a:hover{color:var(--vermelho)}
    tipografia do erro mudar, o lugar acompanha.
    O lugar vazio nao e anunciado nem focavel: e so espaco. */
 .erro-vaga{font-size:13px;line-height:1.45;min-height:calc(2 * 1.45em)}
+
+/* Protecao contra bot (#28).
+   A isca sai da tela, e nao do render: script que preenche tudo costuma pular
+   campo com display:none. O lugar do widget existe desde o primeiro quadro: ele
+   chega depois, de outro host, e nao pode empurrar o botao. O widget tem 65 px;
+   com a chave de teste ganha uma faixa de aviso e vai a 70. Reservado pelo
+   maior: com a chave de verdade sobram 5 px, e o botao nao anda em nenhum dos
+   dois. Medido nas tres telas, em 320, 390 e 1280 px.
+
+   O widget largo nao encolhe abaixo de 300 px. Em tela de ate 335 px o
+   formulario tem menos que isso, e vai o formato compacto, mais alto: 140 px,
+   145 com a chave de teste. Quem escolhe o formato e app/_ui/desafio.ts, pela
+   largura do lugar; aqui so se reserva a altura que ele vai ter. */
+.isca{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+.desafio{min-height:70px}
+@media (max-width:335px){
+  .desafio{min-height:145px}
+}
+.desafio-convite{display:flex;justify-content:center}
+.desafio-convite:empty{display:none}
 .auth-form>.erro-vaga{margin-block:-4px}
 .troca-email>.erro-vaga{margin-top:14px}
 .troca-email>.erro-vaga>.conta-recado{margin-top:0}

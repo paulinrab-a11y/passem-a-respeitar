@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
+import ContraRobo, { SEM_AVISO } from '@/app/_ui/ContraRobo';
 import { comErro, useCaixinha } from '@/app/_ui/campos';
 import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
@@ -30,6 +31,12 @@ export default function Formulario() {
   const { caixinha } = useCaixinha();
   const forca = forcaDaSenha(senha);
   const form = useRef<HTMLFormElement>(null);
+  // Protecao contra bot (#28). Quem envia antes do token chegar espera, e o
+  // botao ja mostra que esta andando. So o botao: campo desabilitado nao
+  // entra no envio, e o envio ainda nao saiu. O aviso dela usa o lugar do
+  // erro, que ja esta reservado: nada anda quando ele aparece.
+  const [robo, setRobo] = useState(SEM_AVISO);
+  const andando = pendente || robo.esperando;
 
   // Foco no campo que errou, para a pessoa nao cacar qual dos cinco foi.
   //
@@ -148,14 +155,21 @@ export default function Formulario() {
         </span>
       </label>
 
-      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} enviando={pendente} />
+      <ContraRobo acao="criar-conta" tentativa={estado.tentativa} aoMudar={setRobo} />
+
+      <Erro
+        id="auth-erro"
+        texto={robo.aviso ?? estado.erro}
+        tentativa={robo.aviso ? `robo-${robo.vez}` : estado.tentativa}
+        enviando={andando}
+      />
 
       <button
         type="submit"
-        className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
-        disabled={pendente}
+        className={`btn auth-enviar${andando ? ' carregando' : ''}`}
+        disabled={andando}
       >
-        <Rotulo parado="Criar conta" agindo="Criando…" ativo={pendente} />
+        <Rotulo parado="Criar conta" agindo="Criando…" ativo={andando} />
       </button>
 
       <p className="auth-rodape">

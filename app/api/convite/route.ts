@@ -8,6 +8,7 @@ import {
   teaserEmbed,
 } from '@/lib/convite';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
+import { CAMPO_DA_ISCA, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
 
 // Le cookie e variavel de ambiente por request: nada aqui pode ser cacheado.
 export const dynamic = 'force-dynamic';
@@ -34,11 +35,21 @@ export async function POST(request: Request) {
     );
   }
 
-  let codigo: unknown;
+  let corpo: { codigo?: unknown; desafio?: unknown; [CAMPO_DA_ISCA]?: unknown };
   try {
-    codigo = (await request.json())?.codigo;
+    corpo = (await request.json()) ?? {};
   } catch {
     return NextResponse.json({ ok: false, erro: ERRO_GENERICO }, { status: 400 });
+  }
+
+  // Protecao contra bot (#28), antes de olhar o codigo: a resposta fala do
+  // envio, e nao conta nada sobre o que foi digitado.
+  const { codigo, desafio } = corpo;
+  if (
+    (await pareceRobo({ isca: corpo[CAMPO_DA_ISCA], desafio })) ||
+    !(await desafioConfere(desafio, 'convite', ip))
+  ) {
+    return NextResponse.json({ ok: false, erro: RECUSA }, { status: 403 });
   }
 
   // Validacao de formato antes de hashear. Nao aceita o que nao tem cara de

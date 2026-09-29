@@ -125,7 +125,11 @@ test('acessibilidade: cadastro com erro na tela', async ({ page }) => {
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
   await page.getByLabel('Como quer ser chamado').fill('Leitora');
   await criar.click();
-  await expect(page.getByRole('alert').first()).toBeVisible();
+  // Pelo texto: `alert` sozinho tambem acha o anunciador de rota do Next, que
+  // existe desde o primeiro quadro, e a analise comecaria com o botao ainda
+  // no meio do envio.
+  await expect(page.getByRole('alert').filter({ hasText: 'Confira o e-mail' })).toBeVisible();
+  await expect(criar).toBeEnabled();
 
   // A mensagem de erro.
   await confere(page, { vermelho: 1 });

@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "start"],
       "port": 3000
+    },
+    {
+      "name": "passem-a-respeitar-e2e",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["e2e/apoio/servidor.mjs"],
+      "port": 3000
     }
   ]
 }

@@ -132,7 +132,9 @@ describe('os formularios da issue', () => {
   it.each(FORMULARIOS.slice(0, 4))('%s: o erro usa o lugar reservado', (arquivo) => {
     const texto = readFileSync(arquivo, 'utf8');
 
-    expect(texto).toContain('<Erro id="auth-erro" texto={estado.erro}');
+    // Nos tres formularios publicos, o aviso da protecao contra bot (#28) usa
+    // o mesmo lugar, e vem na frente quando existe.
+    expect(texto).toMatch(/<Erro\s+id="auth-erro"\s+texto=\{(robo\.aviso \?\? )?estado\.erro\}/);
     expect(texto).not.toMatch(/\{estado\.erro \? \(/);
   });
 

@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { levaAteAAncora } from '@/lib/ancora';
 import { CONFIG } from './config';
+import { desafioDoConvite } from './desafio-do-convite';
 
 // three.js, GLTFLoader, GSAP e ScrollTrigger entram por dynamic import: ficam
 // fora do bundle inicial e fora de qualquer rota que nao seja a home (Issue #47).
@@ -33,7 +34,11 @@ export default function HomeRuntime() {
 
       gsapMod.gsap.registerPlugin(stMod.ScrollTrigger);
 
-      legacy.default(CONFIG);
+      // A protecao contra bot do convite (#28) entra por aqui, e nao por
+      // global: o script legado so conhece o que recebe.
+      legacy.default(CONFIG, {
+        humano: desafioDoConvite(document.getElementById('desafioConvite')),
+      });
 
       // Depois do init, nao antes: e neste instante que a intro ja pos (ou nao
       // pos) a trava de rolagem, e e a trava que diz se ha o que esperar antes

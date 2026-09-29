@@ -5,7 +5,10 @@
 
 let booted = false;
 
-export default function initSite(CONFIG) {
+export default function initSite(CONFIG, extras) {
+// Issue #28: o que a home recebe de fora do script. Hoje, so a protecao contra
+// bot do convite; `null` quando nao ha chave configurada.
+const humano = (extras && extras.humano) || null;
   if (booted) return;
   booted = true;
 
@@ -848,6 +851,11 @@ const Loja = (()=>{
   // Issue #13: a validacao mora no servidor. O cliente nao conhece codigo
   // nenhum, e a URL do teaser so chega depois que o codigo confere.
   const botao = form.querySelector('button');
+  // Issue #28: protecao contra bot. A isca e um campo que ninguem ve; o
+  // desafio e o token da Cloudflare, pedido so quando a pessoa chega no campo.
+  // Os dois vao junto com o codigo, e quem confere e o servidor.
+  const isca = form.querySelector('[name="website"]');
+  if (aberto && humano) inp.addEventListener('focus', ()=> humano.aquece(), { once:true });
   form.addEventListener('submit', async e=>{
     e.preventDefault(); if(!aberto) return;
     const v = inp.value.trim().toUpperCase();
@@ -858,10 +866,16 @@ const Loja = (()=>{
     inp.removeAttribute('aria-invalid');
     botao.disabled = true; erro.textContent = 'Conferindo…';
     try {
+      // Se a Cloudflare pedir que a pessoa marque a caixa, a caixa aparece
+      // abaixo do campo e a espera continua: o envio sai quando ela marcar.
+      const desafio = humano
+        ? await humano.pede(()=>{ erro.textContent = 'Confirma que é humano na caixa abaixo.'; })
+        : undefined;
+      if (humano) erro.textContent = 'Conferindo…';
       const r = await fetch('/api/convite', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ codigo: v }),
+        body: JSON.stringify({ codigo: v, desafio, website: isca ? isca.value : '' }),
       });
       const dados = await r.json().catch(()=>({}));
       if (r.ok && dados.ok){
@@ -886,6 +900,8 @@ const Loja = (()=>{
       Som.tick();
     } finally {
       botao.disabled = false;
+      // Token vale um envio: o proximo precisa de outro.
+      if (humano) humano.renova();
     }
   });
   // Botao e Esc fecham pelo mesmo caminho, com a mesma animacao (#49).

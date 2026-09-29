@@ -8,6 +8,7 @@ import {
   exigeSessao,
   hostPrincipal,
   precisaDeSessao,
+  temDesafio,
 } from '@/lib/rotas';
 import { COOKIE_LEMBRAR, opcoesDeSessao } from '@/lib/supabase/cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
@@ -84,7 +85,20 @@ const MP_FRAME = [
   'https://www.mercadopago.com',
 ];
 
-function montaCsp(nonce: string, dev: boolean, pagamento: boolean) {
+/**
+ * Protecao contra bot (Issue #28): o widget do Cloudflare Turnstile e um
+ * iframe, e a politica so precisou abrir isso.
+ *
+ * `script-src` nao muda, pelo mesmo motivo do Mercado Pago: o script e criado
+ * por codigo que ja veio com nonce. `connect-src` tambem nao: quem fala com a
+ * Cloudflare e o iframe, de dentro dele.
+ *
+ * Vale so nas paginas que tem formulario publico, e so quando ha chave: sem
+ * chave nao ha widget, e a politica continua sendo a de antes.
+ */
+const DESAFIO_FRAME = 'https://challenges.cloudflare.com';
+
+function montaCsp(nonce: string, dev: boolean, pagamento: boolean, desafio: boolean) {
   const script = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -116,7 +130,7 @@ function montaCsp(nonce: string, dev: boolean, pagamento: boolean) {
     ['connect-src', "'self'", ...(pagamento ? [...MP_CONEXAO, ...MP_ANTIFRAUDE_CONEXAO] : [])].join(
       ' '
     ),
-    ['frame-src', ...(pagamento ? MP_FRAME : [FRAME_SRC])].join(' '),
+    ['frame-src', ...(pagamento ? MP_FRAME : desafio ? [DESAFIO_FRAME] : [FRAME_SRC])].join(' '),
     "font-src 'self'",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
@@ -262,8 +276,11 @@ export async function proxy(request: NextRequest) {
 
   // A tela de pagamento e a unica que carrega o Payment Brick, e a unica que
   // abre host externo. Conferir pelo caminho, e nao por um booleano global,
-  // mantem a politica apertada em todo o resto do site.
-  const csp = montaCsp(nonce, dev, ehPagamento(request.nextUrl.pathname));
+  // mantem a politica apertada em todo o resto do site. O iframe da protecao
+  // contra bot (#28) segue a mesma regra.
+  const { pathname } = request.nextUrl;
+  const desafio = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) && temDesafio(pathname);
+  const csp = montaCsp(nonce, dev, ehPagamento(pathname), desafio);
 
   // O Next le o nonce do header de CSP do request para carimbar os proprios
   // scripts inline de hidratacao. Por isso o header vai no request tambem,
@@ -271,8 +288,6 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('Content-Security-Policy', csp);
-
-  const { pathname } = request.nextUrl;
 
   if (!precisaDeSessao(pathname)) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
