@@ -14,36 +14,71 @@ loja 3D e a sala do convite.
 app/
   layout.tsx            fontes (next/font), metadata, viewport
   page.tsx              markup da home, renderizado no servidor
+  not-found.tsx         página de não encontrado (#173)
+  global-error.tsx      último recurso, quando o layout raiz quebra (#8)
   globals.css           CSS da identidade, extraído verbatim do site original
   _home/
     config.ts           CONFIG tipado (links, assets, faixas, beats)
     HomeRuntime.tsx     carrega three.js e GSAP por dynamic import
+    Galeria.tsx         fotos da merch, com next/image (#47)
     legacy-site.js      script original, verbatim, embrulhado numa função
+  _ui/                  peças que se repetem: mensagem, rótulo de botão,
+                        barra de rota, reautenticação, campos de formulário
   entrar/               login (#31)
-  conta/                perfil (#35), senha, sessões e exclusão (#37, #38, #39)
-  api/convite/route.ts  validação do código de convite (servidor)
-  api/conta/foto/       upload da foto de perfil (#26)
+  criar-conta/          cadastro com verificação de e-mail (#30)
+  recuperar-senha/      pedido do link (#32)
+  redefinir-senha/      senha nova, a partir do link (#32)
+  auth/callback/        volta dos links de e-mail (#30, #32, #36)
+  conta/                perfil (#35)
+    seguranca/          senha, e-mail, sessões e exclusão (#36 a #39)
+    pedidos/            lista e detalhe, com linha do tempo (#41, #42)
+    admin/pedidos/      mudança de status, só para administrador (#43)
+  checkout/             entrega e pagamento (#106, #108)
+  privacidade/          política de privacidade (#109)
+  api/
+    convite/            validação do código de convite
+    conta/foto/         upload da foto de perfil (#26)
+    conta/resumo/       o mínimo que a barra da home precisa saber
+    checkout/pagamento/ cria a cobrança no Mercado Pago
+    mercado-pago/webhook/  confirmação de pagamento (#45)
+    cron/conciliacao/   rede de segurança do webhook (#114)
 lib/
   convite.ts            hash, comparação em tempo constante, cookie assinado
-  rate-limit.ts         limite por IP (provisório, em memória — ver #22)
+  rate-limit.ts         limite no Upstash, com queda para memória (#22, #121)
+  rotas.ts              quem exige sessão, destino seguro, host principal
+  site-url.ts           endereço do site e origem do pedido
+  admin.ts              quem administra, pela lista do ambiente
+  esquemas.ts           validação de entrada, com zod
   conta/
     perfil.ts           consulta e mapper explícito da resposta
+    pedidos.ts          rótulo, tom e mapper dos pedidos
+    linha-do-tempo.ts   etapas do pedido, a partir da trilha
     foto.ts             regras de upload: tipo real, tamanho, normalização
     senha.ts            medidor de força (roda nos dois lados)
     senha-servidor.ts   checagem contra vazamento por k-anonymity
     reautenticacao.ts   janela de autenticação recente, lida do banco
     sessoes.ts          leitura de user-agent e rede, mapper da lista
+  loja/                 catálogo, preço, frete, pedido, cobrança, webhook,
+                        conciliação e transições de status
   supabase/
     env.ts              lê as variáveis, falha fechada
     tipos.ts            gerado do schema
     navegador.ts        client do browser, chave publishable
     servidor.ts         client de servidor, sessão nos cookies
     admin.ts            chave secreta, ignora RLS — só servidor
-middleware.ts           CSP com nonce por request
-public/                 logo.png, brasao.png, saturno.png (sem uso desde a #145)
+middleware.ts           CSP com nonce por request, sessão, host principal
+e2e/                    testes de ponta a ponta (Playwright)
+  apoio/                ambiente, servidor de teste, cenário, e-mail, telas
+public/
+  elementos/            os cinco elementos cromados, em WebP sem perda
+  merch/                fotos, modelo 3D e textura da camiseta
+  beats/                as faixas que tocam na home
+                        logo.png, brasao.png, saturno.png (sem uso desde a #145)
+motion-audits/          relatório do audit de motion (#53)
 supabase/
+  config.toml           Supabase LOCAL, só para a suíte de ponta a ponta
   migrations/           SQL versionado, aplicado em ordem de nome
-  tests/                testes de RLS
+  tests/                testes de RLS e das funções do banco
 ```
 
 ## Banco
@@ -202,23 +237,26 @@ Nunca dê push direto na `main` — existe um hook `pre-push` que recusa. O flux
 
 O CI roda em todo PR: `lint → typecheck → test → build → e2e`, mais `secrets`
 (gitleaks sobre o histórico e a árvore) e `audit` (`npm audit --audit-level=high`)
-em paralelo. PR só é mergeado com tudo verde.
+em paralelo. PR só é mergeado com tudo verde — por disciplina, não por trava:
+ver "Pendências conhecidas".
 
 Commits em Conventional Commits, validados por Commitlint no `commit-msg`.
 O tipo `sec:` é específico deste repo, para commit de segurança.
 
 ### Testes
 
-Vitest, em `lib/**/*.test.ts`. Rodam sem banco e sem rede: o que depende de
-Supabase usa variável de ambiente falsa via `vi.stubEnv`.
+Vitest, em `lib/**/*.test.ts` e `app/**/*.test.{ts,tsx}`. Rodam sem banco e sem
+rede: o que depende de Supabase usa variável de ambiente falsa via
+`vi.stubEnv`.
 
-A cobertura mede só `lib/`. `app/_home/` é o script legado portado verbatim —
-quem cobre aquilo é o Playwright (#10), não teste de unidade. O piso está em
+A cobertura mede `lib/`, `app/` e o middleware. `app/_home/` fica de fora: é o
+script legado portado verbatim, e quem cobre aquilo é o Playwright (#10), não
+teste de unidade. O piso está em
 85% e reprova o job; é piso, não meta. O que importa é **o que** está coberto:
 a comparação do código de convite e a assinatura do cookie.
 
-Nenhum teste usa o código de convite real, nem o hash dele. O repositório é
-público e hash de código curto cai em dicionário.
+Nenhum teste usa o código de convite real, nem o hash dele. Hash de código
+curto cai em dicionário, e repositório privado hoje pode não ser amanhã.
 
 ### Ponta a ponta
 
@@ -256,13 +294,23 @@ motion e carregamento.
 
 ## Pendências conhecidas
 
-- Botão "Comprar" da merch sem destino — checkout Mercado Pago (#44, #45)
-- Link de pré-save ainda não existe; o botão mostra "em breve" (#58)
-- Clipe fora do ar até subir no YouTube (#75)
-- Área de conta em construção: login (#31), perfil (#35), logout (#33), troca
-  de senha (#37) e a entrada na barra (#34) prontos; falta cadastro (#30),
-  recuperação de senha (#32) e pedidos (#41, #42)
-- Sem skeleton de carregamento: qualquer `<Suspense>` no carregamento inicial
-  prende a página no fallback nesta versão do Next (#46)
-- Rate limit em memória, por instância — trocar por Upstash (#22)
-- Branch protection não disponível: exige GitHub Pro em repositório privado (#7)
+Esperando decisão ou conta do dono:
+
+- Domínio final (#54). Na troca: Site URL e Redirect URLs do Supabase,
+  `NEXT_PUBLIC_SITE_URL` e os registros de e-mail do domínio
+- E-mail transacional: templates em português e endereço de contato (#55)
+- Proteção contra bot nos formulários públicos (#28)
+- Hospedagem do clipe; até lá a home mostra "clipe em breve" (#75)
+- Link de pré-save ainda não existe; o botão mostra "Pré-save em breve"
+- Credenciais de produção do Mercado Pago, e o primeiro pagamento real (#45)
+- Vermelho da identidade em texto pequeno fica em 4,3 para 1; a WCAG pede
+  4,5 (#176)
+
+Limites que não são defeito:
+
+- Branch protection não está disponível: exige GitHub Pro em repositório
+  privado (#7). "Merge só com CI verde" é regra seguida, não regra imposta
+- Conferência com leitor de tela ainda não foi feita. A verificação automática
+  (#175) acha por volta de um terço dos problemas
+- Nenhum teste automático pega regressão de animação. Subir `three` ou `gsap`
+  exige abrir o site e olhar
