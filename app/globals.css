@@ -2,6 +2,9 @@
   --preto:#000000;
   --prata:#cdd0d5;
   --prata-2:#7d8188;
+  /* So para linha, borda e controle desabilitado. Como cor de TEXTO da 1,9
+     para 1 sobre o preto, e a WCAG pede 4,5: texto secundario usa --prata-2,
+     que da 5,4. O teste de acessibilidade segura isso (#175). */
   --prata-3:#3a3d42;
   --vermelho:#e0161f;
   --vermelho-luz:rgba(224,22,31,.35);
@@ -161,7 +164,7 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #fim .convite label{font-size:13px;letter-spacing:.2em;color:var(--prata-2)}
 #fim .convite form{display:flex;border:1px solid var(--prata-3)}
 #fim .convite input{font:inherit;font-size:16px;letter-spacing:.28em;text-transform:uppercase;background:transparent;color:var(--prata);border:0;padding:14px 18px;width:min(240px,55vw);text-align:center}
-#fim .convite input::placeholder{color:var(--prata-3);letter-spacing:.2em}
+#fim .convite input::placeholder{color:var(--prata-2);letter-spacing:.2em}
 #fim .convite button{padding:0 18px;border-left:1px solid var(--prata-3);letter-spacing:.2em;font-size:13px;transition:background .2s,color .2s}
 #fim .convite button:hover{background:var(--vermelho);color:#000}
 #fim .convite .erro{font-size:12px;letter-spacing:.14em;color:var(--vermelho);min-height:16px}
@@ -433,7 +436,7 @@ footer.assina a:hover{color:var(--vermelho)}
 .conta-topo{margin-top:32px;display:flex;align-items:center;gap:20px}
 .conta-foto{position:relative;width:96px;height:96px;flex:0 0 96px;border:1px solid var(--prata-3);overflow:hidden;display:grid;place-items:center;background:#0a0a0a}
 .conta-foto img{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.05)}
-.conta-iniciais{font-family:var(--display);font-size:34px;letter-spacing:.04em;color:var(--prata-3)}
+.conta-iniciais{font-family:var(--display);font-size:34px;letter-spacing:.04em;color:var(--prata-2)}
 
 .conta-foto-bloco{display:flex;flex-direction:column;gap:10px}
 .conta-foto-acoes{display:flex;flex-direction:column;gap:6px}
@@ -451,7 +454,7 @@ footer.assina a:hover{color:var(--vermelho)}
 .conta-email{margin-top:6px;font-size:14px;letter-spacing:.04em;color:var(--prata-2);word-break:break-all}
 .conta-selo{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--vermelho);border:1px solid var(--vermelho);padding:2px 7px;white-space:nowrap;vertical-align:middle}
 .conta-selo.ok{color:var(--prata-2);border-color:var(--prata-3)}
-.conta-desde{margin-top:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3)}
+.conta-desde{margin-top:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
 
 .conta-aviso{margin-top:30px;border-left:2px solid var(--vermelho);padding-left:14px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
 .conta-aviso p{font-size:13px;line-height:1.5;letter-spacing:.02em;color:var(--prata-2);max-width:46ch}
@@ -646,8 +649,8 @@ footer.assina a:hover{color:var(--vermelho)}
 .sessoes-quem{min-width:0}
 .sessoes-aparelho{font-size:14px;letter-spacing:.04em;color:var(--prata)}
 .sessoes-selo{display:inline-block;margin-left:10px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata-2);border:1px solid var(--prata-3);padding:2px 7px;vertical-align:middle}
-.sessoes-detalhe{margin-top:5px;font-size:12px;letter-spacing:.06em;color:var(--prata-3)}
-.sessoes-agora{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3);white-space:nowrap}
+.sessoes-detalhe{margin-top:5px;font-size:12px;letter-spacing:.06em;color:var(--prata-2)}
+.sessoes-agora{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);white-space:nowrap}
 .sessoes form{margin:0}
 .sessoes button{padding:0;white-space:nowrap}
 
@@ -748,16 +751,16 @@ footer.assina a:hover{color:var(--vermelho)}
 .pedido-status{font-size:10px;letter-spacing:.16em;text-transform:uppercase;border:1px solid;padding:3px 8px;white-space:nowrap}
 .pedido-status.atencao{color:var(--vermelho);border-color:var(--vermelho)}
 .pedido-status.normal{color:var(--prata);border-color:var(--prata-3)}
-.pedido-status.apagado{color:var(--prata-3);border-color:#1c1d20}
-.pedido-data{margin-top:7px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3)}
+.pedido-status.apagado{color:var(--prata-2);border-color:#1c1d20}
+.pedido-data{margin-top:7px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
 
 .pedido-itens{list-style:none;margin-top:16px;display:flex;flex-direction:column;gap:8px}
 .pedido-itens li{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
 .pedido-item-nome{font-size:14px;letter-spacing:.02em;color:var(--prata);min-width:0}
-.pedido-item-detalhe{font-size:12px;letter-spacing:.06em;color:var(--prata-3);white-space:nowrap}
+.pedido-item-detalhe{font-size:12px;letter-spacing:.06em;color:var(--prata-2);white-space:nowrap}
 
 .pedido-total{margin-top:16px;padding-top:12px;border-top:1px solid #16171a;display:flex;align-items:baseline;justify-content:space-between;gap:14px}
-.pedido-total span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-3)}
+.pedido-total span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2)}
 .pedido-total strong{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
 
 .pedidos-vazio{margin-top:34px;border-left:2px solid var(--vermelho);padding-left:16px;display:flex;flex-direction:column;align-items:flex-start;gap:14px}
@@ -769,7 +772,7 @@ footer.assina a:hover{color:var(--vermelho)}
 .pedidos-paginas{margin-top:26px;padding-top:16px;border-top:1px solid var(--prata-3);display:flex;align-items:center;justify-content:space-between;gap:14px}
 .pedidos-paginas a{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none}
 .pedidos-paginas a:hover{color:var(--vermelho)}
-.pedidos-pagina-atual{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-3)}
+.pedidos-pagina-atual{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2)}
 
 @media (max-width:767px){
   .pedidos article{padding:16px 14px 14px}
@@ -792,7 +795,7 @@ footer.assina a:hover{color:var(--vermelho)}
 .pedido-topo h2 a{color:inherit;text-decoration:none;border-bottom:1px solid transparent}
 .pedido-topo h2 a:hover{color:var(--vermelho);border-color:var(--vermelho)}
 
-.detalhe-topo{margin-top:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-3)}
+.detalhe-topo{margin-top:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
 
 /* `min-height:0` desfaz a regra de base `section{min-height:100vh}` (linha 59),
    que existe para as secoes de tela cheia da home. Sem isto cada bloco daqui
@@ -810,8 +813,8 @@ footer.assina a:hover{color:var(--vermelho)}
 .etapas li:last-child{border-left-color:transparent;padding-bottom:0}
 
 .etapa-marca{position:absolute;left:-5px;top:4px;width:9px;height:9px;border:1px solid var(--prata-3);background:var(--preto)}
-.etapa-nome{font-size:14px;letter-spacing:.04em;color:var(--prata-3)}
-.etapa-quando{font-size:12px;letter-spacing:.06em;color:var(--prata-3);white-space:nowrap;text-align:right}
+.etapa-nome{font-size:14px;letter-spacing:.04em;color:var(--prata-2)}
+.etapa-quando{font-size:12px;letter-spacing:.06em;color:var(--prata-2);white-space:nowrap;text-align:right}
 
 .etapas .feita .etapa-marca{background:var(--prata-2);border-color:var(--prata-2)}
 .etapas .feita .etapa-nome{color:var(--prata)}
@@ -822,8 +825,10 @@ footer.assina a:hover{color:var(--vermelho)}
 .etapas .atual .etapa-quando{color:var(--prata-2)}
 
 /* Nao aconteceu e nao vai acontecer: fica visivel, mas riscado. So a cor nao
-   contaria isso, e o texto para leitor de tela esta no .sr do componente. */
-.etapas .nao-aconteceu .etapa-nome{text-decoration:line-through;opacity:.45}
+   contaria isso, e o texto para leitor de tela esta no .sr do componente.
+   Sem `opacity`: com ela o texto ficava em 1,2 para 1 sobre o preto, e o
+   risco sozinho ja diz o que tem a dizer (#175). */
+.etapas .nao-aconteceu .etapa-nome{text-decoration:line-through}
 
 .etapas .ramo .etapa-marca{background:var(--vermelho);border-color:var(--vermelho);transform:rotate(45deg)}
 .etapas .ramo .etapa-nome{color:var(--vermelho);letter-spacing:.06em}
@@ -857,7 +862,7 @@ footer.assina a:hover{color:var(--vermelho)}
 
 .resumo{margin-top:18px;padding-top:14px;border-top:1px solid #16171a}
 .resumo>div{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:5px 0}
-.resumo dt{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata-3)}
+.resumo dt{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata-2)}
 .resumo dd{margin:0;font-size:14px;letter-spacing:.04em;color:var(--prata)}
 .resumo .resumo-total{margin-top:8px;padding-top:12px;border-top:1px solid var(--prata-3)}
 .resumo .resumo-total dt{color:var(--prata-2)}
@@ -873,7 +878,7 @@ footer.assina a:hover{color:var(--vermelho)}
 
 .entrega{display:flex;flex-direction:column;gap:18px}
 .entrega .auth-enviar{margin-top:2px}
-.entrega-nota{font-size:12px;letter-spacing:.06em;color:var(--prata-3);text-align:center}
+.entrega-nota{font-size:12px;letter-spacing:.06em;color:var(--prata-2);text-align:center}
 
 /* O campo que o servidor apontou. Borda vermelha E foco: cor sozinha não
    conta nada para quem não a distingue. */
@@ -930,7 +935,7 @@ footer.assina a:hover{color:var(--vermelho)}
 .pix-codigo span{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2)}
 .pix-codigo input{font:inherit;font-size:12px;letter-spacing:.02em;background:transparent;color:var(--prata-2);border:1px solid var(--prata-3);padding:12px 14px;width:100%;text-align:center;text-overflow:ellipsis}
 .pix .btn{width:100%;justify-content:center}
-.pix-espera{font-size:12px;letter-spacing:.06em;color:var(--prata-3);display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+.pix-espera{font-size:12px;letter-spacing:.06em;color:var(--prata-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
 .pix .detalhe-nota{max-width:42ch;margin:0}
 
 @media (max-width:767px){
