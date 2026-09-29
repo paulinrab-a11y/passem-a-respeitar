@@ -1,4 +1,4 @@
-# Passem a Respeitar — site do EP (Santxx x Ch3fe / WhyNot Records)
+# Passem a Respeitar — site do EP (Santxx x Ch3fe / Whynot Visuals)
 
 Site oficial do EP. Lançamento **20.11.2026**.
 Produção: https://passem-a-respeitar-paulin7.vercel.app

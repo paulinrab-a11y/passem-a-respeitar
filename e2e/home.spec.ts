@@ -96,3 +96,51 @@ test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({
     expect(pedido.tipo, pedido.caminho).toBe('image/webp');
   }
 });
+
+/**
+ * Os nomes (#187): o selo e Whynot Visuals, e a camiseta e so da CBAC.
+ *
+ * O nome e a descricao da camiseta vem do banco, e o link do selo e escrito
+ * pelo script da home: os dois so existem com o site de pe.
+ */
+test('home: o selo e Whynot Visuals, e a camiseta e so da CBAC', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.locator('#merch .nome')).toHaveText('Camiseta CBAC');
+  await expect(page.locator('#merch')).not.toContainText('Passem a Respeitar');
+  await expect(page.locator('#merch')).not.toContainText('Edição do EP');
+
+  const selo = page.locator('footer.assina #igLabel');
+  await expect(selo).toHaveText('Whynot Visuals');
+  await expect(selo).toHaveAttribute('href', 'https://instagram.com/whynotvisuals_');
+  await expect(page.locator('footer.assina span')).toHaveText('CBAC');
+
+  // "P.A.R." sozinho continua no texto: e o nome do EP. O que saiu foi a colab.
+  await expect(page.locator('body')).not.toContainText(/WhyNot Records|CBAC x/i);
+});
+
+// 320 e a tela mais estreita que o site atende; 390 e a do telefone do dono.
+for (const largura of [320, 390]) {
+  test(`home: em ${largura}px a fita da intro nao encosta no pular`, async ({ page }) => {
+    await page.setViewportSize({ width: largura, height: 780 });
+    await page.goto('/');
+    await page.evaluate(() => document.fonts.ready);
+
+    const fita = page.locator('#tape');
+    await expect(fita).toHaveText('SP · 2026 · WHYNOT VISUALS');
+
+    const medida = await page.evaluate(() => {
+      const caixa = (id: string) => document.querySelector(id)?.getBoundingClientRect();
+      const a = caixa('#tape');
+      const b = caixa('#skip');
+      if (!a || !b) return null;
+      return { fimDaFita: a.right, comecoDoPular: b.left, linhas: a.height };
+    });
+
+    expect(medida).not.toBeNull();
+    // Doze pixels de respiro: menos que isso os dois textos viram um so.
+    expect((medida?.comecoDoPular ?? 0) - (medida?.fimDaFita ?? 0)).toBeGreaterThanOrEqual(12);
+    // Uma linha so: a fita que quebra sobe por cima do botao de som.
+    expect(medida?.linhas).toBeLessThan(24);
+  });
+}

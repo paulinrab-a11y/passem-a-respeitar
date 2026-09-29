@@ -44,7 +44,7 @@ export const CONFIG: SiteConfig = {
     merch: '#',
     igSantxx: 'https://instagram.com/ogsantxx',
     igChefe: 'https://instagram.com/ch3fe3k',
-    igLabel: 'https://instagram.com/whynotrecords__',
+    igLabel: 'https://instagram.com/whynotvisuals_',
   },
   logoUrl: '/logo.png',
   // Vazio de proposito ate o clipe subir no YouTube (#75). Com string vazia

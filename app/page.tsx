@@ -75,7 +75,7 @@ export default async function Home() {
           <i></i>REC
         </div>
         <div id="tc">00:00:00:00</div>
-        <div id="tape">SP · 2026 · WHYNOT</div>
+        <div id="tape">SP · 2026 · WHYNOT VISUALS</div>
         <div id="manifesto" aria-live="polite">
           <span className="l">Não são seguidores.</span>
           <span className="l">Não são streams.</span>
@@ -218,9 +218,10 @@ export default async function Home() {
           </a>
           {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
           <a id="igLabel" href="#" target="_blank" rel="noopener">
-            WhyNot Records
+            Whynot Visuals
           </a>
-          <span>CBAC x P.A.R</span>
+          {/* So CBAC (#187): a camiseta e da marca, nao e colab com o EP. */}
+          <span>CBAC</span>
           {/* A politica existe desde a #109. Rodape e onde a pessoa procura. */}
           <a href="/privacidade">privacidade</a>
         </footer>
