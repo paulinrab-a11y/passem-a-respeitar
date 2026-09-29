@@ -28,7 +28,7 @@ function pede(caminho: string, cabecalhos: Record<string, string> = {}) {
 }
 
 async function roda(caminho: string, cabecalhos?: Record<string, string>) {
-  const { middleware } = await import('./middleware');
+  const { proxy: middleware } = await import('./proxy');
   return middleware(pede(caminho, cabecalhos));
 }
 
@@ -207,14 +207,14 @@ describe('leitura de cookie', () => {
   // runtime a mesma instancia atende varias pessoas, e ler do lugar errado
   // entregaria a sessao de uma para a outra.
   it('le os cookies do request que chegou', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     await middleware(pede('/conta', { cookie: 'sb-token=de-quem-pediu' }));
 
     expect(doSupabase.getAll?.()).toEqual([{ name: 'sb-token', value: 'de-quem-pediu' }]);
   });
 
   it('nao mistura o cookie de um request com o do seguinte', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
 
     await middleware(pede('/conta', { cookie: 'sb-token=primeiro' }));
     const primeiro = doSupabase.getAll?.();
@@ -253,7 +253,7 @@ describe('renovacao de token', () => {
       return { data: { user: { id: 'u1' } } };
     });
 
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const r = await middleware(pede('/conta', { cookie: 'par_lembrar=0' }));
 
     expect(r.cookies.get('sb-token')?.maxAge).toBeUndefined();
@@ -267,7 +267,7 @@ describe('renovacao de token', () => {
       return { data: { user: { id: 'u1' } } };
     });
 
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const r = await middleware(pede('/conta', { cookie: 'par_lembrar=1' }));
 
     expect(r.cookies.get('sb-token')?.maxAge).toBe(31536000);
@@ -281,7 +281,7 @@ describe('renovacao de token', () => {
       return { data: { user: { id: 'u1' } } };
     });
 
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const r = await middleware(pede('/conta', { cookie: 'par_lembrar=1' }));
 
     expect(r.cookies.get('sb-token')?.httpOnly).toBe(true);
@@ -410,7 +410,7 @@ describe('barreira de origem em /api (#17)', () => {
   }
 
   async function rodaApi(metodo: string, cabecalhos?: Record<string, string>) {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     return middleware(pedeApi(metodo, cabecalhos));
   }
 
@@ -465,7 +465,7 @@ describe('barreira de origem em /api (#17)', () => {
   });
 
   it('fora de /api a barreira nao existe', async () => {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     const r = await middleware(
       new NextRequest(`${ORIGEM}/entrar`, { method: 'POST', headers: { origin: OUTRA } })
     );
@@ -483,7 +483,7 @@ describe('host principal em producao (#141)', () => {
   const PRINCIPAL = 'passem-a-respeitar.exemplo';
 
   async function chega(url: string, metodo = 'GET') {
-    const { middleware } = await import('./middleware');
+    const { proxy: middleware } = await import('./proxy');
     return middleware(new NextRequest(url, { method: metodo }));
   }
 

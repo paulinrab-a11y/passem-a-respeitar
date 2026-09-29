@@ -19,7 +19,7 @@ function arquivos(raiz: string): string[] {
   });
 }
 
-const FONTES = [...arquivos('app'), ...arquivos('lib'), 'middleware.ts'].map((caminho) => ({
+const FONTES = [...arquivos('app'), ...arquivos('lib'), 'proxy.ts'].map((caminho) => ({
   caminho: caminho.split(sep).join('/'),
   texto: readFileSync(caminho, 'utf8'),
 }));
