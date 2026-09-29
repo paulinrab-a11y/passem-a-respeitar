@@ -29,7 +29,7 @@ const DO_BETO: Item = {
 /** Um id com formato certo que nao e de pedido nenhum. */
 const DE_NINGUEM = '00000000-0000-4000-8000-000000000000';
 
-const NAO_ACHEI = 'This page could not be found';
+const NAO_ACHEI = 'Página não encontrada';
 
 type Pedido = { id: string; numero: number };
 type Sessao = Awaited<ReturnType<BrowserContext['storageState']>>;
