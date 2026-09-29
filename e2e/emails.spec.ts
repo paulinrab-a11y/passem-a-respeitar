@@ -7,7 +7,12 @@ import { entra, vivo } from './apoio/telas';
 import { visitante } from './apoio/visitante';
 
 /**
- * Os e-mails de conta (#183): o que chega na caixa de entrada.
+ * Os e-mails de conta (#183, #185): o que chega na caixa de entrada.
+ *
+ * Dos treze modelos, o site dispara cinco, e sao esses que este arquivo le.
+ * Os outros oito nao tem como sair: o site nao tem convite, login por link,
+ * telefone, login social nem verificacao em duas etapas. Deles, o teste de
+ * unidade confere o texto e as variaveis.
  *
  * O texto esperado sai de supabase/templates/modelos.mjs, que e de onde os
  * modelos saem. O que o teste prova nao e que o texto e igual a si mesmo: e

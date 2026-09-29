@@ -259,31 +259,37 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Os e-mails de conta, em portugues (#183). Os .html sao gerados por
-# supabase/templates/modelos.mjs, e o assunto de cada um esta la tambem: o teste
-# confere que os dois lugares dizem a mesma coisa.
+# Os e-mails de conta, em portugues (#183, #185). Um para cada linha do
+# painel do Supabase. Os .html sao gerados por supabase/templates/gera.mjs a
+# partir de modelos.mjs, e o assunto de cada um esta la tambem: o teste confere
+# que os dois lugares dizem a mesma coisa.
 #
 # Isto vale para o Supabase LOCAL. Em producao os modelos ficam no painel, e
 # sao colados a mao a partir de supabase/templates/guia.html.
+#
+# Nos avisos de seguranca, `enabled` segue o que o guia manda ligar no painel:
+# senha trocada e e-mail trocado. Os outros cinco existem para nenhum e-mail
+# sair em ingles, mas o site nao tem telefone, login social nem verificacao em
+# duas etapas.
 [auth.email.template.confirmation]
 subject = "Confirme seu e-mail — Passem a Respeitar"
 content_path = "./supabase/templates/confirmation.html"
 
-[auth.email.template.recovery]
-subject = "Criar uma senha nova — Passem a Respeitar"
-content_path = "./supabase/templates/recovery.html"
+[auth.email.template.invite]
+subject = "Você foi convidado — Passem a Respeitar"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Seu acesso — Passem a Respeitar"
+content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.email_change]
 subject = "Confirme a troca de e-mail — Passem a Respeitar"
 content_path = "./supabase/templates/email_change.html"
 
-[auth.email.template.magic_link]
-subject = "Seu link de acesso — Passem a Respeitar"
-content_path = "./supabase/templates/magic_link.html"
-
-[auth.email.template.invite]
-subject = "Você foi convidado — Passem a Respeitar"
-content_path = "./supabase/templates/invite.html"
+[auth.email.template.recovery]
+subject = "Criar uma senha nova — Passem a Respeitar"
+content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.reauthentication]
 subject = "Seu código de confirmação — Passem a Respeitar"
@@ -298,6 +304,31 @@ content_path = "./supabase/templates/password_changed.html"
 enabled = true
 subject = "O e-mail da sua conta foi trocado — Passem a Respeitar"
 content_path = "./supabase/templates/email_changed.html"
+
+[auth.email.notification.phone_changed]
+enabled = false
+subject = "O telefone da sua conta foi trocado — Passem a Respeitar"
+content_path = "./supabase/templates/phone_changed.html"
+
+[auth.email.notification.identity_linked]
+enabled = false
+subject = "Uma forma de entrar foi adicionada — Passem a Respeitar"
+content_path = "./supabase/templates/identity_linked.html"
+
+[auth.email.notification.identity_unlinked]
+enabled = false
+subject = "Uma forma de entrar foi removida — Passem a Respeitar"
+content_path = "./supabase/templates/identity_unlinked.html"
+
+[auth.email.notification.mfa_factor_enrolled]
+enabled = false
+subject = "A verificação em duas etapas foi ligada — Passem a Respeitar"
+content_path = "./supabase/templates/mfa_factor_enrolled.html"
+
+[auth.email.notification.mfa_factor_unenrolled]
+enabled = false
+subject = "Um método de verificação foi removido — Passem a Respeitar"
+content_path = "./supabase/templates/mfa_factor_unenrolled.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
