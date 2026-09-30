@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
+import ContraRobo, { SEM_AVISO } from '@/app/_ui/ContraRobo';
 import { comErro, useCaixinha, useCampos } from '@/app/_ui/campos';
 import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
@@ -13,6 +14,12 @@ export default function Formulario({ next }: { next: string }) {
   // respondesse com erro, e errar a senha viraria redigitar tudo (#130).
   const { campo } = useCampos({ email: '', senha: '' });
   const { caixinha } = useCaixinha();
+  // Protecao contra bot (#28). Quem envia antes do token chegar espera, e o
+  // botao ja mostra que esta andando. So o botao: campo desabilitado nao
+  // entra no envio, e o envio ainda nao saiu. O aviso dela usa o lugar do
+  // erro, que ja esta reservado: nada anda quando ele aparece.
+  const [robo, setRobo] = useState(SEM_AVISO);
+  const andando = pendente || robo.esperando;
 
   return (
     <form action={acao} className="auth-form" noValidate>
@@ -55,16 +62,23 @@ export default function Formulario({ next }: { next: string }) {
         </a>
       </div>
 
-      <Erro id="auth-erro" texto={estado.erro} tentativa={estado.tentativa} enviando={pendente} />
+      <ContraRobo acao="entrar" tentativa={estado.tentativa} aoMudar={setRobo} />
+
+      <Erro
+        id="auth-erro"
+        texto={robo.aviso ?? estado.erro}
+        tentativa={robo.aviso ? `robo-${robo.vez}` : estado.tentativa}
+        enviando={andando}
+      />
 
       {/* `.btn` e nao `.btn.cheio`: o fundo cheio esconde o ::before vermelho,
           que e justamente o que preenche o botao enquanto o envio acontece. */}
       <button
         type="submit"
-        className={`btn auth-enviar${pendente ? ' carregando' : ''}`}
-        disabled={pendente}
+        className={`btn auth-enviar${andando ? ' carregando' : ''}`}
+        disabled={andando}
       >
-        <Rotulo parado="Entrar" agindo="Entrando…" ativo={pendente} />
+        <Rotulo parado="Entrar" agindo="Entrando…" ativo={andando} />
       </button>
 
       <p className="auth-rodape">

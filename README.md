@@ -45,6 +45,7 @@ app/
 lib/
   convite.ts            hash, comparação em tempo constante, cookie assinado
   rate-limit.ts         limite no Upstash, com queda para memória (#22, #121)
+  robo.ts               proteção contra bot: isca e conferência do token (#28)
   rotas.ts              quem exige sessão, destino seguro, host principal
   site-url.ts           endereço do site e origem do pedido
   admin.ts              quem administra, pela lista do ambiente
@@ -182,6 +183,48 @@ do outro.
 byte a byte para o diff continuar auditável contra o deploy antigo. Está fora do
 Biome de propósito. Mudanças nele só com motivo declarado no commit — até hoje,
 duas: a migração e a validação do convite no servidor.
+
+## Proteção contra bot
+
+Login, cadastro, recuperação de senha e o campo de convite da home têm duas
+barreiras (#28), e nenhuma delas mora no navegador:
+
+| Barreira | O que é | Quem confere |
+|---|---|---|
+| Isca | campo fora da tela, do teclado e do leitor de tela | o servidor: preenchido, recusa |
+| Desafio | Cloudflare Turnstile, tema escuro, em português | o servidor pergunta à Cloudflare se o token vale |
+
+O token vale uma vez e por cinco minutos. Cada resposta do servidor pede um
+novo. Quem envia antes de o token chegar não recebe erro: o envio espera e sai
+sozinho.
+
+Quase sempre a Cloudflare se convence sozinha. Quando não, ela pede que a
+pessoa marque uma caixa; quem envia sem marcar lê, no lugar do erro do
+formulário, o que falta fazer.
+
+O widget tem lugar reservado desde o primeiro quadro, e o botão não anda quando
+ele chega. Em tela de até 335 px vai o formato compacto: o largo não encolhe
+abaixo de 300 px e esticaria o formulário.
+
+A ordem dentro de cada ação:
+
+1. isca preenchida ou envio sem token: recusa, sem gastar tentativa do limite
+2. limite de tentativas
+3. conferência do token na Cloudflare, que é uma chamada para fora
+4. o que o formulário faz
+
+Falha fechada: Cloudflare fora do ar recusa o envio. Em produção, chave
+faltando ou chave de teste também recusam, e o Sentry recebe o aviso.
+
+Na política de segurança, o widget abriu **um** host, em `frame-src`, e só nas
+quatro páginas que têm formulário público. Na home, o script da Cloudflare só
+carrega quando a pessoa chega no campo de convite.
+
+O que isto **não** cobre: quem fala direto com a API do Supabase, sem passar
+pelo site. Lá quem segura é o limite do próprio Supabase.
+
+A suíte de ponta a ponta roda com as chaves de teste que a Cloudflare publica:
+o widget sempre passa, e a conferência aceita qualquer token.
 
 ## E-mails de conta
 
@@ -331,7 +374,6 @@ Esperando decisão ou conta do dono:
   `NEXT_PUBLIC_SITE_URL` e os registros de e-mail do domínio
 - E-mail transacional: registros do domínio e teste de entrega em Gmail,
   Outlook e Apple Mail (#55). Os modelos em português estão prontos (#183)
-- Proteção contra bot nos formulários públicos (#28)
 - Hospedagem do clipe; até lá a home mostra "clipe em breve" (#75)
 - Link de pré-save ainda não existe; o botão mostra "Pré-save em breve"
 - Credenciais de produção do Mercado Pago, e o primeiro pagamento real (#45)

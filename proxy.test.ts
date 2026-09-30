@@ -337,6 +337,11 @@ describe('os hosts do Mercado Pago na CSP (#108)', () => {
     expect(diretiva(await cspDe('/'), 'frame-src')).toBe("frame-src 'none'");
   });
 
+  it('a chave da protecao contra bot nao abre a Cloudflare na tela de pagamento', async () => {
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'chave-publica-de-teste');
+    expect(await cspDe(PAGAMENTO)).not.toContain('cloudflare');
+  });
+
   // `strict-dynamic` faz host em script-src ser IGNORADO. Listar o SDK ali
   // seria linha morta, e linha morta numa politica de seguranca confunde quem
   // for revisar depois.
@@ -399,6 +404,72 @@ describe('os hosts do Mercado Pago na CSP (#108)', () => {
       expect(csp).not.toContain('mercadolivre.com');
     }
   );
+});
+
+describe('o iframe da protecao contra bot na CSP (#28)', () => {
+  const CLOUDFLARE = 'https://challenges.cloudflare.com';
+  const COM_FORMULARIO = ['/', '/entrar', '/criar-conta', '/recuperar-senha'];
+
+  const diretiva = (csp: string, nome: string) =>
+    csp
+      .split(';')
+      .map((d) => d.trim())
+      .find((d) => d.startsWith(`${nome} `)) ?? '';
+
+  const cspDe = async (caminho: string) =>
+    (await roda(caminho)).headers.get('Content-Security-Policy') ?? '';
+
+  describe('com chave', () => {
+    beforeEach(() => {
+      vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'chave-publica-de-teste');
+    });
+
+    it.each(COM_FORMULARIO)('%s abre o iframe, e so o iframe', async (caminho) => {
+      const csp = await cspDe(caminho);
+
+      expect(diretiva(csp, 'frame-src')).toBe(`frame-src ${CLOUDFLARE}`);
+      // Medido no navegador: o widget nao precisou de mais nada. O script
+      // herda a confianca de quem o criou, e quem fala com a Cloudflare e o
+      // iframe, de dentro dele.
+      expect(csp.split(CLOUDFLARE)).toHaveLength(2);
+      expect(diretiva(csp, 'connect-src')).toBe("connect-src 'self'");
+    });
+
+    // O ponto e o mesmo do Mercado Pago: host novo vale onde e usado. Pagina
+    // que nao tem formulario publico nao tem por que abrir iframe de fora.
+    it.each([
+      '/privacidade',
+      '/redefinir-senha',
+      '/conta',
+      '/conta/seguranca',
+      '/checkout',
+      '/entrar/outra-coisa',
+      '/api/convite',
+    ])('%s continua sem a Cloudflare', async (caminho) => {
+      logado(true);
+      const csp = await cspDe(caminho);
+
+      expect(csp).not.toContain('cloudflare');
+      expect(diretiva(csp, 'frame-src')).toBe("frame-src 'none'");
+    });
+
+    it('o redirecionamento para o login tambem leva a politica certa', async () => {
+      const r = await roda('/conta');
+
+      expect(r.status).toBe(307);
+      expect(r.headers.get('Content-Security-Policy')).not.toContain('cloudflare');
+    });
+  });
+
+  describe('sem chave', () => {
+    it.each(COM_FORMULARIO)('%s fica com a politica de antes', async (caminho) => {
+      vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', '');
+      const csp = await cspDe(caminho);
+
+      expect(csp).not.toContain('cloudflare');
+      expect(diretiva(csp, 'frame-src')).toBe("frame-src 'none'");
+    });
+  });
 });
 
 describe('barreira de origem em /api (#17)', () => {

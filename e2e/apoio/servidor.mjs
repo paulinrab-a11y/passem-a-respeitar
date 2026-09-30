@@ -34,7 +34,6 @@ const DESLIGADAS = [
   'MERCADOPAGO_WEBHOOK_SECRET_ALT',
   'NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY',
   'NEXT_PUBLIC_SENTRY_DSN',
-  'NEXT_PUBLIC_TURNSTILE_SITE_KEY',
   'SENTRY_AUTH_TOKEN',
   'SENTRY_ORG',
   'SENTRY_PROJECT',
@@ -43,13 +42,26 @@ const DESLIGADAS = [
   'SMTP_PASSWORD',
   'SMTP_PORT',
   'SMTP_USER',
-  'TURNSTILE_SECRET_KEY',
   'UPSTASH_REDIS_REST_TOKEN',
   'UPSTASH_REDIS_REST_URL',
   // Na Vercel estas duas redirecionam para o host de producao (#141).
   'VERCEL_ENV',
   'VERCEL_PROJECT_PRODUCTION_URL',
 ];
+
+/**
+ * Protecao contra bot (#28), com as chaves de TESTE que a Cloudflare publica na
+ * documentacao. Nao sao segredo, e nao protegem nada: o widget sempre passa, e
+ * a conferencia aceita qualquer token. Servem para a suite exercitar o
+ * caminho inteiro (script, iframe, CSP, campo, conferencia no servidor) sem
+ * depender de resolver desafio.
+ *
+ * Em producao o site recusa estas chaves: ver lib/robo.ts.
+ */
+const DESAFIO_DE_TESTE = {
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: '1x00000000000000000000AA',
+  TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
+};
 
 const env = { ...process.env };
 for (const nome of DESLIGADAS) env[nome] = '';
@@ -65,6 +77,7 @@ Object.assign(env, {
   // `.env.local` de quem desenvolve, nao administra o banco de teste.
   ADMIN_EMAILS: ADMIN,
   NEXT_TELEMETRY_DISABLED: '1',
+  ...DESAFIO_DE_TESTE,
 });
 
 const build = spawnSync(process.execPath, [next, 'build'], { env, stdio: 'inherit' });

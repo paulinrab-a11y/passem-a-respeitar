@@ -153,8 +153,19 @@ export default async function Home() {
                 aria-describedby="erroCod"
               />
               <button type="submit">entrar</button>
+              {/* Isca da protecao contra bot (#28): fora da tela, do teclado
+                  e do leitor de tela. Quem preenche e script. */}
+              <div className="isca" aria-hidden="true">
+                <label>
+                  Site
+                  <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+                </label>
+              </div>
             </form>
             <div className="erro" id="erroCod" aria-live="polite"></div>
+            {/* O widget da Cloudflare so aparece aqui se precisar que a pessoa
+                faca alguma coisa. Vazio, nao ocupa lugar. */}
+            <div className="desafio-convite" id="desafioConvite"></div>
           </div>
         </section>
 
