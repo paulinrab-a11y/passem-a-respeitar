@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { levaAteAAncora } from '@/lib/ancora';
+import montaConcierge from './concierge';
 import { CONFIG } from './config';
 import { desafioDoConvite } from './desafio-do-convite';
 
@@ -38,6 +39,13 @@ export default function HomeRuntime() {
       // global: o script legado so conhece o que recebe.
       legacy.default(CONFIG, {
         humano: desafioDoConvite(document.getElementById('desafioConvite')),
+      });
+
+      // O Concierge (#191) e um modulo proprio, fora do script legado: nasce
+      // em TypeScript e nao precisa de nada do three/GSAP. Entra depois do
+      // init pelo mesmo motivo da ancora: a intro ja decidiu a trava.
+      montaConcierge({
+        humano: desafioDoConvite(document.getElementById('desafioConcierge'), 'concierge'),
       });
 
       // Depois do init, nao antes: e neste instante que a intro ja pos (ou nao
