@@ -24,7 +24,7 @@ const CHAVE = 'chave-de-teste';
 const pedido = vi.fn<typeof fetch>();
 
 function respondeCom(corpo: unknown, status = 200) {
-  pedido.mockResolvedValue(new Response(JSON.stringify(corpo), { status }));
+  pedido.mockImplementation(async () => new Response(JSON.stringify(corpo), { status }));
 }
 
 function respostaDoGemini(texto: string) {

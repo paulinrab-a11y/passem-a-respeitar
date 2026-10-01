@@ -1181,12 +1181,13 @@ footer.assina a:hover{color:var(--vermelho)}
 
 /* Altura reservada: aparece e some sem mexer no que esta em volta. As barras
    crescem por transform, como o equalizador do `.tocando`, nunca por height. */
-.concierge-digitando{display:flex;gap:4px;align-items:flex-end;height:14px;margin:0 16px;opacity:0;transition:opacity .2s cubic-bezier(.22,1,.36,1)}
+/* O mesmo equalizador do `.tocando`: tres barras em vez de quatro. */
+.concierge-digitando{height:14px;margin:0 16px;opacity:0;transition:opacity .2s cubic-bezier(.22,1,.36,1)}
 .concierge-digitando.on{opacity:1}
-.concierge-digitando i{display:block;width:3px;height:14px;transform-origin:bottom;background:var(--vermelho);transform:scaleY(.21)}
-.concierge-digitando.on i{animation:eq .6s ease-in-out infinite alternate}
-.concierge-digitando.on i:nth-child(2){animation-delay:.15s}
-.concierge-digitando.on i:nth-child(3){animation-delay:.3s}
+.concierge-digitando .eq{display:flex;gap:3px;align-items:flex-end;height:14px}
+.concierge-digitando .eq i{display:block;width:3px;height:14px;transform-origin:bottom;background:var(--vermelho);transform:scaleY(.21)}
+.concierge-digitando.on .eq i{animation:eq .6s ease-in-out infinite alternate}
+.concierge-digitando.on .eq i:nth-child(2){animation-delay:.15s}.concierge-digitando.on .eq i:nth-child(3){animation-delay:.3s}
 
 .concierge-aviso{min-height:18px;padding:4px 16px 0;font-size:12px;letter-spacing:.14em;color:var(--prata-2)}
 
@@ -1210,5 +1211,5 @@ footer.assina a:hover{color:var(--vermelho)}
   .concierge.on{animation-name:so-fade}
   .concierge.saindo{animation-name:so-fade-sai}
   .concierge-bolha{animation:none}
-  .concierge-digitando.on i{animation:none;transform:scaleY(.5)}
+  .concierge-digitando.on .eq i{animation:none;transform:scaleY(.5)}
 }

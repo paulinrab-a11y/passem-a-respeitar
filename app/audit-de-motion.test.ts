@@ -59,6 +59,7 @@ describe('loops', () => {
     '#rec i': 'REC da abertura em VHS: identidade, vive so dentro da intro',
     '#hero .desce::after': 'convite a rolar, no hero',
     '.tocando .eq i': 'equalizador: so aparece enquanto o som toca',
+    '.concierge-digitando.on .eq i': 'equalizador do concierge: so enquanto a resposta nao chega',
     '.esq::after,.esq-linha::after': 'brilho do esqueleto, enquanto o dado nao chega',
     '#merch .galeria figure::after': 'brilho da moldura, enquanto a foto nao chega',
     '#clipe .player.carregando::after': 'brilho do player, enquanto o video nao responde',

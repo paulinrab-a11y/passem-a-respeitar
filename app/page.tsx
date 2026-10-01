@@ -348,9 +348,11 @@ export default async function Home() {
         <div className="concierge-lista" id="conciergeLista" aria-live="polite"></div>
         <div className="concierge-digitando" id="conciergeDigitando" aria-hidden="true">
           <span className="sr">O concierge está escrevendo</span>
-          <i></i>
-          <i></i>
-          <i></i>
+          <span className="eq">
+            <i></i>
+            <i></i>
+            <i></i>
+          </span>
         </div>
         <div className="concierge-aviso" id="conciergeAviso" aria-live="polite"></div>
         <form id="formConcierge" className="concierge-form" autoComplete="off">

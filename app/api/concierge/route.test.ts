@@ -21,9 +21,11 @@ const ERRO_DE_ENTRADA = 'Não entendi. Escreve a pergunta de novo, mais curta.';
 
 const pedido = vi.fn<typeof fetch>();
 
+/** Uma Response nova por chamada: o corpo so pode ser lido uma vez. */
 function geminiResponde(texto: string) {
-  pedido.mockResolvedValue(
-    new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: texto }] } }] }))
+  pedido.mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: texto }] } }] }))
   );
 }
 
