@@ -61,6 +61,28 @@ export default function montaConcierge({ humano }: { humano: Humano }) {
     return;
   }
 
+  liga({ abrir, painel, fechar, lista, form, campo, enviar, digitando, aviso }, humano);
+}
+
+type Elementos = {
+  abrir: HTMLButtonElement;
+  painel: HTMLElement;
+  fechar: HTMLButtonElement;
+  lista: HTMLElement;
+  form: HTMLFormElement;
+  campo: HTMLTextAreaElement;
+  enviar: HTMLButtonElement;
+  digitando: HTMLElement;
+  aviso: HTMLElement;
+};
+
+/**
+ * Separado de `montaConcierge` por causa do TypeScript: as funcoes de dentro
+ * sao declaracoes, e declaracao nao herda o estreitamento de tipo do `if`
+ * que vem antes dela. Aqui os elementos ja chegam sem `null`.
+ */
+function liga(el: Elementos, humano: Humano) {
+  const { abrir, painel, fechar, lista, form, campo, enviar, digitando, aviso } = el;
   const isca = form.querySelector<HTMLInputElement>('[name="website"]');
 
   const historico: Troca[] = [];
