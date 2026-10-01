@@ -28,7 +28,7 @@ export const CAMPO_DA_ISCA = 'website';
 export const CAMPO_DO_DESAFIO = 'cf-turnstile-response';
 
 /** Uma acao por formulario: token tirado em um nao vale no outro. */
-export type Acao = 'entrar' | 'criar-conta' | 'recuperar-senha' | 'convite';
+export type Acao = 'entrar' | 'criar-conta' | 'recuperar-senha' | 'convite' | 'concierge';
 
 /**
  * Mensagem unica para isca preenchida, token ausente, token recusado e
