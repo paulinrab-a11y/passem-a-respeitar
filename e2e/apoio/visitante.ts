@@ -28,6 +28,7 @@ const ARQUIVOS = [
   // No fim, e nao na ordem do alfabeto: o IP de cada arquivo sai da posicao
   // dele aqui, e entrar no meio trocaria o de quem vem depois.
   'robo',
+  'concierge',
 ] as const;
 
 export function visitante(arquivo: (typeof ARQUIVOS)[number]) {
