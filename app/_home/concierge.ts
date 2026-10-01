@@ -96,7 +96,8 @@ function liga(el: Elementos, humano: Humano) {
 
   function bolha(papel: Papel, texto: string) {
     const el = document.createElement('div');
-    el.className = `concierge-bolha ${papel}`;
+    // `bolha-concierge`, e nao `concierge`: esta ultima e a classe do painel.
+    el.className = `concierge-bolha bolha-${papel}`;
     el.textContent = texto;
     lista.appendChild(el);
     lista.scrollTop = lista.scrollHeight;
