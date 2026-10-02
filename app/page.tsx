@@ -235,6 +235,13 @@ export default async function Home() {
           <span>CBAC</span>
           {/* A politica existe desde a #109. Rodape e onde a pessoa procura. */}
           <a href="/privacidade">privacidade</a>
+          {/* Credito do site (#195). Link fixo, fora do CONFIG: nao muda por ambiente. */}
+          <p className="assina-credito">
+            site feito pela{' '}
+            <a href="https://instagram.com/whynotvisuals_" target="_blank" rel="noopener">
+              Whynot Visuals
+            </a>
+          </p>
         </footer>
       </main>
 
