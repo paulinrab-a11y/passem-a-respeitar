@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ESPERA_MS, extraiTexto, MODELO, montaCorpo, pergunta, type Troca } from './gemini';
+import {
+  ESPERA_MS,
+  extraiTexto,
+  MODELO,
+  MODELO_RESERVA,
+  montaCorpo,
+  pergunta,
+  type Troca,
+} from './gemini';
 import { PROMPT_DO_CONCIERGE } from './prompt';
 
 /**
@@ -130,6 +138,33 @@ describe('pergunta', () => {
     expect(JSON.stringify(captureMessage.mock.calls[0])).not.toContain('API key not valid');
   });
 
+  // Chave invalida e chave invalida no reserva tambem: nao ha o que tentar.
+  it('erro 400 nao vai ao reserva', async () => {
+    respondeCom({ error: { message: 'bad' } }, 400);
+
+    await pergunta([], 'oi');
+
+    expect(pedido).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([503, 429, 500])('%s no principal tenta o reserva uma vez', async (status) => {
+    pedido
+      .mockImplementationOnce(async () => new Response('{}', { status }))
+      .mockImplementationOnce(async () => new Response(JSON.stringify(respostaDoGemini('Veio.'))));
+
+    expect(await pergunta([], 'oi')).toBe('Veio.');
+    expect(pedido).toHaveBeenCalledTimes(2);
+    expect(String(pedido.mock.calls[0]?.[0])).toContain(`/models/${MODELO}:`);
+    expect(String(pedido.mock.calls[1]?.[0])).toContain(`/models/${MODELO_RESERVA}:`);
+  });
+
+  it('reserva tambem fora do ar e null, e para por ai', async () => {
+    respondeCom({}, 503);
+
+    expect(await pergunta([], 'oi')).toBeNull();
+    expect(pedido).toHaveBeenCalledTimes(2);
+  });
+
   it('resposta sem texto e null', async () => {
     respondeCom({ candidates: [{ finishReason: 'SAFETY' }] });
     expect(await pergunta([], 'oi')).toBeNull();
@@ -152,9 +187,12 @@ describe('pergunta', () => {
     );
 
     const promessa = pergunta([], 'oi');
+    // Duas tentativas: a demora no principal passa ao reserva.
+    await vi.advanceTimersByTimeAsync(ESPERA_MS + 1);
     await vi.advanceTimersByTimeAsync(ESPERA_MS + 1);
 
     expect(await promessa).toBeNull();
+    expect(pedido).toHaveBeenCalledTimes(2);
     expect(captureMessage.mock.calls[0]?.[1]).toMatchObject({ tags: { motivo: 'demora' } });
   });
 });

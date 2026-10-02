@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { pergunta, ultimoMotivo } from '@/lib/concierge/gemini';
+import { pergunta } from '@/lib/concierge/gemini';
 import { esquemaConcierge } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { CAMPO_DA_ISCA, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
@@ -78,8 +78,7 @@ export async function POST(request: Request) {
 
   const resposta = await pergunta(entrada.data.historico, entrada.data.mensagem);
   if (resposta === null) {
-    // TEMPORARIO (#191): categoria da falha no cabecalho, para diagnosticar o preview.
-    return erro(ERRO_DO_CONCIERGE, 502, { 'X-Concierge-Motivo': ultimoMotivo });
+    return erro(ERRO_DO_CONCIERGE, 502);
   }
 
   return NextResponse.json({ ok: true, resposta }, { headers: SEM_CACHE });

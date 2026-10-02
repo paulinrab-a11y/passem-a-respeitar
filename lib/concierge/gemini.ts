@@ -98,13 +98,10 @@ export function extraiTexto(resposta: RespostaDoGemini): string | null {
 
 let avisouChave = false;
 
-/** O ultimo motivo de falha desta instancia, para o log da rota. */
-export let ultimoMotivo = '';
-
 async function avisa(motivo: string, extra?: Record<string, unknown>) {
-  ultimoMotivo = [motivo, extra?.status, extra?.modelo].filter(Boolean).join(':');
-  // Tambem no log da funcao: o Sentry pode estar desligado no preview.
-  console.error('[concierge]', ultimoMotivo);
+  // Tambem no log da funcao: o Sentry pode estar desligado no preview, e o
+  // log da Vercel e onde se olha primeiro. So categoria, status e modelo.
+  console.error('[concierge]', [motivo, extra?.status, extra?.modelo].filter(Boolean).join(':'));
   Sentry.captureMessage('concierge: nao consegui responder', {
     level: 'error',
     tags: { motivo },

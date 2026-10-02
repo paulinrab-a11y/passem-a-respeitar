@@ -185,6 +185,8 @@ describe('POST /api/concierge', () => {
     );
 
     const promessa = POST(pede({ mensagem: 'oi' }));
+    // Principal e reserva: os dois demoram.
+    await vi.advanceTimersByTimeAsync(ESPERA_MS + 1);
     await vi.advanceTimersByTimeAsync(ESPERA_MS + 1);
     const r = await promessa;
     const texto = JSON.stringify(await r.json());
