@@ -171,6 +171,9 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 footer.assina{padding:40px var(--gutter) 60px;font-size:13px;letter-spacing:.24em;color:var(--prata-2);display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
 footer.assina a{text-decoration:none}
 footer.assina a:hover{color:var(--vermelho)}
+/* Credito do site (#195): linha propria, abaixo dos links, um tom mais baixo. */
+footer.assina .assina-credito{flex-basis:100%;text-align:center;margin-top:-10px;font-size:11px;letter-spacing:.2em}
+footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;text-underline-offset:3px}
 
 #sala{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.94);display:none;place-items:center;padding:var(--gutter)}
 #sala.on{display:grid}

@@ -115,6 +115,14 @@ test('home: o selo e Whynot Visuals, e a camiseta e so da CBAC', async ({ page }
   await expect(selo).toHaveAttribute('href', 'https://instagram.com/whynotvisuals_');
   await expect(page.locator('footer.assina span')).toHaveText('CBAC');
 
+  // Credito do site (#195).
+  const credito = page.locator('footer.assina .assina-credito');
+  await expect(credito).toHaveText('site feito pela Whynot Visuals');
+  await expect(credito.getByRole('link', { name: 'Whynot Visuals' })).toHaveAttribute(
+    'href',
+    'https://instagram.com/whynotvisuals_'
+  );
+
   // "P.A.R." sozinho continua no texto: e o nome do EP. O que saiu foi a colab.
   await expect(page.locator('body')).not.toContainText(/WhyNot Records|CBAC x/i);
 });
