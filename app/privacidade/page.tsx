@@ -15,6 +15,8 @@ export const metadata: Metadata = {
  * tratamento de dado pessoal — nao entra em silencio. O resto do texto
  * descreve o que o site ja fazia.
  *
+ * O calculo do frete (#199) tambem: o CEP sai do site para o Melhor Envio.
+ *
  * A protecao contra bot (#28) entrou pelo mesmo motivo: o widget manda dado do
  * navegador para a Cloudflare, e isso se diz aqui.
  *
@@ -98,6 +100,23 @@ export default function Privacidade() {
               política de privacidade deles
             </a>
             . Nós guardamos só a resposta: passou ou não passou.
+          </p>
+        </section>
+
+        <section className="detalhe-bloco">
+          <h2>Cálculo do frete</h2>
+          <p className="detalhe-nota">
+            Para mostrar o preço do PAC e do SEDEX, o site manda ao Melhor Envio o{' '}
+            <strong>CEP de entrega</strong>, junto com o peso, as medidas e o valor do pacote. Só
+            isso: nem seu nome, nem seu e-mail, nem o resto do endereço vão nessa consulta.
+          </p>
+          <p className="detalhe-nota">
+            O Melhor Envio calcula o frete dos Correios para nós, e vale a{' '}
+            <a href="https://lwsa.tech/politicas/" target="_blank" rel="noopener noreferrer">
+              política de privacidade deles
+            </a>
+            . Quando o pedido é enviado, os Correios recebem o endereço completo, porque sem ele o
+            pacote não chega.
           </p>
         </section>
 

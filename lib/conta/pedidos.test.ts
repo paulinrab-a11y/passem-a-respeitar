@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { leStatus, mapeiaDetalhe, mapeiaPedidos, paginaValida, pareceUuid, reais } from './pedidos';
+import {
+  leFrete,
+  leStatus,
+  mapeiaDetalhe,
+  mapeiaPedidos,
+  paginaValida,
+  pareceUuid,
+  reais,
+} from './pedidos';
 
 /** O Intl usa espaco nao-separavel entre `R$` e o numero. */
 const limpo = (texto: string) => texto.replace(/ /g, ' ');
@@ -187,6 +195,10 @@ describe('mapeiaDetalhe', () => {
     criado_em: '2026-09-20T18:30:00Z',
     status: 'enviado',
     total_centavos: 24000,
+    // Pedido de antes da #199: sem frete.
+    frete_centavos: 0,
+    frete_servico: null,
+    frete_prazo_dias: null,
     order_items: [
       {
         id: 'item-1',
@@ -247,6 +259,8 @@ describe('mapeiaDetalhe', () => {
       // Entrou na #114: a tela so pergunta ao provedor enquanto isto for true.
       'aguardandoPagamento',
       'criadoEm',
+      // Entrou na #199: o frete ja formatado, ou nulo no pedido antigo.
+      'frete',
       'itens',
       'linhaDoTempo',
       'numero',
@@ -280,6 +294,9 @@ describe('aguardandoPagamento', () => {
     numero: 1,
     criado_em: '2026-09-24T10:00:00Z',
     total_centavos: 12000,
+    frete_centavos: 0,
+    frete_servico: null,
+    frete_prazo_dias: null,
     order_items: [],
   };
 
@@ -314,5 +331,50 @@ describe('aguardandoPagamento', () => {
       mapeiaDetalhe({ ...base, status: 'aguardando_pagamento', order_status_history: [] })
         .aguardandoPagamento
     ).toBe(true);
+  });
+});
+
+describe('leFrete (#199)', () => {
+  it('PAC e SEDEX saem com nome, valor e prazo', () => {
+    const pac = leFrete('pac', 2350, 8);
+    const sedex = leFrete('sedex', 4590, 1);
+
+    expect(pac && { ...pac, valor: limpo(pac.valor) }).toEqual({
+      servico: 'PAC',
+      valor: 'R$ 23,50',
+      prazo: 'até 8 dias úteis',
+    });
+    expect(sedex?.prazo).toBe('até 1 dia útil');
+  });
+
+  it('pedido de antes da #199 nao tem frete para mostrar', () => {
+    expect(leFrete(null, 0, null)).toBeNull();
+  });
+
+  it('servico que nao e PAC nem SEDEX sai nulo, e nao com rotulo inventado', () => {
+    expect(leFrete('jato', 100, 2)).toBeNull();
+  });
+
+  it('servico sem prazo e cotacao pela metade: nulo', () => {
+    expect(leFrete('pac', 2350, null)).toBeNull();
+  });
+
+  it('o detalhe leva o frete gravado', () => {
+    const pedido = mapeiaDetalhe({
+      id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      numero: 13,
+      criado_em: '2026-10-02T18:30:00Z',
+      status: 'aguardando_pagamento',
+      total_centavos: 14350,
+      frete_centavos: 2350,
+      frete_servico: 'pac',
+      frete_prazo_dias: 8,
+      order_items: [],
+      order_status_history: [],
+    });
+
+    expect(pedido.frete?.servico).toBe('PAC');
+    expect(limpo(pedido.frete?.valor ?? '')).toBe('R$ 23,50');
+    expect(limpo(pedido.total)).toBe('R$ 143,50');
   });
 });

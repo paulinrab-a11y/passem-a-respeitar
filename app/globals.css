@@ -762,6 +762,9 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .pedido-item-nome{font-size:14px;letter-spacing:.02em;color:var(--prata);min-width:0}
 .pedido-item-detalhe{font-size:12px;letter-spacing:.06em;color:var(--prata-2);white-space:nowrap}
 
+/* O frete do pedido (#199), entre os itens e o total. */
+.pedido-frete{margin-top:12px;display:flex;align-items:baseline;justify-content:space-between;gap:14px;font-size:13px;letter-spacing:.04em;line-height:1.45;color:var(--prata-2)}
+.pedido-frete span:last-child{color:var(--prata);white-space:nowrap}
 .pedido-total{margin-top:16px;padding-top:12px;border-top:1px solid #16171a;display:flex;align-items:baseline;justify-content:space-between;gap:14px}
 .pedido-total span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2)}
 .pedido-total strong{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
@@ -887,6 +890,45 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 /* O campo que o servidor apontou. Borda vermelha E foco: cor sozinha não
    conta nada para quem não a distingue. */
 .entrega input[aria-invalid='true']{border-color:var(--vermelho)}
+
+/* Frete (#199). A caixa tem a altura de duas opcoes em todos os estados:
+   vazia, calculando, com erro ou com PAC e SEDEX. A cotacao chega depois do
+   CEP, e o total e o botao nao podem andar quando ela chega. */
+.frete{margin:0;padding:0;border:0;min-width:0}
+.frete legend{padding:0;margin-bottom:8px;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2)}
+/* Altura fixa, e nao minima: o esqueleto e as opcoes tem pecas diferentes por
+   dentro, e com altura minima cada um ficava com a sua. Medido: 21 px, depois
+   3 px de diferenca, ate fixar. */
+.frete-opcoes,.frete-vazio,.frete-erro{height:calc(2 * 56px + 8px);box-sizing:border-box}
+.frete-opcoes{display:flex;flex-direction:column;gap:8px}
+.frete-opcao{display:grid;grid-template-columns:auto 1fr auto;grid-template-rows:auto auto;column-gap:12px;align-items:center;align-content:center;height:56px;box-sizing:border-box;padding:0 14px;border:1px solid var(--prata-3);cursor:pointer}
+.frete-opcao:hover{border-color:var(--prata-2)}
+.frete-opcao:has(input:checked){border-color:var(--vermelho)}
+.frete-opcao:has(input:focus-visible){outline:2px solid var(--prata);outline-offset:2px}
+.frete-opcao input{grid-row:span 2;width:16px;height:16px;margin:0;accent-color:var(--vermelho);cursor:pointer}
+.frete-nome{font-size:14px;letter-spacing:.12em;color:var(--prata)}
+.frete-prazo{grid-column:2;font-size:12px;letter-spacing:.06em;color:var(--prata-2)}
+.frete-preco{grid-column:3;grid-row:1 / span 2;font-size:14px;letter-spacing:.04em;color:var(--prata)}
+.frete-esqueleto{border-color:#1c1d20;cursor:default}
+.frete-esqueleto:hover{border-color:#1c1d20}
+.frete-esqueleto .esq-radio{grid-row:span 2;width:16px;height:16px;border:1px solid #1c1d20;border-radius:50%}
+.frete-vazio{display:flex;align-items:center;padding:0 14px;border:1px dashed #1c1d20;font-size:13px;letter-spacing:.04em;color:var(--prata-2)}
+.frete-erro{display:flex;align-items:center}
+.frete-nota{margin:8px 0 0;font-size:12px;letter-spacing:.06em;line-height:1.5;color:var(--prata-2)}
+.entrega>.resumo{margin-top:0}
+/* Audit de motion da #199. O esqueleto espera 150 ms para aparecer, como os da
+   conta: com a cotacao no cache a resposta chega antes, e ele nem pisca. As
+   opcoes entram com um fade curto, em vez de trocar de uma vez pelo
+   esqueleto. So opacidade: o lugar delas ja esta reservado. */
+.frete-opcoes[aria-hidden]{animation:esq-aparece .2s cubic-bezier(.22,1,.36,1) .15s backwards}
+.frete-opcoes[role=radiogroup]{animation:esq-aparece .16s cubic-bezier(.22,1,.36,1)}
+@media (prefers-reduced-motion:reduce){
+  .frete-opcoes[aria-hidden],.frete-opcoes[role=radiogroup]{animation:none}
+}
+/* Sem frete nao ha o que finalizar. Apagado como o .btn.off, para nao parecer
+   um botao que responde: o vermelho do hover dizia o contrario. */
+.entrega .btn.cheio:disabled:not(.carregando){background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:not-allowed}
+.entrega .btn.cheio:disabled:not(.carregando)::before{display:none}
 
 @media (max-width:767px){
   .entrega-campos{grid-template-columns:1fr;gap:14px}

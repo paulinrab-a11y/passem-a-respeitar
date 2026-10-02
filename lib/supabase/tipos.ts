@@ -119,6 +119,9 @@ export type Database = {
           entrega_nome: string | null;
           entrega_numero: string | null;
           entrega_uf: string | null;
+          frete_centavos: number;
+          frete_prazo_dias: number | null;
+          frete_servico: string | null;
           id: string;
           moeda: string;
           numero: number;
@@ -140,6 +143,9 @@ export type Database = {
           entrega_nome?: string | null;
           entrega_numero?: string | null;
           entrega_uf?: string | null;
+          frete_centavos?: number;
+          frete_prazo_dias?: number | null;
+          frete_servico?: string | null;
           id?: string;
           moeda?: string;
           numero?: never;
@@ -161,6 +167,9 @@ export type Database = {
           entrega_nome?: string | null;
           entrega_numero?: string | null;
           entrega_uf?: string | null;
+          frete_centavos?: number;
+          frete_prazo_dias?: number | null;
+          frete_servico?: string | null;
           id?: string;
           moeda?: string;
           numero?: never;
@@ -318,30 +327,42 @@ export type Database = {
       };
       produtos: {
         Row: {
+          altura_cm: number | null;
           ativo: boolean;
           atualizado_em: string;
+          comprimento_cm: number | null;
           criado_em: string;
           descricao: string | null;
           id: string;
+          largura_cm: number | null;
           nome: string;
+          peso_gramas: number | null;
           slug: string;
         };
         Insert: {
+          altura_cm?: number | null;
           ativo?: boolean;
           atualizado_em?: string;
+          comprimento_cm?: number | null;
           criado_em?: string;
           descricao?: string | null;
           id?: string;
+          largura_cm?: number | null;
           nome: string;
+          peso_gramas?: number | null;
           slug: string;
         };
         Update: {
+          altura_cm?: number | null;
           ativo?: boolean;
           atualizado_em?: string;
+          comprimento_cm?: number | null;
           criado_em?: string;
           descricao?: string | null;
           id?: string;
+          largura_cm?: number | null;
           nome?: string;
+          peso_gramas?: number | null;
           slug?: string;
         };
         Relationships: [];
@@ -386,6 +407,7 @@ export type Database = {
           p_total_centavos: number;
           p_endereco: Json;
           p_itens: Json;
+          p_frete: Json;
         };
         Returns: { pedido_id: string; pedido_numero: number }[];
       };

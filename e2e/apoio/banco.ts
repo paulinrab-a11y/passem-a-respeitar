@@ -81,6 +81,40 @@ export async function criaAdmin() {
   return criaUsuario('Admin', ADMIN);
 }
 
+/**
+ * Peso e medidas da camiseta no banco local (#199). Sem eles o site nao tem
+ * frete, e sem frete nao cria pedido. Em producao quem informa e o dono; aqui
+ * sao numeros da suite, e so existem neste banco.
+ */
+export async function medeCamiseta() {
+  const { error } = await admin()
+    .from('produtos')
+    .update({ peso_gramas: 300, altura_cm: 4, largura_cm: 25, comprimento_cm: 30 })
+    .eq('slug', 'camiseta-cbac');
+  if (error) throw new Error(`nao medi a camiseta: ${error.message}`);
+}
+
+/** O frete gravado no pedido, lido do banco e nao da tela. */
+export async function leFreteDoPedido(id: string) {
+  const { data, error } = await admin()
+    .from('orders')
+    .select('total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_cep')
+    .eq('id', id)
+    .single();
+  if (error || !data) throw new Error(`nao li o pedido: ${error?.message}`);
+  return data;
+}
+
+/** Quantos pedidos esta pessoa tem. Recusa de verdade nao deixa pedido. */
+export async function pedidosDe(dono: Usuario) {
+  const { count, error } = await admin()
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', dono.id);
+  if (error) throw new Error(`nao contei os pedidos: ${error.message}`);
+  return count ?? 0;
+}
+
 /** O status de um pedido e a trilha dele, lidos do banco e nao da tela. */
 export async function lePedido(id: string) {
   const banco = admin();

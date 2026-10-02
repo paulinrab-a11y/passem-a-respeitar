@@ -30,7 +30,7 @@ const CASOS: [string, () => ReactElement, string[]][] = [
   [
     'detalhe do pedido',
     EsqueletoPedido,
-    ['detalhe-topo', 'detalhe-bloco', 'etapas', 'pedido-total'],
+    ['detalhe-topo', 'detalhe-bloco', 'etapas', 'pedido-frete', 'pedido-total'],
   ],
   ['segurança', EsqueletoSeguranca, ['conta-bloco', 'troca-email', 'sessoes', 'excluir']],
 ];

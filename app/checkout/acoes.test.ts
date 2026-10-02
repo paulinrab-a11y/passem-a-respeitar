@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: vi.fn() }));
 vi.mock('@/lib/loja/pedido', () => ({ criaPedido: vi.fn() }));
+vi.mock('@/lib/loja/catalogo', () => ({ opcoesDeFrete: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(() => {
     // O `redirect` do Next lanca para interromper a execucao. O duble imita
@@ -17,8 +18,9 @@ vi.mock('next/navigation', () => ({
 
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { criaPedido } = await import('@/lib/loja/pedido');
+const { opcoesDeFrete } = await import('@/lib/loja/catalogo');
 const { redirect } = await import('next/navigation');
-const { finalizarCompra } = await import('./acoes');
+const { cotarFrete, finalizarCompra } = await import('./acoes');
 const { checkoutInicial } = await import('./estado');
 
 const ENDERECO = {
@@ -37,6 +39,7 @@ function formulario(extra: Record<string, string> = {}) {
   f.set('slug', 'camiseta-cbac');
   f.set('tamanho', 'M');
   f.set('quantidade', '1');
+  f.set('servico', 'pac');
   for (const [k, v] of Object.entries(ENDERECO)) f.set(k, v);
   for (const [k, v] of Object.entries(extra)) f.set(k, v);
   return f;
@@ -88,6 +91,7 @@ describe('sucesso', () => {
     expect(entrada).toEqual({
       itens: [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1 }],
       endereco: { ...ENDERECO, cep: '01310100' },
+      servico: 'pac',
     });
   });
 
@@ -197,5 +201,131 @@ describe('recusa', () => {
     const onze = await enviar();
 
     expect(onze.recado?.texto).toMatch(/muitas tentativas/i);
+  });
+});
+
+describe('escolha do frete (#199)', () => {
+  it('SEDEX escolhido chega como escolha', async () => {
+    await enviar({ servico: 'sedex' });
+
+    expect(vi.mocked(criaPedido).mock.calls[0][0]).toMatchObject({ servico: 'sedex' });
+  });
+
+  it.each([
+    ['sem escolha', ''],
+    ['inventada', 'jato'],
+    ['em maiuscula', 'SEDEX'],
+  ])('%s: pede para escolher, foca no grupo e nao cria', async (_, servico) => {
+    const r = await enviar({ servico });
+
+    expect(r.recado?.texto).toBe('Escolha PAC ou SEDEX.');
+    expect(r.campo).toBe('servico');
+    expect(criaPedido).not.toHaveBeenCalled();
+  });
+
+  it('preco de frete no formulario nem chega na criacao', async () => {
+    await enviar({ frete: '0', freteCentavos: '0', preco_frete: '1' });
+
+    const [entrada] = vi.mocked(criaPedido).mock.calls[0];
+    expect(Object.keys(entrada as object).sort()).toEqual(['endereco', 'itens', 'servico']);
+  });
+
+  it.each([
+    ['frete-fora-do-ar', 'Não consegui calcular o frete agora. Tente de novo em instantes.'],
+    ['frete-cep-invalido', 'Confira o CEP: não encontrei esse endereço.'],
+    ['frete-sem-servico', 'Os Correios não entregam nesse CEP por PAC nem por SEDEX.'],
+    ['frete-servico-indisponivel', 'Esse tipo de envio não atende esse CEP. Escolha o outro.'],
+  ] as const)('traduz %s', async (motivo, texto) => {
+    vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo });
+
+    expect((await enviar()).recado?.texto).toBe(texto);
+  });
+
+  // Configuracao faltando e produto sem medida sao problema do site, e a
+  // pessoa nao tem o que fazer com o nome deles.
+  it.each(['frete-sem-configuracao', 'frete-sem-medida'] as const)(
+    '%s nao conta o que falta',
+    async (motivo) => {
+      vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo });
+
+      const texto = (await enviar()).recado?.texto ?? '';
+      expect(texto).toBe('O frete está indisponível no momento. Tente de novo mais tarde.');
+      expect(texto).not.toMatch(/token|medida|configura|melhor envio/i);
+    }
+  );
+});
+
+describe('cotarFrete (#199)', () => {
+  const OPCOES = [
+    { servico: 'pac', nome: 'PAC', precoCentavos: 2350, prazoDias: 8 },
+    { servico: 'sedex', nome: 'SEDEX', precoCentavos: 4590, prazoDias: 3 },
+  ] as const;
+
+  const cotar = (extra: Record<string, unknown> = {}) =>
+    cotarFrete({
+      slug: 'camiseta-cbac',
+      tamanho: 'M',
+      quantidade: '1',
+      cep: '01310-100',
+      ...extra,
+    });
+
+  beforeEach(() => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({
+      ok: true,
+      subtotalCentavos: 12000,
+      opcoes: [...OPCOES],
+    });
+  });
+
+  it('devolve PAC e SEDEX do catalogo, com o CEP so em digitos', async () => {
+    expect(await cotar()).toEqual({ ok: true, subtotalCentavos: 12000, opcoes: OPCOES });
+    expect(opcoesDeFrete).toHaveBeenCalledWith(
+      [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1 }],
+      '01310100'
+    );
+  });
+
+  it('sem sessao nao cota', async () => {
+    vi.mocked(usuarioDaSessao).mockResolvedValue(null);
+
+    expect((await cotar()).ok).toBe(false);
+    expect(opcoesDeFrete).not.toHaveBeenCalled();
+  });
+
+  it.each(['0131010', '013101000', 'abcdefgh', '', 13101000, null])(
+    'CEP %j recusa sem consultar',
+    async (cep) => {
+      expect(await cotar({ cep })).toEqual({
+        ok: false,
+        texto: 'Confira o CEP: não encontrei esse endereço.',
+      });
+      expect(opcoesDeFrete).not.toHaveBeenCalled();
+    }
+  );
+
+  it('item que nao passa no schema recusa sem consultar', async () => {
+    expect((await cotar({ quantidade: '0' })).ok).toBe(false);
+    expect(opcoesDeFrete).not.toHaveBeenCalled();
+  });
+
+  it('para depois de trinta consultas em dez minutos', async () => {
+    for (let i = 0; i < 30; i++) expect((await cotar()).ok).toBe(true);
+
+    const r = await cotar();
+    expect(r).toEqual({
+      ok: false,
+      texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.',
+    });
+    expect(opcoesDeFrete).toHaveBeenCalledTimes(30);
+  });
+
+  it('falha da cotacao vira frase para a pessoa', async () => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({ ok: false, motivo: 'frete-fora-do-ar' });
+
+    expect(await cotar()).toEqual({
+      ok: false,
+      texto: 'Não consegui calcular o frete agora. Tente de novo em instantes.',
+    });
   });
 });

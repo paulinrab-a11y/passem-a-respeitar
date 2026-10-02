@@ -12,6 +12,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { ADMIN, ambienteLocal, SITE } from './ambiente.mjs';
+import { PORTA_DO_FRETE, sobeMelhorEnvioFalso, TOKEN_DO_FRETE } from './melhor-envio-falso.mjs';
 
 const local = ambienteLocal();
 const next = createRequire(import.meta.url).resolve('next/dist/bin/next');
@@ -29,6 +30,8 @@ const DESLIGADAS = [
   'CONVITE_COOKIE_SECRET',
   'CONVITE_TEASER_EMBED',
   'CRON_SECRET',
+  // O frete fala com o Melhor Envio falso, definido logo abaixo (#199).
+  'MELHOR_ENVIO_AMBIENTE',
   // A suite nao fala com o Gemini: o teste do concierge responde pela rota.
   'GEMINI_API_KEY',
   'MERCADOPAGO_ACCESS_TOKEN',
@@ -65,6 +68,17 @@ const DESAFIO_DE_TESTE = {
   TURNSTILE_SECRET_KEY: '1x0000000000000000000000000000000AA',
 };
 
+/**
+ * Frete (#199): o Melhor Envio falso, que sobe junto com o site, nesta
+ * maquina. O token e o CEP de origem sao da suite, e o falso so responde a
+ * esse token. Nenhuma chamada sai para o Melhor Envio de verdade.
+ */
+const FRETE_DA_SUITE = {
+  MELHOR_ENVIO_TOKEN: TOKEN_DO_FRETE,
+  MELHOR_ENVIO_CEP_ORIGEM: '01310100',
+  MELHOR_ENVIO_URL: `http://127.0.0.1:${PORTA_DO_FRETE}`,
+};
+
 const env = { ...process.env };
 for (const nome of DESLIGADAS) env[nome] = '';
 // Quem decide e o Next: `production` no build e no start.
@@ -80,10 +94,13 @@ Object.assign(env, {
   ADMIN_EMAILS: ADMIN,
   NEXT_TELEMETRY_DISABLED: '1',
   ...DESAFIO_DE_TESTE,
+  ...FRETE_DA_SUITE,
 });
 
 const build = spawnSync(process.execPath, [next, 'build'], { env, stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
+
+const frete = sobeMelhorEnvioFalso();
 
 const { hostname, port } = new URL(SITE);
 const site = spawn(process.execPath, [next, 'start', '-H', hostname, '-p', port], {
@@ -94,4 +111,7 @@ const site = spawn(process.execPath, [next, 'start', '-H', hostname, '-p', port]
 for (const sinal of ['SIGINT', 'SIGTERM']) {
   process.on(sinal, () => site.kill(sinal));
 }
-site.on('exit', (codigo) => process.exit(codigo ?? 0));
+site.on('exit', (codigo) => {
+  frete.close();
+  process.exit(codigo ?? 0);
+});
