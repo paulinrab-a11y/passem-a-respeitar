@@ -75,10 +75,10 @@ describe('montaCorpo', () => {
     ]);
   });
 
-  it('limita o tamanho da resposta e desliga o pensamento, que comeria esse limite', () => {
-    const config = montaCorpo([], 'oi').generationConfig;
-    expect(config.maxOutputTokens).toBeLessThanOrEqual(400);
-    expect(config.thinkingConfig.thinkingBudget).toBe(0);
+  it('limita o tamanho da resposta, com folga para o pensamento do modelo', () => {
+    const { maxOutputTokens } = montaCorpo([], 'oi').generationConfig;
+    expect(maxOutputTokens).toBeGreaterThanOrEqual(1024);
+    expect(maxOutputTokens).toBeLessThanOrEqual(2048);
   });
 });
 

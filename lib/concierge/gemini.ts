@@ -36,11 +36,7 @@ type Conteudo = { role: 'user' | 'model'; parts: Parte[] };
 type CorpoDoPedido = {
   systemInstruction: { parts: Parte[] };
   contents: Conteudo[];
-  generationConfig: {
-    temperature: number;
-    maxOutputTokens: number;
-    thinkingConfig: { thinkingBudget: number };
-  };
+  generationConfig: { temperature: number; maxOutputTokens: number };
 };
 
 type RespostaDoGemini = {
@@ -59,10 +55,11 @@ const PAPEL_NO_GEMINI: Record<Papel, Conteudo['role']> = {
  * `safetySettings` fica de fora de proposito: o padrao do Google e o que
  * vale, e relaxar isso nao e decisao de codigo.
  *
- * `thinkingBudget: 0` desliga o "pensamento" do Flash 2.5. Ligado, ele gasta
- * segundos e tokens raciocinando antes de escrever, e esses tokens contam no
- * `maxOutputTokens`: a resposta chegava cortada no meio da frase, ou nao
- * chegava antes do prazo. Quatro frases sobre o EP nao precisam disso.
+ * `maxOutputTokens` e folgado de proposito. O Flash "pensa" antes de
+ * escrever, e os tokens do pensamento contam nesse limite: com 400, a
+ * resposta chegava cortada no meio da frase. Desligar o pensamento
+ * (`thinkingConfig`) nao e opcao: a versao atrás do alias recusa o pedido.
+ * O tamanho do texto que a pessoa le quem segura e o prompt (quatro frases).
  */
 export function montaCorpo(historico: Troca[], mensagem: string): CorpoDoPedido {
   return {
@@ -71,11 +68,7 @@ export function montaCorpo(historico: Troca[], mensagem: string): CorpoDoPedido 
       ...historico.map((t) => ({ role: PAPEL_NO_GEMINI[t.papel], parts: [{ text: t.texto }] })),
       { role: 'user', parts: [{ text: mensagem }] },
     ],
-    generationConfig: {
-      temperature: 0.6,
-      maxOutputTokens: 400,
-      thinkingConfig: { thinkingBudget: 0 },
-    },
+    generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
   };
 }
 
