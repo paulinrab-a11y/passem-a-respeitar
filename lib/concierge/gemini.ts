@@ -21,10 +21,21 @@ import { PROMPT_DO_CONCIERGE } from './prompt';
 
 export const MODELO = 'gemini-flash-latest';
 
-const URL_DO_MODELO = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
+/**
+ * O reserva, so quando o principal responde 503 ou 429: o Flash gratuito
+ * fica sobrecarregado com frequencia, e "saiu por um instante" nao pode ser
+ * a resposta normal do site. O Lite e mais leve e raramente cai junto.
+ */
+export const MODELO_RESERVA = 'gemini-flash-lite-latest';
 
-/** Vinte segundos: o painel mostra "digitando" ate aqui, e depois desiste. */
-export const ESPERA_MS = 20_000;
+const urlDoModelo = (modelo: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
+
+/** Por tentativa. Duas tentativas cabem no `maxDuration` da rota. */
+export const ESPERA_MS = 12_000;
+
+/** Status que valem uma segunda tentativa, no reserva. */
+const PASSA_AO_RESERVA = new Set([429, 500, 503]);
 
 /** O que o navegador manda: quem falou e o que foi dito. */
 type Papel = 'usuario' | 'concierge';
@@ -91,7 +102,7 @@ let avisouChave = false;
 export let ultimoMotivo = '';
 
 async function avisa(motivo: string, extra?: Record<string, unknown>) {
-  ultimoMotivo = extra?.status ? `${motivo}:${String(extra.status)}` : motivo;
+  ultimoMotivo = [motivo, extra?.status, extra?.modelo].filter(Boolean).join(':');
   // Tambem no log da funcao: o Sentry pode estar desligado no preview.
   console.error('[concierge]', ultimoMotivo);
   Sentry.captureMessage('concierge: nao consegui responder', {
@@ -123,34 +134,48 @@ export async function pergunta(historico: Troca[], mensagem: string): Promise<st
     return null;
   }
 
+  const corpo = JSON.stringify(montaCorpo(historico, mensagem));
+
+  for (const modelo of [MODELO, MODELO_RESERVA]) {
+    const resultado = await tenta(modelo, chave, corpo);
+    if (resultado.texto !== null) return resultado.texto;
+    if (!resultado.tentaOutro) return null;
+  }
+  return null;
+}
+
+type Tentativa = { texto: string | null; tentaOutro: boolean };
+
+async function tenta(modelo: string, chave: string, corpo: string): Promise<Tentativa> {
   const controle = new AbortController();
   const prazo = setTimeout(() => controle.abort(), ESPERA_MS);
 
   try {
-    const r = await fetch(URL_DO_MODELO, {
+    const r = await fetch(urlDoModelo(modelo), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'x-goog-api-key': chave,
       },
-      body: JSON.stringify(montaCorpo(historico, mensagem)),
+      body: corpo,
       signal: controle.signal,
       cache: 'no-store',
     });
 
     if (!r.ok) {
       // O status e nosso para saber; o corpo do Google nao vai adiante.
-      await avisa('http', { status: r.status });
-      return null;
+      await avisa('http', { status: r.status, modelo });
+      return { texto: null, tentaOutro: PASSA_AO_RESERVA.has(r.status) };
     }
 
     const texto = extraiTexto((await r.json()) as RespostaDoGemini);
-    if (texto === null) await avisa('sem-texto');
-    return texto;
+    if (texto === null) await avisa('sem-texto', { modelo });
+    return { texto, tentaOutro: false };
   } catch (erro) {
     const motivo = erro instanceof Error && erro.name === 'AbortError' ? 'demora' : 'rede';
-    await avisa(motivo);
-    return null;
+    await avisa(motivo, { modelo });
+    // Demora no principal e o mesmo sintoma da sobrecarga.
+    return { texto: null, tentaOutro: motivo === 'demora' };
   } finally {
     clearTimeout(prazo);
   }
