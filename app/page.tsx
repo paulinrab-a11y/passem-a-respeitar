@@ -320,6 +320,66 @@ export default async function Home() {
         </div>
       </div>
 
+      {/* Concierge (#191): um chat pequeno, fixo no canto, que fala com
+          /api/concierge. Quem sabe do EP e o servidor; aqui so a caixa.
+          Fechado por padrao e fora da arvore de acessibilidade ate abrir. */}
+      <button
+        type="button"
+        className="btn concierge-abrir"
+        id="abrirConcierge"
+        aria-controls="concierge"
+        aria-expanded="false"
+      >
+        concierge
+      </button>
+      <section
+        id="concierge"
+        className="concierge"
+        role="dialog"
+        aria-labelledby="conciergeTitulo"
+        hidden
+      >
+        <div className="concierge-topo">
+          <h3 id="conciergeTitulo">Concierge</h3>
+          <button type="button" className="concierge-fechar" id="fecharConcierge">
+            fechar
+          </button>
+        </div>
+        <div className="concierge-lista" id="conciergeLista" aria-live="polite"></div>
+        <div className="concierge-digitando" id="conciergeDigitando" aria-hidden="true">
+          <span className="sr">O concierge está escrevendo</span>
+          <span className="eq">
+            <i></i>
+            <i></i>
+            <i></i>
+          </span>
+        </div>
+        <div className="concierge-aviso" id="conciergeAviso" aria-live="polite"></div>
+        <form id="formConcierge" className="concierge-form" autoComplete="off">
+          <label htmlFor="conciergeTexto" className="sr">
+            Pergunta para o concierge
+          </label>
+          <textarea
+            id="conciergeTexto"
+            name="mensagem"
+            rows={2}
+            maxLength={500}
+            placeholder="pergunta sobre o EP"
+          ></textarea>
+          {/* Isca da protecao contra bot (#28), igual a do convite. */}
+          <div className="isca" aria-hidden="true">
+            <label>
+              Site
+              <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+            </label>
+          </div>
+          <div className="desafio-convite" id="desafioConcierge"></div>
+          <button type="submit" className="btn cheio" id="enviarConcierge">
+            enviar
+          </button>
+        </form>
+      </section>
+
       <HomeRuntime />
     </>
   );

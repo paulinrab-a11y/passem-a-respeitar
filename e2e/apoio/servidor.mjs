@@ -29,6 +29,8 @@ const DESLIGADAS = [
   'CONVITE_COOKIE_SECRET',
   'CONVITE_TEASER_EMBED',
   'CRON_SECRET',
+  // A suite nao fala com o Gemini: o teste do concierge responde pela rota.
+  'GEMINI_API_KEY',
   'MERCADOPAGO_ACCESS_TOKEN',
   'MERCADOPAGO_WEBHOOK_SECRET',
   'MERCADOPAGO_WEBHOOK_SECRET_ALT',

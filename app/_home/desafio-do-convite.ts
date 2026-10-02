@@ -18,8 +18,14 @@ import {
  *     faca alguma coisa; a home nao ganha uma caixa nova.
  *
  * Sem chave configurada devolve `null`, e o script da home segue como antes.
+ *
+ * `acao` e o nome que o token carrega: tirado para um formulario nao vale no
+ * outro. O convite e o padrao; o Concierge (#191) passa a dele.
  */
-export function desafioDoConvite(onde: HTMLElement | null) {
+export function desafioDoConvite(
+  onde: HTMLElement | null,
+  acao: 'convite' | 'concierge' = 'convite'
+) {
   if (!CHAVE_DO_DESAFIO || !onde) return null;
   const caixa = onde;
 
@@ -40,7 +46,7 @@ export function desafioDoConvite(onde: HTMLElement | null) {
   function aquece() {
     if (desafio) return;
     desafio = montaDesafio(caixa, {
-      acao: 'convite',
+      acao,
       discreto: true,
       aoMudar(novo) {
         token = novo;
