@@ -18,6 +18,9 @@ test.use({ extraHTTPHeaders: visitante('concierge') });
 
 const RESPOSTA = 'Sai dia 20 de novembro, nas plataformas.';
 
+/** Assinatura de mentira: a rota e falsa, entao ninguem confere. */
+const ASSINATURA = `v1.9999999999.${'0'.repeat(64)}`;
+
 type Pedido = { mensagem: string; historico: unknown[]; website?: string };
 
 /** Responde pela rota e guarda o que o navegador mandou. */
@@ -29,8 +32,40 @@ async function rotaFalsa(page: Page) {
       status: 200,
       contentType: 'application/json',
       headers: { 'cache-control': 'no-store' },
-      body: JSON.stringify({ ok: true, resposta: RESPOSTA }),
+      body: JSON.stringify({ ok: true, resposta: RESPOSTA, voz: ASSINATURA }),
     });
+  });
+  return pedidos;
+}
+
+/** Um WAV de 0,2 s de silencio, mono, 16 bits, 8 kHz: o que a voz falsa toca. */
+function wavDeSilencio() {
+  const taxa = 8000;
+  const amostras = Math.round(taxa * 0.2);
+  const dados = amostras * 2;
+  const wav = Buffer.alloc(44 + dados);
+  wav.write('RIFF', 0);
+  wav.writeUInt32LE(36 + dados, 4);
+  wav.write('WAVE', 8);
+  wav.write('fmt ', 12);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(taxa, 24);
+  wav.writeUInt32LE(taxa * 2, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write('data', 36);
+  wav.writeUInt32LE(dados, 40);
+  return wav;
+}
+
+/** Responde pela rota da voz (#193) e guarda o que o navegador mandou. */
+async function vozFalsa(page: Page) {
+  const pedidos: { texto: string; assinatura: string }[] = [];
+  await page.route('**/api/concierge/voz', async (rota) => {
+    pedidos.push(rota.request().postDataJSON());
+    await rota.fulfill({ status: 200, contentType: 'audio/wav', body: wavDeSilencio() });
   });
   return pedidos;
 }
@@ -74,6 +109,16 @@ test('concierge: abre, pergunta, le a resposta e fecha pelo teclado', async ({ p
   expect(pedidos[0]?.mensagem).toBe('quando sai?');
   expect(pedidos[0]?.historico).toEqual([]);
   expect(pedidos[0]?.website ?? '').toBe('');
+
+  // Voz (#193): o botao pede o audio com o texto e a assinatura da resposta,
+  // toca, e volta a "ouvir" quando acaba.
+  const vozes = await vozFalsa(page);
+  const ouvir = bolhas.filter({ hasText: RESPOSTA }).getByRole('button', { name: 'Ouvir' });
+  await ouvir.click();
+  await expect.poll(() => vozes.length).toBe(1);
+  expect(vozes[0]).toEqual({ texto: RESPOSTA, assinatura: ASSINATURA });
+  await expect(ouvir).toHaveText('ouvir', { timeout: 5000 });
+  await expect(ouvir).toHaveAttribute('aria-pressed', 'false');
 
   // A segunda pergunta leva a primeira troca junto.
   await campo.fill('e a camiseta?');

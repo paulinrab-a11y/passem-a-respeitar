@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { pergunta } from '@/lib/concierge/gemini';
+import { assinaResposta } from '@/lib/concierge/voz';
 import { esquemaConcierge } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { CAMPO_DA_ISCA, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
@@ -81,5 +82,8 @@ export async function POST(request: Request) {
     return erro(ERRO_DO_CONCIERGE, 502);
   }
 
-  return NextResponse.json({ ok: true, resposta }, { headers: SEM_CACHE });
+  // `voz` e a assinatura que libera o audio desta resposta em /api/concierge/voz
+  // (#193). Vai `null` sem chave, e o painel nao mostra o botao.
+  const voz = await assinaResposta(resposta);
+  return NextResponse.json({ ok: true, resposta, voz }, { headers: SEM_CACHE });
 }

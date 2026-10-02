@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   CONCIERGE_HISTORICO_MAX,
   CONCIERGE_MENSAGEM_MAX,
+  CONCIERGE_VOZ_TEXTO_MAX,
   esquemaConcierge,
+  esquemaConciergeVoz,
   esquemaCriarConta,
   esquemaEmail,
   esquemaEntrar,
@@ -204,5 +206,29 @@ describe('esquemaConcierge (#191)', () => {
     });
     expect(r.success).toBe(true);
     if (r.success) expect(Object.keys(r.data).sort()).toEqual(['historico', 'mensagem']);
+  });
+});
+
+describe('esquemaConciergeVoz (#193)', () => {
+  const bom = { texto: 'Dia 20, mano.', assinatura: 'v1.1.abc' };
+
+  it('aceita texto e assinatura', () => {
+    expect(esquemaConciergeVoz.safeParse(bom).success).toBe(true);
+  });
+
+  it('o limite do texto e exato', () => {
+    const no = 'a'.repeat(CONCIERGE_VOZ_TEXTO_MAX);
+    expect(esquemaConciergeVoz.safeParse({ ...bom, texto: no }).success).toBe(true);
+    expect(esquemaConciergeVoz.safeParse({ ...bom, texto: `${no}a` }).success).toBe(false);
+  });
+
+  it.each([
+    ['sem texto', { assinatura: 'v1.1.abc' }],
+    ['texto vazio', { ...bom, texto: '' }],
+    ['sem assinatura', { texto: 'oi' }],
+    ['assinatura vazia', { ...bom, assinatura: '' }],
+    ['assinatura que nao e texto', { ...bom, assinatura: 42 }],
+  ])('recusa %s', (_nome, entrada) => {
+    expect(esquemaConciergeVoz.safeParse(entrada).success).toBe(false);
   });
 });
