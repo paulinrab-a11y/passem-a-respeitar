@@ -882,6 +882,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .entrega{display:flex;flex-direction:column;gap:18px}
 .entrega .auth-enviar{margin-top:2px}
 .entrega-nota{font-size:12px;letter-spacing:.06em;color:var(--prata-2);text-align:center}
+.entrega-prazo{margin:6px 0 18px;font-size:13px;letter-spacing:.04em;line-height:1.5;color:var(--prata)}
 
 /* O campo que o servidor apontou. Borda vermelha E foco: cor sozinha não
    conta nada para quem não a distingue. */
