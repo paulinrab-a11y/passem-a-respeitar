@@ -187,7 +187,9 @@ duas: a migração e a validação do convite no servidor.
 ## Frete
 
 O frete é calculado pelo CEP, pelo Melhor Envio, com o preço dos Correios
-(#199). A pessoa escolhe PAC ou SEDEX no checkout, depois de digitar o CEP.
+(#199). Depois de digitar o CEP, a pessoa escolhe entre os serviços que o
+Melhor Envio devolver, PAC ou SEDEX. Hoje só o SEDEX aparece, e o dono decidiu
+que basta: ele entrega em qualquer região (#201).
 
 | Regra | Por quê |
 |---|---|
