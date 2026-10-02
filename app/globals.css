@@ -1178,6 +1178,12 @@ footer.assina a:hover{color:var(--vermelho)}
 .concierge-bolha{max-width:88%;padding:10px 12px;font-size:15px;line-height:1.5;letter-spacing:.02em;color:var(--prata);white-space:pre-wrap;overflow-wrap:anywhere;animation:so-fade .2s cubic-bezier(.22,1,.36,1) backwards}
 .concierge-bolha.bolha-usuario{align-self:flex-end;border:1px solid var(--prata-3)}
 .concierge-bolha.bolha-concierge{align-self:flex-start;border-left:2px solid var(--vermelho);padding-left:14px}
+.concierge-bolha p{margin:0}
+/* Voz (#193): texto pequeno, prata-2 em repouso, vermelho enquanto fala. A
+   largura nao muda entre "ouvir", "carregando" e "parar": min-width segura. */
+.concierge-ouvir{display:inline-block;margin-top:8px;min-width:9ch;text-align:left;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--prata-2);transition:color .2s cubic-bezier(.22,1,.36,1)}
+.concierge-ouvir:hover,.concierge-ouvir.tocando{color:var(--vermelho)}
+.concierge-ouvir:disabled{color:var(--prata-3);cursor:progress}
 
 /* Altura reservada: aparece e some sem mexer no que esta em volta. As barras
    crescem por transform, como o equalizador do `.tocando`, nunca por height. */

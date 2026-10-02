@@ -56,8 +56,13 @@ describe('POST /api/concierge', () => {
   it('responde a pergunta e nao deixa a resposta ser cacheada', async () => {
     const r = await POST(pede({ mensagem: 'quando sai?' }));
 
+    const corpo = await r.json();
+
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ ok: true, resposta: RESPOSTA });
+    expect(corpo).toMatchObject({ ok: true, resposta: RESPOSTA });
+    // A assinatura que libera o audio (#193): so a rota emite, e nada mais sai.
+    expect(corpo.voz).toMatch(/^v1\.\d+\.[0-9a-f]{64}$/);
+    expect(Object.keys(corpo).sort()).toEqual(['ok', 'resposta', 'voz']);
     expect(r.headers.get('Cache-Control')).toBe('no-store');
   });
 

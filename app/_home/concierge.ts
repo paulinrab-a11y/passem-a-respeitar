@@ -20,7 +20,7 @@ type Humano = ReturnType<typeof desafioDoConvite>;
 
 type Papel = 'usuario' | 'concierge';
 type Troca = { papel: Papel; texto: string };
-type Resposta = { ok?: boolean; resposta?: string; erro?: string };
+type Resposta = { ok?: boolean; resposta?: string; erro?: string; voz?: string | null };
 
 /** Quantas trocas vao junto: o servidor recusa mais que isso. */
 const HISTORICO_MAX = 8;
@@ -30,6 +30,11 @@ const ERRO_GENERICO = 'O concierge saiu por um instante. Tenta de novo em alguns
 const ERRO_DE_LIMITE = 'Muitas perguntas de uma vez. Espera um pouco e tenta de novo.';
 const ERRO_DE_REDE = 'Sem conexão agora. Tenta de novo.';
 const PEDINDO_HUMANO = 'Confirma que é humano na caixa abaixo.';
+
+const OUVIR = 'ouvir';
+const CARREGANDO = 'carregando';
+const PARAR = 'parar';
+const SEM_VOZ = 'sem voz agora';
 
 /** Quanto o fechamento pode demorar antes de a gente desistir de esperar o CSS. */
 const PRAZO_DE_SAIDA_MS = 400;
@@ -94,13 +99,106 @@ function liga(el: Elementos, humano: Humano) {
   // Mensagens
   // -------------------------------------------------------------------------
 
-  function bolha(papel: Papel, texto: string) {
+  function bolha(papel: Papel, texto: string, voz?: string | null) {
     const el = document.createElement('div');
     // `bolha-concierge`, e nao `concierge`: esta ultima e a classe do painel.
     el.className = `concierge-bolha bolha-${papel}`;
-    el.textContent = texto;
+    const p = document.createElement('p');
+    p.textContent = texto;
+    el.appendChild(p);
+    if (voz) el.appendChild(botaoDeVoz(texto, voz));
     lista.appendChild(el);
     lista.scrollTop = lista.scrollHeight;
+  }
+
+  // -------------------------------------------------------------------------
+  // Voz (#193)
+  //
+  // Web Audio, e nao <audio src=blob:>: a politica de seguranca do site so
+  // libera media-src 'self', e um buffer decodificado nao tem URL nenhuma.
+  // Um audio por vez; o segundo clique para; o WAV fica guardado no botao
+  // para o segundo "ouvir" nao gastar outra chamada.
+  // -------------------------------------------------------------------------
+
+  let contexto: AudioContext | null = null;
+  let tocando: { fonte: AudioBufferSourceNode; botao: HTMLButtonElement } | null = null;
+
+  function para() {
+    if (!tocando) return;
+    const { fonte, botao } = tocando;
+    tocando = null;
+    fonte.onended = null;
+    try {
+      fonte.stop();
+    } catch {
+      // Ja parou sozinha.
+    }
+    botao.textContent = OUVIR;
+    botao.classList.remove('tocando');
+    botao.setAttribute('aria-pressed', 'false');
+  }
+
+  function botaoDeVoz(texto: string, assinatura: string) {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'concierge-ouvir';
+    botao.textContent = OUVIR;
+    botao.setAttribute('aria-pressed', 'false');
+    botao.setAttribute('aria-label', 'Ouvir esta resposta');
+    let buffer: AudioBuffer | null = null;
+    let pedindo = false;
+
+    botao.addEventListener('click', async () => {
+      if (tocando?.botao === botao) {
+        para();
+        return;
+      }
+      if (pedindo) return;
+      para();
+
+      // Criado no clique: o iOS so deixa o contexto tocar depois de um gesto.
+      contexto ??= new AudioContext();
+      if (contexto.state === 'suspended') void contexto.resume();
+
+      if (!buffer) {
+        pedindo = true;
+        botao.textContent = CARREGANDO;
+        botao.disabled = true;
+        try {
+          const r = await fetch('/api/concierge/voz', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ texto, assinatura }),
+          });
+          if (!r.ok) throw new Error(String(r.status));
+          buffer = await contexto.decodeAudioData(await r.arrayBuffer());
+        } catch {
+          botao.textContent = SEM_VOZ;
+          botao.disabled = false;
+          pedindo = false;
+          window.setTimeout(() => {
+            if (botao.textContent === SEM_VOZ) botao.textContent = OUVIR;
+          }, 2500);
+          return;
+        }
+        pedindo = false;
+        botao.disabled = false;
+      }
+
+      const fonte = contexto.createBufferSource();
+      fonte.buffer = buffer;
+      fonte.connect(contexto.destination);
+      fonte.onended = () => {
+        if (tocando?.fonte === fonte) para();
+      };
+      tocando = { fonte, botao };
+      botao.textContent = PARAR;
+      botao.classList.add('tocando');
+      botao.setAttribute('aria-pressed', 'true');
+      fonte.start();
+    });
+
+    return botao;
   }
 
   function guarda(papel: Papel, texto: string) {
@@ -146,6 +244,7 @@ function liga(el: Elementos, humano: Humano) {
   function fecha() {
     if (!aberto || painel.classList.contains('saindo')) return;
     aberto = false;
+    para();
     painel.classList.add('saindo');
     prazoDeSaida = window.setTimeout(terminaDeFechar, PRAZO_DE_SAIDA_MS);
   }
@@ -201,7 +300,7 @@ function liga(el: Elementos, humano: Humano) {
       const dados: Resposta = await r.json().catch(() => ({}));
 
       if (r.ok && dados.ok && typeof dados.resposta === 'string') {
-        bolha('concierge', dados.resposta);
+        bolha('concierge', dados.resposta, dados.voz);
         guarda('concierge', dados.resposta);
       } else if (r.status === 429) {
         mostraAviso(ERRO_DE_LIMITE);

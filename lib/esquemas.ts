@@ -119,3 +119,10 @@ export const esquemaConcierge = z.object({
     .max(CONCIERGE_HISTORICO_MAX)
     .default([]),
 });
+
+/** Texto que o Concierge produziu (ate 4 frases; 1200 e folga) e a assinatura dele. */
+export const CONCIERGE_VOZ_TEXTO_MAX = 1200;
+export const esquemaConciergeVoz = z.object({
+  texto: z.string().min(1).max(CONCIERGE_VOZ_TEXTO_MAX),
+  assinatura: z.string().min(1).max(200),
+});
