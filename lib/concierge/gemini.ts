@@ -23,8 +23,8 @@ export const MODELO = 'gemini-flash-latest';
 
 const URL_DO_MODELO = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent`;
 
-/** Quinze segundos: o painel mostra "digitando" ate aqui, e depois desiste. */
-export const ESPERA_MS = 15_000;
+/** Vinte segundos: o painel mostra "digitando" ate aqui, e depois desiste. */
+export const ESPERA_MS = 20_000;
 
 /** O que o navegador manda: quem falou e o que foi dito. */
 type Papel = 'usuario' | 'concierge';
@@ -36,7 +36,11 @@ type Conteudo = { role: 'user' | 'model'; parts: Parte[] };
 type CorpoDoPedido = {
   systemInstruction: { parts: Parte[] };
   contents: Conteudo[];
-  generationConfig: { temperature: number; maxOutputTokens: number };
+  generationConfig: {
+    temperature: number;
+    maxOutputTokens: number;
+    thinkingConfig: { thinkingBudget: number };
+  };
 };
 
 type RespostaDoGemini = {
@@ -54,6 +58,11 @@ const PAPEL_NO_GEMINI: Record<Papel, Conteudo['role']> = {
  *
  * `safetySettings` fica de fora de proposito: o padrao do Google e o que
  * vale, e relaxar isso nao e decisao de codigo.
+ *
+ * `thinkingBudget: 0` desliga o "pensamento" do Flash 2.5. Ligado, ele gasta
+ * segundos e tokens raciocinando antes de escrever, e esses tokens contam no
+ * `maxOutputTokens`: a resposta chegava cortada no meio da frase, ou nao
+ * chegava antes do prazo. Quatro frases sobre o EP nao precisam disso.
  */
 export function montaCorpo(historico: Troca[], mensagem: string): CorpoDoPedido {
   return {
@@ -62,7 +71,11 @@ export function montaCorpo(historico: Troca[], mensagem: string): CorpoDoPedido 
       ...historico.map((t) => ({ role: PAPEL_NO_GEMINI[t.papel], parts: [{ text: t.texto }] })),
       { role: 'user', parts: [{ text: mensagem }] },
     ],
-    generationConfig: { temperature: 0.6, maxOutputTokens: 400 },
+    generationConfig: {
+      temperature: 0.6,
+      maxOutputTokens: 400,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
   };
 }
 

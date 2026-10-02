@@ -7,6 +7,9 @@ import { CAMPO_DA_ISCA, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
 // Le variavel de ambiente por request e fala com um servico de fora: nada
 // aqui pode ser cacheado.
 export const dynamic = 'force-dynamic';
+// A espera pelo Gemini e de ate 20 s (lib/concierge/gemini.ts): a funcao
+// precisa viver mais que isso, senao a Vercel a derruba antes da resposta.
+export const maxDuration = 30;
 
 /** 20 perguntas a cada 10 minutos por IP. */
 const MAXIMO = 20;

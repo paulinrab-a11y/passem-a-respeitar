@@ -75,8 +75,10 @@ describe('montaCorpo', () => {
     ]);
   });
 
-  it('limita o tamanho da resposta', () => {
-    expect(montaCorpo([], 'oi').generationConfig.maxOutputTokens).toBeLessThanOrEqual(400);
+  it('limita o tamanho da resposta e desliga o pensamento, que comeria esse limite', () => {
+    const config = montaCorpo([], 'oi').generationConfig;
+    expect(config.maxOutputTokens).toBeLessThanOrEqual(400);
+    expect(config.thinkingConfig.thinkingBudget).toBe(0);
   });
 });
 
