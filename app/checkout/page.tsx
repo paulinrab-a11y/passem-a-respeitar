@@ -21,6 +21,10 @@ export const metadata: Metadata = {
  * todo numero na tela vem do `orcamento()`, que le o catalogo. Ninguem manda
  * preco para ca, e nao ha o que conferir.
  *
+ * O frete depende do CEP, que so existe depois de a pessoa digitar (#199).
+ * Por isso o resumo de cima para no subtotal, e o frete e o total moram no
+ * formulario de entrega, junto do CEP.
+ *
  * O middleware ja barra quem nao tem sessao (`exigeSessao` inclui /checkout
  * desde esta Issue), e a checagem aqui e a segunda, pelo mesmo motivo da #29.
  */
@@ -99,16 +103,6 @@ export default async function Checkout({
               <dt>Subtotal</dt>
               <dd>{reais(conta.subtotalCentavos)}</dd>
             </div>
-            <div>
-              <dt>Frete</dt>
-              {/* Zero hoje, por decisao registrada. Quem decide e o
-                  `calculaFrete`, num lugar so — ver lib/loja/frete.ts. */}
-              <dd>{conta.freteCentavos === 0 ? 'Grátis' : reais(conta.freteCentavos)}</dd>
-            </div>
-            <div className="resumo-total">
-              <dt>Total</dt>
-              <dd>{reais(conta.totalCentavos)}</dd>
-            </div>
           </dl>
         </section>
 
@@ -124,7 +118,7 @@ export default async function Checkout({
             slug={linha.produtoSlug}
             tamanho={linha.tamanho}
             quantidade={linha.quantidade}
-            total={reais(conta.totalCentavos)}
+            subtotalCentavos={conta.subtotalCentavos}
           />
         </section>
       </section>

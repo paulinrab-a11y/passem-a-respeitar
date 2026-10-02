@@ -70,6 +70,39 @@ export function reais(centavos: number) {
   return dinheiro.format(centavos / 100);
 }
 
+/** Como o frete do pedido aparece na tela (#199). */
+export type FreteDoPedido = {
+  /** PAC ou SEDEX: e tambem a postagem que o dono compra. */
+  servico: string;
+  valor: string;
+  /** Transporte, contado depois da producao. */
+  prazo: string;
+};
+
+const NOME_DO_SERVICO: Record<string, string> = { pac: 'PAC', sedex: 'SEDEX' };
+
+/**
+ * O frete gravado no pedido, pronto para a tela. Nulo nos pedidos de antes da
+ * #199, que nao tinham frete: para eles a tela continua como era.
+ *
+ * Servico que nao e PAC nem SEDEX nao chega aqui — o banco recusa —, mas se
+ * chegasse, sairia nulo em vez de um rotulo inventado.
+ */
+export function leFrete(
+  servico: string | null,
+  centavos: number,
+  prazoDias: number | null
+): FreteDoPedido | null {
+  const nome = servico ? NOME_DO_SERVICO[servico] : undefined;
+  if (!nome || !prazoDias) return null;
+
+  return {
+    servico: nome,
+    valor: reais(centavos),
+    prazo: `até ${prazoDias} ${prazoDias === 1 ? 'dia útil' : 'dias úteis'}`,
+  };
+}
+
 type ItemDoPedido = {
   id: string;
   nome: string;
@@ -188,6 +221,8 @@ export type PedidoDetalhado = {
   rotulo: string;
   tom: Tom;
   total: string;
+  /** Nulo nos pedidos de antes da #199. */
+  frete: FreteDoPedido | null;
   /**
    * O mesmo valor em centavos. Entrou na #108: o Payment Brick recebe numero,
    * e reconverter `total` de volta para numero seria formatar para desformatar.
@@ -208,7 +243,12 @@ export type PedidoDetalhado = {
   linhaDoTempo: LinhaDoTempo;
 };
 
-type LinhaDetalhe = LinhaPedido & { order_status_history: EventoDoBanco[] };
+type LinhaDetalhe = LinhaPedido & {
+  order_status_history: EventoDoBanco[];
+  frete_centavos: number;
+  frete_servico: string | null;
+  frete_prazo_dias: number | null;
+};
 
 /**
  * Mapper do detalhe (#20).
@@ -228,6 +268,7 @@ export function mapeiaDetalhe(linha: LinhaDetalhe): PedidoDetalhado {
     rotulo,
     tom,
     total: reais(linha.total_centavos),
+    frete: leFrete(linha.frete_servico, linha.frete_centavos, linha.frete_prazo_dias),
     totalCentavos: linha.total_centavos,
     aguardandoPagamento: linha.status === 'aguardando_pagamento',
     itens: mapeiaItens(linha.order_items),

@@ -29,6 +29,7 @@ const ARQUIVOS = [
   // dele aqui, e entrar no meio trocaria o de quem vem depois.
   'robo',
   'concierge',
+  'frete',
 ] as const;
 
 export function visitante(arquivo: (typeof ARQUIVOS)[number]) {

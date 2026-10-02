@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { orcamento, vitrine } from './catalogo';
+import { opcoesDeFrete, orcamento, vitrine } from './catalogo';
 import type { ItemDoCarrinho } from './precos';
 
 /**
@@ -11,8 +11,13 @@ import type { ItemDoCarrinho } from './precos';
 vi.mock('@/lib/supabase/servidor', () => ({
   clienteServidor: vi.fn(),
 }));
+vi.mock('./frete', () => ({ cotaFrete: vi.fn() }));
 
 const { clienteServidor } = await import('@/lib/supabase/servidor');
+const { cotaFrete } = await import('./frete');
+
+const PAC = { servico: 'pac', nome: 'PAC', precoCentavos: 2350, prazoDias: 8 } as const;
+const SEDEX = { servico: 'sedex', nome: 'SEDEX', precoCentavos: 4590, prazoDias: 3 } as const;
 
 /** Encadeamento do supabase-js: `.select().order().order()` e `.select().in()`. */
 function bancoDevolve(resultado: { data: unknown; error: unknown }) {
@@ -32,6 +37,10 @@ const CAMISETA = {
   slug: 'camiseta-cbac',
   nome: 'Camiseta CBAC',
   descricao: 'Preta, oversized.',
+  peso_gramas: 300,
+  altura_cm: 4,
+  largura_cm: 25,
+  comprimento_cm: 30,
   produto_variacoes: [
     { tamanho: 'P', preco_centavos: 12000, ordem: 1 },
     { tamanho: 'M', preco_centavos: 12000, ordem: 2 },
@@ -41,6 +50,7 @@ const CAMISETA = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(cotaFrete).mockResolvedValue({ ok: true, opcoes: [PAC, SEDEX] });
 });
 
 describe('vitrine', () => {
@@ -117,16 +127,97 @@ describe('orcamento', () => {
     expect(r.ok && r.subtotalCentavos).toBe(13000);
   });
 
-  // O frete vem do `calculaFrete`, de um lugar so. Hoje ele devolve zero.
-  it('soma o frete ao subtotal', async () => {
+  // Antes do CEP nao ha frete, e nao ha consulta ao Melhor Envio (#199).
+  it('sem entrega, vem sem frete e sem cotar', async () => {
     bancoDevolve({ data: [CAMISETA], error: null });
 
     const r = await orcamento(pediu('camiseta-cbac', 'M', 1));
 
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.freteCentavos).toBe(0);
-    expect(r.totalCentavos).toBe(r.subtotalCentavos + r.freteCentavos);
+    expect(r).toMatchObject({ ok: true, frete: null, totalCentavos: 12000 });
+    expect(cotaFrete).not.toHaveBeenCalled();
+  });
+
+  it('com entrega, soma o frete do servico escolhido', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+
+    const pac = await orcamento(pediu('camiseta-cbac', 'M', 1), {
+      cep: '01310100',
+      servico: 'pac',
+    });
+    const sedex = await orcamento(pediu('camiseta-cbac', 'M', 1), {
+      cep: '01310100',
+      servico: 'sedex',
+    });
+
+    expect(pac).toMatchObject({ ok: true, frete: PAC, totalCentavos: 12000 + 2350 });
+    expect(sedex).toMatchObject({ ok: true, frete: SEDEX, totalCentavos: 12000 + 4590 });
+  });
+
+  it('cota com o preco e as medidas do catalogo', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+
+    await orcamento(pediu('camiseta-cbac', 'G', 2), { cep: '01310100', servico: 'pac' });
+
+    expect(vi.mocked(cotaFrete).mock.calls[0][0]).toEqual({
+      cep: '01310100',
+      volumes: [
+        {
+          slug: 'camiseta-cbac',
+          quantidade: 2,
+          precoUnitarioCentavos: 13000,
+          pesoGramas: 300,
+          alturaCm: 4,
+          larguraCm: 25,
+          comprimentoCm: 30,
+        },
+      ],
+    });
+  });
+
+  it('produto sem medida no banco segue para a cotacao com nulos, e ela recusa', async () => {
+    bancoDevolve({
+      data: [
+        { ...CAMISETA, peso_gramas: null, altura_cm: null, largura_cm: null, comprimento_cm: null },
+      ],
+      error: null,
+    });
+    vi.mocked(cotaFrete).mockResolvedValue({ ok: false, motivo: 'frete-sem-medida' });
+
+    const r = await orcamento(pediu('camiseta-cbac', 'M', 1), { cep: '01310100', servico: 'pac' });
+
+    expect(vi.mocked(cotaFrete).mock.calls[0][0].volumes[0].pesoGramas).toBeNull();
+    expect(r).toEqual({ ok: false, motivo: 'frete-sem-medida' });
+  });
+
+  it('servico fora da cotacao recusa', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+    vi.mocked(cotaFrete).mockResolvedValue({ ok: true, opcoes: [PAC] });
+
+    const r = await orcamento(pediu('camiseta-cbac', 'M', 1), {
+      cep: '01310100',
+      servico: 'sedex',
+    });
+
+    expect(r).toEqual({ ok: false, motivo: 'frete-servico-indisponivel' });
+  });
+
+  it('as opcoes do checkout trazem PAC, SEDEX e o subtotal', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+
+    expect(await opcoesDeFrete(pediu('camiseta-cbac', 'M', 1), '01310100')).toEqual({
+      ok: true,
+      subtotalCentavos: 12000,
+      opcoes: [PAC, SEDEX],
+    });
+  });
+
+  it('carrinho que o catalogo recusa nem chega a cotar', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+
+    const r = await opcoesDeFrete(pediu('camiseta-cbac', 'XG', 1), '01310100');
+
+    expect(r.ok).toBe(false);
+    expect(cotaFrete).not.toHaveBeenCalled();
   });
 
   it('carrinho vazio nem chega a consultar o banco', async () => {

@@ -184,6 +184,29 @@ byte a byte para o diff continuar auditável contra o deploy antigo. Está fora 
 Biome de propósito. Mudanças nele só com motivo declarado no commit — até hoje,
 duas: a migração e a validação do convite no servidor.
 
+## Frete
+
+O frete é calculado pelo CEP, pelo Melhor Envio, com o preço dos Correios
+(#199). A pessoa escolhe PAC ou SEDEX no checkout, depois de digitar o CEP.
+
+| Regra | Por quê |
+|---|---|
+| O navegador manda o serviço, nunca o preço | o servidor cota de novo ao criar o pedido |
+| A mesma pergunta tem a mesma resposta por 30 minutos | o preço da tela é o que entra no pedido |
+| Sem cotação, sem pedido | frete zero por falha não existe |
+| Em produção, só o Melhor Envio de produção | token de sandbox seria preço de mentira |
+| 30 consultas a cada 10 minutos, por pessoa | cada consulta usa o token do dono |
+
+O pedido grava o valor, o serviço e o prazo cotado. O serviço aparece na lista
+do administrador: é a postagem que se compra para aquele pedido. Etiqueta e
+rastreio ainda são feitos no painel do Melhor Envio.
+
+Peso e medidas são do produto, no banco. Produto sem medida não tem frete, e o
+checkout diz que o frete está indisponível.
+
+O prazo mostrado é o do transporte, em dias úteis, e começa depois da produção
+de pelo menos 30 dias (#197).
+
 ## Proteção contra bot
 
 Login, cadastro, recuperação de senha e o campo de convite da home têm duas
@@ -377,6 +400,8 @@ Esperando decisão ou conta do dono:
 - Hospedagem do clipe; até lá a home mostra "clipe em breve" (#75)
 - Link de pré-save ainda não existe; o botão mostra "Pré-save em breve"
 - Credenciais de produção do Mercado Pago, e o primeiro pagamento real (#45)
+- Frete: conta e token do Melhor Envio, CEP de origem, peso e medidas da
+  camiseta embalada (#199)
 
 Limites que não são defeito:
 

@@ -182,6 +182,16 @@ export function EsqueletoPedido() {
             </span>
           </li>
         </ul>
+        {/* A linha do frete (#199). Todo pedido novo tem; sem ela no
+            esqueleto, o total descia quando o pedido chegava. */}
+        <p className="pedido-frete">
+          <span>
+            <Linha ch={30} />
+          </span>
+          <span>
+            <Linha ch={8} />
+          </span>
+        </p>
         <p className="pedido-total">
           <span>
             <Linha ch={5} />

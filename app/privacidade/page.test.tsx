@@ -27,6 +27,15 @@ describe('/privacidade', () => {
     expect(html).toContain('https://www.cloudflare.com/pt-br/privacypolicy/');
   });
 
+  // O frete (#199): o CEP sai do site, e o texto conta para onde e o que vai
+  // junto. Nome e e-mail nao vao, e isso tambem e dito.
+  it('conta que o CEP vai ao Melhor Envio, e o que nao vai', () => {
+    expect(html).toMatch(/Melhor Envio/);
+    expect(html).toMatch(/CEP de entrega/);
+    expect(html).toMatch(/nem seu nome, nem seu e-mail/);
+    expect(html).toContain('https://lwsa.tech/politicas/');
+  });
+
   it('diz que o cartao nunca passa pelos nossos servidores', () => {
     expect(html).toMatch(/nunca passam pelos nossos servidores/i);
   });

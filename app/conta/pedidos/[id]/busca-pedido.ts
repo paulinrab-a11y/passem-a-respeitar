@@ -42,7 +42,7 @@ export async function meuPedido(id: string): Promise<Resultado> {
     // vem na mesma ida. Colunas nomeadas — `autor` e `motivo` da trilha ficam
     // no banco, ver o comentario de `mapeiaDetalhe`.
     .select(
-      'id, numero, criado_em, status, total_centavos, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(para, criado_em)'
+      'id, numero, criado_em, status, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(para, criado_em)'
     )
     .eq('id', id)
     .eq('user_id', usuario.id)

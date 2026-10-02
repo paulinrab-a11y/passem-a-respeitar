@@ -1,5 +1,5 @@
 import { ambienteLocal } from './ambiente.mjs';
-import { apagaUsuariosDaSuite } from './banco';
+import { apagaUsuariosDaSuite, medeCamiseta } from './banco';
 import { esvaziaCorreio } from './correio';
 
 /**
@@ -12,4 +12,5 @@ export default async function antes() {
   ambienteLocal();
   await apagaUsuariosDaSuite();
   await esvaziaCorreio();
+  await medeCamiseta();
 }

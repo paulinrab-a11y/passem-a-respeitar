@@ -3,10 +3,11 @@ import 'server-only';
 /**
  * Leitura do catalogo (Issue #99).
  *
- * Duas funcoes, dois publicos:
+ * Tres funcoes, dois publicos:
  *
- *   `vitrine()`   — o que a home mostra
- *   `orcamento()` — o que o checkout cobra
+ *   `vitrine()`       — o que a home mostra
+ *   `orcamento()`     — o que o checkout cobra
+ *   `opcoesDeFrete()` — PAC e SEDEX, para o checkout mostrar (#199)
  *
  * As duas leem a MESMA tabela. Nao ha um preco "de exibicao" e outro "de
  * cobranca": se divergissem, a pessoa veria um numero e pagaria outro, e a
@@ -19,12 +20,17 @@ import 'server-only';
  * chave secreta.
  */
 
-import { calculaFrete } from '@/lib/loja/frete';
+import {
+  cotaFrete,
+  type MotivoDoFrete,
+  type OpcaoDeFrete,
+  type Servico,
+  type Volume,
+} from '@/lib/loja/frete';
 import {
   type ItemDoCarrinho,
   type LinhaPrecificada,
   type MotivoDaRecusa,
-  pecasDe,
   precifica,
   type VariacaoDoBanco,
 } from '@/lib/loja/precos';
@@ -93,27 +99,39 @@ export async function vitrine(): Promise<ProdutoDaVitrine[]> {
   return mapeiaVitrine(data);
 }
 
+/** Onde entregar e por qual servico. So o CEP e a escolha: o preco e da cotacao. */
+export type Entrega = { cep: string; servico: Servico };
+
+type MotivoDoOrcamento =
+  | MotivoDaRecusa
+  | 'catalogo-indisponivel'
+  | MotivoDoFrete
+  /** A cotacao saiu, mas sem o servico escolhido para este CEP. */
+  | 'frete-servico-indisponivel';
+
 export type Orcamento =
   | {
       ok: true;
       linhas: LinhaPrecificada[];
       subtotalCentavos: number;
-      freteCentavos: number;
+      /** Nulo enquanto nao ha onde entregar: o checkout antes do CEP. */
+      frete: OpcaoDeFrete | null;
       totalCentavos: number;
     }
+  | { ok: false; motivo: MotivoDoOrcamento };
+
+type Carrinho =
+  | { ok: true; linhas: LinhaPrecificada[]; subtotalCentavos: number; volumes: Volume[] }
   | { ok: false; motivo: MotivoDaRecusa | 'catalogo-indisponivel' };
 
 /**
- * Quanto custa este carrinho, segundo o banco.
+ * O carrinho precificado pelo banco, com as medidas que o frete pede.
  *
- * Esta e a funcao que o checkout chama, e ela nao recebe nem um numero de
- * dinheiro: entra `{slug, tamanho, quantidade}`, sai o valor. O preco e lido do
- * banco no momento do calculo, e o total volta a ser calculado do zero.
- *
- * O frete vem do `calculaFrete`, que hoje devolve zero — e devolve de um lugar
- * so, para a politica poder mudar sem passar por aqui.
+ * Esta e a unica leitura de preco do checkout, e ela nao recebe nem um numero
+ * de dinheiro: entra `{slug, tamanho, quantidade}`, sai o valor. O preco e lido
+ * do banco no momento do calculo, e o total volta a ser calculado do zero.
  */
-export async function orcamento(itens: ItemDoCarrinho[], cep?: string | null): Promise<Orcamento> {
+async function leCarrinho(itens: ItemDoCarrinho[]): Promise<Carrinho> {
   if (itens.length === 0) return { ok: false, motivo: 'carrinho-vazio' };
 
   const slugs = [...new Set(itens.map((i) => i.slug))];
@@ -121,7 +139,9 @@ export async function orcamento(itens: ItemDoCarrinho[], cep?: string | null): P
 
   const { data, error } = await supabase
     .from('produtos')
-    .select('slug, nome, produto_variacoes(tamanho, preco_centavos)')
+    .select(
+      'slug, nome, peso_gramas, altura_cm, largura_cm, comprimento_cm, produto_variacoes(tamanho, preco_centavos)'
+    )
     // So os slugs pedidos. RLS e GRANT continuam valendo por cima disto.
     .in('slug', slugs);
 
@@ -139,17 +159,65 @@ export async function orcamento(itens: ItemDoCarrinho[], cep?: string | null): P
   const preco = precifica(itens, catalogo);
   if (!preco.ok) return preco;
 
-  const freteCentavos = await calculaFrete({
-    subtotalCentavos: preco.subtotalCentavos,
-    cep,
-    pecas: pecasDe(preco.linhas),
+  const medidas = new Map(data.map((p) => [p.slug, p]));
+  const volumes: Volume[] = preco.linhas.map((l) => {
+    const m = medidas.get(l.produtoSlug);
+    return {
+      slug: l.produtoSlug,
+      quantidade: l.quantidade,
+      precoUnitarioCentavos: l.precoUnitarioCentavos,
+      pesoGramas: m?.peso_gramas ?? null,
+      alturaCm: m?.altura_cm ?? null,
+      larguraCm: m?.largura_cm ?? null,
+      comprimentoCm: m?.comprimento_cm ?? null,
+    };
   });
+
+  return { ok: true, linhas: preco.linhas, subtotalCentavos: preco.subtotalCentavos, volumes };
+}
+
+/**
+ * Quanto custa este carrinho, segundo o banco.
+ *
+ * Sem `entrega`, o orcamento vem sem frete: e o checkout antes de a pessoa
+ * dizer o CEP. Com `entrega`, o frete e cotado agora, e o servico escolhido
+ * tem que estar entre os que a cotacao trouxe — escolher SEDEX para um CEP
+ * que so tem PAC e recusa, nao troca.
+ */
+export async function orcamento(itens: ItemDoCarrinho[], entrega?: Entrega): Promise<Orcamento> {
+  const carrinho = await leCarrinho(itens);
+  if (!carrinho.ok) return carrinho;
+
+  const { linhas, subtotalCentavos } = carrinho;
+  if (!entrega)
+    return { ok: true, linhas, subtotalCentavos, frete: null, totalCentavos: subtotalCentavos };
+
+  const cotacao = await cotaFrete({ cep: entrega.cep, volumes: carrinho.volumes });
+  if (!cotacao.ok) return cotacao;
+
+  const frete = cotacao.opcoes.find((o) => o.servico === entrega.servico);
+  if (!frete) return { ok: false, motivo: 'frete-servico-indisponivel' };
 
   return {
     ok: true,
-    linhas: preco.linhas,
-    subtotalCentavos: preco.subtotalCentavos,
-    freteCentavos,
-    totalCentavos: preco.subtotalCentavos + freteCentavos,
+    linhas,
+    subtotalCentavos,
+    frete,
+    totalCentavos: subtotalCentavos + frete.precoCentavos,
   };
+}
+
+export type OpcoesDeFrete =
+  | { ok: true; subtotalCentavos: number; opcoes: OpcaoDeFrete[] }
+  | { ok: false; motivo: MotivoDaRecusa | 'catalogo-indisponivel' | MotivoDoFrete };
+
+/** PAC e SEDEX para este carrinho e este CEP: o que a tela do checkout mostra. */
+export async function opcoesDeFrete(itens: ItemDoCarrinho[], cep: string): Promise<OpcoesDeFrete> {
+  const carrinho = await leCarrinho(itens);
+  if (!carrinho.ok) return carrinho;
+
+  const cotacao = await cotaFrete({ cep, volumes: carrinho.volumes });
+  if (!cotacao.ok) return cotacao;
+
+  return { ok: true, subtotalCentavos: carrinho.subtotalCentavos, opcoes: cotacao.opcoes };
 }

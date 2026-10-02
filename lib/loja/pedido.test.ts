@@ -13,16 +13,30 @@ vi.mock('@/lib/supabase/servidor', () => ({
   clienteServidor: vi.fn(),
 }));
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
+// O Melhor Envio tambem e dublê (#199). A cotacao tem teste proprio, em
+// frete.test.ts; aqui o que importa e o que a criacao faz com ela.
+vi.mock('./frete', async (original) => ({
+  ...(await original<typeof import('./frete')>()),
+  cotaFrete: vi.fn(),
+}));
 
 const { usuarioDaSessao, clienteServidor } = await import('@/lib/supabase/servidor');
 const { clienteAdmin } = await import('@/lib/supabase/admin');
+const { cotaFrete } = await import('./frete');
 const { criaPedido } = await import('./pedido');
+
+const PAC = { servico: 'pac', nome: 'PAC', precoCentavos: 2350, prazoDias: 8 } as const;
+const SEDEX = { servico: 'sedex', nome: 'SEDEX', precoCentavos: 4590, prazoDias: 3 } as const;
 
 const USUARIO = { id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa', email: 'quem@exemplo.test' };
 
 const CATALOGO = {
   slug: 'camiseta-cbac',
   nome: 'Camiseta CBAC',
+  peso_gramas: 300,
+  altura_cm: 4,
+  largura_cm: 25,
+  comprimento_cm: 30,
   produto_variacoes: [
     { tamanho: 'P', preco_centavos: 12000, ordem: 1 },
     { tamanho: 'M', preco_centavos: 12000, ordem: 2 },
@@ -85,12 +99,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   gravado = null;
   vi.mocked(usuarioDaSessao).mockResolvedValue(USUARIO as never);
+  vi.mocked(cotaFrete).mockResolvedValue({ ok: true, opcoes: [PAC, SEDEX] });
   bancoComCatalogo();
 });
 
 const pedido = (extra: Record<string, unknown> = {}) => ({
   itens: [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 2 }],
   endereco: ENDERECO,
+  servico: 'pac',
   ...extra,
 });
 
@@ -109,10 +125,13 @@ describe('o corpo do request nao define dinheiro', () => {
         },
       ],
       endereco: ENDERECO,
+      servico: 'pac',
       total: 1,
       totalCentavos: 100,
       subtotal: 1,
       frete: -50000,
+      freteCentavos: 0,
+      p_frete: { centavos: 0, servico: 'pac', prazo_dias: 1 },
       desconto: 23900,
     };
 
@@ -120,8 +139,10 @@ describe('o corpo do request nao define dinheiro', () => {
 
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.totalCentavos).toBe(24000);
-    expect(gravado?.p_total_centavos).toBe(24000);
+    // 2 x 120,00 do catalogo, mais o PAC da cotacao.
+    expect(r.totalCentavos).toBe(24000 + 2350);
+    expect(gravado?.p_total_centavos).toBe(24000 + 2350);
+    expect(gravado?.p_frete).toEqual({ centavos: 2350, servico: 'pac', prazo_dias: 8 });
     expect(itensGravados()[0].preco_unitario_centavos).toBe(12000);
   });
 
@@ -136,6 +157,7 @@ describe('o corpo do request nao define dinheiro', () => {
 
     expect(Object.keys(gravado ?? {}).sort()).toEqual([
       'p_endereco',
+      'p_frete',
       'p_itens',
       'p_total_centavos',
       'p_user_id',
@@ -146,6 +168,7 @@ describe('o corpo do request nao define dinheiro', () => {
     await criaPedido({
       itens: [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1, nome: 'Camiseta de graça' }],
       endereco: ENDERECO,
+      servico: 'pac',
     });
 
     expect(itensGravados()[0].nome).toBe('Camiseta CBAC');
@@ -183,6 +206,80 @@ describe('snapshot', () => {
 
     expect(primeiro).toBe(12000);
     expect(segundo).toBe(19900);
+  });
+});
+
+describe('frete (#199)', () => {
+  it('cota para o CEP do endereco, com as medidas do catalogo', async () => {
+    await criaPedido(pedido());
+
+    expect(cotaFrete).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(cotaFrete).mock.calls[0][0]).toEqual({
+      cep: '01310100',
+      volumes: [
+        {
+          slug: 'camiseta-cbac',
+          quantidade: 2,
+          precoUnitarioCentavos: 12000,
+          pesoGramas: 300,
+          alturaCm: 4,
+          larguraCm: 25,
+          comprimentoCm: 30,
+        },
+      ],
+    });
+  });
+
+  it('o servico escolhido decide qual preco entra', async () => {
+    const r = await criaPedido(pedido({ servico: 'sedex' }));
+
+    expect(r.ok && r.totalCentavos).toBe(24000 + 4590);
+    expect(gravado?.p_frete).toEqual({ centavos: 4590, servico: 'sedex', prazo_dias: 3 });
+  });
+
+  it.each([
+    ['ausente', undefined],
+    ['inventado', 'jato-particular'],
+    ['em maiuscula', 'PAC'],
+    ['numero', 1],
+  ])('servico %s recusa antes de cotar', async (_, servico) => {
+    const r = await criaPedido(pedido({ servico }));
+
+    expect(r).toEqual({ ok: false, motivo: 'entrada-invalida' });
+    expect(cotaFrete).not.toHaveBeenCalled();
+    expect(gravado).toBeNull();
+  });
+
+  it('servico que a cotacao nao trouxe recusa: nao troca pelo outro', async () => {
+    vi.mocked(cotaFrete).mockResolvedValue({ ok: true, opcoes: [PAC] });
+
+    const r = await criaPedido(pedido({ servico: 'sedex' }));
+
+    expect(r).toEqual({ ok: false, motivo: 'frete-servico-indisponivel' });
+    expect(gravado).toBeNull();
+  });
+
+  it.each([
+    'frete-fora-do-ar',
+    'frete-sem-configuracao',
+    'frete-sem-medida',
+    'frete-cep-invalido',
+    'frete-sem-servico',
+  ] as const)('sem cotacao (%s) nao ha pedido, nem de frete zero', async (motivo) => {
+    vi.mocked(cotaFrete).mockResolvedValue({ ok: false, motivo });
+
+    const r = await criaPedido(pedido());
+
+    expect(r).toEqual({ ok: false, motivo });
+    expect(gravado).toBeNull();
+  });
+
+  it('produto indisponivel nem chega a cotar: e consulta paga a toa', async () => {
+    bancoComCatalogo([]);
+
+    await criaPedido(pedido());
+
+    expect(cotaFrete).not.toHaveBeenCalled();
   });
 });
 
@@ -271,6 +368,7 @@ describe('recusa', () => {
     const r = await criaPedido({
       itens: [{ slug: 'camiseta-cbac', tamanho: 'GG', quantidade: 1 }],
       endereco: ENDERECO,
+      servico: 'pac',
     });
 
     expect(r).toEqual({ ok: false, motivo: 'produto-indisponivel' });
@@ -288,6 +386,7 @@ describe('resposta', () => {
   it('devolve o que a tela precisa e nada do banco', async () => {
     const r = await criaPedido(pedido());
 
-    expect(r).toEqual({ ok: true, id: 'ped-1', numero: 42, totalCentavos: 24000 });
+    // O total com o frete: e o que a tela de pagamento cobra.
+    expect(r).toEqual({ ok: true, id: 'ped-1', numero: 42, totalCentavos: 24000 + 2350 });
   });
 });

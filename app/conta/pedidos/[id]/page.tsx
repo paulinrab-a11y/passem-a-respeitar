@@ -130,6 +130,17 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
           </ul>
         )}
 
+        {/* O frete, quando o pedido tem (#199). O prazo e o do transporte,
+            que comeca depois da producao. */}
+        {pedido.frete ? (
+          <p className="pedido-frete">
+            <span>
+              Frete · {pedido.frete.servico}, {pedido.frete.prazo} depois da produção
+            </span>
+            <span>{pedido.frete.valor}</span>
+          </p>
+        ) : null}
+
         <p className="pedido-total">
           <span>Total</span>
           <strong>{pedido.total}</strong>

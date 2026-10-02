@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { ehAdmin } from '@/lib/admin';
-import { leStatus, reais } from '@/lib/conta/pedidos';
+import { leFrete, leStatus, reais } from '@/lib/conta/pedidos';
 import { ehStatusPedido } from '@/lib/loja/status-do-pedido';
 import { ENTRAR } from '@/lib/rotas';
 import { clienteAdmin } from '@/lib/supabase/admin';
@@ -50,7 +50,7 @@ export default async function PedidosAdmin() {
     // O nome e a cidade sao o que se precisa para separar e enviar. O
     // endereco completo continua so no detalhe do dono e na etiqueta.
     .select(
-      'id, numero, status, criado_em, total_centavos, entrega_nome, entrega_cidade, entrega_uf'
+      'id, numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_nome, entrega_cidade, entrega_uf'
     )
     .order('criado_em', { ascending: false })
     .limit(QUANTOS);
@@ -79,6 +79,7 @@ export default async function PedidosAdmin() {
           <ul className="pedidos">
             {pedidos.map((p) => {
               const { rotulo, tom } = leStatus(p.status);
+              const frete = leFrete(p.frete_servico, p.frete_centavos, p.frete_prazo_dias);
               return (
                 <li key={p.id}>
                   <article className={tom}>
@@ -94,6 +95,15 @@ export default async function PedidosAdmin() {
                       {p.entrega_nome ? ` · ${p.entrega_nome}` : ''}
                       {p.entrega_cidade ? ` · ${p.entrega_cidade}/${p.entrega_uf ?? ''}` : ''}
                     </p>
+
+                    {/* O servico e a postagem que se compra para este
+                        pedido (#199): PAC para quem escolheu PAC. */}
+                    {frete ? (
+                      <p className="pedido-frete">
+                        <span>Enviar por {frete.servico}</span>
+                        <span>{frete.valor}</span>
+                      </p>
+                    ) : null}
 
                     <p className="pedido-total">
                       <span>Total</span>
