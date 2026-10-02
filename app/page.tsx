@@ -207,7 +207,9 @@ export default async function Home() {
                 Comprar
               </a>
             </div>
-            <p className="aviso">Envio para todo o Brasil.</p>
+            <p className="aviso">
+              Feita sob encomenda. Entrega em pelo menos 30 dias, para todo o Brasil.
+            </p>
           </div>
           {/* O `data-alt` existe para o script legado nao precisar repetir o
               nome do produto no alt das fotos — era a terceira copia dele. */}
@@ -306,7 +308,9 @@ export default async function Home() {
                 Comprar
               </a>
             </div>
-            <p className="aviso">Envio para todo o Brasil.</p>
+            <p className="aviso">
+              Feita sob encomenda. Entrega em pelo menos 30 dias, para todo o Brasil.
+            </p>
           </div>
         </div>
       </div>

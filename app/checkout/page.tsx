@@ -114,6 +114,11 @@ export default async function Checkout({
 
         <section className="detalhe-bloco">
           <h2>Entrega</h2>
+          {/* #197: a camiseta e fabricada depois do pedido. Quem paga precisa
+              saber do prazo antes, e nao no e-mail de confirmacao. */}
+          <p className="entrega-prazo">
+            A camiseta é fabricada depois do pedido. A entrega leva pelo menos 30 dias.
+          </p>
 
           <Entrega
             slug={linha.produtoSlug}
