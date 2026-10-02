@@ -26,7 +26,7 @@ Narrativa do EP: AFIRMAR, depois OCUPAR, depois IMPOR. Começa olhando para o qu
 QUEM FAZ
 - Santxx: design, direção artística, composição e vocal. Identidade visual e conceitual do projeto.
 - Ch3fe: produção musical, beats, mixagem e masterização. Também direção artística e a sonoridade do projeto.
-- Paulo e Julia (WhyNot Visuals): captação, edição e conteúdo audiovisual. Making of, clipes, visualizers, prévias e teasers.
+- Paulo (WhyNot Visuals): captação, edição e conteúdo audiovisual. Making of, clipes, visualizers, prévias e teasers.
 - Lau: direção de projeto, gestão e cronograma.
 
 ONE PIECE
