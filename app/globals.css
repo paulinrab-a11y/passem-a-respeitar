@@ -1152,3 +1152,67 @@ footer.assina .assina-credito a{color:var(--prata)}
 /* Campo com erro: a borda diz onde, a mensagem diz o que. */
 .auth-campo input[aria-invalid="true"],#fim .convite input[aria-invalid="true"]{border-color:var(--vermelho)}
 .auth-caixinha input[aria-invalid="true"]{outline:1px solid var(--vermelho);outline-offset:2px}
+
+/* Concierge (#191) -----------------------------------------------------------
+   Um chat pequeno, fixo no canto de baixo a direita da home. Mesmos tokens de
+   tudo: preto, prata, prata-2 para o secundario, prata-3 so em borda, vermelho
+   como sinal. Sem raio, sem sombra: elevacao e borda. Entra e sai com os
+   keyframes dos modais (#40), so transform e opacity.
+
+   O botao divide a faixa de baixo com o `.tocando`, que fica a esquerda. Em
+   360 px os dois cabem: o botao tem ~120 px, o indicador ~110 px, e o gutter
+   de 18 px de cada lado deixa folga no meio. O painel sobe ate 70 % da tela e
+   para antes do `#bar`. */
+.concierge-abrir{position:fixed;right:var(--gutter);bottom:24px;z-index:20;font-size:13px;letter-spacing:.2em;padding:12px 18px}
+.concierge-abrir[aria-expanded="true"]{color:#000;border-color:var(--vermelho)}
+.concierge-abrir[aria-expanded="true"]::before{transform:none}
+
+.concierge{position:fixed;right:var(--gutter);bottom:76px;z-index:60;display:flex;flex-direction:column;width:min(420px,calc(100vw - 2*var(--gutter)));max-height:min(70vh,640px);background:#050505;border:1px solid var(--prata-3);color:var(--prata)}
+.concierge[hidden]{display:none}
+.concierge.on{animation:modal-caixa-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.concierge.saindo{animation:modal-caixa-sai .15s cubic-bezier(.4,0,1,1) forwards;pointer-events:none}
+
+.concierge-topo{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--prata-3)}
+.concierge-topo h3{font-family:var(--display);text-transform:uppercase;font-size:16px;letter-spacing:.08em;line-height:1;color:#fff}
+.concierge-fechar{font-size:13px;letter-spacing:.2em;padding:6px 0;color:var(--prata-2);transition:color .2s}
+.concierge-fechar:hover{color:var(--vermelho)}
+
+.concierge-lista{flex:1 1 auto;min-height:120px;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}
+.concierge-bolha{max-width:88%;padding:10px 12px;font-size:15px;line-height:1.5;letter-spacing:.02em;color:var(--prata);white-space:pre-wrap;overflow-wrap:anywhere;animation:so-fade .2s cubic-bezier(.22,1,.36,1) backwards}
+.concierge-bolha.bolha-usuario{align-self:flex-end;border:1px solid var(--prata-3)}
+.concierge-bolha.bolha-concierge{align-self:flex-start;border-left:2px solid var(--vermelho);padding-left:14px}
+
+/* Altura reservada: aparece e some sem mexer no que esta em volta. As barras
+   crescem por transform, como o equalizador do `.tocando`, nunca por height. */
+/* O mesmo equalizador do `.tocando`: tres barras em vez de quatro. */
+.concierge-digitando{height:14px;margin:0 16px;opacity:0;transition:opacity .2s cubic-bezier(.22,1,.36,1)}
+.concierge-digitando.on{opacity:1}
+.concierge-digitando .eq{display:flex;gap:3px;align-items:flex-end;height:14px}
+.concierge-digitando .eq i{display:block;width:3px;height:14px;transform-origin:bottom;background:var(--vermelho);transform:scaleY(.21)}
+.concierge-digitando.on .eq i{animation:eq .6s ease-in-out infinite alternate}
+.concierge-digitando.on .eq i:nth-child(2){animation-delay:.15s}.concierge-digitando.on .eq i:nth-child(3){animation-delay:.3s}
+
+.concierge-aviso{min-height:18px;padding:4px 16px 0;font-size:12px;letter-spacing:.14em;color:var(--prata-2)}
+
+.concierge-form{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;padding:10px 16px 16px;border-top:1px solid var(--prata-3)}
+.concierge-form textarea{font:inherit;font-size:16px;letter-spacing:.02em;line-height:1.4;resize:none;background:transparent;color:var(--prata);border:1px solid var(--prata-3);padding:10px 12px;min-height:46px;max-height:120px}
+.concierge-form textarea::placeholder{color:var(--prata-2);letter-spacing:.06em}
+.concierge-form textarea:read-only{color:var(--prata-2)}
+.concierge-form .btn{padding:12px 16px;font-size:13px;min-height:46px}
+.concierge-form .btn:disabled{background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:default}
+.concierge-form .btn:disabled::before{display:none}
+/* O widget da Cloudflare, se aparecer, ocupa a largura toda abaixo do campo. */
+.concierge-form .isca,.concierge-form .desafio-convite{grid-column:1 / -1}
+.concierge-form .desafio-convite:empty{display:none}
+
+@media (max-width:767px){
+  .concierge-abrir{bottom:16px;padding:10px 14px;font-size:var(--t-micro);letter-spacing:.14em}
+  .concierge{bottom:62px;max-height:min(72vh,560px)}
+  .concierge-bolha{font-size:var(--t-small)}
+}
+@media (prefers-reduced-motion:reduce){
+  .concierge.on{animation-name:so-fade}
+  .concierge.saindo{animation-name:so-fade-sai}
+  .concierge-bolha{animation:none}
+  .concierge-digitando.on .eq i{animation:none;transform:scaleY(.5)}
+}

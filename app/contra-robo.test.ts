@@ -3,18 +3,18 @@ import { limita } from '@/lib/rate-limit';
 import { RECUSA } from '@/lib/robo';
 
 /**
- * Os quatro formularios publicos, atras da protecao contra bot (#28).
+ * Os cinco formularios publicos, atras da protecao contra bot (#28).
  *
- * O mesmo contrato, conferido nos quatro de uma vez — login, cadastro,
- * recuperacao de senha e convite:
+ * O mesmo contrato, conferido nos cinco de uma vez — login, cadastro,
+ * recuperacao de senha, convite e concierge (#191):
  *
  *   - isca preenchida ou envio sem token: recusa, e nada acontece
  *   - token que a Cloudflare recusa: recusa, e nada acontece
  *   - token que a Cloudflare aceita: o formulario segue
- *   - a recusa e a mesma frase nos quatro, e nao conta nada sobre a conta
+ *   - a recusa e a mesma frase nos cinco, e nao conta nada sobre a conta
  *
  * "Nada acontece" e literal: o Supabase nao e chamado, e-mail nao sai, codigo
- * de convite nao e conferido.
+ * de convite nao e conferido, nada sai para o Gemini.
  */
 
 const auth = {
@@ -23,6 +23,7 @@ const auth = {
   resetPasswordForEmail: vi.fn(async (..._: unknown[]) => ({ error: null })),
 };
 const codigoConfere = vi.fn(async (_: string) => false);
+const pergunta = vi.fn(async (..._: unknown[]) => 'Dia 20 de novembro.');
 let cabecalhos = new Headers();
 
 vi.mock('@/lib/supabase/servidor', () => ({ clienteDeAuth: async () => ({ auth }) }));
@@ -41,6 +42,10 @@ vi.mock('@/lib/convite', async (original) => ({
   ...(await original<typeof import('@/lib/convite')>()),
   codigoConfere: (codigo: string) => codigoConfere(codigo),
 }));
+// O Gemini fica de fora: o que se prova e que a rota nem chega nele.
+vi.mock('@/lib/concierge/gemini', () => ({
+  pergunta: (...a: unknown[]) => pergunta(...a),
+}));
 
 const { entrar } = await import('./entrar/acoes');
 const { estadoInicial } = await import('./entrar/estado');
@@ -49,6 +54,7 @@ const { criarContaInicial } = await import('./criar-conta/estado');
 const { recuperarSenha } = await import('./recuperar-senha/acoes');
 const { recuperarInicial } = await import('./recuperar-senha/estado');
 const { POST: convite } = await import('./api/convite/route');
+const { POST: concierge } = await import('./api/concierge/route');
 
 // Inventadas. As de verdade nunca entram num teste.
 const TOKEN = 'token-de-teste';
@@ -141,6 +147,23 @@ const FORMULARIOS = [
       const corpo = await r.json();
       // 401 e a resposta do codigo: o envio passou pela protecao e pelo limite.
       return { recusado: r.status !== 401, mensagem: corpo.erro ?? null };
+    },
+  },
+  {
+    nome: 'concierge',
+    acao: 'concierge',
+    limite: () => `concierge:${ip}`,
+    andou: () => pergunta.mock.calls.length > 0,
+    async envia({ desafio, isca }: Extra): Promise<Resposta> {
+      const r = await concierge(
+        new Request('https://passem-a-respeitar.test/api/concierge', {
+          method: 'POST',
+          headers: cabecalhos,
+          body: JSON.stringify({ mensagem: 'quando sai?', desafio, website: isca }),
+        })
+      );
+      const corpo = await r.json();
+      return { recusado: r.status !== 200, mensagem: corpo.erro ?? null };
     },
   },
 ] as const;
@@ -249,7 +272,7 @@ describe.each(FORMULARIOS)('$nome', (f) => {
     const r = await f.envia({ desafio: TOKEN, isca: '' });
 
     expect(r.recusado).toBe(true);
-    expect(r.mensagem).toMatch(/Muit[oa]s (tentativas|pedidos)/);
+    expect(r.mensagem).toMatch(/Muit[oa]s (tentativas|pedidos|perguntas)/);
     expect(pedido).not.toHaveBeenCalled();
     expect(f.andou()).toBe(false);
   });

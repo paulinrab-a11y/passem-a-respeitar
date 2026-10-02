@@ -92,3 +92,30 @@ export const esquemaTrocarEmail = z.object({
   email: z.string().trim().toLowerCase().min(1).max(254).email(),
   senha: z.string().min(1).max(SENHA_MAX),
 });
+
+/** O que o Concierge aceita em uma pergunta (#191). */
+export const CONCIERGE_MENSAGEM_MAX = 500;
+/** Quantas trocas anteriores o navegador pode mandar junto. */
+export const CONCIERGE_HISTORICO_MAX = 8;
+const CONCIERGE_TROCA_MAX = 1000;
+
+/**
+ * Concierge (#191): a pergunta e as ultimas trocas, vindas do navegador.
+ *
+ * O historico e do cliente e vale o que vale: entra no prompt como contexto,
+ * nao como fato. Por isso o teto curto em quantidade e em tamanho — e por
+ * isso `papel` e um enum fechado: qualquer outro valor nao vira "system" por
+ * acidente.
+ */
+export const esquemaConcierge = z.object({
+  mensagem: z.string().trim().min(1).max(CONCIERGE_MENSAGEM_MAX),
+  historico: z
+    .array(
+      z.object({
+        papel: z.enum(['usuario', 'concierge']),
+        texto: z.string().max(CONCIERGE_TROCA_MAX),
+      })
+    )
+    .max(CONCIERGE_HISTORICO_MAX)
+    .default([]),
+});
