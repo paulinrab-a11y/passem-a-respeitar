@@ -60,7 +60,7 @@ afterEach(() => {
 });
 
 describe('cadastro que da certo', () => {
-  it('chama o signUp com nome e aceite carimbado pelo servidor, e devolve o e-mail', async () => {
+  it('chama o signUp com o aceite carimbado pelo servidor, sem nome, e devolve o e-mail', async () => {
     const f = bom();
     const antes = Date.now();
     const r = await criarConta(criarContaInicial, f);
@@ -71,10 +71,12 @@ describe('cadastro que da certo', () => {
     const chamada = signUp.mock.calls[0][0] as {
       email: string;
       password: string;
-      options: { data: { nome: string; termos_aceitos_em: string }; emailRedirectTo: string };
+      options: { data: Record<string, string>; emailRedirectTo: string };
     };
     expect(chamada.email).toBe(f.get('email'));
-    expect(chamada.options.data.nome).toBe('Fulana');
+    // So o aceite: nome no cadastro acabou na #207, e um `nome` injetado no
+    // formulario nao chega ao perfil.
+    expect(Object.keys(chamada.options.data)).toEqual(['termos_aceitos_em']);
     expect(Date.parse(chamada.options.data.termos_aceitos_em)).toBeGreaterThanOrEqual(antes - 1000);
   });
 
@@ -140,7 +142,6 @@ describe('recusas', () => {
   });
 
   it.each([
-    ['nome', { nome: 'A' }],
     ['email', { email: 'nao-e' }],
     ['senha', { senha: 'curta', confirmacao: 'curta' }],
     ['confirmacao', { confirmacao: 'outra' }],

@@ -61,9 +61,10 @@ export const esquemaTrocarSenha = z
  * A senha e so tamanho neste ponto; vazamento e checado depois, em
  * senha-servidor.ts, porque e uma ida a rede e nao cabe num schema.
  */
+// Sem nome (#207): e-mail, senha e aceite bastam para comprar. Quem quiser
+// poe o nome depois, em Conta — o perfil nasce sem ele e a tela sabe disso.
 export const esquemaCriarConta = z
   .object({
-    nome: z.string().trim().min(2).max(80),
     email: z.string().trim().toLowerCase().min(1).max(254).email(),
     senha: z.string().min(SENHA_MIN).max(SENHA_MAX),
     confirmacao: z.string().min(1).max(SENHA_MAX),

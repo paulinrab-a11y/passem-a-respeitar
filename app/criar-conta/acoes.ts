@@ -31,7 +31,6 @@ const POR_IP = { maximo: 5, janelaMs: 60 * 60 * 1000 };
 const POR_EMAIL = { maximo: 3, janelaMs: 60 * 60 * 1000 };
 
 const MENSAGENS: Record<string, string> = {
-  nome: 'Diga como quer ser chamado (2 a 80 letras).',
   email: 'Confira o e-mail.',
   senha: 'A senha precisa de pelo menos 8 caracteres.',
   confirmacao: 'A confirmação não bate com a senha.',
@@ -53,7 +52,6 @@ export async function criarConta(
   }
 
   const dados = esquemaCriarConta.safeParse({
-    nome: form.get('nome'),
     email: form.get('email'),
     senha: form.get('senha'),
     confirmacao: form.get('confirmacao'),
@@ -67,7 +65,7 @@ export async function criarConta(
     return erro(anterior, MENSAGENS[campo] ?? 'Confira os dados.', campo || null);
   }
 
-  const { nome, email, senha } = dados.data;
+  const { email, senha } = dados.data;
 
   const cabecalhos = await headers();
   const ip = ipDoRequest(cabecalhos);
@@ -96,7 +94,9 @@ export async function criarConta(
     email,
     password: senha,
     options: {
-      data: { nome, termos_aceitos_em: new Date().toISOString() },
+      // Sem nome (#207): o perfil nasce sem ele, e a pessoa poe em Conta se
+      // quiser. O aceite continua carimbado aqui, com o relogio do servidor.
+      data: { termos_aceitos_em: new Date().toISOString() },
       emailRedirectTo: urlDeRetorno(cabecalhos, CONTA),
     },
   });
