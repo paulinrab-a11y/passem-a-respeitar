@@ -26,7 +26,7 @@ const noDisco = (nome: string) =>
 const DE_TODOS = ['SiteURL', 'Data'];
 const DE_CONFIRMACAO = ['ConfirmationURL', 'TokenHash', 'RedirectTo', 'Email', ...DE_TODOS];
 const VARIAVEIS: Record<string, string[]> = {
-  // Codigo e link no mesmo e-mail (#224).
+  // O que o Supabase oferece. O modelo usa so o Token (#227).
   confirmation: [...DE_CONFIRMACAO, 'Token'],
   recovery: DE_CONFIRMACAO,
   invite: DE_CONFIRMACAO,
@@ -143,6 +143,16 @@ describe('o que cada e-mail tem', () => {
     const h = html(EMAILS.find((e) => e.chave === 'reauthentication') ?? EMAILS[0]);
 
     expect(usadas(h)).toEqual(['Token']);
+  });
+
+  it('o e-mail de cadastro traz so o codigo, sem link (#227)', () => {
+    const e = EMAILS.find((m) => m.chave === 'confirmation');
+    const h = html(e ?? EMAILS[0]);
+
+    expect(e?.botao).toBeUndefined();
+    expect(usadas(h)).toEqual(['Token']);
+    // O e2e le o codigo logo depois desta frase (e2e/apoio/correio.ts).
+    expect(e?.texto.at(-1)).toMatch(/digite este código no site:$/);
   });
 
   it('o aviso de senha trocada leva ao pedido de senha nova, no proprio site', () => {

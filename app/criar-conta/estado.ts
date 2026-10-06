@@ -7,7 +7,7 @@ export type EstadoCriarConta = {
   /** Campo que errou, para o foco e o `aria-invalid`. */
   campo: string | null;
   /**
-   * E-mail para onde o link foi. Quando preenchido, o formulario da lugar ao
+   * E-mail para onde o codigo foi. Quando preenchido, o formulario da lugar ao
    * recado de "confira a caixa de entrada" — e e o MESMO recado para conta
    * nova e para e-mail que ja existia.
    */

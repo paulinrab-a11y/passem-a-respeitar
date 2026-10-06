@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { emailConfirmado, emailNovo, senhaNova } from './apoio/banco';
-import { codigoDoEmail, linkDoEmail } from './apoio/correio';
+import { codigoDoEmail } from './apoio/correio';
 import { preencheLogin, vivo } from './apoio/telas';
 import { visitante } from './apoio/visitante';
 
@@ -8,24 +8,27 @@ import { visitante } from './apoio/visitante';
 test.use({ extraHTTPHeaders: visitante('cadastro') });
 
 /**
- * Cadastro (#30), de ponta a ponta: formulario, e-mail, link, conta.
+ * Cadastro (#30), de ponta a ponta: formulario, e-mail, codigo, conta.
  *
  * E o unico teste que cria conta pela tela. O limite de cadastro e de cinco
  * por hora por IP, e a suite inteira e um IP so.
  */
-test('cadastro: a conta so entra depois do link do e-mail', async ({ page }) => {
+test('cadastro: a conta so entra depois do codigo do e-mail', async ({ page }) => {
   const email = emailNovo('cadastro');
   const senha = senhaNova();
 
-  await page.goto('/criar-conta');
-  const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByLabel('Senha', { exact: true }).fill(senha);
-  await page.getByLabel('Confirme a senha').fill(senha);
-  await page.getByRole('checkbox', { name: /Li e aceito/ }).check();
-  await criar.click();
+  const cadastra = async () => {
+    await page.goto('/criar-conta');
+    const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
+    await page.getByLabel('E-mail').fill(email);
+    await page.getByLabel('Senha', { exact: true }).fill(senha);
+    await page.getByLabel('Confirme a senha').fill(senha);
+    await page.getByRole('checkbox', { name: /Li e aceito/ }).check();
+    await criar.click();
+    await expect(page.getByText('Confira seu e-mail')).toBeVisible();
+  };
 
-  await expect(page.getByText('Confira seu e-mail')).toBeVisible();
+  await cadastra();
   // Lido do banco, e nao da tela: a tela diz o mesmo para e-mail repetido.
   expect(await emailConfirmado(email)).toBe(false);
 
@@ -33,13 +36,18 @@ test('cadastro: a conta so entra depois do link do e-mail', async ({ page }) => 
   // resposta e a de credencial errada, que nao conta se a conta existe.
   await page.goto('/entrar');
   await preencheLogin(page, email, senha);
-  await expect(
-    page.getByRole('alert').filter({ hasText: 'E-mail ou senha incorretos' })
-  ).toBeVisible();
+  const recusa = page.getByRole('alert').filter({ hasText: 'E-mail ou senha incorretos' });
+  await expect(recusa).toBeVisible();
+  // E ensina o caminho de volta a quem saiu da tela do codigo (#227).
+  await expect(recusa).toContainText('chega um código novo');
   await expect(page).toHaveURL(/\/entrar/);
 
-  // O link volta pelo callback, que troca o codigo pela sessao.
-  await page.goto(await linkDoEmail(email));
+  // O e-mail nao tem link (#227). A volta e cadastrar de novo com o mesmo
+  // e-mail: conta ainda nao confirmada recebe um codigo novo.
+  const novoPedido = Date.now() - 1000;
+  await cadastra();
+  const campo = await vivo(page.getByLabel(/Código de 6 dígitos/));
+  await campo.fill(await codigoDoEmail(email, novoPedido));
   await page.waitForURL('**/conta');
 
   // Sem nome no cadastro (#207): a conta nasce sem ele, e a tela diz isso.
@@ -69,8 +77,8 @@ test('cadastro: sem aceitar a politica de privacidade nao ha conta', async ({ pa
 });
 
 /**
- * Cadastro pelo codigo (#224): o mesmo e-mail traz codigo e link. Aqui a
- * pessoa digita o codigo — e o campo envia sozinho no sexto digito.
+ * Cadastro pelo codigo (#224): desde a #227 o e-mail traz so o codigo. Aqui a
+ * pessoa erra antes de acertar, e o campo envia sozinho no sexto digito.
  */
 test('cadastro: digitar o codigo do e-mail confirma e entra na conta', async ({ page }) => {
   const email = emailNovo('codigo');

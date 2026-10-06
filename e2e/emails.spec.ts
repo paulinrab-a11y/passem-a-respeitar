@@ -62,7 +62,7 @@ function confere(email: Email, chave: Chave) {
   expect(email.html).not.toMatch(/<link\b|<script\b|@import|url\(/i);
 }
 
-test('e-mail de cadastro: em portugues, com o link de confirmacao', async ({ page }) => {
+test('e-mail de cadastro: em portugues, so com o codigo', async ({ page }) => {
   const email = emailNovo('carta-cadastro');
   const senha = senhaNova();
 
@@ -78,14 +78,11 @@ test('e-mail de cadastro: em portugues, com o link de confirmacao', async ({ pag
   const carta = await emailPara(email);
 
   confere(carta, 'confirmation');
-  expect(carta.lido).toContain('Confirmar e-mail');
-  // Codigo e link no mesmo e-mail (#224).
-  expect(carta.lido).toContain('Sem o código ou o clique, nenhuma conta é criada');
-  expect(carta.lido).toMatch(/Ou digite este código no site: \d{6}\b/);
-  expect(carta.link).not.toBeNull();
-  // O link aparece no botao e por extenso, para copiar: no endereco e no
-  // texto do endereco.
-  expect(carta.html.split('/auth/v1/verify?').length - 1).toBe(3);
+  // So o codigo, sem link (#227).
+  expect(carta.lido).toContain('Sem o código, nenhuma conta é criada');
+  expect(carta.lido).toMatch(/digite este código no site: \d{6}\b/);
+  expect(carta.link).toBeNull();
+  expect(carta.html).not.toContain('/auth/v1/verify?');
 });
 
 test('e-mail de recuperacao: em portugues; endereco sem conta nao recebe nada', async ({

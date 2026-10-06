@@ -23,9 +23,13 @@ import type { EstadoEntrar } from './estado';
  * O aviso sobre confirmacao aparece SEMPRE, inclusive quando o e-mail nem
  * existe. Ajuda quem acabou de se cadastrar sem contar nada sobre quem e
  * cadastrado.
+ *
+ * O e-mail de cadastro so traz codigo (#227), e o codigo so se digita na tela
+ * que aparece depois de "Criar conta". Quem saiu dela volta pelo cadastro: com
+ * o mesmo e-mail, o Supabase manda um codigo novo para conta nao confirmada.
  */
 const ERRO_GENERICO =
-  'E-mail ou senha incorretos. Se você acabou de criar a conta, confirme o link que enviamos por e-mail.';
+  'E-mail ou senha incorretos. Acabou de criar a conta e não confirmou? Faça o cadastro de novo com o mesmo e-mail: chega um código novo.';
 
 /** Por IP: segura varredura de e-mails a partir de uma origem. */
 const POR_IP = { maximo: 20, janelaMs: 15 * 60 * 1000 };

@@ -25,8 +25,8 @@ app/
   _ui/                  peças que se repetem: mensagem, rótulo de botão,
                         barra de rota, reautenticação, campos de formulário
   entrar/               login (#31)
-  criar-conta/          cadastro confirmado por código de 6 dígitos ou link (#30,
-                        #224); só e-mail,
+  criar-conta/          cadastro confirmado por código de 6 dígitos, sem link no
+                        e-mail (#30, #224, #227); só e-mail,
                         senha e aceite, o nome vem depois em Conta (#207)
   recuperar-senha/      pedido do link (#32)
   redefinir-senha/      senha nova, a partir do link (#32)

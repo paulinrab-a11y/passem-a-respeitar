@@ -70,15 +70,15 @@ export const EMAILS = [
     painel: 'Confirm sign up',
     assunto: 'Confirme seu e-mail — Passem a Respeitar',
     titulo: 'Confirme seu e-mail',
+    // So o codigo, sem link (#227, decisao do dono em 06/10/2026). A ultima
+    // frase termina em "digite este código no site:" de proposito: o codigo
+    // vem logo depois, e e nessa frase que o e2e ancora a leitura.
     texto: [
       'Falta um passo para criar sua conta: confirmar que este endereço é seu.',
-      'Use o botão, ou digite o código no site. Os dois valem por uma hora e só funcionam uma vez.',
+      'O código vale por uma hora e só funciona uma vez. Para confirmar, digite este código no site:',
     ],
-    botao: ['Confirmar e-mail', '{{ .ConfirmationURL }}'],
-    // Codigo e link no mesmo e-mail (#224): o codigo e o caminho de quem se
-    // cadastra pelo celular; o link continua para quem prefere clicar.
     codigo: true,
-    aviso: 'Não foi você? Ignore este e-mail. Sem o código ou o clique, nenhuma conta é criada.',
+    aviso: 'Não foi você? Ignore este e-mail. Sem o código, nenhuma conta é criada.',
   },
   {
     chave: 'invite',
