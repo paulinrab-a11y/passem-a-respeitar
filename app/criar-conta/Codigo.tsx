@@ -5,19 +5,20 @@ import ContraRobo, { SEM_AVISO } from '@/app/_ui/ContraRobo';
 import { CAMPO_DA_ISCA } from '@/app/_ui/desafio';
 import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
+import { DIGITOS_CODIGO } from '@/lib/esquemas';
 import { confirmarCodigo, reenviarCodigo } from './acoes';
 import { codigoInicial, reenvioInicial } from './estado';
 
 /** O Supabase so manda outro e-mail depois de 60 s; a tela conta junto. */
 export const ESPERA_REENVIO_S = 60;
-const DIGITOS = 6;
+const DIGITOS = DIGITOS_CODIGO;
 
 /**
  * A tela do codigo (#224): o que aparece depois de "Criar conta".
  *
- * Um campo so, e nao seis caixinhas: colar funciona, o teclado do celular
+ * Um campo so, e nao oito caixinhas: colar funciona, o teclado do celular
  * preenche sozinho (`one-time-code`) e o leitor de tela le um campo. Quando o
- * sexto digito entra, o formulario vai sozinho — ninguem precisa achar o
+ * oitavo digito entra, o formulario vai sozinho — ninguem precisa achar o
  * botao com o e-mail aberto do outro lado. O botao continua la para quem
  * digita devagar ou cola errado.
  *
@@ -57,7 +58,7 @@ export default function Codigo({
   }, [estado.tentativa]);
 
   function aoDigitar(valor: string) {
-    // So digitos, no maximo seis: "Seu código: 123 456" colado vira 123456.
+    // So digitos, no maximo oito: "Seu código: 1234 5678" colado vira 12345678.
     const limpo = valor.replace(/\D/g, '').slice(0, DIGITOS);
     setCodigo(limpo);
     if (limpo.length === DIGITOS && !confirmando) {
@@ -94,7 +95,7 @@ export default function Codigo({
             name="codigo"
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="[0-9]{6}"
+            pattern={`[0-9]{${DIGITOS}}`}
             maxLength={DIGITOS}
             required
             // biome-ignore lint/a11y/noAutofocus: a tela existe para este campo; o foco e o que a pessoa espera

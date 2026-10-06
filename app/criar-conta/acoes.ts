@@ -125,7 +125,7 @@ export async function criarConta(
 }
 
 /**
- * Confirmar o cadastro pelo codigo de seis digitos (#224).
+ * Confirmar o cadastro pelo codigo de oito digitos (#224).
  *
  * Desde a #227 o e-mail traz so o codigo, sem link: confirmar e sempre por
  * aqui, e termina em sessao em cookie e /conta. O `verifyOtp` roda NO
@@ -143,7 +143,7 @@ const CODIGO_POR_IP = { maximo: 20, janelaMs: 10 * 60 * 1000 };
 const CODIGO_POR_EMAIL = { maximo: 10, janelaMs: 10 * 60 * 1000 };
 
 const CODIGO_INVALIDO =
-  'Código inválido ou vencido. Confira os seis dígitos ou peça um novo abaixo.';
+  'Código inválido ou vencido. Confira os oito dígitos ou peça um novo abaixo.';
 
 export async function confirmarCodigo(
   anterior: EstadoCodigo,
@@ -160,7 +160,7 @@ export async function confirmarCodigo(
     email: form.get('email'),
     codigo: String(form.get('codigo') ?? '').replace(/\D/g, ''),
   });
-  if (!dados.success) return falha('Digite os seis dígitos do código.');
+  if (!dados.success) return falha('Digite os oito dígitos do código.');
   const { email, codigo } = dados.data;
 
   const ip = ipDoRequest(await headers());

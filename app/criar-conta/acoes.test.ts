@@ -193,24 +193,24 @@ describe('recusas', () => {
  */
 describe('confirmar pelo codigo (#224)', () => {
   const codigoBom = (extra: Record<string, string> = {}) =>
-    formulario({ email: 'Maria@Exemplo.invalid', codigo: '123456', ...extra });
+    formulario({ email: 'Maria@Exemplo.invalid', codigo: '12345678', ...extra });
 
   it('confere com verifyOtp do tipo email e manda para a conta', async () => {
     await expect(confirmarCodigo(codigoInicial, codigoBom())).rejects.toThrow('redirect:/conta');
 
     expect(verifyOtp).toHaveBeenCalledWith({
       email: 'maria@exemplo.invalid',
-      token: '123456',
+      token: '12345678',
       type: 'email',
     });
   });
 
   it('aceita o codigo com espacos e texto em volta', async () => {
     await expect(
-      confirmarCodigo(codigoInicial, codigoBom({ codigo: ' 123 456 ' }))
+      confirmarCodigo(codigoInicial, codigoBom({ codigo: ' 1234 5678 ' }))
     ).rejects.toThrow('redirect:/conta');
 
-    expect(verifyOtp).toHaveBeenCalledWith(expect.objectContaining({ token: '123456' }));
+    expect(verifyOtp).toHaveBeenCalledWith(expect.objectContaining({ token: '12345678' }));
   });
 
   it('o next passa pelo destinoSeguro: nada de site de fora', async () => {
@@ -233,10 +233,10 @@ describe('confirmar pelo codigo (#224)', () => {
     expect(r1.tentativa).toBe(1);
   });
 
-  it('menos de seis digitos nao chega ao Supabase', async () => {
-    const r = await confirmarCodigo(codigoInicial, codigoBom({ codigo: '12345' }));
+  it('menos de oito digitos nao chega ao Supabase', async () => {
+    const r = await confirmarCodigo(codigoInicial, codigoBom({ codigo: '1234567' }));
 
-    expect(r.erro).toMatch(/seis dígitos/);
+    expect(r.erro).toMatch(/oito dígitos/);
     expect(verifyOtp).not.toHaveBeenCalled();
   });
 

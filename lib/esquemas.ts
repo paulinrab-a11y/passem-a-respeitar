@@ -122,11 +122,14 @@ export const esquemaConcierge = z.object({
 });
 
 /**
- * Codigo de confirmacao do cadastro (#224): seis digitos, e so. Espacos e
- * texto em volta (gente cola "Seu código: 123 456") sao tirados ANTES, no
+ * Codigo de confirmacao do cadastro (#224): oito digitos, e so. Espacos e
+ * texto em volta (gente cola "Seu código: 1234 5678") sao tirados ANTES, no
  * campo; aqui chega o que o servidor aceita.
  */
+/** Tamanho do codigo do e-mail. Igual ao "Email OTP Length" do Supabase. */
+export const DIGITOS_CODIGO = 8;
+
 export const esquemaCodigo = z.object({
   email: z.string().trim().toLowerCase().min(1).max(254).email(),
-  codigo: z.string().regex(/^\d{6}$/),
+  codigo: z.string().regex(new RegExp(`^\\d{${DIGITOS_CODIGO}}$`)),
 });
