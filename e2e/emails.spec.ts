@@ -79,7 +79,9 @@ test('e-mail de cadastro: em portugues, com o link de confirmacao', async ({ pag
 
   confere(carta, 'confirmation');
   expect(carta.lido).toContain('Confirmar e-mail');
-  expect(carta.lido).toContain('Sem o clique, nenhuma conta é criada');
+  // Codigo e link no mesmo e-mail (#224).
+  expect(carta.lido).toContain('Sem o código ou o clique, nenhuma conta é criada');
+  expect(carta.lido).toMatch(/Ou digite este código no site: \d{6}\b/);
   expect(carta.link).not.toBeNull();
   // O link aparece no botao e por extenso, para copiar: no endereco e no
   // texto do endereco.

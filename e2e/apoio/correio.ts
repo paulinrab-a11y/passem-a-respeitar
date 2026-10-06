@@ -127,17 +127,14 @@ export async function linkDoEmail(para: string, desde = 0): Promise<string> {
 }
 
 /**
- * O codigo de seis digitos do e-mail mais recente para `para` (#224). O
- * modelo escreve o codigo sozinho numa linha, em fonte mono; no texto lido
- * ele e a unica sequencia de exatamente seis digitos.
+ * O codigo de seis digitos do e-mail mais recente para `para` (#224).
+ *
+ * Ancorado na frase do modelo, e nao em "seis digitos seguidos": o token do
+ * link e hexadecimal e pode conter seis digitos por acaso — aconteceu na CI.
  */
 export async function codigoDoEmail(para: string, desde = 0): Promise<string> {
   const { lido } = await emailPara(para, { desde });
-  const achados = lido.match(/(?<!\d)\d{6}(?!\d)/g) ?? [];
-  if (achados.length !== 1) {
-    throw new Error(
-      `esperava um codigo de seis digitos no e-mail para ${para}, achei ${achados.length}`
-    );
-  }
-  return achados[0];
+  const achado = /digite este código no site: (\d{6})\b/.exec(lido);
+  if (!achado) throw new Error(`nao achei o codigo de seis digitos no e-mail para ${para}`);
+  return achado[1];
 }
