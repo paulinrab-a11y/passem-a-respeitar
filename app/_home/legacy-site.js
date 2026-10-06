@@ -796,13 +796,28 @@ const Loja = (()=>{
     renderer.setSize(w, hgt, false); camera.aspect = w/hgt; camera.updateProjectionMatrix();
   }
   addEventListener('resize', ()=> aberto && redimensiona());
+  // Orcamento de quadro (#217). Com o modelo de 73 k triangulos, uma GPU por
+  // software (CI, celular fraco) gasta centenas de ms por quadro; renderizar em
+  // todo requestAnimationFrame deixava a pagina inteira sem responder — o
+  // clique no guia de tamanhos nao abria. O intervalo entre quadros segue o
+  // custo do quadro anterior: o dobro dele, entre 16 e 250 ms. Em GPU normal
+  // o custo e de 1-2 ms e nada muda.
+  //
+  // Com movimento reduzido a camiseta nao gira nem flutua sozinha: so se mexe
+  // quando a pessoa arrasta, e so e redesenhada enquanto se mexe.
+  let ultimoQuadro = 0, custo = 0, desenhou = false;
   function loop(){
     if (!aberto) return;
     requestAnimationFrame(loop);
-    if (!arrastando){ velY *= 0.92; rotY += velY + 0.004; rotX += (0.05 - rotX)*0.03; }
+    const agora = performance.now();
+    if (agora - ultimoQuadro < Math.min(250, Math.max(16, custo * 2))) return;
+    ultimoQuadro = agora;
+    if (!arrastando){ velY *= 0.92; rotY += velY + (reduzMotion ? 0 : 0.004); rotX += (0.05 - rotX)*0.03; }
     camisa.rotation.set(rotX, rotY, 0);
-    camisa.position.y = Math.sin(performance.now()/1400)*0.04;
+    camisa.position.y = reduzMotion ? 0 : Math.sin(agora/1400)*0.04;
+    if (reduzMotion && desenhou && !arrastando && Math.abs(velY) < 0.0005) return;
     renderer.render(scene, camera);
+    custo = performance.now() - agora; desenhou = true;
   }
   let giro = null, quadro = 0, giroX0 = 0, giroAcc = 0, giroAtivo = false, giroTimer = null;
   function init360(){
