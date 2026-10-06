@@ -42,7 +42,8 @@ img,canvas,svg{display:block}
 
 #bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:18px var(--gutter);mix-blend-mode:difference;opacity:0;transition:opacity .6s cubic-bezier(.22,1,.36,1)}
 #bar.on{opacity:1}
-#bar .logo{display:block;width:34px;height:34px;background:var(--prata);-webkit-mask:url(/brasao.svg) center/contain no-repeat;mask:url(/brasao.svg) center/contain no-repeat}
+#bar .logo{width:34px;height:34px}
+#bar .logo path{fill:var(--prata)}
 #bar .right{display:flex;gap:26px;align-items:center;font-size:14px;letter-spacing:.14em}
 #bar button,#bar a{text-decoration:none;position:relative;padding:4px 0}
 /* O sublinhado cresce por `transform`, e nao por `width` (#53): largura e

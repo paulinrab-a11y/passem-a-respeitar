@@ -19,7 +19,7 @@ describe('metadata do layout (#215)', () => {
     expect(og).toMatchObject({
       type: 'website',
       locale: 'pt_BR',
-      siteName: 'Passem a Respeitar',
+      siteName: 'CBAC - Passem a Respeitar',
       url: '/',
     });
     expect(og.images).toEqual([

@@ -34,20 +34,21 @@ const IMAGEM = { url: '/logo.png', width: 1000, height: 624, alt: 'Passem a Resp
 
 export const metadata: Metadata = {
   metadataBase: BASE,
-  title: 'PASSEM A RESPEITAR — Santxx x Ch3fe',
+  // Nome do site decidido pelo dono em 06/10/2026 (#218): a marca na frente.
+  title: 'CBAC - Passem a Respeitar',
   description: 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals. 20.11.2026.',
   openGraph: {
     type: 'website',
     locale: 'pt_BR',
-    siteName: 'Passem a Respeitar',
+    siteName: 'CBAC - Passem a Respeitar',
     url: '/',
-    title: 'PASSEM A RESPEITAR',
+    title: 'CBAC - Passem a Respeitar',
     description: DESCRICAO,
     images: [IMAGEM],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'PASSEM A RESPEITAR',
+    title: 'CBAC - Passem a Respeitar',
     description: DESCRICAO,
     images: [IMAGEM],
   },
