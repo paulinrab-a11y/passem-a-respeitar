@@ -13,6 +13,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { ADMIN, ambienteLocal, SITE } from './ambiente.mjs';
 import { PORTA_DO_FRETE, sobeMelhorEnvioFalso, TOKEN_DO_FRETE } from './melhor-envio-falso.mjs';
+import { PORTA_DO_VIACEP, sobeViaCepFalso } from './viacep-falso.mjs';
 
 const local = ambienteLocal();
 const next = createRequire(import.meta.url).resolve('next/dist/bin/next');
@@ -77,6 +78,8 @@ const FRETE_DA_SUITE = {
   MELHOR_ENVIO_TOKEN: TOKEN_DO_FRETE,
   MELHOR_ENVIO_CEP_ORIGEM: '01310100',
   MELHOR_ENVIO_URL: `http://127.0.0.1:${PORTA_DO_FRETE}`,
+  // O endereco pelo CEP (#204) tambem vem de um ViaCEP falso daqui.
+  VIACEP_URL: `http://127.0.0.1:${PORTA_DO_VIACEP}`,
 };
 
 const env = { ...process.env };
@@ -101,6 +104,7 @@ const build = spawnSync(process.execPath, [next, 'build'], { env, stdio: 'inheri
 if (build.status !== 0) process.exit(build.status ?? 1);
 
 const frete = sobeMelhorEnvioFalso();
+const viacep = sobeViaCepFalso();
 
 const { hostname, port } = new URL(SITE);
 const site = spawn(process.execPath, [next, 'start', '-H', hostname, '-p', port], {
@@ -113,5 +117,6 @@ for (const sinal of ['SIGINT', 'SIGTERM']) {
 }
 site.on('exit', (codigo) => {
   frete.close();
+  viacep.close();
   process.exit(codigo ?? 0);
 });

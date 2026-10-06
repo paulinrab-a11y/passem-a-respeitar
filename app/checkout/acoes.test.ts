@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: vi.fn() }));
 vi.mock('@/lib/loja/pedido', () => ({ criaPedido: vi.fn() }));
 vi.mock('@/lib/loja/catalogo', () => ({ opcoesDeFrete: vi.fn() }));
+vi.mock('@/lib/loja/endereco-por-cep', () => ({ buscaEnderecoPeloCep: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(() => {
     // O `redirect` do Next lanca para interromper a execucao. O duble imita
@@ -19,8 +20,9 @@ vi.mock('next/navigation', () => ({
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { criaPedido } = await import('@/lib/loja/pedido');
 const { opcoesDeFrete } = await import('@/lib/loja/catalogo');
+const { buscaEnderecoPeloCep } = await import('@/lib/loja/endereco-por-cep');
 const { redirect } = await import('next/navigation');
-const { cotarFrete, finalizarCompra } = await import('./acoes');
+const { buscarEndereco, cotarFrete, finalizarCompra } = await import('./acoes');
 const { checkoutInicial } = await import('./estado');
 
 const ENDERECO = {
@@ -327,5 +329,51 @@ describe('cotarFrete (#199)', () => {
       ok: false,
       texto: 'Não consegui calcular o frete agora. Tente de novo em instantes.',
     });
+  });
+});
+
+describe('buscarEndereco (#204)', () => {
+  const PAULISTA = {
+    logradouro: 'Avenida Paulista',
+    bairro: 'Bela Vista',
+    cidade: 'São Paulo',
+    uf: 'SP',
+  };
+
+  beforeEach(() => {
+    vi.mocked(buscaEnderecoPeloCep).mockResolvedValue({ ok: true, endereco: PAULISTA });
+  });
+
+  it('devolve o endereco do CEP, so em digitos', async () => {
+    expect(await buscarEndereco('01310-100')).toEqual(PAULISTA);
+    expect(buscaEnderecoPeloCep).toHaveBeenCalledWith('01310100');
+  });
+
+  it('sem sessao nao consulta', async () => {
+    vi.mocked(usuarioDaSessao).mockResolvedValue(null);
+    expect(await buscarEndereco('01310100')).toBeNull();
+    expect(buscaEnderecoPeloCep).not.toHaveBeenCalled();
+  });
+
+  it.each(['0131010', '', 1310100, null, { cep: '01310100' }])(
+    'CEP %j nao consulta',
+    async (cep) => {
+      expect(await buscarEndereco(cep)).toBeNull();
+      expect(buscaEnderecoPeloCep).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['cep-desconhecido', 'cep-invalido', 'fora-do-ar'] as const)(
+    'falha (%s) vira null, sem mensagem: a pessoa digita',
+    async (motivo) => {
+      vi.mocked(buscaEnderecoPeloCep).mockResolvedValue({ ok: false, motivo });
+      expect(await buscarEndereco('01310100')).toBeNull();
+    }
+  );
+
+  it('para depois de trinta buscas em dez minutos', async () => {
+    for (let i = 0; i < 30; i++) expect(await buscarEndereco('01310100')).toEqual(PAULISTA);
+    expect(await buscarEndereco('01310100')).toBeNull();
+    expect(buscaEnderecoPeloCep).toHaveBeenCalledTimes(30);
   });
 });

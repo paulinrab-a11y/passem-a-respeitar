@@ -2,6 +2,7 @@
 
 import { opcoesDeFrete } from '@/lib/loja/catalogo';
 import { esquemaEndereco, soDigitos } from '@/lib/loja/endereco';
+import { buscaEnderecoPeloCep, type EnderecoPeloCep } from '@/lib/loja/endereco-por-cep';
 import type { OpcaoDeFrete } from '@/lib/loja/frete';
 import { criaPedido } from '@/lib/loja/pedido';
 import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
@@ -18,6 +19,9 @@ const LIMITE = { maximo: 10, janelaMs: 60 * 60 * 1000 };
  * e um script que varre CEPs para nas trinta.
  */
 const LIMITE_DO_FRETE = { maximo: 30, janelaMs: 10 * 60 * 1000 };
+
+/** Buscas de endereco por pessoa (#204). O ViaCEP e gratuito e de todos; nao se abusa. */
+const LIMITE_DO_ENDERECO = { maximo: 30, janelaMs: 10 * 60 * 1000 };
 
 /** Mensagem por motivo. Nenhuma delas conta o que o catalogo tem. */
 const RECADOS: Record<string, string> = {
@@ -161,4 +165,32 @@ export async function cotarFrete(bruto: {
   if (!r.ok) return { ok: false, texto: RECADOS[r.motivo] ?? RECADOS['frete-fora-do-ar'] };
 
   return { ok: true, subtotalCentavos: r.subtotalCentavos, opcoes: r.opcoes };
+}
+
+/**
+ * Rua, bairro, cidade e UF do CEP que a pessoa digitou (#204).
+ *
+ * Volta `null` em toda falha, de proposito: sem resposta a pessoa digita o
+ * endereco, como fazia antes. Nao ha mensagem de erro para "o ViaCEP nao
+ * conhece esse CEP" — o CEP pode estar certo e ser novo, e quem decide e o
+ * envio do formulario, validado pelo `esquemaEndereco`.
+ *
+ * Com sessao e com limite, como a cotacao: e uma chamada para fora.
+ */
+export async function buscarEndereco(bruto: unknown): Promise<EnderecoPeloCep | null> {
+  const usuario = await usuarioDaSessao();
+  if (!usuario) return null;
+
+  const cep = typeof bruto === 'string' ? soDigitos(bruto) : '';
+  if (!/^\d{8}$/.test(cep)) return null;
+
+  const cota = await limita(
+    `endereco:${usuario.id}`,
+    LIMITE_DO_ENDERECO.maximo,
+    LIMITE_DO_ENDERECO.janelaMs
+  );
+  if (!cota.permitido) return null;
+
+  const r = await buscaEnderecoPeloCep(cep);
+  return r.ok ? r.endereco : null;
 }

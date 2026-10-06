@@ -50,6 +50,11 @@ const UFS = [
   'TO',
 ] as const;
 
+/** "SP" e estado, "XX" nao e. Quem pergunta e a busca pelo CEP (#204). */
+export function ehUf(valor: string): valor is (typeof UFS)[number] {
+  return (UFS as readonly string[]).includes(valor);
+}
+
 /**
  * `01310-100`, `01310 100` e `01310100` sao o mesmo CEP. O banco guarda so
  * digitos para nao precisar decidir isso de novo em cada consulta.

@@ -2,6 +2,7 @@ import { type BrowserContext, test as base, expect, type Page } from '@playwrigh
 import { criaAdmin, criaUsuario, leFreteDoPedido, pedidosDe, type Usuario } from './apoio/banco';
 import { CEPS, PORTA_DO_FRETE, TOKEN_DO_FRETE } from './apoio/melhor-envio-falso.mjs';
 import { entra, vivo } from './apoio/telas';
+import { CEPS_DO_VIACEP } from './apoio/viacep-falso.mjs';
 import { visitante } from './apoio/visitante';
 
 /**
@@ -241,4 +242,51 @@ test('frete: o botao nao anda quando a cotacao chega', async ({ logada }) => {
 
   expect(esperando).toBe(parado);
   expect(cotado).toBe(parado);
+});
+
+/**
+ * Endereco pelo CEP (#204), contra o ViaCEP falso: qualquer CEP responde a
+ * Avenida Paulista, menos os combinados em apoio/viacep-falso.mjs.
+ */
+test('endereco: o CEP preenche rua, bairro, cidade e UF, e o foco vai para o numero', async ({
+  logada,
+}) => {
+  await logada.goto(CHECKOUT);
+  const cep = await vivo(logada.getByLabel('CEP'));
+  await cep.click();
+  await cep.fill('04538-133');
+
+  await expect(logada.getByLabel('Rua')).toHaveValue('Avenida Paulista');
+  await expect(logada.getByLabel('Bairro')).toHaveValue('Bela Vista');
+  await expect(logada.getByLabel('Cidade')).toHaveValue('São Paulo');
+  await expect(logada.getByLabel('UF')).toHaveValue('SP');
+  await expect(logada.getByLabel('Número')).toBeFocused();
+  // O que a pessoa escreve a mao continua dela.
+  await expect(logada.getByLabel('Quem recebe')).toHaveValue('');
+});
+
+test('endereco: CEP desconhecido deixa os campos para a pessoa, sem erro', async ({ logada }) => {
+  await logada.goto(CHECKOUT);
+  await vivo(logada.getByLabel('Rua'));
+  await logada.getByLabel('Rua').fill('Rua Minha');
+  await logada.getByLabel('CEP').fill(CEPS_DO_VIACEP.desconhecido);
+
+  // Este CEP tambem e desconhecido para o Melhor Envio falso, e a caixa do
+  // frete reclama. Esperar por isso e ter certeza de que a busca do endereco,
+  // que sai junto, ja voltou.
+  await expect(logada.locator('.frete').getByRole('alert')).toBeVisible();
+  await expect(logada.getByLabel('Rua')).toHaveValue('Rua Minha');
+  await expect(logada.getByLabel('Cidade')).toHaveValue('');
+  await expect(logada.locator('.entrega-campos [role=alert]')).toHaveCount(0);
+});
+
+test('endereco: CEP geral traz cidade e UF e nao apaga a rua', async ({ logada }) => {
+  await logada.goto(CHECKOUT);
+  await vivo(logada.getByLabel('Rua'));
+  await logada.getByLabel('Rua').fill('Rua Minha');
+  await logada.getByLabel('CEP').fill(CEPS_DO_VIACEP.geral);
+
+  await expect(logada.getByLabel('Cidade')).toHaveValue('Lábrea');
+  await expect(logada.getByLabel('UF')).toHaveValue('AM');
+  await expect(logada.getByLabel('Rua')).toHaveValue('Rua Minha');
 });

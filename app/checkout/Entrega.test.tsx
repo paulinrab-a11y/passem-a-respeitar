@@ -13,14 +13,21 @@ vi.mock('./acoes', () => ({
     })
   ),
   cotarFrete: vi.fn(),
+  buscarEndereco: vi.fn(),
 }));
 
-const { cotarFrete, finalizarCompra } = await import('./acoes');
+const { buscarEndereco, cotarFrete, finalizarCompra } = await import('./acoes');
 const { default: Entrega } = await import('./Entrega');
 
 const PAC = { servico: 'pac', nome: 'PAC', precoCentavos: 2350, prazoDias: 8 } as const;
 const SEDEX = { servico: 'sedex', nome: 'SEDEX', precoCentavos: 4590, prazoDias: 3 } as const;
 const COTADO: RespostaDoFrete = { ok: true, subtotalCentavos: 12000, opcoes: [PAC, SEDEX] };
+const PAULISTA = {
+  logradouro: 'Avenida Paulista',
+  bairro: 'Bela Vista',
+  cidade: 'São Paulo',
+  uf: 'SP',
+};
 
 const ENDERECO = {
   'Quem recebe': 'Maria Teste',
@@ -62,6 +69,8 @@ function emVoo() {
 beforeEach(() => {
   vi.mocked(cotarFrete).mockReset();
   vi.mocked(cotarFrete).mockResolvedValue(COTADO);
+  vi.mocked(buscarEndereco).mockReset();
+  vi.mocked(buscarEndereco).mockResolvedValue(PAULISTA);
   vi.mocked(finalizarCompra).mockClear();
 });
 
@@ -264,5 +273,113 @@ describe('frete (#199)', () => {
     expect(
       screen.getByText(/O transporte começa depois da produção, de pelo menos 30 dias/)
     ).toBeTruthy();
+  });
+});
+
+describe('endereco pelo CEP (#204)', () => {
+  it('CEP completo preenche rua, bairro, cidade e UF', async () => {
+    monta();
+    await digitaCep('01310-100');
+
+    expect(buscarEndereco).toHaveBeenCalledWith('01310100');
+    expect(campo('Rua').value).toBe('Avenida Paulista');
+    expect(campo('Bairro').value).toBe('Bela Vista');
+    expect(campo('Cidade').value).toBe('São Paulo');
+    expect(campo('UF').value).toBe('SP');
+    // O que a pessoa escreve a mao continua dela.
+    expect(campo('Número').value).toBe('');
+    expect(campo('Quem recebe').value).toBe('');
+  });
+
+  it('CEP pela metade nao busca', async () => {
+    monta();
+    await digitaCep('0131010');
+    expect(buscarEndereco).not.toHaveBeenCalled();
+  });
+
+  it('o mesmo CEP de novo nao busca de novo', async () => {
+    monta();
+    await digitaCep('01310100');
+    await digitaCep('01310-100');
+    expect(buscarEndereco).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem resposta, o que a pessoa digitou fica, e nenhum erro aparece', async () => {
+    vi.mocked(buscarEndereco).mockResolvedValue(null);
+    monta();
+    fireEvent.change(campo('Rua'), { target: { value: 'Rua Minha' } });
+    await digitaCep('99999999');
+
+    expect(campo('Rua').value).toBe('Rua Minha');
+    expect(campo('Cidade').value).toBe('');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('CEP geral traz so cidade e UF, e nao apaga a rua que a pessoa escreveu', async () => {
+    vi.mocked(buscarEndereco).mockResolvedValue({
+      logradouro: '',
+      bairro: '',
+      cidade: 'Lábrea',
+      uf: 'AM',
+    });
+    monta();
+    fireEvent.change(campo('Rua'), { target: { value: 'Rua Minha' } });
+    await digitaCep('69999000');
+
+    expect(campo('Rua').value).toBe('Rua Minha');
+    expect(campo('Cidade').value).toBe('Lábrea');
+    expect(campo('UF').value).toBe('AM');
+  });
+
+  it('trocar o CEP troca o endereco', async () => {
+    monta();
+    await digitaCep('01310100');
+    vi.mocked(buscarEndereco).mockResolvedValue({
+      logradouro: 'Rua Augusta',
+      bairro: 'Consolação',
+      cidade: 'São Paulo',
+      uf: 'SP',
+    });
+    await digitaCep('01305000');
+
+    expect(campo('Rua').value).toBe('Rua Augusta');
+    expect(campo('Bairro').value).toBe('Consolação');
+  });
+
+  it('a resposta de um CEP velho nao enche o formulario', async () => {
+    let soltaVelho: (e: typeof PAULISTA | null) => void = () => {};
+    vi.mocked(buscarEndereco)
+      .mockReturnValueOnce(
+        new Promise((r) => {
+          soltaVelho = r;
+        })
+      )
+      .mockResolvedValueOnce({
+        logradouro: 'Rua Augusta',
+        bairro: 'Consolação',
+        cidade: 'São Paulo',
+        uf: 'SP',
+      });
+    monta();
+    await digitaCep('01310100');
+    await digitaCep('01305000');
+    expect(campo('Rua').value).toBe('Rua Augusta');
+
+    await act(async () => soltaVelho(PAULISTA));
+    expect(campo('Rua').value).toBe('Rua Augusta');
+  });
+
+  it('com o foco no CEP, o foco vai para o numero quando o endereco chega', async () => {
+    monta();
+    campo('CEP').focus();
+    await digitaCep('01310100');
+    expect(document.activeElement).toBe(campo('Número'));
+  });
+
+  it('com o foco em outro lugar, o foco fica onde esta', async () => {
+    monta();
+    campo('Quem recebe').focus();
+    await digitaCep('01310100');
+    expect(document.activeElement).toBe(campo('Quem recebe'));
   });
 });

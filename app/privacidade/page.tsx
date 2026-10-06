@@ -16,6 +16,7 @@ export const metadata: Metadata = {
  * descreve o que o site ja fazia.
  *
  * O calculo do frete (#199) tambem: o CEP sai do site para o Melhor Envio.
+ * E para o ViaCEP, que preenche o endereco (#204).
  *
  * A protecao contra bot (#28) entrou pelo mesmo motivo: o widget manda dado do
  * navegador para a Cloudflare, e isso se diz aqui.
@@ -104,11 +105,19 @@ export default function Privacidade() {
         </section>
 
         <section className="detalhe-bloco">
-          <h2>Cálculo do frete</h2>
+          <h2>O que fazemos com o CEP</h2>
           <p className="detalhe-nota">
             Para mostrar o preço do PAC e do SEDEX, o site manda ao Melhor Envio o{' '}
             <strong>CEP de entrega</strong>, junto com o peso, as medidas e o valor do pacote. Só
             isso: nem seu nome, nem seu e-mail, nem o resto do endereço vão nessa consulta.
+          </p>
+          <p className="detalhe-nota">
+            O mesmo CEP vai ao{' '}
+            <a href="https://viacep.com.br" target="_blank" rel="noopener noreferrer">
+              ViaCEP
+            </a>
+            , um serviço público e gratuito, para preencher rua, bairro e cidade por você. Vai só o
+            CEP, e volta só o endereço da rua.
           </p>
           <p className="detalhe-nota">
             O Melhor Envio calcula o frete dos Correios para nós, e vale a{' '}

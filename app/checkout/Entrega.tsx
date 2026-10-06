@@ -6,7 +6,7 @@ import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 import { reais } from '@/lib/conta/pedidos';
 import type { OpcaoDeFrete, Servico } from '@/lib/loja/frete';
-import { cotarFrete, finalizarCompra, type RespostaDoFrete } from './acoes';
+import { buscarEndereco, cotarFrete, finalizarCompra, type RespostaDoFrete } from './acoes';
 import { checkoutInicial } from './estado';
 
 /**
@@ -72,7 +72,7 @@ export default function Entrega({
   // entre a resposta e a navegacao e convidar para o segundo clique.
   const pendente = emVoo || Boolean(estado.irPara);
   const form = useRef<HTMLFormElement>(null);
-  const { campo: controle, valores } = useCampos(VAZIOS);
+  const { campo: controle, valores, preencher } = useCampos(VAZIOS);
 
   const [frete, setFrete] = useState<Frete>({ cep: '', resposta: null });
   const [escolhido, setEscolhido] = useState<Servico | null>(null);
@@ -83,6 +83,10 @@ export default function Entrega({
   // ver o preco.
   const cep = valores.cep.replace(/\D/g, '');
   const completo = cep.length === 8;
+
+  // O ultimo CEP para o qual o endereco foi pedido. Em ref: nao e tela, e
+  // um "ja pedi este".
+  const enderecoPedido = useRef('');
 
   useEffect(() => {
     if (!completo || cep === frete.cep) return;
@@ -95,6 +99,39 @@ export default function Entrega({
       setFrete((atual) => (atual.cep === cep ? { cep, resposta } : atual));
     });
   }, [cep, completo, frete.cep, slug, tamanho, quantidade]);
+
+  // Rua, bairro, cidade e UF pelo CEP (#204), junto com o frete. A resposta
+  // so entra se o CEP no campo ainda for o mesmo: trocar o CEP no meio da
+  // busca nao pode encher o formulario com o endereco do CEP anterior. E so
+  // o que veio preenchido entra: CEP geral de cidade pequena vem sem rua, e
+  // apagar o que a pessoa escreveu para por nada seria pior que nao ajudar.
+  useEffect(() => {
+    if (!completo || cep === enderecoPedido.current) return;
+    enderecoPedido.current = cep;
+
+    let vale = true;
+    buscarEndereco(cep).then((endereco) => {
+      if (!vale || !endereco) return;
+      const parcial: Partial<typeof VAZIOS> = {};
+      if (endereco.logradouro) parcial.logradouro = endereco.logradouro;
+      if (endereco.bairro) parcial.bairro = endereco.bairro;
+      if (endereco.cidade) parcial.cidade = endereco.cidade;
+      if (endereco.uf) parcial.uf = endereco.uf;
+      preencher(parcial);
+
+      // A pessoa estava no CEP e o resto se preencheu: o proximo campo que
+      // falta e o numero. So se ela ainda estiver no CEP — se ja foi para
+      // outro lugar, roubar o foco e pior que ajudar.
+      const campoDoCep = form.current?.elements.namedItem('cep');
+      const numero = form.current?.elements.namedItem('numero');
+      if (document.activeElement === campoDoCep && numero instanceof HTMLInputElement) {
+        numero.focus();
+      }
+    });
+    return () => {
+      vale = false;
+    };
+  }, [cep, completo, preencher]);
 
   // O que vale agora e a cotacao do CEP que esta no campo. Apagar um digito
   // tira o frete da tela: preco de outro CEP nao pode ficar parecendo deste.
