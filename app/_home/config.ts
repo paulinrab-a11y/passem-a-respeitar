@@ -81,9 +81,11 @@ export const CONFIG: SiteConfig = {
     { nome: 'pistola', url: '/elementos/pistola.webp', elo: 4, escala: 1.5, lado: -1 },
   ],
   audio: {},
-  // Vazio de proposito (#217): com o modelo proprio da CBAC, a vitrine volta a
-  // ser WebGL. O sprite de 4 fotos continua em /public como reserva manual.
-  merch360: '',
+  // As duas vitrines (#217): o modelo 3D e a regra; as quatro fotos em 360
+  // entram quando a GPU e por software (CI, VM, aparelho sem driver), quando
+  // nao ha WebGL ou quando o modelo nao esta configurado. A escolha e do
+  // legacy-site, em querFotos().
+  merch360: '/merch/camiseta-360.webp',
   merchModelo: '/merch/camiseta.gltf',
   beats: [
     { nome: 'Mais um hit · 142 · Fm', url: '/beats/mais-um-hit.mp3' },
