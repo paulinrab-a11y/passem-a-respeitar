@@ -131,7 +131,7 @@ describe('script da home: nada pesado no carregamento inicial', () => {
   it('modelo 3D e foto 360 so baixam quando a loja abre', () => {
     const abre = corpo('function abre(t, quem){');
 
-    expect(abre).toContain('if (CONFIG.merch360) init360(); else init();');
+    expect(abre).toContain('if (querFotos()) init360(); else init();');
     // E ninguem mais chama os dois.
     expect(script.match(/\binit360\(\)/g)).toHaveLength(2);
     expect(corpo('function init360(){')).toContain('giro.style.backgroundImage');

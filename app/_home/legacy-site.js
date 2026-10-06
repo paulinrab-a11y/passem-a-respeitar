@@ -700,7 +700,7 @@ function modalAnimado(el, aoTerminar){
 
 const Loja = (()=>{
   const el = $('#loja'), vit = $('#vitrine'), canvas = $('#glLoja');
-  let renderer, scene, camera, camisa, brasao, rotY = 0.35, rotX = 0.05, velY = 0, arrastando = false, ux = 0, uy = 0, aberto = false, pronto = false;
+  let renderer, scene, camera, camisa, brasao, rotY = 0.35, rotX = 0.05, velY = 0, arrastando = false, ux = 0, uy = 0, aberto = false, pronto = false, usaFotos = null;
   let tam = $('#tamLoja').dataset.padrao || '';
   // Destino do Comprar: /checkout com a escolha na query (#106). O slug vem do
   // dataset, carimbado pelo servidor a partir do catalogo — nao ha nome de
@@ -809,8 +809,11 @@ const Loja = (()=>{
   function loop(){
     if (!aberto) return;
     requestAnimationFrame(loop);
+    if (document.hidden) return;
     const agora = performance.now();
-    if (agora - ultimoQuadro < Math.min(250, Math.max(16, custo * 2))) return;
+    // Intervalo minimo = o triplo do custo do ultimo quadro: no pior caso a
+    // vitrine ocupa um terco do tempo e a pagina continua respondendo.
+    if (agora - ultimoQuadro < Math.max(16, custo * 3)) return;
     ultimoQuadro = agora;
     if (!arrastando){ velY *= 0.92; rotY += velY + (reduzMotion ? 0 : 0.004); rotX += (0.05 - rotX)*0.03; }
     camisa.rotation.set(rotX, rotY, 0);
@@ -820,6 +823,28 @@ const Loja = (()=>{
     custo = performance.now() - agora; desenhou = true;
   }
   let giro = null, quadro = 0, giroX0 = 0, giroAcc = 0, giroAtivo = false, giroTimer = null;
+  // 3D ou fotos (#217)? O modelo da camiseta tem 73 k triangulos com normal
+  // map. Em GPU de verdade e barato; em GPU por software — SwiftShader (Chrome
+  // sem aceleracao, CI), llvmpipe (VM), aparelho sem driver — cada quadro custa
+  // centenas de ms e a pagina inteira para de responder. Para esse aparelho as
+  // quatro fotos em 360 sao a experiencia melhor, nao a pior. Decidido uma vez,
+  // com um contexto descartavel; o nome da GPU vem da extensao de debug, que
+  // o Chrome e o Firefox expoem.
+  function gpuPorSoftware(){
+    try {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+      if (!gl) return true;
+      const info = gl.getExtension('WEBGL_debug_renderer_info');
+      const nome = info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '';
+      const solta = gl.getExtension('WEBGL_lose_context'); if (solta) solta.loseContext();
+      return /swiftshader|llvmpipe|softpipe|software|mesa offscreen/i.test(nome);
+    } catch { return true; }
+  }
+  function querFotos(){
+    if (usaFotos === null) usaFotos = !!CONFIG.merch360 && (!CONFIG.merchModelo || !THREE.GLTFLoader || gpuPorSoftware());
+    return usaFotos;
+  }
   function init360(){
     if (giro || !CONFIG.merch360) return;
     vit.classList.add('modo-360');
@@ -841,10 +866,10 @@ const Loja = (()=>{
     mostra(0);
   }
   function abre(t, quem){
-    if (CONFIG.merch360) init360(); else init();
+    if (querFotos()) init360(); else init();
     if (t){ tam = t; $$('#tamLoja button').forEach(x=>{ x.classList.toggle('on', x.dataset.t===t); x.setAttribute('aria-pressed', String(x.dataset.t===t)); }); link(); }
     modal.abre(quem); aberto = true; document.documentElement.classList.add('locked');
-    if (!CONFIG.merch360) requestAnimationFrame(()=>{ redimensiona(); loop(); });
+    if (!querFotos()) requestAnimationFrame(()=>{ redimensiona(); loop(); });
     Som.corrente(0.5);
     $('#fecharLoja').focus();
   }
