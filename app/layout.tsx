@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Anton, Pirata_One } from 'next/font/google';
+import { baseDoSite } from '@/lib/base-do-site';
 import BarraDeRota from './_ui/BarraDeRota';
 import './globals.css';
 
@@ -22,12 +23,33 @@ const pirata = Pirata_One({
   variable: '--font-pirata',
 });
 
+// Open Graph completo (#215). `metadataBase` torna absolutos o `og:url` e o
+// `og:image`: sem ela o Next poe o endereco do deploy, e no preview isso ate
+// serve, mas em producao precisa ser o dominio. A imagem e o logo que ja esta
+// em /public (1000x624, perto do 1,91:1 que os cards pedem); arte propria de
+// 1200x630 e decisao do dono.
+const BASE = baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL);
+const DESCRICAO = 'O respeito vem antes dos números. EP 20.11.2026.';
+const IMAGEM = { url: '/logo.png', width: 1000, height: 624, alt: 'Passem a Respeitar' };
+
 export const metadata: Metadata = {
+  metadataBase: BASE,
   title: 'PASSEM A RESPEITAR — Santxx x Ch3fe',
   description: 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals. 20.11.2026.',
   openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    siteName: 'Passem a Respeitar',
+    url: '/',
     title: 'PASSEM A RESPEITAR',
-    description: 'O respeito vem antes dos números. EP 20.11.2026.',
+    description: DESCRICAO,
+    images: [IMAGEM],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'PASSEM A RESPEITAR',
+    description: DESCRICAO,
+    images: [IMAGEM],
   },
 };
 
