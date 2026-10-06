@@ -24,8 +24,10 @@ import type { EstadoCodigo, EstadoCriarConta, EstadoReenvio } from './estado';
  * O que esta acao NUNCA diz: se o e-mail ja tem conta. Cadastro que responde
  * "esse e-mail ja existe" e um oraculo — o atacante roda uma lista e sai com
  * quem e cliente. Por isso a resposta de sucesso e a mesma nos dois casos:
- * "enviamos um link para X". O Supabase colabora: com confirmacao ligada, o
- * signUp de e-mail repetido devolve um usuario de mentira e nao manda nada.
+ * "enviamos um codigo para X". O Supabase colabora: com confirmacao ligada, o
+ * signUp de e-mail ja confirmado devolve um usuario de mentira e nao manda
+ * nada. O de conta ainda nao confirmada manda um codigo novo, e e esse o
+ * caminho de volta de quem saiu da tela do codigo (#227).
  *
  * O aceite da politica e carimbado AQUI, com o relogio do servidor, e vai na
  * metadata do signup — a trigger do banco grava em profiles na mesma
@@ -34,7 +36,7 @@ import type { EstadoCodigo, EstadoCriarConta, EstadoReenvio } from './estado';
 
 /** Por IP, por hora: script criando conta em serie. */
 const POR_IP = { maximo: 5, janelaMs: 60 * 60 * 1000 };
-/** Por e-mail: nao mandar tres links por minuto para a mesma caixa. */
+/** Por e-mail: nao mandar mais de tres codigos por hora para a mesma caixa. */
 const POR_EMAIL = { maximo: 3, janelaMs: 60 * 60 * 1000 };
 
 const MENSAGENS: Record<string, string> = {
@@ -125,10 +127,10 @@ export async function criarConta(
 /**
  * Confirmar o cadastro pelo codigo de seis digitos (#224).
  *
- * O e-mail traz codigo E link. Quem digita o codigo cai aqui; quem clica no
- * link cai no /auth/callback. Os dois terminam no mesmo lugar: sessao em
- * cookie e /conta. O `verifyOtp` roda NO SERVIDOR, com o cliente que grava
- * cookie — o navegador nunca fala com o Supabase direto.
+ * Desde a #227 o e-mail traz so o codigo, sem link: confirmar e sempre por
+ * aqui, e termina em sessao em cookie e /conta. O `verifyOtp` roda NO
+ * SERVIDOR, com o cliente que grava cookie — o navegador nunca fala com o
+ * Supabase direto.
  *
  * O que esta acao nunca diz: se o e-mail tem conta. E-mail repetido no
  * cadastro nao recebe codigo nenhum, e qualquer codigo digitado da "invalido

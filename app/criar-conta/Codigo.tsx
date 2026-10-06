@@ -73,9 +73,8 @@ export default function Codigo({
     <div className="auth-form codigo-tela">
       <p className="auth-sub">Confira seu e-mail</p>
       <p className="detalhe-nota">
-        Se <strong>{email}</strong> for válido, enviamos um código de {DIGITOS} dígitos e um link.
-        Digite o código aqui ou clique no link — os dois valem por uma hora. Não chegou? Olhe o
-        spam.
+        Se <strong>{email}</strong> for válido, enviamos um código de {DIGITOS} dígitos. Ele vale
+        por uma hora. Não chegou? Olhe o spam.
       </p>
 
       <form action={confirmar} ref={form} className="codigo-form" noValidate>
