@@ -78,7 +78,7 @@ describe('tela do codigo (#224)', () => {
       fireEvent.submit(container.querySelector('form') as HTMLFormElement);
     });
 
-    expect(await screen.findByLabelText(/Código de 6 dígitos/)).toBeTruthy();
+    expect(await screen.findByLabelText(/Código de 8 dígitos/)).toBeTruthy();
     expect(screen.getByText('maria@exemplo.com')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Trocar e-mail' }));
