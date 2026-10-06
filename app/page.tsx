@@ -3,6 +3,7 @@ import { vitrine } from '@/lib/loja/catalogo';
 import { precoNaFicha } from '@/lib/loja/precos';
 import BarraConta from './_home/BarraConta';
 import { CONFIG } from './_home/config';
+import FreteNaFicha from './_home/FreteNaFicha';
 import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
 
@@ -210,6 +211,8 @@ export default async function Home() {
             <p className="aviso">
               Feita sob encomenda. Entrega em pelo menos 30 dias, para todo o Brasil.
             </p>
+            {/* O frete antes do login (#205). Mesma cotacao do checkout. */}
+            {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoPadrao} /> : null}
           </div>
           {/* O `data-alt` existe para o script legado nao precisar repetir o
               nome do produto no alt das fotos — era a terceira copia dele. */}
@@ -311,6 +314,8 @@ export default async function Home() {
             <p className="aviso">
               Feita sob encomenda. Entrega em pelo menos 30 dias, para todo o Brasil.
             </p>
+            {/* A mesma ficha da secao: o CEP digitado la aparece aqui. */}
+            {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoPadrao} /> : null}
           </div>
         </div>
       </div>

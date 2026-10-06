@@ -6,6 +6,7 @@ import { buscaEnderecoPeloCep, type EnderecoPeloCep } from '@/lib/loja/endereco-
 import type { OpcaoDeFrete } from '@/lib/loja/frete';
 import { criaPedido } from '@/lib/loja/pedido';
 import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
+import { RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
 import { limita } from '@/lib/rate-limit';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoDoCheckout } from './estado';
@@ -35,13 +36,8 @@ const RECADOS: Record<string, string> = {
   'carrinho-grande-demais': 'Pedido grande demais.',
   'valor-alto-demais': 'Pedido grande demais.',
   'catalogo-indisponivel': 'Não consegui consultar o catálogo agora.',
-  // Frete (#199). Nenhuma delas diz qual configuracao falta: isso e do log.
-  'frete-cep-invalido': 'Confira o CEP: não encontrei esse endereço.',
-  'frete-sem-servico': 'Os Correios não entregam nesse CEP por PAC nem por SEDEX.',
-  'frete-servico-indisponivel': 'Esse tipo de envio não atende esse CEP. Escolha o outro.',
-  'frete-fora-do-ar': 'Não consegui calcular o frete agora. Tente de novo em instantes.',
-  'frete-sem-configuracao': 'O frete está indisponível no momento. Tente de novo mais tarde.',
-  'frete-sem-medida': 'O frete está indisponível no momento. Tente de novo mais tarde.',
+  // Frete (#199): as mesmas frases da ficha da home (#205).
+  ...RECADOS_DO_FRETE,
   'nao-consegui-gravar': 'Não consegui criar o pedido agora. Tente de novo.',
   'frete-escolha': 'Escolha PAC ou SEDEX.',
 };
@@ -158,7 +154,7 @@ export async function cotarFrete(bruto: {
     LIMITE_DO_FRETE.janelaMs
   );
   if (!cota.permitido) {
-    return { ok: false, texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.' };
+    return { ok: false, texto: RECADOS_DO_FRETE['frete-limite'] };
   }
 
   const r = await opcoesDeFrete([item.data], cep);

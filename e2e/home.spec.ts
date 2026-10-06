@@ -152,3 +152,70 @@ for (const largura of [320, 390]) {
     expect(medida?.linhas).toBeLessThan(24);
   });
 }
+
+/**
+ * Frete na ficha (#205), contra o Melhor Envio falso da suite: qualquer CEP
+ * responde PAC a 23,50 e SEDEX a 45,90.
+ */
+test('home: a ficha da camiseta mostra o frete pelo CEP, sem login', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  const campo = page.locator('#merch').getByLabel('Frete para o seu CEP');
+  await campo.scrollIntoViewIfNeeded();
+  await vivoHome(campo);
+  await campo.fill('04538-133');
+
+  const resposta = page.locator('#merch .frete-ficha-resposta');
+  // O Melhor Envio falso responde na hora; o que demora e esta maquina, que roda
+  // o site e o navegador juntos. Vinte segundos e folga, nao expectativa.
+  await expect(resposta).toContainText('SEDEX', { timeout: 20_000 });
+  await expect(resposta).toContainText('45,90');
+  await expect(resposta).toContainText('até 3 dias úteis depois da produção');
+
+  // O mesmo CEP aparece na loja, sem digitar de novo.
+  await page.locator('#comprar').click();
+  await expect(page.locator('#loja').getByLabel('Frete para o seu CEP')).toHaveValue('04538-133');
+  await expect(page.locator('#loja .frete-ficha-resposta')).toContainText('45,90', {
+    timeout: 20_000,
+  });
+
+  // E fica no navegador, para o checkout.
+  expect(await page.evaluate(() => localStorage.getItem('par_cep'))).toBe('04538133');
+});
+
+test('home: a ficha nao anda quando o frete chega', async ({ page }) => {
+  // No telefone a galeria vem DEBAIXO da ficha: e ela que andaria se a linha
+  // do frete nao tivesse lugar reservado. No computador sao duas colunas.
+  await page.setViewportSize({ width: 390, height: 780 });
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+  const campo = page.locator('#merch').getByLabel('Frete para o seu CEP');
+  await campo.scrollIntoViewIfNeeded();
+  await vivoHome(campo);
+  // Sem esperar animacao: a home tem laco e animacao cancelada pelo scroll,
+  // e a espera nunca acabaria. As duas medidas sao tiradas no mesmo estado,
+  // depois de a fonte carregar; o que muda entre elas e so o frete chegar.
+  await page.evaluate(() => document.fonts.ready);
+
+  const galeria = page.locator('#galeriaMerch');
+  const posicao = () => galeria.evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+  const antes = await posicao();
+
+  await campo.fill('04538133');
+  await expect(page.locator('#merch .frete-ficha-resposta')).toContainText('45,90', {
+    timeout: 20_000,
+  });
+
+  expect(await posicao()).toBe(antes);
+});
+
+/** Espera o componente da ficha hidratar, como o `vivo` de apoio/telas. */
+async function vivoHome(alvo: import('@playwright/test').Locator) {
+  await expect(alvo).toBeVisible();
+  await expect
+    .poll(() => alvo.evaluate((el) => Object.keys(el).some((k) => k.startsWith('__reactProps'))))
+    .toBe(true);
+}
