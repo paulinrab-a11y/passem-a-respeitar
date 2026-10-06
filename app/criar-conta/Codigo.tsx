@@ -135,7 +135,11 @@ export default function Codigo({
           classe={reenvio.erro || robo.aviso ? 'auth-erro' : 'auth-erro auth-aviso'}
         />
         <div className="codigo-acoes">
-          <button type="submit" className="btn" disabled={!podeReenviar}>
+          <button
+            type="submit"
+            className={`btn${reenviando || robo.esperando ? ' carregando' : ''}`}
+            disabled={!podeReenviar}
+          >
             <Rotulo
               parado={restam > 0 ? `Reenviar código (${restam} s)` : 'Reenviar código'}
               agindo="Enviando…"

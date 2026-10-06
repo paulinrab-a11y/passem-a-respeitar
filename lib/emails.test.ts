@@ -26,7 +26,8 @@ const noDisco = (nome: string) =>
 const DE_TODOS = ['SiteURL', 'Data'];
 const DE_CONFIRMACAO = ['ConfirmationURL', 'TokenHash', 'RedirectTo', 'Email', ...DE_TODOS];
 const VARIAVEIS: Record<string, string[]> = {
-  confirmation: DE_CONFIRMACAO,
+  // Codigo e link no mesmo e-mail (#224).
+  confirmation: [...DE_CONFIRMACAO, 'Token'],
   recovery: DE_CONFIRMACAO,
   invite: DE_CONFIRMACAO,
   email_change: [...DE_CONFIRMACAO, 'NewEmail'],
