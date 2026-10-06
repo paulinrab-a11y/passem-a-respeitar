@@ -200,6 +200,10 @@ que basta: ele entrega em qualquer região (#201).
 | Em produção, só o Melhor Envio de produção | token de sandbox seria preço de mentira |
 | 30 consultas a cada 10 minutos, por pessoa | cada consulta usa o token do dono |
 
+A camiseta tem um guia de tamanhos (#206): a tabela de medidas da Mikonos,
+gravada no banco junto do produto (`produtos.guia_tamanhos`), aberta num
+`<dialog>` na home, na loja e no checkout. Produto sem guia não mostra o link.
+
 A ficha da camiseta, na home e na loja, tem um campo de CEP que mostra o
 frete antes de qualquer login (#205). E a mesma cotacao e o mesmo cache do
 checkout, com limite por IP. O CEP fica lembrado no navegador, e o checkout

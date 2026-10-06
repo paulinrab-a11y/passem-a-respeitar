@@ -891,6 +891,45 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
    conta nada para quem não a distingue. */
 .entrega input[aria-invalid='true']{border-color:var(--vermelho)}
 
+/* Guia de tamanhos (#206): um link abaixo dos tamanhos e um <dialog>. O modal
+   anima como os da home (#49): entra com a caixa subindo, sai com a classe
+   .saindo. O backdrop e do proprio dialog. */
+.guia-abrir{margin-top:12px;align-self:flex-start;font-size:13px;letter-spacing:.14em;color:var(--prata-2);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--prata-3);transition:color .2s,text-decoration-color .2s}
+.guia-abrir:hover{color:var(--prata);text-decoration-color:var(--prata)}
+#merch .guia-abrir,#loja .guia-abrir{display:inline-block}
+.guia-no-checkout{margin:12px 0 0;display:flex;gap:18px;align-items:baseline;flex-wrap:wrap;font-size:13px}
+.guia-no-checkout .guia-abrir{margin-top:0}
+dialog.guia{margin:auto;padding:0;border:0;background:transparent;color:var(--prata);max-width:min(560px,calc(100% - 2 * var(--gutter)));width:100%;overflow:visible}
+dialog.guia::backdrop{background:rgba(0,0,0,.92)}
+dialog.guia[open]{animation:modal-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+dialog.guia[open]::backdrop{animation:modal-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+dialog.guia[open]>.guia-caixa{animation:modal-caixa-entra .24s cubic-bezier(.22,1,.36,1) backwards}
+dialog.guia.saindo{animation:modal-sai .15s cubic-bezier(.4,0,1,1) forwards;pointer-events:none}
+dialog.guia.saindo::backdrop{animation:modal-sai .15s cubic-bezier(.4,0,1,1) forwards}
+dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,1,1) forwards}
+.guia-caixa{position:relative;background:#050505;border:1px solid var(--prata-3);padding:40px 28px 28px}
+.guia-caixa .fechar{position:absolute;top:14px;right:18px;font-size:13px;letter-spacing:.2em;padding:8px 0;color:var(--prata-2)}
+.guia-caixa .fechar:hover{color:var(--prata)}
+.guia-caixa h2{font-family:var(--display);text-transform:uppercase;font-size:clamp(26px,3.4vw,40px);line-height:.95;color:#fff}
+.guia-sub{margin-top:10px;font-size:13px;letter-spacing:.06em;line-height:1.5;color:var(--prata-2)}
+.guia-tabela{margin-top:22px;width:100%;border-collapse:collapse;font-size:14px;letter-spacing:.06em}
+.guia-tabela th,.guia-tabela td{padding:10px 8px;text-align:center;border-bottom:1px solid #1c1d20}
+.guia-tabela thead th{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);font-weight:400}
+.guia-tabela tbody th{text-align:left;font-weight:400;color:#fff;letter-spacing:.12em}
+.guia-tabela td{color:var(--prata)}
+.guia-como{margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px;letter-spacing:.04em;line-height:1.5;color:var(--prata-2)}
+.guia-como strong{color:var(--prata);font-weight:400}
+.guia-nota{margin-top:16px;font-size:13px;letter-spacing:.04em;line-height:1.5;color:var(--prata-2)}
+@media (max-width:720px){
+  .guia-caixa{padding:36px 18px 22px}
+  .guia-tabela th,.guia-tabela td{padding:9px 4px}
+}
+@media (prefers-reduced-motion:reduce){
+  dialog.guia[open],dialog.guia[open]::backdrop,dialog.guia.saindo,dialog.guia.saindo::backdrop{animation-name:so-fade;animation-duration:.15s}
+  dialog.guia.saindo,dialog.guia.saindo::backdrop{animation-name:so-fade-sai}
+  dialog.guia[open]>.guia-caixa,dialog.guia.saindo>.guia-caixa{animation:none}
+}
+
 /* Frete na ficha da camiseta (#205), na secao e na loja. A linha de resposta
    tem altura reservada: a cotacao chega depois, e a ficha nao anda. */
 .frete-ficha{margin-top:18px;display:flex;flex-direction:column;gap:8px;max-width:40ch}

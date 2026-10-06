@@ -35,6 +35,7 @@ import {
   type VariacaoDoBanco,
 } from '@/lib/loja/precos';
 import { clienteServidor } from '@/lib/supabase/servidor';
+import { type LinhaDoGuia, leGuia } from './guia-de-tamanhos';
 
 type VariacaoDaVitrine = {
   tamanho: string | null;
@@ -49,12 +50,15 @@ export type ProdutoDaVitrine = {
   variacoes: VariacaoDaVitrine[];
   /** Menor preco entre as variacoes. E o numero grande da ficha. */
   precoCentavos: number;
+  /** Medidas por tamanho (#206). Nulo: produto sem guia, e a ficha nao mostra o link. */
+  guia: LinhaDoGuia[] | null;
 };
 
 type LinhaDoBanco = {
   slug: string;
   nome: string;
   descricao: string | null;
+  guia_tamanhos: unknown;
   produto_variacoes: { tamanho: string | null; preco_centavos: number; ordem: number }[];
 };
 
@@ -75,6 +79,7 @@ function mapeiaVitrine(linhas: LinhaDoBanco[]): ProdutoDaVitrine[] {
           precoCentavos: v.preco_centavos,
         })),
         precoCentavos: Math.min(...l.produto_variacoes.map((v) => v.preco_centavos)),
+        guia: leGuia(l.guia_tamanhos),
       }))
       // Produto sem variacao ativa nao tem preco, e `Math.min()` de lista vazia e
       // Infinity. Melhor sumir da vitrine do que aparecer por R$ Infinity.
@@ -90,7 +95,9 @@ export async function vitrine(): Promise<ProdutoDaVitrine[]> {
     .from('produtos')
     // Colunas nomeadas. `estoque` nem aparece — o papel nao tem o GRANT, e
     // pedir coluna sem privilegio derruba a consulta inteira.
-    .select('slug, nome, descricao, produto_variacoes(tamanho, preco_centavos, ordem)')
+    .select(
+      'slug, nome, descricao, guia_tamanhos, produto_variacoes(tamanho, preco_centavos, ordem)'
+    )
     .order('slug')
     // P, M, G, GG. Por `tamanho` sairia G, GG, M, P.
     .order('ordem', { referencedTable: 'produto_variacoes', ascending: true });
@@ -220,4 +227,20 @@ export async function opcoesDeFrete(itens: ItemDoCarrinho[], cep: string): Promi
   if (!cotacao.ok) return cotacao;
 
   return { ok: true, subtotalCentavos: carrinho.subtotalCentavos, opcoes: cotacao.opcoes };
+}
+
+/**
+ * O guia de tamanhos de um produto (#206), para o checkout. A vitrine ja traz
+ * o dela; o checkout le so o que precisa, e nao a vitrine inteira.
+ */
+export async function guiaDeTamanhos(slug: string): Promise<LinhaDoGuia[] | null> {
+  const supabase = await clienteServidor();
+  const { data, error } = await supabase
+    .from('produtos')
+    .select('guia_tamanhos')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return leGuia(data.guia_tamanhos);
 }
