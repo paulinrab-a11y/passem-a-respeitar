@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import GuiaDeTamanhos from '@/app/_ui/GuiaDeTamanhos';
 import { reais } from '@/lib/conta/pedidos';
-import { orcamento } from '@/lib/loja/catalogo';
+import { guiaDeTamanhos, orcamento } from '@/lib/loja/catalogo';
 import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
@@ -73,6 +74,9 @@ export default async function Checkout({
   }
 
   const linha = conta.linhas[0];
+  // O guia (#206) tambem aqui: e a ultima chance de trocar o tamanho antes de
+  // pagar, e trocar depois custa frete duas vezes.
+  const guia = linha.tamanho ? await guiaDeTamanhos(linha.produtoSlug) : null;
 
   return (
     <main className="auth conta">
@@ -97,6 +101,14 @@ export default async function Checkout({
               </span>
             </li>
           </ul>
+          {guia ? (
+            <p className="guia-no-checkout">
+              <GuiaDeTamanhos linhas={guia} produto={linha.nome} />
+              <a href={`/#merch`} className="auth-link">
+                Trocar o tamanho
+              </a>
+            </p>
+          ) : null}
 
           <dl className="resumo">
             <div>

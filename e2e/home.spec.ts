@@ -219,3 +219,63 @@ async function vivoHome(alvo: import('@playwright/test').Locator) {
     .poll(() => alvo.evaluate((el) => Object.keys(el).some((k) => k.startsWith('__reactProps'))))
     .toBe(true);
 }
+
+/**
+ * Guia de tamanhos (#206): abre num <dialog>, fecha por botao, Esc e clique
+ * fora, e o foco volta ao link. Na loja, Esc fecha o guia e NAO a loja.
+ */
+test('home: o guia de tamanhos abre na ficha, prende o foco e devolve ao fechar', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  const link = page.locator('#merch').getByRole('button', { name: 'Guia de tamanhos' });
+  await link.scrollIntoViewIfNeeded();
+  await vivoHome(link);
+  await link.click();
+
+  const guia = page.locator('#merch dialog.guia');
+  await expect(guia).toBeVisible();
+  await expect(guia.getByRole('heading', { name: 'Guia de tamanhos' })).toBeVisible();
+  await expect(guia.locator('tbody tr')).toHaveCount(4);
+  await expect(guia.locator('tbody tr').first()).toContainText('P');
+  await expect(guia.locator('tbody tr').last()).toContainText('GG');
+  // Foco preso: Tab anda so dentro do modal.
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement?.closest('dialog.guia') !== null)).toBe(
+    true
+  );
+
+  await page.keyboard.press('Escape');
+  await expect(guia).toBeHidden();
+  await expect(link).toBeFocused();
+});
+
+test('home: na loja, Esc fecha o guia e deixa a loja aberta', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+  await page.locator('#comprar').scrollIntoViewIfNeeded();
+  await page.locator('#comprar').click();
+  await expect(page.locator('#loja')).toBeVisible();
+
+  const link = page.locator('#loja').getByRole('button', { name: 'Guia de tamanhos' });
+  await vivoHome(link);
+  await link.click();
+  const guia = page.locator('#loja dialog.guia');
+  await expect(guia).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(guia).toBeHidden();
+  await expect(page.locator('#loja')).toBeVisible();
+
+  // Clique fora da caixa tambem fecha. O fundo e o ::backdrop do dialog, que
+  // nao e um elemento: o clique vai pela posicao, no canto da tela.
+  await link.click();
+  await expect(guia).toBeVisible();
+  await page.mouse.click(5, 5);
+  await expect(guia).toBeHidden();
+});

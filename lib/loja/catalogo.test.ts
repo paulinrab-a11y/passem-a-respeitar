@@ -91,6 +91,8 @@ describe('vitrine', () => {
 
     expect(Object.keys(produto).sort()).toEqual([
       'descricao',
+      // Entrou na #206: a tabela de medidas, ou null.
+      'guia',
       'nome',
       'precoCentavos',
       'slug',

@@ -290,3 +290,24 @@ test('endereco: CEP geral traz cidade e UF e nao apaga a rua', async ({ logada }
   await expect(logada.getByLabel('UF')).toHaveValue('AM');
   await expect(logada.getByLabel('Rua')).toHaveValue('Rua Minha');
 });
+
+test('checkout: o guia de tamanhos esta ao lado do item, com o link para trocar', async ({
+  logada,
+}) => {
+  await logada.goto(CHECKOUT);
+  const link = logada.getByRole('button', { name: 'Guia de tamanhos' });
+  await vivo(link);
+  await link.click();
+
+  const guia = logada.locator('dialog.guia');
+  await expect(guia).toBeVisible();
+  await expect(guia.locator('tbody tr')).toHaveCount(4);
+  await expect(guia.locator('tbody th[scope="row"]').nth(1)).toHaveText('M');
+
+  await guia.getByRole('button', { name: 'fechar' }).click();
+  await expect(guia).toBeHidden();
+  await expect(logada.getByRole('link', { name: 'Trocar o tamanho' })).toHaveAttribute(
+    'href',
+    '/#merch'
+  );
+});

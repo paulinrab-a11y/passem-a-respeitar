@@ -6,6 +6,7 @@ import { CONFIG } from './_home/config';
 import FreteNaFicha from './_home/FreteNaFicha';
 import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
+import GuiaDeTamanhos from './_ui/GuiaDeTamanhos';
 
 // A CSP do proxy.ts carrega um nonce novo a cada request, e o Next so
 // carimba esse nonce nos proprios scripts quando a rota e renderizada por
@@ -202,6 +203,11 @@ export default async function Home() {
                 </button>
               ))}
             </fieldset>
+            {/* O guia (#206), logo abaixo dos tamanhos: e na hora de escolher
+                que a duvida aparece. */}
+            {camiseta?.guia ? (
+              <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
+            ) : null}
             <div className="acoes">
               {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
               <a className="btn cheio" id="comprar" href="#" target="_blank" rel="noopener">
@@ -305,6 +311,9 @@ export default async function Home() {
                 </button>
               ))}
             </fieldset>
+            {camiseta?.guia ? (
+              <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
+            ) : null}
             <div className="acoes">
               {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
               <a className="btn cheio" id="comprarLoja" href="#" target="_blank" rel="noopener">

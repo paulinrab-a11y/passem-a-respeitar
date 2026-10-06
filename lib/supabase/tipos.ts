@@ -333,6 +333,7 @@ export type Database = {
           comprimento_cm: number | null;
           criado_em: string;
           descricao: string | null;
+          guia_tamanhos: Json | null;
           id: string;
           largura_cm: number | null;
           nome: string;
@@ -346,6 +347,7 @@ export type Database = {
           comprimento_cm?: number | null;
           criado_em?: string;
           descricao?: string | null;
+          guia_tamanhos?: Json | null;
           id?: string;
           largura_cm?: number | null;
           nome: string;
@@ -359,6 +361,7 @@ export type Database = {
           comprimento_cm?: number | null;
           criado_em?: string;
           descricao?: string | null;
+          guia_tamanhos?: Json | null;
           id?: string;
           largura_cm?: number | null;
           nome?: string;
