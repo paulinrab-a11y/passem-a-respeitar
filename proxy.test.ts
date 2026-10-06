@@ -561,6 +561,39 @@ describe('host principal em producao (#141)', () => {
   beforeEach(() => {
     vi.stubEnv('VERCEL_ENV', 'production');
     vi.stubEnv('VERCEL_PROJECT_PRODUCTION_URL', PRINCIPAL);
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+  });
+
+  // O laco da #54: a Vercel poe o dominio mais curto na variavel dela, e o
+  // mais curto e o sem www, que ela mesma redireciona para o www. Com o
+  // NEXT_PUBLIC_SITE_URL apontando para o www, o www passa e o sem-www e que
+  // vai para o www.
+  describe('com dominio proprio no NEXT_PUBLIC_SITE_URL', () => {
+    beforeEach(() => {
+      vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.cbacoccupation.com.br');
+      vi.stubEnv('VERCEL_PROJECT_PRODUCTION_URL', 'cbacoccupation.com.br');
+    });
+
+    it('o www passa: sem laco com o redirecionamento da Vercel', async () => {
+      expect((await chega('https://www.cbacoccupation.com.br/')).status).toBe(200);
+    });
+
+    it('o sem-www e o vercel.app vao para o www', async () => {
+      for (const host of ['cbacoccupation.com.br', 'passem-a-respeitar.vercel.app']) {
+        const r = await chega(`https://${host}/entrar?next=%2Fconta`);
+        expect(r.status).toBe(308);
+        expect(r.headers.get('location')).toBe(
+          'https://www.cbacoccupation.com.br/entrar?next=%2Fconta'
+        );
+      }
+    });
+
+    it('endereco que nao e URL cai na variavel da Vercel', async () => {
+      vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'nao-e-url');
+      const r = await chega('https://www.cbacoccupation.com.br/');
+      expect(r.status).toBe(308);
+      expect(r.headers.get('location')).toBe('https://cbacoccupation.com.br/');
+    });
   });
 
   it('alias vai para o principal com 308, mantendo caminho e query', async () => {

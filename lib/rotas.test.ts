@@ -4,6 +4,7 @@ import {
   ehPagamento,
   ehRotaDeAuth,
   exigeSessao,
+  hostCanonico,
   hostPrincipal,
   precisaDeSessao,
   temDesafio,
@@ -211,5 +212,35 @@ describe('hostPrincipal (#141)', () => {
 
   it('apara espaco e caixa do valor da variavel', () => {
     expect(hostPrincipal('production', '  Site.Exemplo ', 'alias.exemplo')).toBe(P);
+  });
+});
+
+describe('hostCanonico (#54)', () => {
+  it('o host do NEXT_PUBLIC_SITE_URL manda', () => {
+    expect(hostCanonico('https://www.cbacoccupation.com.br', 'cbacoccupation.com.br')).toBe(
+      'www.cbacoccupation.com.br'
+    );
+  });
+
+  it('ignora caminho, barra final, porta e caixa do endereco', () => {
+    expect(hostCanonico('https://WWW.Site.Exemplo/', 'x.exemplo')).toBe('www.site.exemplo');
+    expect(hostCanonico('https://site.exemplo/conta?x=1', 'x.exemplo')).toBe('site.exemplo');
+    expect(hostCanonico('http://localhost:3000', 'x.exemplo')).toBe('localhost');
+  });
+
+  it.each([undefined, '', '   '])('sem endereco (%j), vale a variavel da Vercel', (valor) => {
+    expect(hostCanonico(valor, 'cbacoccupation.com.br')).toBe('cbacoccupation.com.br');
+  });
+
+  it.each(['nao-e-url', 'www.site.exemplo', 'ftp://site.exemplo', 'mailto:a@b.c'])(
+    'endereco que nao e http(s) (%s) cai na reserva',
+    (valor) => {
+      expect(hostCanonico(valor, 'reserva.exemplo')).toBe('reserva.exemplo');
+    }
+  );
+
+  it('sem nenhuma das duas, devolve undefined, e o hostPrincipal deixa passar', () => {
+    expect(hostCanonico(undefined, undefined)).toBeUndefined();
+    expect(hostPrincipal('production', hostCanonico(undefined, undefined), 'x.exemplo')).toBeNull();
   });
 });
