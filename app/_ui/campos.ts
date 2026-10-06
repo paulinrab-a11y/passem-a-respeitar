@@ -42,7 +42,15 @@ export function useCampos<Nome extends string>(iniciais: Record<Nome, string>) {
     });
   }, []);
 
-  return { valores, campo, limpar };
+  /**
+   * Preenche varios campos de uma vez, sem mexer nos outros. E o que a busca
+   * pelo CEP faz com rua, bairro, cidade e UF (#204).
+   */
+  const preencher = useCallback((parcial: Partial<Record<Nome, string>>) => {
+    setValores((atual) => ({ ...atual, ...parcial }));
+  }, []);
+
+  return { valores, campo, limpar, preencher };
 }
 
 /**

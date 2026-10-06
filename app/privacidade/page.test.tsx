@@ -36,6 +36,11 @@ describe('/privacidade', () => {
     expect(html).toContain('https://lwsa.tech/politicas/');
   });
 
+  it('conta que o CEP vai ao ViaCEP, e so o CEP (#204)', () => {
+    expect(html).toContain('https://viacep.com.br');
+    expect(html).toMatch(/Vai só o CEP/);
+  });
+
   it('diz que o cartao nunca passa pelos nossos servidores', () => {
     expect(html).toMatch(/nunca passam pelos nossos servidores/i);
   });

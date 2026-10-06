@@ -60,7 +60,8 @@ lib/
     senha-servidor.ts   checagem contra vazamento por k-anonymity
     reautenticacao.ts   janela de autenticação recente, lida do banco
     sessoes.ts          leitura de user-agent e rede, mapper da lista
-  loja/                 catálogo, preço, frete, pedido, cobrança, webhook,
+  loja/                 catálogo, preço, frete, endereço pelo CEP, pedido,
+                        cobrança, webhook,
                         conciliação e transições de status
   supabase/
     env.ts              lê as variáveis, falha fechada
@@ -198,6 +199,10 @@ que basta: ele entrega em qualquer região (#201).
 | Sem cotação, sem pedido | frete zero por falha não existe |
 | Em produção, só o Melhor Envio de produção | token de sandbox seria preço de mentira |
 | 30 consultas a cada 10 minutos, por pessoa | cada consulta usa o token do dono |
+
+No mesmo momento o CEP vai ao ViaCEP, serviço público e gratuito, e rua,
+bairro, cidade e UF se preenchem sozinhos (#204). É sugestão: o endereço que
+vale é o que a pessoa envia, validado como sempre. Sem resposta, ela digita.
 
 O pedido grava o valor, o serviço e o prazo cotado. O serviço aparece na lista
 do administrador: é a postagem que se compra para aquele pedido. Etiqueta e
