@@ -28,7 +28,13 @@ export const CAMPO_DA_ISCA = 'website';
 export const CAMPO_DO_DESAFIO = 'cf-turnstile-response';
 
 /** Uma acao por formulario: token tirado em um nao vale no outro. */
-export type Acao = 'entrar' | 'criar-conta' | 'recuperar-senha' | 'convite' | 'concierge';
+export type Acao =
+  | 'entrar'
+  | 'criar-conta'
+  | 'reenviar-codigo'
+  | 'recuperar-senha'
+  | 'convite'
+  | 'concierge';
 
 /**
  * Mensagem unica para isca preenchida, token ausente, token recusado e
@@ -76,10 +82,18 @@ async function avisa(motivo: string) {
  * O que da para recusar sem gastar nada: nem tentativa do limite, nem chamada
  * a Cloudflare. Vem antes de tudo na acao.
  */
+/**
+ * So a isca, para formulario sem desafio (#224): o codigo de confirmacao ja e
+ * um segredo que chegou por e-mail, e o Supabase limita as tentativas.
+ * Ausente ou vazio e o esperado. Qualquer outra coisa, inclusive tipo
+ * estranho, e alguem escrevendo onde nao ha o que escrever.
+ */
+export function iscaPreenchida(isca: unknown): boolean {
+  return isca !== null && isca !== undefined && isca !== '';
+}
+
 export async function pareceRobo(entrada: { isca: unknown; desafio: unknown }): Promise<boolean> {
-  // Ausente ou vazio e o esperado. Qualquer outra coisa, inclusive tipo
-  // estranho, e alguem escrevendo onde nao ha o que escrever.
-  if (entrada.isca !== null && entrada.isca !== undefined && entrada.isca !== '') return true;
+  if (iscaPreenchida(entrada.isca)) return true;
 
   const estado = protecao();
   if (estado === 'desligada') return false;

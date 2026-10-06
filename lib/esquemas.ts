@@ -120,3 +120,13 @@ export const esquemaConcierge = z.object({
     .max(CONCIERGE_HISTORICO_MAX)
     .default([]),
 });
+
+/**
+ * Codigo de confirmacao do cadastro (#224): seis digitos, e so. Espacos e
+ * texto em volta (gente cola "Seu código: 123 456") sao tirados ANTES, no
+ * campo; aqui chega o que o servidor aceita.
+ */
+export const esquemaCodigo = z.object({
+  email: z.string().trim().toLowerCase().min(1).max(254).email(),
+  codigo: z.string().regex(/^\d{6}$/),
+});

@@ -355,6 +355,16 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .auth-voltar{display:inline-block;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2);text-decoration:none;margin-bottom:34px}
 .auth-voltar:hover{color:var(--vermelho)}
 .auth h1{font-family:var(--display);text-transform:uppercase;font-size:clamp(44px,9vw,76px);line-height:.85;color:#fff}
+/* Tela do codigo (#224). Entra com fade + translate curto, so transform e
+   opacity; o campo e um so, grande, com digitos tabulares para nao dancar. */
+.codigo-tela{animation:codigo-entra .2s cubic-bezier(0,0,.2,1) both}
+@keyframes codigo-entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.codigo-form,.codigo-reenvio{display:flex;flex-direction:column;gap:18px}
+.codigo-campo input{font-size:28px;letter-spacing:.5em;text-align:center;font-variant-numeric:tabular-nums;padding-left:calc(16px + .5em)}
+.codigo-acoes{display:flex;gap:12px;flex-wrap:wrap}
+.codigo-acoes .btn{flex:1 1 180px}
+.auth-aviso{color:var(--prata);border-left-color:var(--prata-3)}
+@media (prefers-reduced-motion: reduce){.codigo-tela{animation:none}}
 .auth-sub{margin-top:10px;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
 
 .auth-form{margin-top:36px;display:flex;flex-direction:column;gap:18px}

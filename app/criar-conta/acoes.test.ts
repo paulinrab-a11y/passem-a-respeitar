@@ -10,9 +10,13 @@ const signUp = vi.fn(async (_o: unknown) => ({
   error: null as { message: string } | null,
 }));
 const senhaVazada = vi.fn(async (_s: string) => false);
+const verifyOtp = vi.fn(async (_o: unknown) => ({ error: null as { message: string } | null }));
+const resend = vi.fn(async (_o: unknown) => ({ error: null as { message: string } | null }));
 let cabecalhos = new Headers({ host: 'passem-a-respeitar.test' });
 
-vi.mock('@/lib/supabase/servidor', () => ({ clienteDeAuth: async () => ({ auth: { signUp } }) }));
+vi.mock('@/lib/supabase/servidor', () => ({
+  clienteDeAuth: async () => ({ auth: { signUp, verifyOtp, resend } }),
+}));
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => senhaVazada(s) }));
 vi.mock('next/headers', () => ({ headers: async () => cabecalhos }));
 vi.mock('next/navigation', () => ({
@@ -21,8 +25,8 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-const { criarConta } = await import('./acoes');
-const { criarContaInicial } = await import('./estado');
+const { criarConta, confirmarCodigo, reenviarCodigo } = await import('./acoes');
+const { criarContaInicial, codigoInicial, reenvioInicial } = await import('./estado');
 
 let n = 0;
 const email = () => `pessoa${n++}@exemplo.invalid`;
@@ -46,6 +50,8 @@ const bom = (extra: Record<string, string> = {}) =>
 beforeEach(() => {
   vi.clearAllMocks();
   signUp.mockResolvedValue({ data: { session: null }, error: null });
+  verifyOtp.mockResolvedValue({ error: null });
+  resend.mockResolvedValue({ error: null });
   senhaVazada.mockResolvedValue(false);
   // IP novo por teste: o limite por IP guarda estado no modulo.
   cabecalhos = new Headers({
@@ -178,5 +184,136 @@ describe('recusas', () => {
     const r = await criarConta(criarContaInicial, bom({ email: alvo }));
 
     expect(r.erro).toMatch(/muitas tentativas/i);
+  });
+});
+
+/**
+ * Confirmar pelo codigo (#224): confere no servidor, entra na conta, e nunca
+ * diz se o e-mail tem cadastro.
+ */
+describe('confirmar pelo codigo (#224)', () => {
+  const codigoBom = (extra: Record<string, string> = {}) =>
+    formulario({ email: 'Maria@Exemplo.invalid', codigo: '123456', ...extra });
+
+  it('confere com verifyOtp do tipo email e manda para a conta', async () => {
+    await expect(confirmarCodigo(codigoInicial, codigoBom())).rejects.toThrow('redirect:/conta');
+
+    expect(verifyOtp).toHaveBeenCalledWith({
+      email: 'maria@exemplo.invalid',
+      token: '123456',
+      type: 'email',
+    });
+  });
+
+  it('aceita o codigo com espacos e texto em volta', async () => {
+    await expect(
+      confirmarCodigo(codigoInicial, codigoBom({ codigo: ' 123 456 ' }))
+    ).rejects.toThrow('redirect:/conta');
+
+    expect(verifyOtp).toHaveBeenCalledWith(expect.objectContaining({ token: '123456' }));
+  });
+
+  it('o next passa pelo destinoSeguro: nada de site de fora', async () => {
+    await expect(
+      confirmarCodigo(codigoInicial, codigoBom({ next: 'https://site-falso.test/' }))
+    ).rejects.toThrow('redirect:/conta');
+    await expect(
+      confirmarCodigo(codigoInicial, codigoBom({ next: '/checkout?p=camiseta-cbac&tam=M' }))
+    ).rejects.toThrow('redirect:/checkout?p=camiseta-cbac&tam=M');
+  });
+
+  it('codigo errado, vencido ou de e-mail sem cadastro: a mesma frase', async () => {
+    verifyOtp.mockResolvedValue({ error: { message: 'Token has expired or is invalid' } });
+    const r1 = await confirmarCodigo(codigoInicial, codigoBom());
+    verifyOtp.mockResolvedValue({ error: { message: 'User not found' } });
+    const r2 = await confirmarCodigo(codigoInicial, codigoBom());
+
+    expect(r1.erro).toMatch(/inválido ou vencido/);
+    expect(r2.erro).toBe(r1.erro);
+    expect(r1.tentativa).toBe(1);
+  });
+
+  it('menos de seis digitos nao chega ao Supabase', async () => {
+    const r = await confirmarCodigo(codigoInicial, codigoBom({ codigo: '12345' }));
+
+    expect(r.erro).toMatch(/seis dígitos/);
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('isca preenchida e recusada antes de tudo', async () => {
+    const r = await confirmarCodigo(codigoInicial, codigoBom({ website: 'http://spam' }));
+
+    expect(r.erro).toMatch(/robô/);
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('para depois de dez tentativas no mesmo e-mail', async () => {
+    verifyOtp.mockResolvedValue({ error: { message: 'invalid' } });
+    const alvo = 'chute@exemplo.invalid';
+    for (let i = 0; i < 10; i++) {
+      cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': `198.51.100.${100 + i}` });
+      await confirmarCodigo(codigoInicial, codigoBom({ email: alvo }));
+    }
+    cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': '198.51.100.199' });
+    const r = await confirmarCodigo(codigoInicial, codigoBom({ email: alvo }));
+
+    expect(r.erro).toMatch(/muitas tentativas/i);
+    expect(verifyOtp).toHaveBeenCalledTimes(10);
+  });
+});
+
+describe('reenviar o codigo (#224)', () => {
+  const pedido = (extra: Record<string, string> = {}) =>
+    formulario({ email: 'Maria@Exemplo.invalid', ...extra });
+
+  it('pede outro e-mail de cadastro com o link de volta do proprio host', async () => {
+    const r = await reenviarCodigo(reenvioInicial, pedido());
+
+    expect(resend).toHaveBeenCalledWith({
+      type: 'signup',
+      email: 'maria@exemplo.invalid',
+      options: { emailRedirectTo: 'https://passem-a-respeitar.test/auth/callback?next=%2Fconta' },
+    });
+    expect(r.erro).toBeNull();
+    expect(r.aviso).toMatch(/se o e-mail for válido/i);
+    expect(r.reenviadoEm).toBeGreaterThan(0);
+  });
+
+  it('conta que ja existe recebe o mesmo recado de sucesso', async () => {
+    resend.mockResolvedValue({ error: { message: 'User already confirmed' } });
+    const r = await reenviarCodigo(reenvioInicial, pedido());
+
+    expect(r.erro).toBeNull();
+    expect(r.aviso).toMatch(/se o e-mail for válido/i);
+  });
+
+  it('o limite de 60 s do Supabase vira pedido de espera', async () => {
+    resend.mockResolvedValue({
+      error: { message: 'For security purposes, you can only request this after 42 seconds.' },
+    });
+    const r = await reenviarCodigo(reenvioInicial, pedido());
+
+    expect(r.erro).toMatch(/espere um minuto/i);
+    expect(r.aviso).toBeNull();
+  });
+
+  it('e-mail torto nao chega ao Supabase', async () => {
+    const r = await reenviarCodigo(reenvioInicial, pedido({ email: 'nao-e-email' }));
+
+    expect(r.erro).toMatch(/confira o e-mail/i);
+    expect(resend).not.toHaveBeenCalled();
+  });
+
+  it('para depois de tres reenvios para o mesmo e-mail', async () => {
+    const alvo = 'insistente@exemplo.invalid';
+    for (let i = 0; i < 3; i++) {
+      cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': `198.51.100.${150 + i}` });
+      await reenviarCodigo(reenvioInicial, pedido({ email: alvo }));
+    }
+    cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': '198.51.100.198' });
+    const r = await reenviarCodigo(reenvioInicial, pedido({ email: alvo }));
+
+    expect(r.erro).toMatch(/muitos pedidos/i);
+    expect(resend).toHaveBeenCalledTimes(3);
   });
 });
