@@ -68,7 +68,6 @@ test('e-mail de cadastro: em portugues, com o link de confirmacao', async ({ pag
 
   await page.goto('/criar-conta');
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
-  await page.getByLabel('Como quer ser chamado').fill('Carta');
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(senha);
   await page.getByLabel('Confirme a senha').fill(senha);

@@ -123,7 +123,6 @@ test('acessibilidade: login com erro na tela', async ({ page }) => {
 test('acessibilidade: cadastro com erro na tela', async ({ page }) => {
   await page.goto('/criar-conta');
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
-  await page.getByLabel('Como quer ser chamado').fill('Leitora');
   await criar.click();
   // Pelo texto: `alert` sozinho tambem acha o anunciador de rota do Next, que
   // existe desde o primeiro quadro, e a analise comecaria com o botao ainda

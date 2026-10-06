@@ -23,7 +23,6 @@ export default function Formulario() {
   // inclusive quando ela responde com ERRO. Sem isto, errar o aceite apagava
   // nome, e-mail e confirmacao, e a pessoa recomecava do zero. Medido no
   // preview da #30.
-  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmacao, setConfirmacao] = useState('');
@@ -70,21 +69,6 @@ export default function Formulario() {
 
   return (
     <form action={acao} ref={form} className="auth-form" noValidate>
-      <label className="auth-campo">
-        <span>Como quer ser chamado</span>
-        <input
-          type="text"
-          name="nome"
-          autoComplete="name"
-          maxLength={80}
-          required
-          disabled={pendente}
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          {...erroEm('nome')}
-        />
-      </label>
-
       <label className="auth-campo">
         <span>E-mail</span>
         <input

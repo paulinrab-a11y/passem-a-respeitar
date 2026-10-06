@@ -22,10 +22,9 @@ const campo = (rotulo: string | RegExp) => screen.getByLabelText(rotulo) as HTML
 afterEach(cleanup);
 
 describe('cadastro (#130)', () => {
-  it('errar a confirmacao mantem nome, e-mail e o aceite marcado', async () => {
+  it('errar a confirmacao mantem e-mail e o aceite marcado', async () => {
     const { container } = render(<Formulario />);
 
-    fireEvent.change(campo('Como quer ser chamado'), { target: { value: 'Maria' } });
     fireEvent.change(campo('E-mail'), { target: { value: 'maria@exemplo.com' } });
     fireEvent.change(campo('Senha'), { target: { value: 'senha-longa-de-teste' } });
     fireEvent.change(campo('Confirme a senha'), { target: { value: 'outra-coisa' } });
@@ -36,8 +35,21 @@ describe('cadastro (#130)', () => {
     });
     await screen.findByRole('alert');
 
-    expect(campo('Como quer ser chamado').value).toBe('Maria');
     expect(campo('E-mail').value).toBe('maria@exemplo.com');
     expect(campo(/Li e aceito/).checked).toBe(true);
+  });
+});
+
+describe('cadastro curto (#207)', () => {
+  it('pede e-mail, senha, confirmacao e aceite, e nao pede nome', () => {
+    render(<Formulario />);
+
+    expect(screen.queryByLabelText('Como quer ser chamado')).toBeNull();
+    expect(campo('E-mail')).toBeTruthy();
+    expect(campo('Senha')).toBeTruthy();
+    expect(campo('Confirme a senha')).toBeTruthy();
+    expect(campo(/Li e aceito/)).toBeTruthy();
+    // Nenhum campo chamado nome, nem escondido.
+    expect(document.querySelector('[name="nome"]')).toBeNull();
   });
 });

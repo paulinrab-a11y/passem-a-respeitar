@@ -14,13 +14,11 @@ test.use({ extraHTTPHeaders: visitante('cadastro') });
  * por hora por IP, e a suite inteira e um IP so.
  */
 test('cadastro: a conta so entra depois do link do e-mail', async ({ page }) => {
-  const nome = 'Maria da Suíte';
   const email = emailNovo('cadastro');
   const senha = senhaNova();
 
   await page.goto('/criar-conta');
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
-  await page.getByLabel('Como quer ser chamado').fill(nome);
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(senha);
   await page.getByLabel('Confirme a senha').fill(senha);
@@ -44,7 +42,8 @@ test('cadastro: a conta so entra depois do link do e-mail', async ({ page }) => 
   await page.goto(await linkDoEmail(email));
   await page.waitForURL('**/conta');
 
-  await expect(page.getByText(nome)).toBeVisible();
+  // Sem nome no cadastro (#207): a conta nasce sem ele, e a tela diz isso.
+  await expect(page.getByText('Sem nome')).toBeVisible();
   await expect(page.getByText(email)).toBeVisible();
   await expect(page.getByText('verificado', { exact: true })).toBeVisible();
   expect(await emailConfirmado(email)).toBe(true);
@@ -56,7 +55,6 @@ test('cadastro: sem aceitar a politica de privacidade nao ha conta', async ({ pa
 
   await page.goto('/criar-conta');
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
-  await page.getByLabel('Como quer ser chamado').fill('Sem Aceite');
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(senha);
   await page.getByLabel('Confirme a senha').fill(senha);

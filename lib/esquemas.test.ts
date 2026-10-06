@@ -73,7 +73,6 @@ describe('esquemaEntrar', () => {
 
 describe('esquemaCriarConta (#30)', () => {
   const bom = {
-    nome: 'Fulana',
     email: 'Fulana@Exemplo.test ',
     senha: 'uma senha razoavel',
     confirmacao: 'uma senha razoavel',
@@ -103,24 +102,13 @@ describe('esquemaCriarConta (#30)', () => {
     ).toBe(false);
   });
 
-  it('nome de uma letra nao passa; 80 passa; 81 nao', () => {
-    expect(esquemaCriarConta.safeParse({ ...bom, nome: 'A' }).success).toBe(false);
-    expect(esquemaCriarConta.safeParse({ ...bom, nome: 'A'.repeat(80) }).success).toBe(true);
-    expect(esquemaCriarConta.safeParse({ ...bom, nome: 'A'.repeat(81) }).success).toBe(false);
-  });
-
-  // Anti mass assignment: campo a mais nao vira propriedade.
+  // Anti mass assignment: campo a mais nao vira propriedade. O nome saiu do
+  // cadastro na #207 e tambem fica de fora: nome no cadastro nao vira perfil.
   it('descarta campo que nao esta no schema', () => {
-    const r = esquemaCriarConta.safeParse({ ...bom, admin: true, role: 'admin' });
+    const r = esquemaCriarConta.safeParse({ ...bom, admin: true, role: 'admin', nome: 'X' });
     expect(r.success).toBe(true);
     if (r.success)
-      expect(Object.keys(r.data).sort()).toEqual([
-        'aceite',
-        'confirmacao',
-        'email',
-        'nome',
-        'senha',
-      ]);
+      expect(Object.keys(r.data).sort()).toEqual(['aceite', 'confirmacao', 'email', 'senha']);
   });
 });
 

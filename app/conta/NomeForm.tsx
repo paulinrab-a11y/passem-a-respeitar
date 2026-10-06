@@ -16,7 +16,9 @@ export default function NomeForm({ nome }: { nome: string }) {
   return (
     <form action={acao} className="conta-bloco">
       <label className="auth-campo">
-        <span>Nome</span>
+        {/* A pergunta que saiu do cadastro (#207): a conta nasce sem nome, e
+            e aqui que a pessoa diz como quer ser chamada, se quiser. */}
+        <span>Como quer ser chamado</span>
         <input
           type="text"
           {...campo('nome')}

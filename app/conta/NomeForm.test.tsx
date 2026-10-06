@@ -15,7 +15,7 @@ vi.mock('./acoes', () => ({
 
 import NomeForm from './NomeForm';
 
-const campo = () => screen.getByLabelText('Nome') as HTMLInputElement;
+const campo = () => screen.getByLabelText('Como quer ser chamado') as HTMLInputElement;
 
 afterEach(cleanup);
 

@@ -232,7 +232,6 @@ test('cadastro: sem token nao ha conta nem e-mail', async ({ page }) => {
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
   await expect(page.getByRole('alert').filter({ hasText: NAO_CARREGOU })).toBeVisible();
 
-  await page.getByLabel('Como quer ser chamado').fill('Robo Cadastro');
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(senha);
   await page.getByLabel('Confirme a senha').fill(senha);
@@ -255,7 +254,6 @@ test('cadastro: isca preenchida nao cria conta nem manda e-mail', async ({ page 
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
   await expect(token(page)).toHaveValue(/.+/);
 
-  await page.getByLabel('Como quer ser chamado').fill('Robo Isca');
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(senha);
   await page.getByLabel('Confirme a senha').fill(senha);
