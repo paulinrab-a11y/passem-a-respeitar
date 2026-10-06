@@ -4,15 +4,26 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EstadoCriarConta } from './estado';
 
+let resposta: 'erro' | 'enviado' = 'erro';
 vi.mock('./acoes', () => ({
   criarConta: vi.fn(
-    async (anterior: EstadoCriarConta): Promise<EstadoCriarConta> => ({
-      ...anterior,
-      erro: 'A confirmação não bate com a senha.',
-      campo: 'confirmacao',
-      tentativa: anterior.tentativa + 1,
-    })
+    async (anterior: EstadoCriarConta): Promise<EstadoCriarConta> =>
+      resposta === 'enviado'
+        ? {
+            erro: null,
+            campo: null,
+            enviadoPara: 'maria@exemplo.com',
+            tentativa: anterior.tentativa + 1,
+          }
+        : {
+            ...anterior,
+            erro: 'A confirmação não bate com a senha.',
+            campo: 'confirmacao',
+            tentativa: anterior.tentativa + 1,
+          }
   ),
+  confirmarCodigo: vi.fn(),
+  reenviarCodigo: vi.fn(),
 }));
 
 import Formulario from './Formulario';
@@ -51,5 +62,29 @@ describe('cadastro curto (#207)', () => {
     expect(campo(/Li e aceito/)).toBeTruthy();
     // Nenhum campo chamado nome, nem escondido.
     expect(document.querySelector('[name="nome"]')).toBeNull();
+  });
+});
+
+describe('tela do codigo (#224)', () => {
+  it('depois do envio aparece a tela do codigo; trocar e-mail volta com os campos', async () => {
+    resposta = 'enviado';
+    const { container } = render(<Formulario />);
+
+    fireEvent.change(campo('E-mail'), { target: { value: 'maria@exemplo.com' } });
+    fireEvent.change(campo('Senha'), { target: { value: 'senha-longa-de-teste' } });
+    fireEvent.change(campo('Confirme a senha'), { target: { value: 'senha-longa-de-teste' } });
+    fireEvent.click(campo(/Li e aceito/));
+    await act(async () => {
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    });
+
+    expect(await screen.findByLabelText(/Código de 6 dígitos/)).toBeTruthy();
+    expect(screen.getByText('maria@exemplo.com')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trocar e-mail' }));
+
+    expect(campo('E-mail').value).toBe('maria@exemplo.com');
+    expect(campo(/Li e aceito/).checked).toBe(true);
+    resposta = 'erro';
   });
 });

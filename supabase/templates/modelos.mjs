@@ -72,10 +72,13 @@ export const EMAILS = [
     titulo: 'Confirme seu e-mail',
     texto: [
       'Falta um passo para criar sua conta: confirmar que este endereço é seu.',
-      'O link vale por uma hora e só funciona uma vez.',
+      'Use o botão, ou digite o código no site. Os dois valem por uma hora e só funcionam uma vez.',
     ],
     botao: ['Confirmar e-mail', '{{ .ConfirmationURL }}'],
-    aviso: 'Não foi você? Ignore este e-mail. Sem o clique, nenhuma conta é criada.',
+    // Codigo e link no mesmo e-mail (#224): o codigo e o caminho de quem se
+    // cadastra pelo celular; o link continua para quem prefere clicar.
+    codigo: true,
+    aviso: 'Não foi você? Ignore este e-mail. Sem o código ou o clique, nenhuma conta é criada.',
   },
   {
     chave: 'invite',

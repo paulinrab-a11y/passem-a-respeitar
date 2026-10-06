@@ -78,7 +78,7 @@
           &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Falta um passo para criar sua conta: confirmar que este endereço é seu.&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link vale por uma hora e só funciona uma vez.&lt;/td&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Use o botão, ou digite o código no site. Os dois valem por uma hora e só funcionam uma vez.&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
           &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
@@ -93,10 +93,16 @@
           &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .ConfirmationURL }}&lt;/a&gt;&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Ou digite este código no site:&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+          &lt;td style=&quot;padding:10px 28px 0;font-family:'Courier New',Courier,monospace;font-size:32px;letter-spacing:8px;color:#ffffff;&quot;&gt;{{ .Token }}&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
           &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
             &lt;tr&gt;
               &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
-              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Sem o clique, nenhuma conta é criada.&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Sem o código ou o clique, nenhuma conta é criada.&lt;/td&gt;
             &lt;/tr&gt;
           &lt;/table&gt;&lt;/td&gt;
         &lt;/tr&gt;

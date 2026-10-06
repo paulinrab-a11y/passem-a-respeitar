@@ -7,6 +7,7 @@ import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import { criarConta } from './acoes';
+import Codigo from './Codigo';
 import { criarContaInicial } from './estado';
 
 /**
@@ -36,6 +37,10 @@ export default function Formulario() {
   // erro, que ja esta reservado: nada anda quando ele aparece.
   const [robo, setRobo] = useState(SEM_AVISO);
   const andando = pendente || robo.esperando;
+  // "Trocar e-mail" na tela do codigo (#224) volta para ca com os campos
+  // como estavam. Guarda EM QUAL envio a pessoa voltou: o proximo envio tem
+  // outra tentativa, e a tela do codigo aparece de novo.
+  const [voltouEm, setVoltouEm] = useState(-1);
 
   // Foco no campo que errou, para a pessoa nao cacar qual dos cinco foi.
   //
@@ -49,18 +54,9 @@ export default function Formulario() {
     if (alvo instanceof HTMLInputElement) alvo.focus();
   }, [estado.campo, estado.tentativa]);
 
-  if (estado.enviadoPara) {
+  if (estado.enviadoPara && voltouEm !== estado.tentativa) {
     return (
-      <div className="auth-form" role="status">
-        <p className="auth-sub">Confira seu e-mail</p>
-        <p className="detalhe-nota">
-          Se <strong>{estado.enviadoPara}</strong> for válido, enviamos um link para confirmar a
-          conta. Ele vence em uma hora. Não chegou? Olhe o spam.
-        </p>
-        <a className="btn" href="/entrar">
-          Ir para o login
-        </a>
-      </div>
+      <Codigo email={estado.enviadoPara} aoTrocarEmail={() => setVoltouEm(estado.tentativa)} />
     );
   }
 
