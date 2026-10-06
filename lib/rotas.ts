@@ -126,3 +126,31 @@ export function hostPrincipal(
 
   return atual.toLowerCase() === alvo ? null : alvo;
 }
+
+/**
+ * Qual host e o principal (#54): o do `NEXT_PUBLIC_SITE_URL`, quando ha um.
+ *
+ * Sem dominio proprio, `VERCEL_PROJECT_PRODUCTION_URL` bastava. Com dominio,
+ * ela vira armadilha: a Vercel poe ali "o dominio de producao mais curto", e
+ * o mais curto e o `cbacoccupation.com.br` sem www — que no painel da Vercel
+ * e um redirecionamento para o www. O proxy mandaria o www para o sem-www, a
+ * Vercel mandaria de volta, e o site viraria um laco de 308.
+ *
+ * Por isso quem manda e o endereco que o dono escreveu, o mesmo que os links
+ * de e-mail e o Open Graph usam. A variavel da Vercel fica como reserva, para
+ * o preview e para quando a outra nao existir.
+ */
+export function hostCanonico(siteUrl: string | undefined, producaoUrl: string | undefined) {
+  const dito = (siteUrl ?? '').trim();
+  if (dito) {
+    try {
+      const url = new URL(dito);
+      if ((url.protocol === 'https:' || url.protocol === 'http:') && url.hostname) {
+        return url.hostname;
+      }
+    } catch {
+      // Nao e URL: cai na reserva, e o `hostPrincipal` decide se ela serve.
+    }
+  }
+  return producaoUrl;
+}

@@ -6,6 +6,7 @@ import {
   ehPagamento,
   ehRotaDeAuth,
   exigeSessao,
+  hostCanonico,
   hostPrincipal,
   precisaDeSessao,
   temDesafio,
@@ -242,9 +243,11 @@ export async function proxy(request: NextRequest) {
   // guarda para sempre se o dominio final mudar (#54).
   const navegacao = request.method === 'GET' || request.method === 'HEAD';
   if (navegacao && !request.nextUrl.pathname.startsWith('/api/')) {
+    // O dominio proprio manda (#54); a variavel da Vercel e reserva. Ver
+    // `hostCanonico` para o laco que a variavel sozinha causaria.
     const principal = hostPrincipal(
       process.env.VERCEL_ENV,
-      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+      hostCanonico(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL),
       host
     );
 
