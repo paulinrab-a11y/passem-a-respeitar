@@ -81,8 +81,10 @@ export const CONFIG: SiteConfig = {
     { nome: 'pistola', url: '/elementos/pistola.webp', elo: 4, escala: 1.5, lado: -1 },
   ],
   audio: {},
-  merch360: '/merch/camiseta-360.webp',
-  merchModelo: '/merch/camiseta.glb',
+  // Vazio de proposito (#217): com o modelo proprio da CBAC, a vitrine volta a
+  // ser WebGL. O sprite de 4 fotos continua em /public como reserva manual.
+  merch360: '',
+  merchModelo: '/merch/camiseta.gltf',
   beats: [
     { nome: 'Mais um hit · 142 · Fm', url: '/beats/mais-um-hit.mp3' },
     { nome: 'Beat 1 / Beat 2 · 146 · Cm', url: '/beats/beat-1-2.mp3' },
