@@ -891,6 +891,24 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
    conta nada para quem não a distingue. */
 .entrega input[aria-invalid='true']{border-color:var(--vermelho)}
 
+/* Frete na ficha da camiseta (#205), na secao e na loja. A linha de resposta
+   tem altura reservada: a cotacao chega depois, e a ficha nao anda. */
+.frete-ficha{margin-top:18px;display:flex;flex-direction:column;gap:8px;max-width:40ch}
+.frete-ficha label{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2)}
+.frete-ficha input{font:inherit;font-size:16px;letter-spacing:.12em;background:transparent;color:var(--prata);border:1px solid var(--prata-3);padding:12px 14px;width:min(180px,100%)}
+.frete-ficha input::placeholder{color:var(--prata-2);letter-spacing:.12em}
+.frete-ficha input:hover{border-color:var(--prata-2)}
+.frete-ficha-resposta{min-height:calc(2 * 1.5em);font-size:13px;letter-spacing:.04em;line-height:1.5;color:var(--prata-2)}
+.frete-ficha-opcoes{list-style:none;margin:0;padding:0}
+.frete-ficha-opcoes strong{color:var(--prata);font-weight:400;letter-spacing:.12em}
+.frete-ficha-calculando,.frete-ficha-erro{display:block}
+.frete-ficha-erro{color:var(--vermelho);animation:auth-erro-entra .16s cubic-bezier(.22,1,.36,1) backwards}
+.frete-ficha-erro.saindo{animation:auth-erro-sai .12s cubic-bezier(.4,0,1,1) forwards}
+@media (prefers-reduced-motion:reduce){
+  .frete-ficha-erro{animation-name:so-fade}
+  .frete-ficha-erro.saindo{animation-name:so-fade-sai}
+}
+
 /* Frete (#199). A caixa tem a altura de duas opcoes em todos os estados:
    vazia, calculando, com erro ou com PAC e SEDEX. A cotacao chega depois do
    CEP, e o total e o botao nao podem andar quando ela chega. */

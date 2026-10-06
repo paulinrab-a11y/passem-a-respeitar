@@ -1,10 +1,12 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
+import { useCepLembrado } from '@/app/_home/cep-lembrado';
 import { useCampos } from '@/app/_ui/campos';
 import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 import { reais } from '@/lib/conta/pedidos';
+import { cepLegivel } from '@/lib/loja/endereco';
 import type { OpcaoDeFrete, Servico } from '@/lib/loja/frete';
 import { buscarEndereco, cotarFrete, finalizarCompra, type RespostaDoFrete } from './acoes';
 import { checkoutInicial } from './estado';
@@ -73,6 +75,17 @@ export default function Entrega({
   const pendente = emVoo || Boolean(estado.irPara);
   const form = useRef<HTMLFormElement>(null);
   const { campo: controle, valores, preencher } = useCampos(VAZIOS);
+
+  // O CEP que a pessoa digitou na ficha da camiseta (#205) ja vem preenchido,
+  // e com ele vem o frete e o endereco. Uma vez so, na chegada: depois o
+  // campo e dela.
+  const lembrado = useCepLembrado();
+  const [lembradoAplicado, setLembradoAplicado] = useState(false);
+  useEffect(() => {
+    if (lembradoAplicado || !lembrado) return;
+    setLembradoAplicado(true);
+    preencher({ cep: cepLegivel(lembrado) });
+  }, [lembrado, lembradoAplicado, preencher]);
 
   const [frete, setFrete] = useState<Frete>({ cep: '', resposta: null });
   const [escolhido, setEscolhido] = useState<Servico | null>(null);

@@ -200,6 +200,11 @@ que basta: ele entrega em qualquer região (#201).
 | Em produção, só o Melhor Envio de produção | token de sandbox seria preço de mentira |
 | 30 consultas a cada 10 minutos, por pessoa | cada consulta usa o token do dono |
 
+A ficha da camiseta, na home e na loja, tem um campo de CEP que mostra o
+frete antes de qualquer login (#205). E a mesma cotacao e o mesmo cache do
+checkout, com limite por IP. O CEP fica lembrado no navegador, e o checkout
+ja comeca com ele.
+
 No mesmo momento o CEP vai ao ViaCEP, serviço público e gratuito, e rua,
 bairro, cidade e UF se preenchem sozinhos (#204). É sugestão: o endereço que
 vale é o que a pessoa envia, validado como sempre. Sem resposta, ela digita.

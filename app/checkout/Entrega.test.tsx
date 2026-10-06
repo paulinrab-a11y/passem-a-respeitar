@@ -17,6 +17,7 @@ vi.mock('./acoes', () => ({
 }));
 
 const { buscarEndereco, cotarFrete, finalizarCompra } = await import('./acoes');
+const { esqueceCep, lembraCep } = await import('@/app/_home/cep-lembrado');
 const { default: Entrega } = await import('./Entrega');
 
 const PAC = { servico: 'pac', nome: 'PAC', precoCentavos: 2350, prazoDias: 8 } as const;
@@ -67,6 +68,7 @@ function emVoo() {
 }
 
 beforeEach(() => {
+  esqueceCep();
   vi.mocked(cotarFrete).mockReset();
   vi.mocked(cotarFrete).mockResolvedValue(COTADO);
   vi.mocked(buscarEndereco).mockReset();
@@ -381,5 +383,40 @@ describe('endereco pelo CEP (#204)', () => {
     campo('Quem recebe').focus();
     await digitaCep('01310100');
     expect(document.activeElement).toBe(campo('Quem recebe'));
+  });
+});
+
+describe('CEP lembrado da ficha (#205)', () => {
+  it('o checkout comeca com o CEP da ficha, e ja cota e busca o endereco', async () => {
+    lembraCep('04538133');
+    await act(async () => {
+      monta();
+    });
+
+    expect(campo('CEP').value).toBe('04538-133');
+    expect(cotarFrete).toHaveBeenCalledWith({
+      slug: 'camiseta-cbac',
+      tamanho: 'M',
+      quantidade: 1,
+      cep: '04538133',
+    });
+    expect(buscarEndereco).toHaveBeenCalledWith('04538133');
+  });
+
+  it('sem CEP lembrado, o campo comeca vazio', async () => {
+    await act(async () => {
+      monta();
+    });
+    expect(campo('CEP').value).toBe('');
+    expect(cotarFrete).not.toHaveBeenCalled();
+  });
+
+  it('depois de chegar, o campo e da pessoa: apagar nao traz o lembrado de volta', async () => {
+    lembraCep('04538133');
+    await act(async () => {
+      monta();
+    });
+    await digitaCep('');
+    expect(campo('CEP').value).toBe('');
   });
 });
