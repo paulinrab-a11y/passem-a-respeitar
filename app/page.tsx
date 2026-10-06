@@ -51,11 +51,10 @@ export default async function Home() {
       <header id="bar">
         <a href="#hero">
           <span className="sr">Passem a Respeitar — início</span>
-          <svg className="logo" viewBox="0 0 34 34" aria-hidden="true">
-            <path d="M17 1.5a15.5 15.5 0 1 0 0 31 15.5 15.5 0 0 0 0-31Zm0 2.6a12.9 12.9 0 1 1 0 25.8 12.9 12.9 0 0 1 0-25.8Z" />
-            <path d="M12.4 8.6h7.1c3.9 0 6.2 2.2 6.2 5.6 0 3.5-2.3 5.7-6.2 5.7h-3.6v6.5h-3.5V8.6Zm3.5 3v5.4h3.3c1.8 0 2.9-1 2.9-2.7s-1.1-2.7-2.9-2.7h-3.3Z" />
-            <path d="M9.6 24.6 24.4 9.4l1.9 1.9L11.5 26.5z" />
-          </svg>
+          {/* Brasao da CBAC (#218), vetorizado em /brasao.svg. Entra como
+              mascara para a cor continuar vindo do CSS (--prata), como o "P"
+              de antes; um <img> nao deixaria. */}
+          <span className="logo" aria-hidden="true"></span>
         </a>
         <nav className="right" aria-label="Ações">
           <button type="button" id="som" aria-pressed="false">
