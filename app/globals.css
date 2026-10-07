@@ -1089,6 +1089,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .admin-botoes{display:flex;gap:10px;flex-wrap:wrap}
 .admin-botoes .btn{font-size:12px;padding:10px 16px}
 .admin-final{margin-top:12px;margin-bottom:0}
+.admin-nota{margin:0}
 /* Mudanca de status (#157). O selo antigo sai, o novo entra, e os botoes da
    etapa seguinte entram junto. So opacidade e transform: nada aqui ocupa
    espaco a mais, e o card nao e empurrado. As entradas so valem depois de uma

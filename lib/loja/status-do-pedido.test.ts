@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   ehStatusPedido,
+  origensDe,
   proximosDe,
   STATUS_PEDIDO,
   type StatusPedido,
@@ -53,6 +54,19 @@ describe('transicoes', () => {
 
   it('o mesmo status nao e transicao', () => {
     for (const s of STATUS_PEDIDO) expect(transicaoPermitida(s, s)).toBe(false);
+  });
+
+  // A tabela lida ao contrario: e o que a automacao usa para saber que
+  // pedidos um estorno no provedor alcanca (#7) — e nenhum a mais.
+  it('origensDe e a tabela ao contrario', () => {
+    expect(origensDe('reembolsado')).toEqual(['pago', 'em_producao', 'enviado', 'entregue']);
+    expect(origensDe('cancelado')).toEqual(['aguardando_pagamento', 'pago', 'em_producao']);
+    expect(origensDe('pago')).toEqual([]);
+    expect(origensDe('aguardando_pagamento')).toEqual([]);
+
+    for (const para of STATUS_PEDIDO) {
+      for (const de of origensDe(para)) expect(transicaoPermitida(de, para)).toBe(true);
+    }
   });
 });
 

@@ -62,6 +62,17 @@ import 'server-only';
  * e aprovada. E dinheiro que entra onde nao devia (pedido ja pago por outra
  * tentativa, pedido cancelado) vira aviso ao dono em vez de silencio. (#6,
  * #11, #21, #24)
+ *
+ * DINHEIRO QUE VOLTA
+ *
+ * O caminho de volta tem dois lados, e os dois passam por aqui. Estorno ou
+ * chargeback feito no provedor — o dono pelo painel dele, o cliente
+ * contestando o cartao — chega como `estornado`, e `aplica` leva o pedido a
+ * `reembolsado` e avisa: antes o pedido seguia "pago" e o dono produzia uma
+ * camiseta cujo dinheiro ja tinha voltado (#7). E o botao "Reembolsar" do
+ * painel chama `estornaAprovadas` ANTES de mudar o status: estorna la, marca
+ * aqui, e se o provedor nao estornar o pedido nao muda — antes o botao so
+ * trocava o rotulo (#22).
  */
 
 import { createHash } from 'node:crypto';
@@ -74,7 +85,9 @@ import {
   consultaOrdem,
   localizaOrdem,
   type OrdemEncontrada,
+  reembolsaOrdem,
 } from './orders-api';
+import { origensDe } from './status-do-pedido';
 
 export type ResultadoDoWebhook =
   /** Processado agora. */
@@ -117,10 +130,23 @@ export type Encerramento = {
   presas: number;
 };
 
+/** O que `estornaAprovadas` fez com as tentativas aprovadas de um pedido (#22). */
+export type Estorno = {
+  /** Estornadas agora no provedor, ou descobertas ja estornadas la. */
+  estornadas: number;
+  /** Ja estavam `estornado` aqui: o dinheiro tinha voltado por outro caminho. */
+  jaEstornadas: number;
+  /** O provedor nao deixou estornar e, consultada, a ordem segue paga la. */
+  recusadas: number;
+  /** Nao deu para estornar nem para saber o estado. Continuam aprovadas. */
+  presas: number;
+};
+
 /** Mensagens de aviso ao dono. Fechadas aqui para o Sentry agrupar por texto. */
 type AvisoDePagamento =
   | 'pagamento aprovado em pedido nao pendente'
-  | 'pagamento duplicado a estornar';
+  | 'pagamento duplicado a estornar'
+  | 'pagamento estornado no provedor: pedido reembolsado';
 
 /** Tentativa que ficou sem id do provedor: a resposta se perdeu no caminho. */
 export type PagamentoOrfao = PagamentoEmAberto & { criado_em: string };
@@ -506,6 +532,13 @@ async function aplica(
     }
   }
 
+  // Dinheiro que voltou pelo provedor — estorno pelo painel dele, chargeback
+  // — e o pedido nao pode continuar com cara de pago: o dono produziria e
+  // enviaria uma camiseta cujo valor ja nao esta com ele (#7).
+  if (resumo.estado === 'estornado') {
+    await marcaReembolsado(admin, pagamento.order_id);
+  }
+
   return { tipo: 'aplicado', estado: resumo.estado };
 }
 
@@ -536,6 +569,36 @@ export async function marcaPago(admin: Admin, orderId: string): Promise<void> {
 
   if (pedido?.status !== 'pago') {
     await avisaPagamento('pagamento aprovado em pedido nao pendente', orderId);
+  }
+}
+
+/** De onde um estorno no provedor leva o pedido a `reembolsado` (#7). */
+const REEMBOLSAVEIS = origensDe('reembolsado');
+
+/**
+ * Move o pedido para `reembolsado` quando o dinheiro voltou pelo provedor (#7).
+ *
+ * So alcanca pedido que ainda vive do pagamento — pago, em producao, enviado,
+ * entregue: os mesmos de onde uma pessoa poderia reembolsar, lidos da mesma
+ * tabela. Cancelado e reembolsado sao finais e ficam como estao; o `in` no
+ * filtro E a regra. A trilha registra sem autor, como toda automacao.
+ *
+ * Quando alcanca, avisa: ninguem pediu esse estorno por aqui — foi o painel
+ * do provedor ou um chargeback — e o dono precisa saber antes de produzir. O
+ * estorno pedido pelo botao "Reembolsar" nao passa por este aviso: a
+ * tentativa ja estava `estornado` quando a notificacao chega, `podeAvancar`
+ * a ignora, e o pedido ja mudou pela mao de quem apertou.
+ */
+async function marcaReembolsado(admin: Admin, orderId: string): Promise<void> {
+  const { data } = await admin
+    .from('orders')
+    .update({ status: 'reembolsado' })
+    .eq('id', orderId)
+    .in('status', REEMBOLSAVEIS)
+    .select('id');
+
+  if (data?.length) {
+    await avisaPagamento('pagamento estornado no provedor: pedido reembolsado', orderId, 'warning');
   }
 }
 
@@ -590,7 +653,7 @@ export async function encerraAbertas(
 
     const cancelamento = await cancelaOrdem(
       l.provedor_pagamento_id,
-      chaveDeCancelamento(l.idempotency_key)
+      chaveDerivada('cancela', l.idempotency_key)
     );
 
     if (cancelamento.ok) {
@@ -661,23 +724,126 @@ function somaConfirmacao(r: Encerramento, confirmacao: ResultadoDoWebhook): void
 }
 
 /**
- * Chave de idempotencia do cancelamento, derivada da chave da tentativa:
- * estavel por tentativa (reenviar nao duplica) e distinta da chave da criacao
- * (o provedor guarda a resposta por chave, e reusar a da criacao devolveria a
- * ordem criada com cara de cancelada). No formato que o provedor recomenda.
+ * Estorna no provedor as tentativas aprovadas de um pedido (#22).
+ *
+ * E o que o botao "Reembolsar" chama ANTES de mudar o status, e a ordem E a
+ * protecao: estorna la, e so entao marca `estornado` aqui. Marcar antes — ou
+ * so trocar o status, como o botao fazia — deixava o cliente lendo
+ * "Reembolsado" com o dinheiro ainda na conta do dono. Quem chama so muda o
+ * status quando nada ficou presa nem recusada.
+ *
+ * Normalmente ha uma aprovada; duas e o pagamento em duplicidade da #6, e as
+ * duas voltam. A chave de idempotencia e derivada da chave da tentativa:
+ * tentar de novo depois de uma falha no meio reusa a chave e nao estorna
+ * duas vezes — e a que ja ficou `estornado` nem e tentada, so contada.
+ *
+ * Quando o provedor recusa (4xx), a ordem ja e outra la — estornada pelo
+ * painel dele, por exemplo — e se pergunta o estado real: estornada, conta
+ * como feita e a linha acompanha; ainda paga, e recusa de verdade, e o dono
+ * resolve no painel. Ordem que o provedor diz nao ter tambem e recusa: nao ha
+ * como devolver o que ele nao conhece.
+ *
+ * A linha e marcada direto, sem passar por `aplica`: o pedido vai mudar pela
+ * mao de quem apertou, com autor e motivo na trilha, e a automacao nao pode
+ * chegar antes e tomar o lugar dela.
  */
-function chaveDeCancelamento(chaveDaTentativa: string): string {
-  const h = createHash('sha256').update(`cancela:${chaveDaTentativa}`).digest('hex');
+export async function estornaAprovadas(admin: Admin, orderId: string): Promise<Estorno> {
+  const { data: linhas } = await admin
+    .from('pagamentos')
+    .select('id, order_id, estado, provedor_pagamento_id, idempotency_key')
+    .eq('order_id', orderId)
+    .in('estado', ['aprovado', 'estornado'])
+    .not('provedor_pagamento_id', 'is', null);
+
+  const r: Estorno = { estornadas: 0, jaEstornadas: 0, recusadas: 0, presas: 0 };
+
+  // Uma por vez, como em `encerraAbertas`: rajada e o que o limite deles pune.
+  for (const l of linhas ?? []) {
+    if (l.estado === 'estornado') {
+      r.jaEstornadas += 1;
+      continue;
+    }
+    if (!l.provedor_pagamento_id) continue;
+
+    const estorno = await reembolsaOrdem(
+      l.provedor_pagamento_id,
+      chaveDerivada('estorna', l.idempotency_key)
+    );
+
+    if (estorno.ok) {
+      await marcaEstornada(admin, l.id, estorno);
+      r.estornadas += 1;
+      continue;
+    }
+
+    if (estorno.motivo === 'invalido') {
+      const resumo = await consultaOrdem(l.provedor_pagamento_id);
+
+      if (resumo?.estado === 'estornado') {
+        await marcaEstornada(admin, l.id, resumo);
+        r.estornadas += 1;
+      } else if (resumo) {
+        r.recusadas += 1;
+      } else {
+        r.presas += 1;
+      }
+      continue;
+    }
+
+    if (estorno.motivo === 'inexistente') r.recusadas += 1;
+    else r.presas += 1;
+  }
+
+  return r;
+}
+
+/**
+ * A tentativa vira `estornado`, com o status cru do provedor. `eq` em
+ * `aprovado` no filtro: se a notificacao do estorno chegou no meio e ja
+ * marcou, nada e sobrescrito.
+ */
+async function marcaEstornada(
+  admin: Admin,
+  pagamentoId: string,
+  provedor: { status: string | null; statusDetail: string | null }
+): Promise<void> {
+  await admin
+    .from('pagamentos')
+    .update({
+      estado: 'estornado',
+      provedor_status: provedor.status,
+      provedor_status_detail: provedor.statusDetail,
+    })
+    .eq('id', pagamentoId)
+    .eq('estado', 'aprovado');
+}
+
+/**
+ * Chave de idempotencia de uma operacao sobre a tentativa — cancelar,
+ * estornar —, derivada da chave dela: estavel por tentativa (reenviar nao
+ * duplica), distinta da chave da criacao (o provedor guarda a resposta por
+ * chave, e reusar a da criacao devolveria a ordem criada com cara de
+ * cancelada) e distinta entre as operacoes, pelo prefixo. No formato que o
+ * provedor recomenda.
+ */
+function chaveDerivada(operacao: 'cancela' | 'estorna', chaveDaTentativa: string): string {
+  const h = createHash('sha256').update(`${operacao}:${chaveDaTentativa}`).digest('hex');
 
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
 }
 
 /**
  * Aviso ao dono. Vai so a mensagem e o id do pedido, em tag: nada de e-mail,
- * valor ou corpo do provedor. Funcao serverless congela ao responder; sem o
- * `flush`, o evento nao sai.
+ * valor ou corpo do provedor. `error` e dinheiro onde nao devia; `warning` e
+ * dinheiro que voltou e o pedido acompanhou — precisa ser visto, nao acordar
+ * ninguem. Funcao serverless congela ao responder; sem o `flush`, o evento
+ * nao sai.
  */
-async function avisaPagamento(mensagem: AvisoDePagamento, orderId: string): Promise<void> {
-  Sentry.captureMessage(mensagem, { level: 'error', tags: { order_id: orderId } });
+async function avisaPagamento(
+  mensagem: AvisoDePagamento,
+  orderId: string,
+  nivel: 'error' | 'warning' = 'error'
+): Promise<void> {
+  Sentry.captureMessage(mensagem, { level: nivel, tags: { order_id: orderId } });
   await Sentry.flush(2000);
 }

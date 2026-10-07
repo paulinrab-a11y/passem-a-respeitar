@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * e o que ela nunca faz: aceitar papel do cliente, marcar "pago", pular
  * etapa, ou dizer a um nao-administrador que a porta existe.
  *
- * O Mercado Pago e um dublê; o encerramento das cobrancas abertas roda de
- * verdade, e o que se prova e que ele vem ANTES do status, e que o status nao
- * muda se ele falhar (#21).
+ * O Mercado Pago e um dublê; o encerramento das cobrancas abertas e o estorno
+ * rodam de verdade, e o que se prova e que eles vem ANTES do status, e que o
+ * status nao muda se falharem (#21, #22).
  */
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), flush: async () => true }));
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: vi.fn() }));
@@ -17,12 +17,15 @@ vi.mock('@/lib/loja/orders-api', () => ({
   consultaOrdem: vi.fn(),
   localizaOrdem: vi.fn(),
   buscaOrdensPorReferencia: vi.fn(),
+  reembolsaOrdem: vi.fn(),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { clienteAdmin } = await import('@/lib/supabase/admin');
-const { cancelaOrdem, consultaOrdem, localizaOrdem } = await import('@/lib/loja/orders-api');
+const { cancelaOrdem, consultaOrdem, localizaOrdem, reembolsaOrdem } = await import(
+  '@/lib/loja/orders-api'
+);
 const { mudarStatus } = await import('./acoes');
 const { adminInicial } = await import('./estado');
 
@@ -119,6 +122,11 @@ beforeEach(() => {
     id: `${ADMIN.id.slice(0, -4)}${String(n++).padStart(4, '0')}`,
   } as never);
   vi.mocked(cancelaOrdem).mockResolvedValue({ ok: true, status: 'canceled', statusDetail: null });
+  vi.mocked(reembolsaOrdem).mockResolvedValue({
+    ok: true,
+    status: 'refunded',
+    statusDetail: 'refunded',
+  });
   banco();
 });
 
@@ -333,7 +341,9 @@ describe('cancelar pedido que espera pagamento', () => {
     );
   });
 
-  it('cancelar pedido pago nao toca em cobranca', async () => {
+  // Cancelar nao devolve dinheiro, e a tela diz isso: quem quer devolver usa
+  // "Reembolsar".
+  it('cancelar pedido pago nao toca em cobranca nem estorna', async () => {
     statusNoBanco = 'pago';
     abertas = [PIX];
 
@@ -341,6 +351,144 @@ describe('cancelar pedido que espera pagamento', () => {
 
     expect(r.recado?.tom).toBe('ok');
     expect(cancelaOrdem).not.toHaveBeenCalled();
+    expect(reembolsaOrdem).not.toHaveBeenCalled();
     expect(clienteAdmin).toHaveBeenCalled();
+  });
+});
+
+/**
+ * O cenario da #22: o dono clica "Reembolsar" achando que o dinheiro volta.
+ * Agora volta — ou o status nao muda, e o recado diz por que.
+ */
+describe('reembolsar pedido pago', () => {
+  const APROVADA = {
+    id: 'pag-ok',
+    order_id: PEDIDO,
+    estado: 'aprovado',
+    provedor_pagamento_id: 'ORD-OK',
+    idempotency_key: 'chave-ok',
+  };
+  const reembolsar = () => envia({ para: 'reembolsado', motivo: 'cliente desistiu' });
+
+  it('estorna no provedor e marca a tentativa antes de mudar o status', async () => {
+    abertas = [APROVADA];
+
+    const r = await reembolsar();
+
+    expect(r.recado).toEqual({ tom: 'ok', texto: 'Estornado no Mercado Pago. Status atualizado.' });
+    expect(reembolsaOrdem).toHaveBeenCalledWith('ORD-OK', expect.any(String));
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      estado: 'estornado',
+      provedor_status: 'refunded',
+      provedor_status_detail: 'refunded',
+    });
+    // Provedor primeiro, pedido depois: a ordem E a protecao.
+    expect(vi.mocked(reembolsaOrdem).mock.invocationCallOrder[0]).toBeLessThan(
+      rpc.mock.invocationCallOrder[0]
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      'muda_status_pedido',
+      expect.objectContaining({ p_para: 'reembolsado', p_motivo: 'cliente desistiu' })
+    );
+  });
+
+  it.each(['em_producao', 'enviado', 'entregue'])('de %s tambem estorna antes', async (de) => {
+    statusNoBanco = de;
+    abertas = [APROVADA];
+
+    const r = await reembolsar();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(reembolsaOrdem).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('provedor fora do ar: o status nao muda, e o recado manda tentar de novo', async () => {
+    abertas = [APROVADA];
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'indisponivel' });
+
+    const r = await reembolsar();
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/não consegui estornar.*não mudou/i);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(atualizados).toEqual([]);
+  });
+
+  it('provedor recusa e a ordem segue paga la: o status nao muda, e o recado aponta o painel', async () => {
+    abertas = [APROVADA];
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue({
+      estado: 'aprovado',
+      status: 'processed',
+      statusDetail: 'accredited',
+    });
+
+    const r = await reembolsar();
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/não aceitou o estorno.*não mudou/i);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // Estornaram pelo painel do provedor antes de clicar: o provedor recusa o
+  // segundo estorno, a consulta confirma, e o pedido pode seguir.
+  it('provedor recusa porque ja estornaram pelo painel: marca e muda o status', async () => {
+    abertas = [APROVADA];
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue({
+      estado: 'estornado',
+      status: 'refunded',
+      statusDetail: 'refunded',
+    });
+
+    const r = await reembolsar();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados.estado).toBe('estornado');
+    expect(rpc).toHaveBeenCalledWith(
+      'muda_status_pedido',
+      expect.objectContaining({ p_para: 'reembolsado' })
+    );
+  });
+
+  // O webhook do estorno ja refletiu: o dinheiro voltou, nao ha o que estornar.
+  it('tentativa ja estornada: muda o status sem chamar o provedor', async () => {
+    abertas = [{ ...APROVADA, estado: 'estornado' }];
+
+    const r = await reembolsar();
+
+    expect(r.recado).toEqual({ tom: 'ok', texto: 'Status atualizado.' });
+    expect(reembolsaOrdem).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  // O que o botao fazia antes: trocar o rotulo sem cobranca nenhuma por tras.
+  it('sem cobranca aprovada registrada, o status nao muda', async () => {
+    const r = await reembolsar();
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/não achei cobrança.*não mudou/i);
+    expect(reembolsaOrdem).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // Duas aprovadas (#6): as duas voltam; uma presa segura o status, e a que
+  // voltou fica marcada — na proxima tentativa so a outra e estornada.
+  it('com duas aprovadas, as duas voltam, e uma presa segura o status', async () => {
+    abertas = [
+      APROVADA,
+      { ...APROVADA, id: 'pag-2', provedor_pagamento_id: 'ORD-2', idempotency_key: 'chave-2' },
+    ];
+    vi.mocked(reembolsaOrdem)
+      .mockResolvedValueOnce({ ok: true, status: 'refunded', statusDetail: 'refunded' })
+      .mockResolvedValueOnce({ ok: false, motivo: 'indisponivel' });
+
+    const r = await reembolsar();
+
+    expect(reembolsaOrdem).toHaveBeenCalledTimes(2);
+    expect(r.recado?.tom).toBe('erro');
+    expect(rpc).not.toHaveBeenCalled();
+    expect(atualizados.filter((a) => a.tabela === 'pagamentos')).toHaveLength(1);
   });
 });

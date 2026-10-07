@@ -86,6 +86,16 @@ export default function MudarStatus({ pedido, status }: { pedido: string; status
         ))}
       </div>
 
+      {/* O que cada botao faz com o dinheiro (#22): reembolsar estorna no
+          provedor antes de mudar o status; cancelar so muda o status. Texto
+          fixo por etapa e fora do bloco animado — e contexto, nao novidade. */}
+      {destinos.includes('reembolsado') ? (
+        <p className="detalhe-nota admin-nota">
+          Reembolsar estorna o pagamento no Mercado Pago e só então muda o status.
+          {destinos.includes('cancelado') ? ' Cancelar não devolve o dinheiro.' : ''}
+        </p>
+      ) : null}
+
       {recado}
     </form>
   );

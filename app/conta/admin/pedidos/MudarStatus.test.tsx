@@ -53,3 +53,36 @@ describe('admin de pedidos (#130)', () => {
     expect(motivo().value).toBe('');
   });
 });
+
+/**
+ * O botao diz o que faz com o dinheiro (#22): reembolsar estorna no provedor
+ * antes de mudar o status; cancelar nao devolve nada. A nota e por etapa, e
+ * so onde reembolsar e uma opcao.
+ */
+describe('nota do reembolso (#22)', () => {
+  const nota = () => document.querySelector('.admin-nota');
+
+  it('com reembolsar e cancelar na mesma etapa, explica os dois', () => {
+    render(<MudarStatus pedido={PEDIDO} status="pago" />);
+
+    expect(screen.getByRole('button', { name: 'Reembolsar' })).toBeTruthy();
+    expect(nota()?.textContent).toBe(
+      'Reembolsar estorna o pagamento no Mercado Pago e só então muda o status. Cancelar não devolve o dinheiro.'
+    );
+  });
+
+  it('depois de enviado so ha reembolsar, e a nota so fala dele', () => {
+    render(<MudarStatus pedido={PEDIDO} status="enviado" />);
+
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull();
+    expect(nota()?.textContent).toBe(
+      'Reembolsar estorna o pagamento no Mercado Pago e só então muda o status.'
+    );
+  });
+
+  it('esperando pagamento nao ha o que estornar, e nao ha nota', () => {
+    render(<MudarStatus pedido={PEDIDO} status="aguardando_pagamento" />);
+
+    expect(nota()).toBeNull();
+  });
+});
