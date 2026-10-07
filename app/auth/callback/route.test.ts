@@ -86,6 +86,49 @@ describe('fluxo token_hash', () => {
   });
 });
 
+/**
+ * Recuperacao (#234): a sessao que nasce do link recebe a marca que
+ * /redefinir-senha exige; falha com o next da redefinicao volta ao pedido
+ * mesmo sem `type` (o redirect PKCE nao traz).
+ */
+describe('recuperacao (#234)', () => {
+  const marca = (r: Response) =>
+    r.headers
+      .getSetCookie()
+      .map((c) => c.split(';').map((p) => p.trim()))
+      .find((partes) => partes[0].startsWith('par_recuperacao='));
+
+  it('token_hash de recuperacao grava a marca, httpOnly e curta', async () => {
+    const r = await chega('?token_hash=h1&type=recovery&next=%2Fredefinir-senha');
+    const partes = marca(r);
+
+    expect(partes?.[0]).toBe('par_recuperacao=1');
+    expect(partes).toContainEqual(expect.stringMatching(/^Max-Age=1800$/));
+    expect(partes).toContainEqual('HttpOnly');
+    expect(partes).toContainEqual('SameSite=lax');
+  });
+
+  it('codigo PKCE com next da redefinicao tambem grava a marca', async () => {
+    const r = await chega('?code=abc&next=%2Fredefinir-senha');
+    expect(marca(r)?.[0]).toBe('par_recuperacao=1');
+  });
+
+  it('sessao de cadastro ou login nao recebe a marca', async () => {
+    expect(marca(await chega('?code=abc'))).toBeUndefined();
+    expect(marca(await chega('?token_hash=h1&type=signup&next=%2Fconta'))).toBeUndefined();
+  });
+
+  it('troca do codigo falhando com next da redefinicao volta ao pedido, nao ao login', async () => {
+    exchangeCodeForSession.mockResolvedValue({ error: { message: 'code verifier' } });
+    const r = await chega('?code=abc&next=%2Fredefinir-senha');
+    const d = destino(r);
+
+    expect(d.pathname).toBe('/recuperar-senha');
+    expect(d.searchParams.get('erro')).toBe('link');
+    expect(marca(r)).toBeUndefined();
+  });
+});
+
 describe('sem nada', () => {
   it('sem code nem token_hash volta ao login', async () => {
     const d = destino(await chega(''));

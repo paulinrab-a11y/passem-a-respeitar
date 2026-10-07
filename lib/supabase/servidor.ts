@@ -8,7 +8,7 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
-import { opcoesDeSessao } from './cookies';
+import { ehVerificador, opcoesDeSessao, opcoesDoVerificador } from './cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import type { Database } from './tipos';
 
@@ -58,7 +58,11 @@ export async function clienteDeAuth(lembrar: boolean) {
       },
       setAll(lista) {
         for (const { name, value, options } of lista) {
-          jar.set(name, value, opcoesDeSessao(options, lembrar));
+          jar.set(
+            name,
+            value,
+            ehVerificador(name) ? opcoesDoVerificador(options) : opcoesDeSessao(options, lembrar)
+          );
         }
       },
     },

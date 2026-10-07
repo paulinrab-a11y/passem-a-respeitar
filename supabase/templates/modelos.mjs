@@ -138,7 +138,13 @@ export const EMAILS = [
       'Recebemos um pedido para criar uma senha nova nesta conta.',
       'O link vale por uma hora e só funciona uma vez. Se você pediu mais de um, use o mais recente.',
     ],
-    botao: ['Criar senha nova', '{{ .ConfirmationURL }}'],
+    // Hash direto em vez de `{{ .ConfirmationURL }}` (#234): o link PKCE so
+    // abria no navegador que pediu. `RedirectTo` e o /auth/callback com o
+    // `next` da redefinicao; o callback confere o hash pelo verifyOtp.
+    botao: [
+      'Criar senha nova',
+      '{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=recovery',
+    ],
     aviso: 'Não foi você? Ignore este e-mail. Sua senha continua a mesma.',
   },
   {

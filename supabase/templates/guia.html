@@ -372,13 +372,13 @@
           &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
             &lt;tr&gt;
               &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
-                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Criar senha nova&lt;/a&gt;
+                &lt;a href=&quot;{{ .RedirectTo }}&amp;amp;token_hash={{ .TokenHash }}&amp;amp;type=recovery&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Criar senha nova&lt;/a&gt;
               &lt;/td&gt;
             &lt;/tr&gt;
           &lt;/table&gt;&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .ConfirmationURL }}&lt;/a&gt;&lt;/td&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .RedirectTo }}&amp;amp;token_hash={{ .TokenHash }}&amp;amp;type=recovery&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .RedirectTo }}&amp;amp;token_hash={{ .TokenHash }}&amp;amp;type=recovery&lt;/a&gt;&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
           &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;

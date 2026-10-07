@@ -9,12 +9,20 @@ const updateUser = vi.fn(async (_o: unknown) => ({ error: null as { message: str
 const signOut = vi.fn(async (_o: unknown) => ({ error: null }));
 const senhaVazada = vi.fn(async (_s: string) => false);
 let usuario: { id: string } | null = null;
+// O jar de cookies do request: a marca da recuperacao (#234) mora aqui.
+const jar = new Map<string, string>();
 
 vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
   clienteDeAuth: async () => ({ auth: { updateUser, signOut } }),
 }));
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => senhaVazada(s) }));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (nome: string) => (jar.has(nome) ? { name: nome, value: jar.get(nome) } : undefined),
+    delete: (nome: string) => jar.delete(nome),
+  }),
+}));
 vi.mock('next/navigation', () => ({
   redirect: (d: string) => {
     throw new Error(`redirect:${d}`);
@@ -44,14 +52,17 @@ beforeEach(() => {
   senhaVazada.mockResolvedValue(false);
   // Usuario novo por teste: o limite por conta guarda estado no modulo.
   usuario = { id: `11111111-1111-4111-8111-${String(n++).padStart(12, '0')}` };
+  jar.clear();
+  jar.set('par_recuperacao', '1');
 });
 
 describe('com a sessao do link', () => {
-  it('troca a senha, derruba as outras sessoes e vai para a conta', async () => {
+  it('troca a senha, derruba as outras sessoes, apaga a marca e vai para a conta', async () => {
     await expect(envia()).rejects.toThrow('redirect:/conta');
 
     expect(updateUser).toHaveBeenCalledWith({ password: 'tres palavras soltas' });
     expect(signOut).toHaveBeenCalledWith({ scope: 'others' });
+    expect(jar.has('par_recuperacao')).toBe(false);
     expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(
       signOut.mock.invocationCallOrder[0]
     );
@@ -89,6 +100,17 @@ describe('com a sessao do link', () => {
     for (let i = 0; i < 5; i++) await envia();
     const r = await envia();
     expect(r.erro).toMatch(/muitas tentativas/i);
+  });
+});
+
+describe('sessao comum, sem a marca da recuperacao (#234)', () => {
+  it('nao troca nada: a troca normal e em Seguranca, com a senha atual', async () => {
+    jar.delete('par_recuperacao');
+    const r = await envia();
+
+    expect(r.erro).toMatch(/não vale mais/i);
+    expect(updateUser).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
   });
 });
 
