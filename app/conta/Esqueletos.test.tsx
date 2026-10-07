@@ -5,6 +5,7 @@ import { cleanup, render } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  EsqueletoAdmin,
   EsqueletoPedido,
   EsqueletoPedidos,
   EsqueletoPerfil,
@@ -30,9 +31,23 @@ const CASOS: [string, () => ReactElement, string[]][] = [
   [
     'detalhe do pedido',
     EsqueletoPedido,
-    ['detalhe-topo', 'detalhe-bloco', 'etapas', 'pedido-frete', 'pedido-total'],
+    ['detalhe-topo', 'detalhe-bloco', 'etapas', 'pedido-frete', 'pedido-total', 'entrega-endereco'],
   ],
   ['segurança', EsqueletoSeguranca, ['conta-bloco', 'troca-email', 'sessoes', 'excluir']],
+  [
+    'painel do dono',
+    EsqueletoAdmin,
+    [
+      'admin-filtros',
+      'admin-filtro',
+      'pedidos',
+      'pedido-frete',
+      'pedido-total',
+      'admin-entrega-resumo',
+      'admin-acoes',
+      'admin-botoes',
+    ],
+  ],
 ];
 
 afterEach(cleanup);
@@ -81,6 +96,7 @@ describe('o esqueleto e o ultimo bloco da pagina', () => {
     ['app/conta/pedidos/page.tsx', 'EsqueletoPedidos'],
     ['app/conta/pedidos/[id]/page.tsx', 'EsqueletoPedido'],
     ['app/conta/seguranca/page.tsx', 'EsqueletoSeguranca'],
+    ['app/conta/admin/pedidos/page.tsx', 'EsqueletoAdmin'],
   ];
 
   it.each(PAGINAS)('%s', (arquivo, esqueleto) => {

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { FILTROS_ADMIN } from '@/lib/conta/painel';
 
 /**
  * Esqueletos da area de conta (Issue #46).
@@ -202,6 +203,20 @@ export function EsqueletoPedido() {
         </p>
       </section>
 
+      {/* A entrega (#242): todo pedido novo tem endereco. Sem o bloco aqui,
+          o andamento subia quando o pedido chegava. */}
+      <section className="detalhe-bloco">
+        <h2>
+          <Linha ch={7} />
+        </h2>
+        <p className="entrega-nome">
+          <Linha ch={16} />
+        </p>
+        <p className="entrega-endereco">
+          <Linha ch={44} />
+        </p>
+      </section>
+
       <section className="detalhe-bloco">
         <h2>
           <Linha ch={9} />
@@ -220,6 +235,78 @@ export function EsqueletoPedido() {
           ))}
         </ol>
       </section>
+    </Carregando>
+  );
+}
+
+/**
+ * O painel do dono (#242): a fila de filtros com a largura de cada rotulo, a
+ * nota, e tres cards com o que o card de verdade tem — frete, total, a linha
+ * fechada do endereco e as acoes. O `<details>` vira um bloco simples: nada
+ * aqui pode receber foco.
+ */
+export function EsqueletoAdmin() {
+  return (
+    <Carregando oQue="os pedidos">
+      <div className="admin-filtros">
+        {FILTROS_ADMIN.map((f) => (
+          <span key={f.valor} className="admin-filtro">
+            <Linha ch={f.rotulo.length} />
+            <Linha ch={2} />
+          </span>
+        ))}
+      </div>
+      <p className="detalhe-nota">
+        <Linha ch={44} bloco />
+      </p>
+
+      <ul className="pedidos">
+        {['a', 'b', 'c'].map((k) => (
+          <li key={k}>
+            <article className="normal">
+              <div className="pedido-topo">
+                <h2>
+                  <Linha ch={11} />
+                </h2>
+                <span className="pedido-status esq">
+                  <Linha ch={8} />
+                </span>
+              </div>
+              <p className="pedido-data">
+                <Linha ch={28} />
+              </p>
+              <p className="pedido-frete">
+                <span>
+                  <Linha ch={16} />
+                </span>
+                <span>
+                  <Linha ch={8} />
+                </span>
+              </p>
+              <p className="pedido-total">
+                <span>
+                  <Linha ch={5} />
+                </span>
+                <strong>
+                  <Linha ch={8} />
+                </strong>
+              </p>
+              <div className="admin-entrega">
+                <span className="admin-entrega-resumo">
+                  <Linha ch={19} />
+                </span>
+              </div>
+              <div className="admin-acoes">
+                <Campo />
+                <div className="admin-botoes">
+                  <Botao ch={16} enviar={false} />
+                  <Botao ch={9} enviar={false} />
+                </div>
+              </div>
+            </article>
+          </li>
+        ))}
+      </ul>
     </Carregando>
   );
 }

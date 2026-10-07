@@ -821,6 +821,9 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .detalhe-bloco h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:#fff;margin-bottom:18px}
 .detalhe-bloco .pedido-itens{margin-top:0}
 .detalhe-nota{font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);max-width:48ch;margin-bottom:18px}
+/* Para onde vai (#242): destinatario em branco, endereco numa linha so. */
+.entrega-nome{font-size:14px;letter-spacing:.02em;color:#fff}
+.entrega-endereco{margin-top:6px;font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2)}
 
 /* A fila. `border-left` no <li> desenha o fio que liga as etapas, e o ::before
    do primeiro/ultimo apara as pontas — sem elemento extra so para a linha. */
@@ -1084,6 +1087,34 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
   .pedido-status.trocou{animation-name:so-fade}
   .pedido-status.saindo{animation-name:so-fade-sai}
   .admin-botoes.entrou,.admin-final.entrou{animation-name:so-fade}
+}
+
+/* Painel do dono (#242): filtros com contador, endereco expansivel e copiar.
+   O filtro ativo e borda vermelha e texto branco — nao texto vermelho, que em
+   11px fica abaixo do minimo da WCAG (#176). */
+.admin-filtros{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px}
+.admin-filtro{display:inline-flex;align-items:baseline;gap:7px;min-height:32px;padding:6px 10px;border:1px solid var(--prata-3);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none;transition:color .2s,border-color .2s}
+.admin-filtro:hover{color:var(--prata);border-color:var(--prata-2)}
+.admin-filtro[aria-current]{color:#fff;border-color:var(--vermelho)}
+.admin-filtro-n{font-family:var(--display);font-size:14px;letter-spacing:.04em;color:var(--prata)}
+.admin-filtro[aria-current] .admin-filtro-n{color:#fff}
+.admin-filtros+.detalhe-nota{margin-top:14px}
+/* O <details> do endereco. O marcador do navegador sai e entra um chevron
+   desenhado com borda: so `transform` muda quando abre. */
+.admin-entrega{margin-top:12px;padding-top:10px;border-top:1px solid #16171a}
+.admin-entrega-resumo{display:flex;align-items:center;gap:10px;min-height:32px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);cursor:pointer;list-style:none;transition:color .2s}
+.admin-entrega-resumo::-webkit-details-marker{display:none}
+.admin-entrega-resumo::before{content:"";flex:none;width:6px;height:6px;border-right:1px solid var(--vermelho);border-bottom:1px solid var(--vermelho);transform:rotate(-45deg);transition:transform .2s cubic-bezier(.22,1,.36,1)}
+.admin-entrega[open] .admin-entrega-resumo::before{transform:rotate(45deg)}
+.admin-entrega-resumo:hover{color:var(--prata)}
+.admin-entrega-corpo{margin-top:10px;display:grid;gap:12px;justify-items:start;animation:admin-etapa-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.admin-entrega-corpo p{margin:0;font-size:14px;letter-spacing:.02em;line-height:1.55;color:var(--prata)}
+.admin-entrega-corpo p strong{font-weight:400;color:#fff}
+.admin-entrega-corpo .btn{font-size:12px;padding:10px 16px}
+.admin-copiar-falhou{margin:0;font-size:13px;line-height:1.45;letter-spacing:.02em;color:var(--vermelho)}
+@media (prefers-reduced-motion:reduce){
+  .admin-entrega-corpo{animation-name:so-fade}
+  .admin-entrega-resumo::before{transition:none}
 }
 
 /* Troca de e-mail (#36). Mesma cara das outras secoes da tela de seguranca. */

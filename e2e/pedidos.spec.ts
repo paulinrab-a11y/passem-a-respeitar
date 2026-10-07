@@ -1,5 +1,5 @@
 import { type BrowserContext, test as base, expect, type Page } from '@playwright/test';
-import { criaPedido, criaUsuario, type Item, type Usuario } from './apoio/banco';
+import { criaPedido, criaUsuario, type Endereco, type Item, type Usuario } from './apoio/banco';
 import { entra } from './apoio/telas';
 import { visitante } from './apoio/visitante';
 
@@ -25,6 +25,28 @@ const DO_BETO: Item = {
   tamanho: 'G',
   quantidade: 1,
   preco_unitario_centavos: 34567,
+};
+
+/** Enderecos com rua que so existe no pedido de cada um: busca por texto. */
+const CASA_DA_ANA: Endereco = {
+  nome: 'Ana Da Suite',
+  cep: '01310100',
+  logradouro: 'Rua Onde So A Ana Mora',
+  numero: '12',
+  complemento: 'apto 3',
+  bairro: 'Bela Vista',
+  cidade: 'São Paulo',
+  uf: 'SP',
+};
+
+const CASA_DO_BETO: Endereco = {
+  nome: 'Beto Da Suite',
+  cep: '20040020',
+  logradouro: 'Travessa Onde So O Beto Mora',
+  numero: '34',
+  bairro: 'Centro',
+  cidade: 'Rio de Janeiro',
+  uf: 'RJ',
 };
 
 /** Um id com formato certo que nao e de pedido nenhum. */
@@ -61,8 +83,8 @@ test.use({ extraHTTPHeaders: visitante('pedidos') });
 test.beforeAll(async ({ browser }) => {
   ana = await criaUsuario('Ana');
   beto = await criaUsuario('Beto');
-  daAna = await criaPedido(ana, [DA_ANA], ['pago']);
-  doBeto = await criaPedido(beto, [DO_BETO], ['pago']);
+  daAna = await criaPedido(ana, [DA_ANA], ['pago'], CASA_DA_ANA);
+  doBeto = await criaPedido(beto, [DO_BETO], ['pago'], CASA_DO_BETO);
 
   const contexto = await browser.newContext();
   await entra(await contexto.newPage(), ana.email, ana.senha);
@@ -96,6 +118,13 @@ test('pedidos: o detalhe abre pelo link da lista', async ({ comoAna }) => {
   await expect(comoAna.getByRole('heading', { name: 'Andamento' })).toBeVisible();
   // Pedido pago nao oferece pagar de novo (#113).
   await expect(comoAna.getByRole('link', { name: 'Pagar agora' })).toHaveCount(0);
+
+  // Para onde vai (#242): destinatario e endereco numa linha, com o CEP legivel.
+  await expect(comoAna.getByRole('heading', { name: 'Entrega' })).toBeVisible();
+  await expect(comoAna.getByText(CASA_DA_ANA.nome)).toBeVisible();
+  await expect(
+    comoAna.getByText('Rua Onde So A Ana Mora, 12, apto 3 — Bela Vista, São Paulo/SP — 01310-100')
+  ).toBeVisible();
 });
 
 test('pedidos: o pedido do vizinho responde 404, como um que nao existe', async ({ comoAna }) => {
@@ -115,6 +144,9 @@ test('pedidos: o pedido do vizinho responde 404, como um que nao existe', async 
     expect(texto).not.toContain(`Pedido #${doBeto.numero}`);
     expect(texto).not.toContain(beto.email);
     expect(texto).not.toContain('345,67');
+    // O endereco entrou no detalhe (#242) e e o dado mais sensivel da tela.
+    expect(texto).not.toContain(CASA_DO_BETO.logradouro);
+    expect(texto).not.toContain(CASA_DO_BETO.nome);
   }
   await expect(comoAna.getByRole('heading', { name: 'Andamento' })).toHaveCount(0);
 

@@ -404,6 +404,10 @@ export type Database = {
     Functions: {
       autenticado_recentemente: { Args: { p_minutos?: number }; Returns: boolean };
       cancela_troca_de_email: { Args: Record<PropertyKey, never>; Returns: boolean };
+      conta_pedidos_por_status: {
+        Args: Record<PropertyKey, never>;
+        Returns: { status: Database['public']['Enums']['status_pedido']; total: number }[];
+      };
       cria_pedido: {
         Args: {
           p_user_id: string;

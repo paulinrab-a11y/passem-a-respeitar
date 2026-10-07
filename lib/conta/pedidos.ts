@@ -7,10 +7,9 @@
  * decisoes que dariam errado em silencio.
  */
 
-import type { Database } from '@/lib/supabase/tipos';
+import { cepLegivel, type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
+import type { StatusPedido } from '@/lib/loja/status-do-pedido';
 import { type EventoDoBanco, type LinhaDoTempo, montaLinhaDoTempo } from './linha-do-tempo';
-
-type StatusPedido = Database['public']['Enums']['status_pedido'];
 
 /** Quantos pedidos por pagina. Criterio da #41. */
 export const POR_PAGINA = 20;
@@ -100,6 +99,78 @@ export function leFrete(
     servico: nome,
     valor: reais(centavos),
     prazo: `até ${prazoDias} ${prazoDias === 1 ? 'dia útil' : 'dias úteis'}`,
+  };
+}
+
+/** O endereco de entrega, pronto para a tela (#242). */
+export type EntregaDoPedido = {
+  /** Destinatario, que pode nao ser o titular da conta. */
+  nome: string;
+  logradouro: string;
+  numero: string;
+  complemento: string | null;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  /** `01310-100`, para ler. O banco guarda so os digitos. */
+  cep: string;
+  /** Tudo numa linha: e o que o cliente confere e o que o dono copia. */
+  linha: string;
+};
+
+/** As oito colunas `entrega_*` de `orders`, como o banco as devolve. */
+export type LinhaComEntrega = {
+  entrega_nome: string | null;
+  entrega_cep: string | null;
+  entrega_logradouro: string | null;
+  entrega_numero: string | null;
+  entrega_complemento: string | null;
+  entrega_bairro: string | null;
+  entrega_cidade: string | null;
+  entrega_uf: string | null;
+};
+
+/**
+ * Nulo quando nao ha endereco para mostrar: pedido de antes da #102, ou
+ * anonimizado — o gatilho de anonimizacao apaga as oito colunas juntas, entao
+ * basta uma obrigatoria faltar para o bloco inteiro sair da tela. Melhor
+ * nenhum endereco que um endereco pela metade, que o dono poderia copiar para
+ * a etiqueta sem reparar.
+ */
+export function leEntrega(l: LinhaComEntrega): EntregaDoPedido | null {
+  if (
+    !l.entrega_nome ||
+    !l.entrega_cep ||
+    !l.entrega_logradouro ||
+    !l.entrega_numero ||
+    !l.entrega_bairro ||
+    !l.entrega_cidade ||
+    !l.entrega_uf
+  ) {
+    return null;
+  }
+
+  const colunas: EnderecoNoPedido = {
+    entrega_nome: l.entrega_nome,
+    entrega_cep: l.entrega_cep,
+    entrega_logradouro: l.entrega_logradouro,
+    entrega_numero: l.entrega_numero,
+    entrega_complemento: l.entrega_complemento,
+    entrega_bairro: l.entrega_bairro,
+    entrega_cidade: l.entrega_cidade,
+    entrega_uf: l.entrega_uf,
+  };
+
+  return {
+    nome: l.entrega_nome,
+    logradouro: l.entrega_logradouro,
+    numero: l.entrega_numero,
+    complemento: l.entrega_complemento,
+    bairro: l.entrega_bairro,
+    cidade: l.entrega_cidade,
+    uf: l.entrega_uf,
+    cep: cepLegivel(l.entrega_cep),
+    linha: enderecoEmUmaLinha(colunas),
   };
 }
 
@@ -224,6 +295,11 @@ export type PedidoDetalhado = {
   /** Nulo nos pedidos de antes da #199. */
   frete: FreteDoPedido | null;
   /**
+   * Para onde vai (#242). Nulo no pedido de antes da #102 e no anonimizado.
+   * E a unica tela em que a pessoa confere o endereco depois de comprar.
+   */
+  entrega: EntregaDoPedido | null;
+  /**
    * O mesmo valor em centavos. Entrou na #108: o Payment Brick recebe numero,
    * e reconverter `total` de volta para numero seria formatar para desformatar.
    */
@@ -243,12 +319,13 @@ export type PedidoDetalhado = {
   linhaDoTempo: LinhaDoTempo;
 };
 
-type LinhaDetalhe = LinhaPedido & {
-  order_status_history: EventoDoBanco[];
-  frete_centavos: number;
-  frete_servico: string | null;
-  frete_prazo_dias: number | null;
-};
+type LinhaDetalhe = LinhaPedido &
+  LinhaComEntrega & {
+    order_status_history: EventoDoBanco[];
+    frete_centavos: number;
+    frete_servico: string | null;
+    frete_prazo_dias: number | null;
+  };
 
 /**
  * Mapper do detalhe (#20).
@@ -269,6 +346,7 @@ export function mapeiaDetalhe(linha: LinhaDetalhe): PedidoDetalhado {
     tom,
     total: reais(linha.total_centavos),
     frete: leFrete(linha.frete_servico, linha.frete_centavos, linha.frete_prazo_dias),
+    entrega: leEntrega(linha),
     totalCentavos: linha.total_centavos,
     aguardandoPagamento: linha.status === 'aguardando_pagamento',
     itens: mapeiaItens(linha.order_items),

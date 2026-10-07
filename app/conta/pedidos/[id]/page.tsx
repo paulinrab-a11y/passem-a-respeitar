@@ -158,6 +158,18 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
         ) : null}
       </section>
 
+      {/* Para onde vai (#242). Depois de comprar, esta e a unica tela em que a
+          pessoa confere o endereco — um numero errado aparece aqui, e nao na
+          entrega que falhou. Pedido de antes da #102, ou anonimizado, nao tem
+          o bloco: nenhum endereco e melhor que um pela metade. */}
+      {pedido.entrega ? (
+        <section className="detalhe-bloco">
+          <h2>Entrega</h2>
+          <p className="entrega-nome">{pedido.entrega.nome}</p>
+          <p className="entrega-endereco">{pedido.entrega.linha}</p>
+        </section>
+      ) : null}
+
       <section className="detalhe-bloco">
         <h2>Andamento</h2>
 
