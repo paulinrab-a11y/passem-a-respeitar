@@ -463,6 +463,81 @@ describe('efeito no pedido', () => {
       ]);
       expect(JSON.stringify(captureMessage.mock.calls)).not.toContain('quem@exemplo.test');
     });
+
+    /**
+     * A #6 deixa duas tentativas `aprovado` no mesmo pedido e manda o dono
+     * estornar a duplicada no painel do provedor. O estorno dela chega por
+     * aqui — e o pedido, ainda sustentado pela outra, nao pode virar
+     * `reembolsado`: e final, e o dono deixaria de produzir uma camiseta paga.
+     */
+    describe('estorno da duplicada', () => {
+      const APROVADA = { id: 'pag-1', order_id: 'ped-1', estado: 'aprovado' };
+      const IRMA_APROVADA: Linha = {
+        id: 'pag-2',
+        order_id: 'ped-1',
+        estado: 'aprovado',
+        provedor_pagamento_id: 'ORD-2',
+        criado_em: em(T0),
+      };
+
+      it('deixa o pedido pago e avisa com mensagem propria', async () => {
+        banco({ pagamento: APROVADA, linhasDoPedido: [IRMA_APROVADA] });
+
+        const r = await assinado(notificacao({ payer: { email: 'quem@exemplo.test' } }), RECURSO);
+
+        expect(r).toEqual({ tipo: 'aplicado', estado: 'estornado' });
+        expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+          estado: 'estornado',
+          provedor_status: 'refunded',
+          provedor_status_detail: 'refunded',
+        });
+        expect(atualizados.some((a) => a.tabela === 'orders')).toBe(false);
+        expect(captureMessage.mock.calls).toEqual([
+          [
+            'pagamento duplicado estornado: pedido segue pago',
+            { level: 'warning', tags: { order_id: 'ped-1' } },
+          ],
+        ]);
+        expect(JSON.stringify(captureMessage.mock.calls)).not.toContain('quem@exemplo.test');
+      });
+
+      // O dublê nao reescreve a linha no `update`, entao a propria tentativa
+      // ainda se le `aprovado` aqui: so o `neq` a tira da conta.
+      it('a propria tentativa nao conta como irma', async () => {
+        banco({ pagamento: APROVADA, linhasDoPedido: [{ ...IRMA_APROVADA, id: 'pag-1' }] });
+
+        await assinado(notificacao(), RECURSO);
+
+        const emPagamentos = consultas.filter((c) => c.tabela === 'pagamentos').map((c) => c.ops);
+        expect(emPagamentos).toContainEqual(
+          expect.arrayContaining([
+            ['eq', 'order_id', 'ped-1'],
+            ['eq', 'estado', 'aprovado'],
+            ['neq', 'id', 'pag-1'],
+          ])
+        );
+        expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({
+          status: 'reembolsado',
+        });
+        expect(avisos()).toEqual(['pagamento estornado no provedor: pedido reembolsado']);
+      });
+
+      // O dono estornou as duas no painel: a segunda notificacao ja nao acha
+      // ninguem sustentando o pedido, e ai sim ele acompanha o dinheiro.
+      it('irma ja estornada nao segura o pedido', async () => {
+        banco({
+          pagamento: APROVADA,
+          linhasDoPedido: [{ ...IRMA_APROVADA, estado: 'estornado' }],
+        });
+
+        await assinado(notificacao(), RECURSO);
+
+        expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({
+          status: 'reembolsado',
+        });
+        expect(avisos()).toEqual(['pagamento estornado no provedor: pedido reembolsado']);
+      });
+    });
   });
 });
 

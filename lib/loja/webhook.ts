@@ -146,6 +146,7 @@ export type Estorno = {
 type AvisoDePagamento =
   | 'pagamento aprovado em pedido nao pendente'
   | 'pagamento duplicado a estornar'
+  | 'pagamento duplicado estornado: pedido segue pago'
   | 'pagamento estornado no provedor: pedido reembolsado';
 
 /** Tentativa que ficou sem id do provedor: a resposta se perdeu no caminho. */
@@ -536,7 +537,7 @@ async function aplica(
   // — e o pedido nao pode continuar com cara de pago: o dono produziria e
   // enviaria uma camiseta cujo valor ja nao esta com ele (#7).
   if (resumo.estado === 'estornado') {
-    await marcaReembolsado(admin, pagamento.order_id);
+    await marcaReembolsado(admin, pagamento.order_id, pagamento.id);
   }
 
   return { tipo: 'aplicado', estado: resumo.estado };
@@ -588,8 +589,27 @@ const REEMBOLSAVEIS = origensDe('reembolsado');
  * estorno pedido pelo botao "Reembolsar" nao passa por este aviso: a
  * tentativa ja estava `estornado` quando a notificacao chega, `podeAvancar`
  * a ignora, e o pedido ja mudou pela mao de quem apertou.
+ *
+ * Antes de mover, olha as irmas. O pagamento em duplicidade da #6 deixa duas
+ * tentativas `aprovado` no mesmo pedido, e o que se pede ao dono e estornar
+ * a duplicada no painel do provedor — e o estorno dela chega por aqui. Se
+ * outra tentativa continua `aprovado`, o dinheiro deste pedido continua com
+ * o dono: o pedido segue pago e o aviso diz isso, para que ele nao deixe de
+ * produzir uma camiseta paga. `reembolsado` e final, e nao haveria volta.
  */
-async function marcaReembolsado(admin: Admin, orderId: string): Promise<void> {
+async function marcaReembolsado(admin: Admin, orderId: string, pagamentoId: string): Promise<void> {
+  const { data: aprovadas } = await admin
+    .from('pagamentos')
+    .select('id')
+    .eq('order_id', orderId)
+    .eq('estado', 'aprovado')
+    .neq('id', pagamentoId);
+
+  if (aprovadas?.length) {
+    await avisaPagamento('pagamento duplicado estornado: pedido segue pago', orderId, 'warning');
+    return;
+  }
+
   const { data } = await admin
     .from('orders')
     .update({ status: 'reembolsado' })
@@ -835,9 +855,10 @@ function chaveDerivada(operacao: 'cancela' | 'estorna', chaveDaTentativa: string
 /**
  * Aviso ao dono. Vai so a mensagem e o id do pedido, em tag: nada de e-mail,
  * valor ou corpo do provedor. `error` e dinheiro onde nao devia; `warning` e
- * dinheiro que voltou e o pedido acompanhou — precisa ser visto, nao acordar
- * ninguem. Funcao serverless congela ao responder; sem o `flush`, o evento
- * nao sai.
+ * dinheiro que voltou e o pedido ficou coerente com isso — acompanhou, ou
+ * seguiu pago porque outra tentativa ainda o sustenta. Precisa ser visto,
+ * nao acordar ninguem. Funcao serverless congela ao responder; sem o
+ * `flush`, o evento nao sai.
  */
 async function avisaPagamento(
   mensagem: AvisoDePagamento,
