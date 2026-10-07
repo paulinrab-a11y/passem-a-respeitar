@@ -58,7 +58,9 @@ function le(html: string) {
 }
 
 function linkDe(html: string) {
-  const achado = /https?:\/\/[^\s"'<>]+\/auth\/v1\/verify\?[^\s"'<>]+/.exec(html);
+  // Dois formatos: o /auth/v1/verify do Supabase (PKCE) e o /auth/callback
+  // do proprio site com token_hash (#234), que a recuperacao usa.
+  const achado = /https?:\/\/[^\s"'<>]+\/auth\/(?:v1\/verify|callback)\?[^\s"'<>]+/.exec(html);
   if (!achado) return null;
 
   // Dentro de um atributo HTML o `&` vem escrito `&amp;`.

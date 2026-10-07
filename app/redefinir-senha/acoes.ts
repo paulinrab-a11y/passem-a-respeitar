@@ -1,10 +1,12 @@
 'use server';
 
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import { esquemaRedefinirSenha } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
 import { CONTA } from '@/lib/rotas';
+import { COOKIE_RECUPERACAO } from '@/lib/supabase/cookies';
 import { clienteDeAuth, usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoRedefinir } from './estado';
 
@@ -12,8 +14,10 @@ import type { EstadoRedefinir } from './estado';
  * Redefinicao de senha (Issue #32).
  *
  * Quem chega aqui provou quem e pelo link do e-mail: o callback trocou o
- * token por uma sessao. Sem sessao nao ha o que redefinir — e a tela nem
- * mostra o formulario. A acao confere de novo, porque tela e sugestao.
+ * token por uma sessao E gravou a marca `par_recuperacao` (#234). Sem os
+ * dois nao ha o que redefinir — e a tela nem mostra o formulario. A acao
+ * confere de novo, porque tela e sugestao. Sessao de login comum, sem a
+ * marca, troca a senha em /conta/seguranca, que exige a atual.
  *
  * Depois de trocar, as OUTRAS sessoes caem (`scope: 'others'`): se alguem
  * estava dentro da conta, perde o acesso agora; quem redefiniu continua.
@@ -33,6 +37,9 @@ export async function redefinirSenha(
   form: FormData
 ): Promise<EstadoRedefinir> {
   const tentativa = anterior.tentativa + 1;
+
+  const jar = await cookies();
+  if (!jar.get(COOKIE_RECUPERACAO)) return { ...SEM_SESSAO, tentativa };
 
   const usuario = await usuarioDaSessao();
   if (!usuario) return { ...SEM_SESSAO, tentativa };
@@ -77,6 +84,8 @@ export async function redefinirSenha(
   }
 
   await supabase.auth.signOut({ scope: 'others' });
+  // A marca e de uso unico: trocou, acabou.
+  jar.delete(COOKIE_RECUPERACAO);
 
   redirect(CONTA);
 }

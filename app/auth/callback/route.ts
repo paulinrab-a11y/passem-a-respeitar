@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { destinoSeguro, ENTRAR } from '@/lib/rotas';
 import { origemDoPedido } from '@/lib/site-url';
+import { COOKIE_RECUPERACAO, opcoesDaRecuperacao } from '@/lib/supabase/cookies';
 import { clienteDeAuth, usuarioDaSessao } from '@/lib/supabase/servidor';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,12 @@ export const dynamic = 'force-dynamic';
  * `next` e validado por `destinoSeguro`: a query vem do e-mail, e e-mail e
  * texto que qualquer um forja. Sem isso o link de confirmacao seria um open
  * redirect com a assinatura do site.
+ *
+ * Recuperacao de senha (#234): o e-mail traz o link com `token_hash`, que
+ * nao depende de cookie do navegador que PEDIU — o fluxo PKCE dependia, e
+ * quem pedia no celular e abria no computador caia no login. A sessao que
+ * nasce aqui para redefinir a senha recebe a marca `par_recuperacao`: so com
+ * ela /redefinir-senha troca a senha sem pedir a atual.
  */
 
 const REDEFINIR = '/redefinir-senha';
@@ -81,6 +88,9 @@ export async function GET(request: NextRequest) {
 
   const code = searchParams.get('code');
   const tokenHash = searchParams.get('token_hash');
+  // O redirect PKCE nao traz `type`; o `next` da recuperacao e literal e so
+  // ela o usa, entao serve de sinal tambem.
+  const recuperacao = tipo === 'recovery' || next === REDEFINIR;
 
   // Recuperacao de senha "manter conectado" nao faz sentido: a sessao que
   // nasce aqui existe para redefinir a senha, e morre com o navegador.
@@ -120,11 +130,13 @@ export async function GET(request: NextRequest) {
     // Link usado, vencido ou inventado: para a recuperacao, volta ao pedido;
     // para o resto, ao login. Sem detalhe do motivo — "expirado" e "falso"
     // recebem a mesma tela.
-    const volta = tipo === 'recovery' ? '/recuperar-senha' : ENTRAR;
+    const volta = recuperacao ? '/recuperar-senha' : ENTRAR;
     const url = new URL(volta, origin);
     url.searchParams.set('erro', 'link');
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.redirect(new URL(next, origin));
+  const resposta = NextResponse.redirect(new URL(next, origin));
+  if (recuperacao) resposta.cookies.set(COOKIE_RECUPERACAO, '1', opcoesDaRecuperacao());
+  return resposta;
 }
