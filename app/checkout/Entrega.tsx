@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useCepLembrado } from '@/app/_home/cep-lembrado';
 import { useCampos } from '@/app/_ui/campos';
 import Mensagem from '@/app/_ui/Mensagem';
@@ -8,6 +8,7 @@ import Rotulo from '@/app/_ui/Rotulo';
 import { reais } from '@/lib/conta/pedidos';
 import { cepLegivel } from '@/lib/loja/endereco';
 import type { OpcaoDeFrete, Servico } from '@/lib/loja/frete';
+import { RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
 import { buscarEndereco, cotarFrete, finalizarCompra, type RespostaDoFrete } from './acoes';
 import { checkoutInicial } from './estado';
 
@@ -58,6 +59,20 @@ const VAZIOS = {
 /** O frete de um CEP: ainda nao pedido, a caminho, ou a resposta. */
 type Frete = { cep: string; resposta: RespostaDoFrete | null };
 
+/** Nenhum CEP cotado: o comeco, e o "cota de novo" (#240). */
+const NENHUM: Frete = { cep: '', resposta: null };
+
+/**
+ * A chamada que nem chegou a responder: rede que caiu, deploy no meio, 5xx da
+ * funcao. Para a pessoa e o mesmo "fora do ar" que o servidor devolve quando o
+ * Melhor Envio nao responde — e passa, entao vale tentar de novo.
+ */
+const SEM_RESPOSTA: RespostaDoFrete = {
+  ok: false,
+  texto: RECADOS_DO_FRETE['frete-fora-do-ar'],
+  transitorio: true,
+};
+
 export default function Entrega({
   slug,
   tamanho,
@@ -87,9 +102,8 @@ export default function Entrega({
     preencher({ cep: cepLegivel(lembrado) });
   }, [lembrado, lembradoAplicado, preencher]);
 
-  const [frete, setFrete] = useState<Frete>({ cep: '', resposta: null });
+  const [frete, setFrete] = useState<Frete>(NENHUM);
   const [escolhido, setEscolhido] = useState<Servico | null>(null);
-  const [cotando, comecaCotacao] = useTransition();
 
   // O CEP completo, so digitos. Cotar a cada tecla seria gastar consulta com
   // CEP pela metade; cotar so no fim do campo faria a pessoa sair dele para
@@ -107,11 +121,30 @@ export default function Entrega({
     // Guardado antes da chamada: a resposta de um CEP velho, chegando depois
     // da de um novo, nao pode tomar o lugar dela.
     setFrete({ cep, resposta: null });
-    comecaCotacao(async () => {
-      const resposta = await cotarFrete({ slug, tamanho, quantidade, cep });
-      setFrete((atual) => (atual.cep === cep ? { cep, resposta } : atual));
-    });
+    // Sem `useTransition`: o pendente dele valia para QUALQUER cotacao no ar,
+    // e a do CEP errado, lenta, segurava o esqueleto depois de a do CEP certo
+    // ja ter chegado (#31). Quem diz "calculando" e a resposta do CEP atual
+    // ainda nao ter vindo. E a chamada que rejeita — rede, 5xx, deploy no
+    // meio — vira uma resposta como as outras: dentro da transition, ela
+    // derrubava o checkout inteiro no global-error, com o endereco digitado
+    // junto (#27).
+    cotarFrete({ slug, tamanho, quantidade, cep })
+      .catch(() => SEM_RESPOSTA)
+      .then((resposta) => setFrete((atual) => (atual.cep === cep ? { cep, resposta } : atual)));
   }, [cep, completo, frete.cep, slug, tamanho, quantidade]);
+
+  // Falha passageira nao e resposta do CEP. Enquanto ele esta no campo, ela
+  // fica — cotar de novo sozinho seria o loop. Quando o CEP sai do campo, ela
+  // sai junto, e o mesmo CEP de volta cota de novo: antes, apagar e redigitar
+  // o ultimo digito nao fazia nada (#28). A recusa definitiva — CEP que nao
+  // existe, trecho sem servico — fica, como fica o sucesso.
+  useEffect(() => {
+    if (completo || !frete.resposta || frete.resposta.ok || !frete.resposta.transitorio) return;
+    setFrete(NENHUM);
+  }, [completo, frete.resposta]);
+
+  /** O botao da falha passageira: esquecer a resposta e o efeito cota de novo. */
+  const tentaDeNovo = () => setFrete(NENHUM);
 
   // Rua, bairro, cidade e UF pelo CEP (#204), junto com o frete. A resposta
   // so entra se o CEP no campo ainda for o mesmo: trocar o CEP no meio da
@@ -123,24 +156,27 @@ export default function Entrega({
     enderecoPedido.current = cep;
 
     let vale = true;
-    buscarEndereco(cep).then((endereco) => {
-      if (!vale || !endereco) return;
-      const parcial: Partial<typeof VAZIOS> = {};
-      if (endereco.logradouro) parcial.logradouro = endereco.logradouro;
-      if (endereco.bairro) parcial.bairro = endereco.bairro;
-      if (endereco.cidade) parcial.cidade = endereco.cidade;
-      if (endereco.uf) parcial.uf = endereco.uf;
-      preencher(parcial);
+    // A busca que rejeita (rede) e a que volta `null`: a pessoa digita.
+    buscarEndereco(cep)
+      .catch(() => null)
+      .then((endereco) => {
+        if (!vale || !endereco) return;
+        const parcial: Partial<typeof VAZIOS> = {};
+        if (endereco.logradouro) parcial.logradouro = endereco.logradouro;
+        if (endereco.bairro) parcial.bairro = endereco.bairro;
+        if (endereco.cidade) parcial.cidade = endereco.cidade;
+        if (endereco.uf) parcial.uf = endereco.uf;
+        preencher(parcial);
 
-      // A pessoa estava no CEP e o resto se preencheu: o proximo campo que
-      // falta e o numero. So se ela ainda estiver no CEP — se ja foi para
-      // outro lugar, roubar o foco e pior que ajudar.
-      const campoDoCep = form.current?.elements.namedItem('cep');
-      const numero = form.current?.elements.namedItem('numero');
-      if (document.activeElement === campoDoCep && numero instanceof HTMLInputElement) {
-        numero.focus();
-      }
-    });
+        // A pessoa estava no CEP e o resto se preencheu: o proximo campo que
+        // falta e o numero. So se ela ainda estiver no CEP — se ja foi para
+        // outro lugar, roubar o foco e pior que ajudar.
+        const campoDoCep = form.current?.elements.namedItem('cep');
+        const numero = form.current?.elements.namedItem('numero');
+        if (document.activeElement === campoDoCep && numero instanceof HTMLInputElement) {
+          numero.focus();
+        }
+      });
     return () => {
       vale = false;
     };
@@ -156,7 +192,10 @@ export default function Entrega({
   const servico = opcoes.find((o) => o.servico === escolhido)?.servico ?? opcoes[0]?.servico;
   const opcao = opcoes.find((o) => o.servico === servico);
   const total = opcao ? subtotalCentavos + opcao.precoCentavos : null;
-  const calculando = cotando || (completo && frete.cep === cep && frete.resposta === null);
+  // "Calculando" e CEP completo sem a resposta DELE: antes de a chamada sair
+  // e enquanto ela nao volta. Nao e o pendente de uma transition, que valia
+  // para qualquer chamada no ar (#31).
+  const calculando = completo && (frete.cep !== cep || frete.resposta === null);
 
   // O botao diz por que nao da para finalizar, sem repetir a mensagem de
   // cima: falta CEP, o frete esta a caminho, ou nao ha frete para este CEP.
@@ -214,7 +253,7 @@ export default function Entrega({
         ))}
       </div>
 
-      <fieldset className="frete" aria-busy={cotando || undefined}>
+      <fieldset className="frete" aria-busy={calculando || undefined}>
         <legend>Frete</legend>
         <Opcoes
           cep={cep}
@@ -223,6 +262,7 @@ export default function Entrega({
           resposta={atual}
           servico={servico}
           escolhe={setEscolhido}
+          tentaDeNovo={tentaDeNovo}
           bloqueado={pendente}
           invalido={estado.campo === 'servico'}
         />
@@ -277,6 +317,7 @@ function Opcoes({
   resposta,
   servico,
   escolhe,
+  tentaDeNovo,
   bloqueado,
   invalido,
 }: {
@@ -286,6 +327,7 @@ function Opcoes({
   resposta: RespostaDoFrete | null;
   servico: Servico | undefined;
   escolhe: (s: Servico) => void;
+  tentaDeNovo: () => void;
   bloqueado: boolean;
   invalido: boolean;
 }) {
@@ -321,6 +363,19 @@ function Opcoes({
     return (
       <div className="frete-erro">
         <Mensagem texto={resposta.texto} chave={resposta.texto} classe="auth-erro" papel="alert" />
+        {/* So quando a falha passa sozinha. Para CEP que nao existe o botao
+            prometeria o que nao vem: o que resolve e corrigir o CEP. O clique
+            troca a caixa pelo esqueleto — esse e o "carregando" dele. */}
+        {resposta.transitorio && (
+          <button
+            type="button"
+            className="auth-link frete-tentar"
+            onClick={tentaDeNovo}
+            disabled={bloqueado}
+          >
+            Tentar de novo
+          </button>
+        )}
       </div>
     );
   }

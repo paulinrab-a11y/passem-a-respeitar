@@ -1,4 +1,4 @@
-import { type BrowserContext, test as base, expect, type Page } from '@playwright/test';
+import { type BrowserContext, test as base, expect, type Page, type Route } from '@playwright/test';
 import { criaAdmin, criaUsuario, leFreteDoPedido, pedidosDe, type Usuario } from './apoio/banco';
 import { CEPS, PORTA_DO_FRETE, TOKEN_DO_FRETE } from './apoio/melhor-envio-falso.mjs';
 import { entra, vivo } from './apoio/telas';
@@ -73,8 +73,9 @@ async function preencheEndereco(pagina: Page, cep: string) {
   await pagina.getByLabel('CEP').fill(cep);
 }
 
-/** O botao de envio, pelo papel: o texto dele muda com o estado do frete. */
-const finalizar = (pagina: Page) => pagina.locator('form.entrega').getByRole('button');
+/** O botao de envio, pelo tipo: o texto dele muda com o estado do frete, e a
+ *  caixa do frete pode ter o de tentar de novo (#240). */
+const finalizar = (pagina: Page) => pagina.locator('form.entrega button[type="submit"]');
 
 test('frete: CEP mostra PAC e SEDEX, e o pedido grava o que o servidor cotou', async ({
   logada,
@@ -167,6 +168,10 @@ test('frete: servico adulterado no navegador nao vira pedido', async ({ logada }
   await logada.goto(CHECKOUT);
   await preencheEndereco(logada, '04538133');
   await expect(logada.getByRole('radio', { name: /PAC/ })).toBeChecked();
+  // A busca do endereco (#204) sai junto com a cotacao e, ao voltar, re-renderiza
+  // o formulario — e o React devolve ao radio o `value` original. A adulteracao
+  // tem que vir depois dela; o sinal de que voltou e o foco no numero.
+  await expect(logada.getByLabel('Número')).toBeFocused();
 
   // O que alguem faria no DevTools: trocar o valor do radio marcado.
   await logada.getByRole('radio', { name: /PAC/ }).evaluate((radio: HTMLInputElement) => {
@@ -189,12 +194,19 @@ test('frete: CEP so com PAC mostra so o PAC', async ({ logada }) => {
   await expect(logada.getByRole('radio')).toHaveCount(1);
 });
 
-for (const [caso, cep, frase] of [
-  ['CEP que nao existe', CEPS.inexistente, 'Confira o CEP: não encontrei esse endereço.'],
+/** O botao da falha passageira (#240), dentro da caixa do frete. */
+const tentarDeNovo = (pagina: Page) =>
+  pagina.locator('.frete').getByRole('button', { name: 'Tentar de novo' });
+
+// A ultima coluna: se "Tentar de novo" aparece. So para o que passa sozinho —
+// CEP que nao existe nao muda com outra consulta (#240).
+for (const [caso, cep, frase, oferece] of [
+  ['CEP que nao existe', CEPS.inexistente, 'Confira o CEP: não encontrei esse endereço.', false],
   [
     'Melhor Envio fora do ar',
     CEPS.foraDoAr,
     'Não consegui calcular o frete agora. Tente de novo em instantes.',
+    true,
   ],
 ] as const) {
   test(`frete: ${caso} diz o que fazer e nao deixa finalizar`, async ({ logada }) => {
@@ -203,12 +215,74 @@ for (const [caso, cep, frase] of [
     await preencheEndereco(logada, cep);
 
     await expect(logada.locator('.frete').getByRole('alert')).toHaveText(frase);
+    await expect(tentarDeNovo(logada)).toHaveCount(oferece ? 1 : 0);
     await expect(logada.getByRole('radio')).toHaveCount(0);
     await expect(finalizar(logada)).toBeDisabled();
     await expect(finalizar(logada)).toContainText('Frete indisponível');
     expect(await pedidosDe(quem)).toBe(antes);
   });
 }
+
+test('frete: rede que cai na cotacao vira recado com tentar de novo, e a rede de volta cota', async ({
+  logada,
+}) => {
+  await logada.goto(CHECKOUT);
+  await vivo(logada.getByLabel('Quem recebe'));
+  await logada.getByLabel('Quem recebe').fill('Fulana da Suíte');
+
+  // Toda server action do checkout e um POST na propria URL. Derrubar o POST
+  // e a rede caindo entre a tela e a funcao: a cotacao e a busca do endereco
+  // rejeitam no navegador. Antes, isso derrubava o checkout no global-error.
+  const semRede = async (rota: Route) => {
+    if (rota.request().method() === 'POST') await rota.abort('connectionfailed');
+    else await rota.continue();
+  };
+  await logada.route('**/checkout?**', semRede);
+  await logada.getByLabel('CEP').fill('04538133');
+
+  await expect(logada.locator('.frete').getByRole('alert')).toHaveText(
+    'Não consegui calcular o frete agora. Tente de novo em instantes.'
+  );
+  await expect(tentarDeNovo(logada)).toBeVisible();
+  await expect(finalizar(logada)).toBeDisabled();
+  await expect(finalizar(logada)).toContainText('Frete indisponível');
+  // Nada de tela preta, e o que foi digitado fica.
+  await expect(logada.getByRole('heading', { name: 'Deu ruim por aqui' })).toHaveCount(0);
+  await expect(logada.getByLabel('Quem recebe')).toHaveValue('Fulana da Suíte');
+  await expect(logada.getByLabel('CEP')).toHaveValue('04538133');
+
+  await logada.unroute('**/checkout?**', semRede);
+  await tentarDeNovo(logada).click();
+
+  await expect(logada.getByRole('radio', { name: /PAC/ })).toBeChecked();
+  await expect(finalizar(logada)).toContainText('143,50');
+  await expect(finalizar(logada)).toBeEnabled();
+});
+
+test('frete: fora do ar, tentar de novo consulta de novo, e redigitar o CEP tambem', async ({
+  logada,
+}) => {
+  const frase = 'Não consegui calcular o frete agora. Tente de novo em instantes.';
+  await logada.goto(CHECKOUT);
+  await preencheEndereco(logada, CEPS.foraDoAr);
+  const alerta = logada.locator('.frete').getByRole('alert');
+  await expect(alerta).toHaveText(frase);
+  expect(await recebidos()).toHaveLength(1);
+
+  // O clique troca a caixa pelo esqueleto e consulta de novo. O falso
+  // continua fora do ar: volta o mesmo recado, e a segunda chamada e a prova.
+  await tentarDeNovo(logada).click();
+  await expect.poll(async () => (await recebidos()).length).toBe(2);
+  await expect(alerta).toHaveText(frase);
+  await expect(tentarDeNovo(logada)).toBeVisible();
+
+  // Apagar e redigitar o ultimo digito (#28): antes nao fazia nada.
+  await logada.getByLabel('CEP').fill(CEPS.foraDoAr.slice(0, 7));
+  await expect(logada.getByText('Digite o CEP para ver o preço do PAC e do SEDEX.')).toBeVisible();
+  await logada.getByLabel('CEP').fill(CEPS.foraDoAr);
+  await expect.poll(async () => (await recebidos()).length).toBe(3);
+  await expect(alerta).toHaveText(frase);
+});
 
 test('frete: o botao nao anda quando a cotacao chega', async ({ logada }) => {
   await logada.goto(CHECKOUT);
