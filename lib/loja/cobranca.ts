@@ -16,6 +16,11 @@ import 'server-only';
  * `idempotency_key` dela. Reenviar reusa a chave e o provedor devolve a MESMA
  * cobranca em vez de criar outra. Se a linha nascesse depois, uma cobranca
  * real existiria no provedor sem nenhum registro nosso.
+ *
+ * E entre o 2 e o 3, uma regra: UMA cobranca viva por pedido. A tentativa
+ * anterior que ficou sem resposta e reencontrada no provedor (#5), e a que
+ * ainda esta aberta la — Pix esperando — e cancelada antes de a nova nascer
+ * (#6). Trocar Pix por cartao nao pode deixar um QR pagavel para tras.
  */
 
 import { z } from 'zod';
@@ -23,7 +28,7 @@ import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import { montaEstado } from './estado-do-pagamento';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
-import { casaOrfa, orfaDoPedido } from './webhook';
+import { casaOrfa, encerraAbertas, marcaPago, orfaDoPedido } from './webhook';
 
 /**
  * O que o navegador pode mandar.
@@ -72,7 +77,9 @@ export type MotivoDaCobranca =
   | 'recusado'
   | 'indisponivel'
   /** A tentativa anterior ficou sem resposta e ainda nao se sabe o que houve com ela. */
-  | 'pagamento-em-processamento';
+  | 'pagamento-em-processamento'
+  /** Ha uma cobranca aberta no provedor que nao deu para cancelar antes de abrir outra. */
+  | 'pagamento-pendente';
 
 export type ResultadoDaCobranca =
   | {
@@ -129,10 +136,10 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   if (orfa) {
     const r = await casaOrfa(admin, orfa, 'cobranca');
 
-    // A cobranca anterior existe e esta viva: e ela que vale, e nao se abre
-    // outra. O pedido conta a historia — aprovado ja virou `pago` ao aplicar.
-    if (r.tipo === 'aplicado' && (r.estado === 'aprovado' || r.estado === 'pendente')) {
-      return { ok: true, estado: r.estado };
+    // A cobranca anterior aconteceu: nao se abre outra. O pedido conta a
+    // historia — aprovado ja virou `pago` ao aplicar.
+    if (r.tipo === 'aplicado' && r.estado === 'aprovado') {
+      return { ok: true, estado: 'aprovado' };
     }
 
     // Nao deu para perguntar, ou alguem esta vinculando agora mesmo: esperar
@@ -152,8 +159,17 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
     }
 
     // Recusada ou cancelada do outro lado, ou nunca chegou la: a tentativa
-    // anterior morreu, e cabe outra.
+    // anterior morreu, e cabe outra. Pendente la, ela acabou de ganhar id — e
+    // e encerrada logo abaixo como qualquer tentativa aberta.
   }
+
+  // Uma cobranca viva por pedido (#6). O Pix que ficou esperando e cancelado
+  // no provedor antes de a nova nascer; se nao der para cancelar, nao se abre
+  // outra. Quando o provedor nao deixa porque a anterior ja foi paga, o
+  // pedido virou `pago` ao aplicar, e e isso que se responde.
+  const abertas = await encerraAbertas(admin, pedido.id, 'cobranca');
+  if (abertas.aprovadas > 0) return { ok: true, estado: 'aprovado' };
+  if (abertas.presas > 0) return { ok: false, motivo: 'pagamento-pendente' };
 
   const { data: anteriores } = await admin
     .from('pagamentos')
@@ -241,9 +257,11 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
 
   // Aprovado na resposta sincrona e confirmacao server-to-server do provedor,
   // nao afirmacao do navegador — entao vale. O webhook da #45 confirma depois,
-  // e a trilha de status e escrita sozinha pelo trigger da #18.
+  // e a trilha de status e escrita sozinha pelo trigger da #18. Mas so anda
+  // se o pedido ainda espera: cancelado no meio, vira aviso, nao `pago`.
+  // (#11, #24)
   if (resposta.resumo.estado === 'aprovado') {
-    await admin.from('orders').update({ status: 'pago' }).eq('id', pedido.id);
+    await marcaPago(admin, pedido.id);
   }
 
   return {

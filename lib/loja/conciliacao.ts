@@ -17,6 +17,10 @@ import 'server-only';
  * da cobranca se perdeu — e procurada pela referencia (#5): a ordem pode
  * existir la, ate aprovada, e ninguem mais vai avisar.
  *
+ * De proposito, NAO se filtra pelo status do pedido: um pagamento aprovado
+ * de pedido que o dono cancelou e exatamente o que precisa aparecer, e ao
+ * aplicar ele vira aviso ao dono em vez de `pago` (#21, #24).
+ *
  * Dois gatilhos, porque nenhum sozinho basta:
  *
  *   - `concilia()`        varredura, chamada pelo cron. Pega a cauda longa.

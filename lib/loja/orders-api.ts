@@ -91,6 +91,15 @@ export type OrdemEncontrada = {
  */
 export type Localizacao = { ok: true; ordem: OrdemEncontrada | null } | { ok: false };
 
+/**
+ * Resultado de pedir o cancelamento. `invalido` e o provedor dizendo "nao
+ * posso": a ordem ja e final la (paga, expirada), e quem chama vai perguntar
+ * qual e o estado de verdade. `indisponivel` e nao ter conseguido perguntar.
+ */
+export type RespostaDoCancelamento =
+  | { ok: true; status: string | null; statusDetail: string | null }
+  | { ok: false; motivo: 'invalido' | 'indisponivel' };
+
 type Pagamento = {
   id?: string;
   status?: string;
@@ -271,6 +280,54 @@ export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedo
   const localizacao = await localizaOrdem(provedorId);
 
   return localizacao.ok && localizacao.ordem ? localizacao.ordem.resumo : null;
+}
+
+/**
+ * Cancela a ordem no provedor (#6, #21).
+ *
+ * E o que mantem UMA cobranca viva por pedido: trocar o Pix por cartao, ou o
+ * dono cancelar um pedido, nao pode deixar um QR pagavel para tras — o
+ * dinheiro entraria sem ninguem saber.
+ *
+ * A chave de idempotencia e de quem chama, e NAO pode ser a da criacao: o
+ * provedor guarda a resposta por chave, e reusar a da criacao devolveria a
+ * ordem criada com cara de cancelada.
+ *
+ * 2xx e "cancelada": o corpo so traz o status cru para a coluna. 4xx e o
+ * provedor dizendo que nao pode — a ordem ja e final la — e isso e resposta,
+ * nao falha: quem chama pergunta o estado real. Rede, prazo e 5xx sao "nao
+ * sei".
+ */
+export async function cancelaOrdem(
+  provedorId: string,
+  idempotencia: string
+): Promise<RespostaDoCancelamento> {
+  // Fora do try pelo mesmo motivo de `criaOrdem`: variavel faltando nao pode
+  // virar "provedor indisponivel".
+  const autorizacao = `Bearer ${token()}`;
+
+  let resposta: Response;
+
+  try {
+    resposta = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}/cancel`, {
+      method: 'POST',
+      headers: { Authorization: autorizacao, 'X-Idempotency-Key': idempotencia },
+      signal: AbortSignal.timeout(PRAZO_MS),
+      cache: 'no-store',
+    });
+  } catch {
+    return { ok: false, motivo: 'indisponivel' };
+  }
+
+  if (!resposta.ok) {
+    // Nunca logar o corpo: ele carrega dado do pagador.
+    return { ok: false, motivo: resposta.status >= 500 ? 'indisponivel' : 'invalido' };
+  }
+
+  const ordem = (await resposta.json().catch(() => ({}))) as OrdemDoProvedor;
+  const resumo = resumoDaOrdem(ordem);
+
+  return { ok: true, status: resumo.status, statusDetail: resumo.statusDetail };
 }
 
 /** RFC 3339 sem fracao de segundo, a forma dos exemplos da documentacao. */

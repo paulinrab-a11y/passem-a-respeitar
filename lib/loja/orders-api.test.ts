@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buscaOrdensPorReferencia,
+  cancelaOrdem,
   consultaOrdem,
   criaOrdem,
   localizaOrdem,
@@ -435,5 +436,105 @@ describe('buscaOrdensPorReferencia', () => {
     vi.stubGlobal('fetch', () => Promise.reject(new Error('sem rede')));
 
     expect(await buscaOrdensPorReferencia('ped-1', JANELA)).toEqual({ ok: false });
+  });
+});
+
+/**
+ * O cancelamento e o que mantem UMA cobranca viva por pedido (#6, #21):
+ * trocar Pix por cartao, ou o dono cancelar o pedido, nao pode deixar um QR
+ * pagavel para tras.
+ */
+describe('cancelaOrdem', () => {
+  const CANCELADA = {
+    id: 'ORD-1',
+    status: 'canceled',
+    status_detail: 'canceled_by_collector',
+    transactions: { payments: [{ status: 'cancelled', status_detail: 'by_collector' }] },
+  };
+
+  beforeEach(() => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
+    respondeCom(CANCELADA, 200);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('faz POST em /cancel, autenticado, com a chave de idempotencia e sem corpo', async () => {
+    await cancelaOrdem('ORD-1', 'chave-c');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1/cancel');
+    expect(oQueFoiEnviado().init?.method).toBe('POST');
+    expect(cabecalho('Authorization')).toBe('Bearer token-de-teste');
+    expect(cabecalho('X-Idempotency-Key')).toBe('chave-c');
+    expect(oQueFoiEnviado().init?.body).toBeUndefined();
+  });
+
+  it('id com caractere especial vai codificado na URL', async () => {
+    await cancelaOrdem('a/b c', 'chave-c');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/a%2Fb%20c/cancel');
+  });
+
+  // 2xx decide. O corpo so traz o status cru para a coluna — o do pagamento,
+  // como no resto do arquivo.
+  it('2xx e cancelada, com o status cru do provedor', async () => {
+    expect(await cancelaOrdem('ORD-1', 'chave-c')).toEqual({
+      ok: true,
+      status: 'cancelled',
+      statusDetail: 'by_collector',
+    });
+  });
+
+  it('corpo que nao e JSON ainda e cancelada', async () => {
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response('nao e json', { status: 200 })));
+
+    expect(await cancelaOrdem('ORD-1', 'chave-c')).toEqual({
+      ok: true,
+      status: null,
+      statusDetail: null,
+    });
+  });
+
+  // 4xx e o provedor dizendo "nao posso": a ordem ja e final la (paga,
+  // expirada). E resposta, e quem chama vai perguntar o estado real. 5xx e
+  // rede sao "nao sei" — e a diferenca e dinheiro.
+  it.each([400, 404, 409, 422])('HTTP %i e "nao posso": invalido', async (status) => {
+    respondeCom({ message: 'nao deu' }, status);
+
+    expect(await cancelaOrdem('ORD-1', 'chave-c')).toEqual({ ok: false, motivo: 'invalido' });
+  });
+
+  it.each([500, 503])('HTTP %i e "nao sei": indisponivel', async (status) => {
+    respondeCom({ message: 'nao deu' }, status);
+
+    expect(await cancelaOrdem('ORD-1', 'chave-c')).toEqual({
+      ok: false,
+      motivo: 'indisponivel',
+    });
+  });
+
+  it('rede fora e indisponivel', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('sem rede')));
+
+    expect(await cancelaOrdem('ORD-1', 'chave-c')).toEqual({
+      ok: false,
+      motivo: 'indisponivel',
+    });
+  });
+
+  it('sem o Access Token, falha dizendo qual variavel falta', async () => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', '');
+
+    await expect(cancelaOrdem('ORD-1', 'chave-c')).rejects.toThrow(/MERCADOPAGO_ACCESS_TOKEN/);
+  });
+
+  it('o token vai so no header', async () => {
+    await cancelaOrdem('ORD-1', 'chave-c');
+
+    expect(oQueFoiEnviado().url).not.toContain('token-de-teste');
+    expect(cabecalho('Authorization')).toBe('Bearer token-de-teste');
   });
 });

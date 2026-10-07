@@ -9,43 +9,125 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * `casaOrfa` e `orfaDoPedido` tambem sao dublês: o que e deles (achar a ordem
  * no provedor, vincular, aplicar) se prova em webhook.test.ts. Aqui se prova
- * a DECISAO da cobranca diante do que eles respondem.
+ * a DECISAO da cobranca diante do que eles respondem. Ja `encerraAbertas` e
+ * `marcaPago` rodam de verdade, com o provedor dublado: o que se prova e que
+ * a cobranca nova nao nasce com outra viva, e que aprovar nao atropela um
+ * pedido que ja nao esperava.
  */
+const captureMessage = vi.fn();
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: (...a: unknown[]) => captureMessage(...a),
+  flush: async () => true,
+}));
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: vi.fn() }));
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
-vi.mock('./orders-api', () => ({ criaOrdem: vi.fn() }));
-vi.mock('./webhook', () => ({ casaOrfa: vi.fn(), orfaDoPedido: vi.fn() }));
+vi.mock('./orders-api', () => ({
+  criaOrdem: vi.fn(),
+  cancelaOrdem: vi.fn(),
+  consultaOrdem: vi.fn(),
+  localizaOrdem: vi.fn(),
+  buscaOrdensPorReferencia: vi.fn(),
+}));
+vi.mock('./webhook', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./webhook')>()),
+  casaOrfa: vi.fn(),
+  orfaDoPedido: vi.fn(),
+}));
 
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { clienteAdmin } = await import('@/lib/supabase/admin');
-const { criaOrdem } = await import('./orders-api');
+const { cancelaOrdem, consultaOrdem, criaOrdem } = await import('./orders-api');
 const { casaOrfa, orfaDoPedido } = await import('./webhook');
 const { cobra } = await import('./cobranca');
 
 const USUARIO = { id: 'uuu-1', email: 'quem@exemplo.test' };
 const PEDIDO = '11111111-2222-4333-8444-555555555555';
 
+/** Um Pix que ficou esperando no provedor: a tentativa aberta tipica. */
+const PIX_ABERTO = {
+  id: 'pag-pix',
+  order_id: PEDIDO,
+  estado: 'pendente',
+  provedor_pagamento_id: 'ORD-PIX',
+  idempotency_key: 'chave-pix',
+};
+const CANCELADA = { ok: true as const, status: 'canceled', statusDetail: null };
+
 /** O que cada tabela recebeu, para conferir o que foi gravado. */
 let gravado: { tabela: string; dados: Record<string, unknown> }[] = [];
 let atualizado: { tabela: string; dados: Record<string, unknown> }[] = [];
+/** Cada consulta, com os filtros na ordem em que foram encadeados. */
+let consultas: { tabela: string; ops: unknown[][] }[] = [];
+
+/**
+ * Aplica ao dublê os filtros por linha que o banco aplicaria. Sem isto, a
+ * busca das irmas "menos a propria" devolveria a propria para sempre.
+ */
+function filtra(linhas: Record<string, unknown>[], ops: unknown[][]) {
+  return linhas.filter((l) =>
+    ops.every(([op, coluna, ...resto]) => {
+      if (!(typeof coluna === 'string' && coluna in l)) return true;
+      const valor = l[coluna];
+      if (op === 'eq') return valor === resto[0];
+      if (op === 'neq') return valor !== resto[0];
+      if (op === 'in') return (resto[0] as unknown[]).includes(valor);
+      if (op === 'not') return !(resto[0] === 'is' && valor === resto[1]);
+      return true;
+    })
+  );
+}
 
 function banco({
   pedido = { id: PEDIDO, total_centavos: 12000, status: 'aguardando_pagamento' },
   ultimaTentativa = null as number | null,
   falhaAoInserir = false,
+  /** Tentativas do pedido abertas no provedor, ou ja aprovadas. */
+  abertas = [] as Record<string, unknown>[],
+  /** O pedido ainda esperava pagamento quando a aprovacao chegou? */
+  pedidoPendente = true,
+  /** O status do pedido na releitura, quando o `update` nao alcancou nada. */
+  statusDepois = 'pago' as string | null,
 }) {
   vi.mocked(clienteAdmin).mockReturnValue({
     from(tabela: string) {
+      const ops: unknown[][] = [];
+      let emUpdate = false;
+      consultas.push({ tabela, ops });
+
       const elo: Record<string, unknown> = {};
-      elo.select = () => elo;
-      elo.eq = () => elo;
-      elo.order = () => elo;
+      const anota =
+        (op: string) =>
+        (...args: unknown[]) => {
+          ops.push([op, ...args]);
+          return elo;
+        };
+      elo.eq = anota('eq');
+      elo.neq = anota('neq');
+      elo.in = anota('in');
+      elo.not = anota('not');
+      elo.order = anota('order');
+      elo.select = (...args: unknown[]) => {
+        // `update ... select()` do pedido: devolve o que o filtro alcancou.
+        if (emUpdate) {
+          return Promise.resolve({ data: pedidoPendente ? [{ id: 'x' }] : [], error: null });
+        }
+        ops.push(['select', ...args]);
+        return elo;
+      };
       elo.limit = () =>
         Promise.resolve({
           data: ultimaTentativa === null ? [] : [{ tentativa: ultimaTentativa }],
           error: null,
         });
-      elo.maybeSingle = () => Promise.resolve({ data: pedido, error: null });
+      elo.maybeSingle = () => {
+        // A releitura depois de aprovar pede so o status; a leitura do pedido
+        // pede o resto.
+        const releitura = ops.some((o) => o[0] === 'select' && o[1] === 'status');
+        return Promise.resolve({
+          data: releitura ? (statusDepois ? { status: statusDepois } : null) : pedido,
+          error: null,
+        });
+      };
       elo.single = () =>
         Promise.resolve(
           falhaAoInserir
@@ -58,8 +140,17 @@ function banco({
       };
       elo.update = (dados: Record<string, unknown>) => {
         atualizado.push({ tabela, dados });
+        emUpdate = true;
         return elo;
       };
+      // Consulta sem terminal proprio (as tentativas abertas): o `await` cai
+      // aqui, como no builder de verdade do Supabase, que tambem e thenable.
+      // biome-ignore lint/suspicious/noThenProperty: o dublê imita um builder thenable
+      elo.then = (resolve: (v: unknown) => void) =>
+        resolve({
+          data: tabela === 'pagamentos' && !emUpdate ? filtra(abertas, ops) : null,
+          error: null,
+        });
       return elo;
     },
   } as never);
@@ -80,8 +171,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   gravado = [];
   atualizado = [];
+  consultas = [];
   vi.mocked(usuarioDaSessao).mockResolvedValue(USUARIO as never);
   vi.mocked(criaOrdem).mockResolvedValue(pixOk);
+  vi.mocked(cancelaOrdem).mockResolvedValue(CANCELADA);
   vi.mocked(orfaDoPedido).mockResolvedValue(null);
   banco({});
 });
@@ -220,13 +313,20 @@ describe('tentativa anterior sem resposta', () => {
     expect(criaOrdem).not.toHaveBeenCalled();
   });
 
-  it('orfa ainda pendente la: e ela que vale, nao se abre outra', async () => {
+  // Pendente la, a orfa ganhou id ao casar — e passa a ser uma tentativa
+  // aberta como outra qualquer: e encerrada para a nova nascer sem deixar QR
+  // vivo (#6). Devolve-la como "a que vale" deixaria a pessoa sem o QR, que
+  // se perdeu junto com a resposta.
+  it('orfa ainda pendente la ganha id e e encerrada antes da nova', async () => {
     vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(RECENTE));
     vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'aplicado', estado: 'pendente' });
+    banco({ abertas: [PIX_ABERTO] });
 
-    expect(await pedirPix()).toEqual({ ok: true, estado: 'pendente' });
-    expect(gravado).toEqual([]);
-    expect(criaOrdem).not.toHaveBeenCalled();
+    const r = await pedirPix();
+
+    expect(cancelaOrdem).toHaveBeenCalledWith('ORD-PIX', expect.any(String));
+    expect(r.ok).toBe(true);
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
   });
 
   it.each(['recusado', 'cancelado'] as const)(
@@ -291,6 +391,131 @@ describe('tentativa anterior sem resposta', () => {
     vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'aplicado', estado: 'aprovado' });
 
     expect(await pedirPix()).toEqual({ ok: true, estado: 'aprovado' });
+  });
+});
+
+/**
+ * O cenario da #6: a pessoa gera um Pix, desiste e paga com cartao. O QR do
+ * Pix continua vivo no provedor — pago depois, e dinheiro em duplicidade. Entao
+ * a cobranca anterior e cancelada la ANTES de a nova nascer; se nao der para
+ * cancelar, nao se abre outra.
+ */
+describe('uma cobranca viva por pedido', () => {
+  const pedirCartao = () =>
+    cobra({ pedido: PEDIDO, payment_method_id: 'master', token: 'tok12345678', installments: 1 });
+
+  it('sem cobranca aberta, nao cancela nada', async () => {
+    await pedirCartao();
+
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
+  it('com Pix pendente, cancela no provedor e marca cancelado antes de abrir a nova', async () => {
+    banco({ abertas: [PIX_ABERTO] });
+
+    const r = await pedirCartao();
+
+    expect(r.ok).toBe(true);
+    expect(cancelaOrdem).toHaveBeenCalledWith('ORD-PIX', expect.any(String));
+    expect(atualizado[0]).toEqual({
+      tabela: 'pagamentos',
+      dados: { estado: 'cancelado', provedor_status: 'canceled', provedor_status_detail: null },
+    });
+    // Cancelou la, marcou aqui, e so entao a nova tentativa nasceu.
+    const ordem = vi.mocked(cancelaOrdem).mock.invocationCallOrder[0];
+    expect(ordem).toBeLessThan(vi.mocked(criaOrdem).mock.invocationCallOrder[0]);
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
+  it('procura as tentativas abertas do pedido que tem id no provedor', async () => {
+    banco({ abertas: [PIX_ABERTO] });
+
+    await pedirCartao();
+
+    const busca = consultas.find(
+      (c) => c.tabela === 'pagamentos' && c.ops.some((o) => o[0] === 'not')
+    );
+    expect(busca?.ops).toEqual(
+      expect.arrayContaining([
+        ['eq', 'order_id', PEDIDO],
+        ['in', 'estado', ['criado', 'pendente', 'aprovado']],
+        ['not', 'provedor_pagamento_id', 'is', null],
+      ])
+    );
+  });
+
+  // Reusar a chave da criacao faria o provedor devolver a ordem criada com
+  // cara de cancelada; e a nova tentativa tem a sua propria.
+  it('a chave do cancelamento nao e a da criacao de nenhuma tentativa', async () => {
+    banco({ abertas: [PIX_ABERTO] });
+
+    await pedirCartao();
+
+    const chave = vi.mocked(cancelaOrdem).mock.calls[0][1];
+    expect(chave).not.toBe('chave-pix');
+    expect(chave).not.toBe('chave-estavel-1');
+  });
+
+  it('se nao der para cancelar a anterior, nao abre outra', async () => {
+    banco({ abertas: [PIX_ABERTO] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'indisponivel' });
+
+    expect(await pedirCartao()).toEqual({ ok: false, motivo: 'pagamento-pendente' });
+    expect(gravado).toEqual([]);
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  // O provedor recusa cancelar quando a ordem ja e final la. Paga: nenhuma
+  // ordem nova, e o pedido ja virou `pago` ao aplicar.
+  it('provedor nao deixa cancelar porque a anterior ja foi paga: nenhuma ordem nova', async () => {
+    banco({ abertas: [PIX_ABERTO] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue({
+      estado: 'aprovado',
+      status: 'processed',
+      statusDetail: 'accredited',
+    });
+
+    const r = await pedirCartao();
+
+    expect(r).toEqual({ ok: true, estado: 'aprovado' });
+    expect(consultaOrdem).toHaveBeenCalledWith('ORD-PIX');
+    expect(atualizado.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('provedor nao deixa cancelar e a anterior ja expirou la: morreu, cabe a nova', async () => {
+    banco({ abertas: [PIX_ABERTO] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue({
+      estado: 'cancelado',
+      status: 'expired',
+      statusDetail: null,
+    });
+
+    const r = await pedirCartao();
+
+    expect(r.ok).toBe(true);
+    expect(atualizado[0]?.dados.estado).toBe('cancelado');
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
+  it('provedor nao deixa cancelar e nao se sabe o estado: espera', async () => {
+    banco({ abertas: [PIX_ABERTO] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue(null);
+
+    expect(await pedirCartao()).toEqual({ ok: false, motivo: 'pagamento-pendente' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  // Uma cobranca viva vale mais que o teto de tentativas: e conferida antes.
+  it('as abertas sao encerradas antes de contar tentativas', async () => {
+    banco({ ultimaTentativa: 20, abertas: [PIX_ABERTO] });
+
+    expect(await pedirCartao()).toEqual({ ok: false, motivo: 'tentativas-demais' });
+    expect(cancelaOrdem).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -417,16 +642,63 @@ describe('cartao', () => {
     expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados.estado).toBe('criado');
   });
 
-  it('aprovado move o pedido para pago', async () => {
+  const aprovado = () =>
     vi.mocked(criaOrdem).mockResolvedValue({
       ok: true,
       provedorId: 'mp-2',
       resumo: { estado: 'aprovado', status: 'processed', statusDetail: 'accredited' },
     });
 
+  it('aprovado move o pedido para pago', async () => {
+    aprovado();
+
     await pedirCartao();
 
     expect(atualizado.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
+  });
+
+  // O pedido so anda se ainda espera (#11, #24). O filtro E a regra: o dono
+  // cancelando no meio da cobranca nao e sobrescrito por `pago`.
+  it('aprovado so move o pedido se ele ainda aguarda pagamento', async () => {
+    aprovado();
+
+    await pedirCartao();
+
+    const update = consultas.find(
+      (c) => c.tabela === 'orders' && c.ops.some((o) => o[0] === 'eq' && o[1] === 'status')
+    );
+    expect(update?.ops).toEqual(
+      expect.arrayContaining([
+        ['eq', 'id', PEDIDO],
+        ['eq', 'status', 'aguardando_pagamento'],
+      ])
+    );
+  });
+
+  // Dinheiro capturado para um pedido que nao vai sair: a cobranca ainda
+  // responde o que houve, e o dono e avisado — nao se descobre isso sozinho.
+  it('aprovado com pedido cancelado no meio nao grava pago e avisa o dono', async () => {
+    aprovado();
+    banco({ pedidoPendente: false, statusDepois: 'cancelado' });
+
+    const r = await pedirCartao();
+
+    expect(r).toEqual({ ok: true, estado: 'aprovado' });
+    expect(captureMessage).toHaveBeenCalledWith('pagamento aprovado em pedido nao pendente', {
+      level: 'error',
+      tags: { order_id: PEDIDO },
+    });
+  });
+
+  // Webhook e resposta sincrona correm. O webhook chegando antes nao e
+  // problema — e nao vira aviso.
+  it('pedido que o webhook ja marcou pago nao avisa', async () => {
+    aprovado();
+    banco({ pedidoPendente: false, statusDepois: 'pago' });
+
+    await pedirCartao();
+
+    expect(captureMessage).not.toHaveBeenCalled();
   });
 
   it('pendente nao move o pedido', async () => {

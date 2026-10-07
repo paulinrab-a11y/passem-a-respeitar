@@ -6,16 +6,24 @@ import type { OrdemEncontrada } from './orders-api';
  * autentica, NAO que o `status` escrito nela ainda vale. Metade destes testes
  * existe para garantir que o corpo nunca decide dinheiro.
  */
+const captureMessage = vi.fn();
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: (...a: unknown[]) => captureMessage(...a),
+  flush: async () => true,
+}));
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
 vi.mock('./orders-api', () => ({
   consultaOrdem: vi.fn(),
   localizaOrdem: vi.fn(),
   buscaOrdensPorReferencia: vi.fn(),
+  cancelaOrdem: vi.fn(),
 }));
 
 const { clienteAdmin } = await import('@/lib/supabase/admin');
-const { buscaOrdensPorReferencia, consultaOrdem, localizaOrdem } = await import('./orders-api');
-const { casaOrfa, orfaDoPedido, processa } = await import('./webhook');
+const { buscaOrdensPorReferencia, cancelaOrdem, consultaOrdem, localizaOrdem } = await import(
+  './orders-api'
+);
+const { casaOrfa, encerraAbertas, orfaDoPedido, processa } = await import('./webhook');
 
 /** Caminho assinado — o dos testes originais. */
 const assinado = (corpo: unknown, recurso: string | null) =>
@@ -30,6 +38,8 @@ const em = (ms: number) => new Date(ms).toISOString();
 
 const APROVADO = { estado: 'aprovado' as const, status: 'processed', statusDetail: 'accredited' };
 const RECUSADO = { estado: 'recusado' as const, status: 'failed', statusDetail: 'cc_rejected' };
+const CANCELADO = { estado: 'cancelado' as const, status: 'expired', statusDetail: null };
+const CANCELADA = { ok: true as const, status: 'canceled', statusDetail: null };
 
 type Linha = {
   id: string;
@@ -37,12 +47,39 @@ type Linha = {
   estado: string;
   provedor_pagamento_id: string | null;
   criado_em: string;
+  idempotency_key?: string;
 };
 
 let inseridos: { tabela: string; dados: Record<string, unknown> }[] = [];
 let atualizados: { tabela: string; dados: Record<string, unknown> }[] = [];
 /** Cada consulta, com os filtros na ordem em que foram encadeados. */
 let consultas: { tabela: string; ops: unknown[][] }[] = [];
+
+/**
+ * Aplica ao dublê os filtros que o banco aplicaria. So os que dizem respeito
+ * a linhas: `select`, `order` e afins passam direto.
+ */
+function filtra(linhas: Linha[], ops: unknown[][]): Linha[] {
+  return linhas.filter((l) =>
+    ops.every(([op, coluna, ...resto]) => {
+      const valor = l[coluna as keyof Linha];
+      switch (op) {
+        case 'eq':
+          return valor === resto[0];
+        case 'neq':
+          return valor !== resto[0];
+        case 'is':
+          return valor === resto[0];
+        case 'in':
+          return (resto[0] as unknown[]).includes(valor);
+        case 'not':
+          return !(resto[0] === 'is' && valor === resto[1]);
+        default:
+          return true;
+      }
+    })
+  );
+}
 
 function banco({
   pagamento = { id: 'pag-1', order_id: 'ped-1', estado: 'pendente' } as Record<
@@ -52,10 +89,14 @@ function banco({
   eventoRepetido = false,
   /** O que `orfaDoPedido` encontra. */
   orfa = null as Linha | null,
-  /** Todas as tentativas do pedido, para `casaOrfa`. */
+  /** Todas as tentativas do pedido, para `casaOrfa` e `encerraAbertas`. */
   linhasDoPedido = [] as Linha[],
   /** O que o `update ... where id is null` do vinculo alcanca. */
   vinculo = 'alcanca' as 'alcanca' | 'ninguem' | 'duplicado',
+  /** O pedido ainda esperava pagamento quando o `update` para `pago` chegou? */
+  pedidoPendente = true,
+  /** O status do pedido na releitura, quando o `update` nao alcancou nada. */
+  statusDoPedido = 'pago' as string | null,
 }) {
   vi.mocked(clienteAdmin).mockReturnValue({
     from(tabela: string) {
@@ -71,12 +112,17 @@ function banco({
           return elo;
         };
       elo.eq = anota('eq');
+      elo.neq = anota('neq');
       elo.is = anota('is');
       elo.in = anota('in');
+      elo.not = anota('not');
       elo.order = anota('order');
       elo.select = (...args: unknown[]) => {
-        // `update ... select()` do vinculo: devolve o que o filtro alcancou.
+        // `update ... select()`: devolve o que o filtro alcancou.
         if (emUpdate) {
+          if (tabela === 'orders') {
+            return Promise.resolve({ data: pedidoPendente ? [{ id: 'x' }] : [], error: null });
+          }
           if (vinculo === 'duplicado') {
             return Promise.resolve({ data: null, error: { code: '23505' } });
           }
@@ -85,7 +131,12 @@ function banco({
         ops.push(['select', ...args]);
         return elo;
       };
-      elo.maybeSingle = () => Promise.resolve({ data: pagamento, error: null });
+      elo.maybeSingle = () =>
+        Promise.resolve({
+          data:
+            tabela === 'orders' ? (statusDoPedido ? { status: statusDoPedido } : null) : pagamento,
+          error: null,
+        });
       elo.limit = (n: number) => {
         ops.push(['limit', n]);
         return Promise.resolve({ data: orfa ? [orfa] : [], error: null });
@@ -108,7 +159,7 @@ function banco({
       // biome-ignore lint/suspicious/noThenProperty: o dublê imita um builder thenable
       elo.then = (resolve: (v: unknown) => void) =>
         resolve({
-          data: tabela === 'pagamentos' && !emUpdate ? linhasDoPedido : null,
+          data: tabela === 'pagamentos' && !emUpdate ? filtra(linhasDoPedido, ops) : null,
           error: null,
         });
       return elo;
@@ -124,6 +175,9 @@ const notificacao = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+/** As mensagens que foram ao Sentry, na ordem. */
+const avisos = () => captureMessage.mock.calls.map((c) => c[0]);
+
 beforeEach(() => {
   vi.clearAllMocks();
   inseridos = [];
@@ -132,6 +186,7 @@ beforeEach(() => {
   vi.mocked(consultaOrdem).mockResolvedValue(APROVADO);
   vi.mocked(localizaOrdem).mockResolvedValue({ ok: true, ordem: null });
   vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({ ok: true, ordens: [] });
+  vi.mocked(cancelaOrdem).mockResolvedValue(CANCELADA);
   banco({});
 });
 
@@ -319,6 +374,372 @@ describe('efeito no pedido', () => {
     await assinado(notificacao(), RECURSO);
 
     expect(atualizados.some((a) => a.tabela === 'orders')).toBe(false);
+  });
+
+  // O pedido so anda se ainda espera (#11, #24). O filtro E a regra: um
+  // cancelamento feito no meio nao e sobrescrito por `pago`.
+  it('so move o pedido se ele ainda aguarda pagamento', async () => {
+    await assinado(notificacao(), RECURSO);
+
+    const update = consultas.find((c) => c.tabela === 'orders' && c.ops.length > 0);
+    expect(update?.ops).toEqual(
+      expect.arrayContaining([
+        ['eq', 'id', 'ped-1'],
+        ['eq', 'status', 'aguardando_pagamento'],
+      ])
+    );
+  });
+});
+
+/**
+ * O cenario da #6: Pix pendente e cartao aprovado no mesmo pedido. Quando uma
+ * tentativa e aprovada, as outras ainda abertas sao canceladas aqui e no
+ * provedor; e se outra ja estava aprovada, o cliente pagou duas vezes — e o
+ * unico sinal e este, porque o pedido ja estava `pago` e nada mais muda.
+ */
+describe('uma cobranca aprovada por pedido', () => {
+  const PIX: Linha = {
+    id: 'pag-pix',
+    order_id: 'ped-1',
+    estado: 'pendente',
+    provedor_pagamento_id: 'ORD-PIX',
+    criado_em: em(T0),
+    idempotency_key: 'chave-pix',
+  };
+  const JA_APROVADA: Linha = {
+    ...PIX,
+    id: 'pag-2',
+    estado: 'aprovado',
+    provedor_pagamento_id: 'ORD-2',
+  };
+  const canceladas = () =>
+    atualizados.filter((a) => a.tabela === 'pagamentos' && a.dados.estado === 'cancelado');
+
+  it('aprovado cancela, no provedor e aqui, a irma que ainda esperava', async () => {
+    banco({ linhasDoPedido: [PIX] });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    expect(cancelaOrdem).toHaveBeenCalledWith('ORD-PIX', expect.any(String));
+    expect(canceladas().map((a) => a.dados)).toEqual([
+      { estado: 'cancelado', provedor_status: 'canceled', provedor_status_detail: null },
+    ]);
+    expect(avisos()).toEqual([]);
+  });
+
+  it('procura as irmas abertas ou aprovadas do pedido, com id, menos a propria', async () => {
+    banco({ linhasDoPedido: [PIX] });
+
+    await assinado(notificacao(), RECURSO);
+
+    const busca = consultas.find(
+      (c) => c.tabela === 'pagamentos' && c.ops.some((o) => o[0] === 'neq')
+    );
+    expect(busca?.ops).toEqual(
+      expect.arrayContaining([
+        ['eq', 'order_id', 'ped-1'],
+        ['in', 'estado', ['criado', 'pendente', 'aprovado']],
+        ['not', 'provedor_pagamento_id', 'is', null],
+        ['neq', 'id', 'pag-1'],
+      ])
+    );
+  });
+
+  // Cancelar la e so entao marcar aqui: marcar antes deixaria um QR pagavel
+  // com cara de morto.
+  it('cancela no provedor antes de marcar aqui', async () => {
+    const passos: string[] = [];
+    vi.mocked(cancelaOrdem).mockImplementation(async () => {
+      passos.push('provedor');
+      return CANCELADA;
+    });
+    banco({ linhasDoPedido: [PIX] });
+    const original = atualizados.push.bind(atualizados);
+    atualizados.push = ((...a: Parameters<typeof original>) => {
+      if (a[0].dados.estado === 'cancelado') passos.push('banco');
+      return original(...a);
+    }) as typeof atualizados.push;
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(passos).toEqual(['provedor', 'banco']);
+  });
+
+  // A marcacao aqui so alcanca o que ainda esta aberto: se um webhook aprovou
+  // a irma no meio, nada e sobrescrito.
+  it('a marcacao de cancelado so alcanca tentativa ainda aberta', async () => {
+    banco({ linhasDoPedido: [PIX] });
+
+    await assinado(notificacao(), RECURSO);
+
+    const update = consultas.find(
+      (c) => c.tabela === 'pagamentos' && c.ops.some((o) => o[0] === 'eq' && o[2] === 'pag-pix')
+    );
+    expect(update?.ops).toContainEqual(['in', 'estado', ['criado', 'pendente']]);
+  });
+
+  // Reenviar o cancelamento nao pode duplicar nada, e a chave nao pode ser a
+  // da criacao: o provedor guarda a resposta por chave, e a da criacao
+  // devolveria a ordem criada com cara de cancelada.
+  it('a chave do cancelamento e estavel por tentativa, no formato de uuid, e nao e a da criacao', async () => {
+    banco({ linhasDoPedido: [PIX] });
+    await assinado(notificacao(), RECURSO);
+    await assinado(notificacao(), RECURSO);
+
+    const chaves = vi.mocked(cancelaOrdem).mock.calls.map((c) => c[1]);
+    expect(chaves).toHaveLength(2);
+    expect(chaves[0]).toBe(chaves[1]);
+    expect(chaves[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(chaves[0]).not.toBe('chave-pix');
+  });
+
+  it('tentativas diferentes tem chaves de cancelamento diferentes', async () => {
+    banco({
+      linhasDoPedido: [
+        PIX,
+        { ...PIX, id: 'pag-3', provedor_pagamento_id: 'ORD-3', idempotency_key: 'chave-3' },
+      ],
+    });
+
+    await assinado(notificacao(), RECURSO);
+
+    const chaves = vi.mocked(cancelaOrdem).mock.calls.map((c) => c[1]);
+    expect(new Set(chaves).size).toBe(2);
+  });
+
+  // Sem id nao ha o que cancelar, e marca-la `cancelado` a esconderia de
+  // `casaOrfa` — se a ordem dela existe e for paga, e ai que se quer o aviso.
+  it('irma sem id no provedor nao e tocada', async () => {
+    banco({ linhasDoPedido: [{ ...PIX, estado: 'criado', provedor_pagamento_id: null }] });
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+    expect(canceladas()).toEqual([]);
+  });
+
+  it('recusado nao mexe nas irmas', async () => {
+    banco({ linhasDoPedido: [PIX] });
+    vi.mocked(consultaOrdem).mockResolvedValue(RECUSADO);
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+  });
+
+  // O provedor recusa cancelar quando a ordem ja e final la. Entao se pergunta
+  // o estado real e se aplica pelo mesmo caminho — e paga e o pagamento em
+  // duplicidade da #6, que so aparece aqui.
+  it('irma que o provedor nao deixa cancelar e ja estava paga la: aplica e avisa pagamento duplicado', async () => {
+    banco({ linhasDoPedido: [PIX] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    expect(consultaOrdem).toHaveBeenCalledWith('ORD-PIX');
+    const irma = atualizados.filter(
+      (a) => a.tabela === 'pagamentos' && a.dados.estado === 'aprovado'
+    );
+    expect(irma).toHaveLength(2);
+    expect(captureMessage).toHaveBeenCalledWith('pagamento duplicado a estornar', {
+      level: 'error',
+      tags: { order_id: 'ped-1' },
+    });
+    expect(inseridos.find((i) => i.dados.tipo === 'webhook')?.dados.evento_id).toBe(
+      'webhook:ORD-PIX:processed'
+    );
+  });
+
+  it('irma que o provedor nao deixa cancelar e ja expirou la: vira cancelado, sem aviso', async () => {
+    banco({ linhasDoPedido: [PIX] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValueOnce(APROVADO).mockResolvedValue(CANCELADO);
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(canceladas().map((a) => a.dados)).toEqual([
+      { estado: 'cancelado', provedor_status: 'expired', provedor_status_detail: null },
+    ]);
+    expect(avisos()).toEqual([]);
+  });
+
+  // Nao conseguir cancelar a irma nao pode custar a aprovacao desta. A irma
+  // fica como esta: a conciliacao passa por ela depois.
+  it('provedor fora do ar ao cancelar: a aprovacao vale e a irma fica como esta', async () => {
+    banco({ linhasDoPedido: [PIX] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'indisponivel' });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
+    expect(consultaOrdem).toHaveBeenCalledTimes(1);
+    expect(canceladas()).toEqual([]);
+    expect(avisos()).toEqual([]);
+  });
+
+  it('segunda aprovacao no mesmo pedido avisa o dono, sem tocar na primeira', async () => {
+    banco({ linhasDoPedido: [JA_APROVADA], pedidoPendente: false, statusDoPedido: 'pago' });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+    expect(avisos()).toEqual(['pagamento duplicado a estornar']);
+  });
+
+  // O dono cancelou no meio e o dinheiro entrou mesmo assim: o pedido nao
+  // volta para `pago` (cancelado e final), e isso ninguem descobre sozinho.
+  it('aprovado em pedido que ja nao esperava pagamento nao grava pago e avisa', async () => {
+    banco({ pedidoPendente: false, statusDoPedido: 'cancelado' });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    expect(captureMessage).toHaveBeenCalledWith('pagamento aprovado em pedido nao pendente', {
+      level: 'error',
+      tags: { order_id: 'ped-1' },
+    });
+  });
+
+  // Webhook e resposta sincrona correm. Se a outra via desta mesma cobranca
+  // chegou antes, o pedido ja esta `pago` — e nao ha o que avisar.
+  it('pedido que outra via desta cobranca ja marcou pago nao avisa', async () => {
+    banco({ pedidoPendente: false, statusDoPedido: 'pago' });
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(avisos()).toEqual([]);
+  });
+
+  it('pedido que sumiu avisa', async () => {
+    banco({ pedidoPendente: false, statusDoPedido: null });
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(avisos()).toEqual(['pagamento aprovado em pedido nao pendente']);
+  });
+
+  it('o aviso leva so o id do pedido, em tag', async () => {
+    banco({ pedidoPendente: false, statusDoPedido: 'cancelado' });
+
+    await assinado(notificacao({ payer: { email: 'quem@exemplo.test' } }), RECURSO);
+
+    expect(captureMessage.mock.calls[0]).toEqual([
+      'pagamento aprovado em pedido nao pendente',
+      { level: 'error', tags: { order_id: 'ped-1' } },
+    ]);
+    expect(JSON.stringify(captureMessage.mock.calls)).not.toContain('quem@exemplo.test');
+  });
+});
+
+/**
+ * `encerraAbertas` sem excecao: a cobranca chama antes de abrir tentativa
+ * nova, o dono chama ao cancelar o pedido. O que se prova aqui e a contagem,
+ * porque e por ela que quem chama decide seguir, esperar ou recuar.
+ */
+describe('encerraAbertas', () => {
+  const aberta = (id: string, extra: Partial<Linha> = {}): Linha => ({
+    id: `pag-${id}`,
+    order_id: 'ped-1',
+    estado: 'pendente',
+    provedor_pagamento_id: `ORD-${id}`,
+    criado_em: em(T0),
+    idempotency_key: `chave-${id}`,
+    ...extra,
+  });
+  const encerra = () => encerraAbertas(clienteAdmin(), 'ped-1', 'cobranca');
+
+  it('sem excecao, encerra todas as abertas com id', async () => {
+    banco({ linhasDoPedido: [aberta('a'), aberta('b')] });
+
+    expect(await encerra()).toEqual({ encerradas: 2, aprovadas: 0, presas: 0 });
+    expect(vi.mocked(cancelaOrdem).mock.calls.map((c) => c[0])).toEqual(['ORD-a', 'ORD-b']);
+  });
+
+  it('sem nada aberto, nao chama o provedor', async () => {
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 0, presas: 0 });
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('a ja aprovada conta, e nao e tocada', async () => {
+    banco({ linhasDoPedido: [aberta('a', { estado: 'aprovado' })] });
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 1, presas: 0 });
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+    expect(atualizados).toEqual([]);
+  });
+
+  it('provedor fora do ar ao cancelar: presa', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'indisponivel' });
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 0, presas: 1 });
+    expect(consultaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('provedor nao deixa cancelar e a consulta tambem falha: presa', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue(null);
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 0, presas: 1 });
+  });
+
+  // O provedor nao deixa, mas a consulta diz que continua pendente: nao ha
+  // avanco a aplicar, e ela continua aberta.
+  it('provedor nao deixa cancelar e ainda esta pendente la: presa', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue({
+      estado: 'pendente',
+      status: 'action_required',
+      statusDetail: null,
+    });
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 0, presas: 1 });
+  });
+
+  it('provedor nao deixa cancelar porque ja foi paga: aprovada, e o pedido vira pago', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 1, presas: 0 });
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
+    expect(inseridos[0]?.dados).toMatchObject({
+      evento_id: 'cobranca:ORD-a:processed',
+      tipo: 'cobranca',
+      pagamento_id: 'pag-a',
+    });
+  });
+
+  it('provedor nao deixa cancelar porque ja expirou: encerrada', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue(CANCELADO);
+
+    expect(await encerra()).toEqual({ encerradas: 1, aprovadas: 0, presas: 0 });
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados.estado).toBe('cancelado');
+  });
+
+  // Uma por vez: rajada no provedor e o que o limite deles pune.
+  it('uma por vez, nunca em rajada', async () => {
+    banco({ linhasDoPedido: [aberta('a'), aberta('b'), aberta('c')] });
+    let emVoo = 0;
+    let maximo = 0;
+    vi.mocked(cancelaOrdem).mockImplementation(async () => {
+      emVoo += 1;
+      maximo = Math.max(maximo, emVoo);
+      await new Promise((r) => setTimeout(r, 5));
+      emVoo -= 1;
+      return CANCELADA;
+    });
+
+    await encerra();
+
+    expect(maximo).toBe(1);
   });
 });
 

@@ -29,6 +29,8 @@ const RECADOS: Record<MotivoDaCobranca, string> = {
   indisponivel: 'Não consegui falar com o pagamento agora. Tente de novo.',
   'pagamento-em-processamento':
     'Estamos confirmando seu pagamento anterior. Aguarde um minuto e tente de novo.',
+  'pagamento-pendente':
+    'Há uma cobrança em aberto neste pedido que não consegui encerrar. Aguarde um minuto e tente de novo.',
 };
 
 /** 4xx e problema de quem pediu; 5xx e nosso ou do provedor. */
@@ -43,6 +45,7 @@ const CODIGO: Record<MotivoDaCobranca, number> = {
   indisponivel: 502,
   // Conflito com uma cobranca que ainda esta sendo confirmada, nao falha.
   'pagamento-em-processamento': 409,
+  'pagamento-pendente': 409,
 };
 
 export async function POST(request: NextRequest) {

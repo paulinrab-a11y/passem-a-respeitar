@@ -49,12 +49,26 @@ import 'server-only';
  * tentativa nova (senao cobra duas vezes), a conciliacao chama pela cauda
  * longa, e o webhook faz o mesmo quando o recurso notificado nao bate com
  * linha nenhuma. (#5, #14)
+ *
+ * UMA COBRANCA VIVA POR PEDIDO
+ *
+ * Pix pendente e cartao aprovado no mesmo pedido e o cliente pagando duas
+ * vezes sem ninguem perceber: o segundo `aprovado` so encontra um pedido que
+ * ja esta `pago` e nao muda nada. Por isso `encerraAbertas` cancela, aqui e
+ * no provedor, as tentativas abertas que sobraram — a cobranca chama antes de
+ * abrir outra, o dono chama ao cancelar o pedido, e `aplica` chama quando uma
+ * e aprovada. E dinheiro que entra onde nao devia (pedido ja pago por outra
+ * tentativa, pedido cancelado) vira aviso ao dono em vez de silencio. (#6,
+ * #11, #21, #24)
  */
 
+import { createHash } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { EM_ABERTO, type EstadoInterno, emAberto, podeAvancar } from './estado-do-pagamento';
 import {
   buscaOrdensPorReferencia,
+  cancelaOrdem,
   consultaOrdem,
   localizaOrdem,
   type OrdemEncontrada,
@@ -84,11 +98,27 @@ const PREFIXO_SANDBOX = 'ORDTST';
 /**
  * Quem iniciou uma confirmacao que nao veio assinada pelo provedor. Vira o
  * prefixo do `evento_id` e o `tipo` em `pagamento_eventos`, para a auditoria
- * saber de onde veio.
+ * saber de onde veio. `webhook` e `admin` aparecem quando, ao encerrar as
+ * tentativas abertas de um pedido, uma delas precisa ser confirmada.
  */
-export type OrigemDaConfirmacao = 'nao-assinado' | 'conciliacao' | 'cobranca';
+export type OrigemDaConfirmacao = 'nao-assinado' | 'conciliacao' | 'cobranca' | 'webhook' | 'admin';
 
 export type PagamentoEmAberto = { id: string; order_id: string; estado: string };
+
+/** O que `encerraAbertas` fez com as tentativas abertas de um pedido. */
+export type Encerramento = {
+  /** Canceladas agora, ou descobertas ja finais no provedor. */
+  encerradas: number;
+  /** Aprovadas: ja estavam, ou se descobriram ao tentar cancelar. */
+  aprovadas: number;
+  /** Nao deu para cancelar nem para saber o estado. Continuam abertas. */
+  presas: number;
+};
+
+/** Mensagens de aviso ao dono. Fechadas aqui para o Sentry agrupar por texto. */
+type AvisoDePagamento =
+  | 'pagamento aprovado em pedido nao pendente'
+  | 'pagamento duplicado a estornar';
 
 /** Tentativa que ficou sem id do provedor: a resposta se perdeu no caminho. */
 export type PagamentoOrfao = PagamentoEmAberto & { criado_em: string };
@@ -166,7 +196,7 @@ async function processaAssinada(
   const resumo = await consultaOrdem(recursoId);
   if (!resumo) return { tipo: 'tente-de-novo', motivo: 'nao-consegui-confirmar' };
 
-  const resultado = await aplica(admin, pagamento, resumo, eventoId);
+  const resultado = await aplica(admin, pagamento, resumo, eventoId, 'webhook');
 
   // Repetido e sem nada a aplicar continua contando como repetido: e o caso
   // comum do reenvio, e o log distingue "ja tinha visto" de "olhou e nao mudou".
@@ -203,7 +233,7 @@ async function casaPeloRecurso(
   const vinculo = await vincula(admin, orfa.id, ordem.provedorId);
   if (vinculo) return vinculo;
 
-  return aplica(admin, orfa, ordem.resumo, eventoId);
+  return aplica(admin, orfa, ordem.resumo, eventoId, 'webhook');
 }
 
 /**
@@ -350,7 +380,7 @@ async function registraEAplica(
   // e idempotente. Encerrar no repetido deixaria um buraco sem cura: processo
   // caindo entre gravar o evento e atualizar o estado, e o pagamento preso
   // para sempre — exatamente o que a conciliacao existe para consertar.
-  const resultado = await aplica(admin, pagamento, resumo, eventoId);
+  const resultado = await aplica(admin, pagamento, resumo, eventoId, origem);
 
   // Repetido e sem nada a aplicar continua contando como repetido: o balanco
   // da conciliacao distingue "ja tinha visto" de "olhou e nao mudou".
@@ -383,7 +413,8 @@ async function aplica(
   admin: Admin,
   pagamento: PagamentoEmAberto,
   resumo: Resumo,
-  eventoId: string
+  eventoId: string,
+  origem: OrigemDaConfirmacao
 ): Promise<ResultadoDoWebhook> {
   const atual = pagamento.estado as EstadoInterno;
 
@@ -414,12 +445,149 @@ async function aplica(
   // pedido: cabe outra tentativa, e e para isso que `pagamentos.tentativa`
   // existe. A trilha de status e escrita sozinha pelo trigger da #18.
   if (resumo.estado === 'aprovado') {
-    await admin
-      .from('orders')
-      .update({ status: 'pago' })
-      .eq('id', pagamento.order_id)
-      .eq('status', 'aguardando_pagamento');
+    await marcaPago(admin, pagamento.order_id);
+
+    // Aprovou esta: as outras ainda abertas nao podem mais ser pagas. E se
+    // outra ja estava aprovada, o cliente pagou duas vezes — o unico sinal
+    // disso e este, porque o pedido ja estava `pago` e nada mais muda. (#6)
+    const irmas = await encerraAbertas(admin, pagamento.order_id, origem, pagamento.id);
+    if (irmas.aprovadas > 0) {
+      await avisaPagamento('pagamento duplicado a estornar', pagamento.order_id);
+    }
   }
 
   return { tipo: 'aplicado', estado: resumo.estado };
+}
+
+/**
+ * Move o pedido para `pago` — SE ele ainda espera pagamento (#11, #24).
+ *
+ * Zero linhas e o pedido ter saido de `aguardando_pagamento` por outro
+ * caminho enquanto o dinheiro entrava. Se ja esta `pago`, outra via desta
+ * mesma cobranca chegou antes (webhook e resposta sincrona correm), e nao ha
+ * o que avisar. Qualquer outro status — o dono cancelou no meio — e dinheiro
+ * capturado para um pedido que nao vai sair, e isso ninguem descobre sozinho.
+ */
+export async function marcaPago(admin: Admin, orderId: string): Promise<void> {
+  const { data } = await admin
+    .from('orders')
+    .update({ status: 'pago' })
+    .eq('id', orderId)
+    .eq('status', 'aguardando_pagamento')
+    .select('id');
+
+  if (data?.length) return;
+
+  const { data: pedido } = await admin
+    .from('orders')
+    .select('status')
+    .eq('id', orderId)
+    .maybeSingle();
+
+  if (pedido?.status !== 'pago') {
+    await avisaPagamento('pagamento aprovado em pedido nao pendente', orderId);
+  }
+}
+
+/**
+ * Encerra as tentativas abertas de um pedido que tem id no provedor (#6, #21).
+ *
+ * Cancela la, e so entao marca `cancelado` aqui: marcar antes deixaria um QR
+ * pagavel com cara de morto. Quando o provedor recusa o cancelamento e porque
+ * a ordem ja e final la — paga, expirada — e a gente nao sabia: entao se
+ * pergunta o estado real e se aplica, pelo mesmo caminho do webhook. Paga,
+ * conta em `aprovadas`, e o pedido ja virou `pago` ao aplicar.
+ *
+ * Tentativa sem id (resposta que se perdeu) fica fora: nao ha o que cancelar
+ * sem id, e marca-la `cancelado` a esconderia de `casaOrfa` — se a ordem dela
+ * existe e for paga, e justamente ai que se quer o aviso.
+ *
+ * `exceto` e a tentativa que acabou de ser aprovada, quando quem chama e
+ * `aplica`. As ja aprovadas entram na conta, porque a segunda aprovacao no
+ * mesmo pedido e o sinal de pagamento em duplicidade.
+ */
+export async function encerraAbertas(
+  admin: Admin,
+  orderId: string,
+  origem: OrigemDaConfirmacao,
+  exceto?: string
+): Promise<Encerramento> {
+  let consulta = admin
+    .from('pagamentos')
+    .select('id, order_id, estado, provedor_pagamento_id, idempotency_key')
+    .eq('order_id', orderId)
+    .in('estado', [...EM_ABERTO, 'aprovado'])
+    .not('provedor_pagamento_id', 'is', null);
+  if (exceto) consulta = consulta.neq('id', exceto);
+
+  const { data: linhas } = await consulta;
+
+  const r: Encerramento = { encerradas: 0, aprovadas: 0, presas: 0 };
+
+  // Uma por vez: sao poucas, e rajada no provedor e o que o limite deles pune.
+  for (const l of linhas ?? []) {
+    if (l.estado === 'aprovado') {
+      r.aprovadas += 1;
+      continue;
+    }
+    if (!l.provedor_pagamento_id) continue;
+
+    const cancelamento = await cancelaOrdem(
+      l.provedor_pagamento_id,
+      chaveDeCancelamento(l.idempotency_key)
+    );
+
+    if (cancelamento.ok) {
+      // `in` em aberto no filtro: se um webhook aprovou no meio, nada e
+      // sobrescrito — e a proxima volta ve `aprovado`.
+      await admin
+        .from('pagamentos')
+        .update({
+          estado: 'cancelado',
+          provedor_status: cancelamento.status,
+          provedor_status_detail: cancelamento.statusDetail,
+        })
+        .eq('id', l.id)
+        .in('estado', [...EM_ABERTO]);
+      r.encerradas += 1;
+      continue;
+    }
+
+    if (cancelamento.motivo === 'invalido') {
+      const confirmacao = await confirmaPeloProvedor(admin, l, l.provedor_pagamento_id, origem);
+
+      if (confirmacao.tipo === 'aplicado') {
+        if (confirmacao.estado === 'aprovado') r.aprovadas += 1;
+        else if (emAberto(confirmacao.estado)) r.presas += 1;
+        else r.encerradas += 1;
+        continue;
+      }
+    }
+
+    r.presas += 1;
+  }
+
+  return r;
+}
+
+/**
+ * Chave de idempotencia do cancelamento, derivada da chave da tentativa:
+ * estavel por tentativa (reenviar nao duplica) e distinta da chave da criacao
+ * (o provedor guarda a resposta por chave, e reusar a da criacao devolveria a
+ * ordem criada com cara de cancelada). No formato que o provedor recomenda.
+ */
+function chaveDeCancelamento(chaveDaTentativa: string): string {
+  const h = createHash('sha256').update(`cancela:${chaveDaTentativa}`).digest('hex');
+
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+}
+
+/**
+ * Aviso ao dono. Vai so a mensagem e o id do pedido, em tag: nada de e-mail,
+ * valor ou corpo do provedor. Funcao serverless congela ao responder; sem o
+ * `flush`, o evento nao sai.
+ */
+async function avisaPagamento(mensagem: AvisoDePagamento, orderId: string): Promise<void> {
+  Sentry.captureMessage(mensagem, { level: 'error', tags: { order_id: orderId } });
+  await Sentry.flush(2000);
 }

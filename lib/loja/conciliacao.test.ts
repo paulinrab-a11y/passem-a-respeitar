@@ -5,15 +5,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * `casaOrfa`, os mesmos caminhos do webhook. O que se testa aqui e o que e
  * dela — quem ela escolhe olhar, como conta, e que uma falha nao para a fila.
  */
+const captureMessage = vi.fn();
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: (...a: unknown[]) => captureMessage(...a),
+  flush: async () => true,
+}));
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
 vi.mock('./orders-api', () => ({
   consultaOrdem: vi.fn(),
   localizaOrdem: vi.fn(),
   buscaOrdensPorReferencia: vi.fn(),
+  cancelaOrdem: vi.fn(),
 }));
 
 const { clienteAdmin } = await import('@/lib/supabase/admin');
-const { buscaOrdensPorReferencia, consultaOrdem } = await import('./orders-api');
+const { buscaOrdensPorReferencia, cancelaOrdem, consultaOrdem } = await import('./orders-api');
 const { concilia, conciliaPedido } = await import('./conciliacao');
 
 const AGORA = 1_760_000_000_000;
@@ -25,6 +31,7 @@ type Linha = {
   estado: string;
   provedor_pagamento_id: string | null;
   criado_em: string;
+  idempotency_key?: string;
 };
 
 let linhas: Linha[] = [];
@@ -32,6 +39,10 @@ let filtros: Record<string, unknown>[] = [];
 let inseridos: Record<string, unknown>[] = [];
 let atualizados: { tabela: string; dados: Record<string, unknown> }[] = [];
 let repetidos = new Set<string>();
+/** O pedido ainda esperava pagamento quando o `update` para `pago` chegou? */
+let pedidoPendente = true;
+/** O status do pedido na releitura, quando o `update` nao alcancou nada. */
+let statusDoPedido: string | null = 'pago';
 
 function banco() {
   vi.mocked(clienteAdmin).mockReturnValue({
@@ -44,13 +55,30 @@ function banco() {
         ops.push([op, ...args]);
         return elo;
       };
-      // O que o banco devolveria: tudo, ou so o pedido filtrado por `eq`.
-      const selecionadas = () => {
-        const porPedido = ops.find((o) => o[0] === 'eq' && o[1] === 'order_id');
-        return porPedido ? linhas.filter((l) => l.order_id === porPedido[2]) : linhas;
+      // O que o banco devolveria. So os filtros por linha que a varredura e
+      // o encerramento das irmas usam: `eq`, `neq`, `is` e `not ... is`. Os
+      // de idade e estado ficam para a asserção sobre os filtros em si.
+      const selecionadas = () =>
+        linhas.filter((l) =>
+          ops.every(([op, coluna, ...resto]) => {
+            if (!(typeof coluna === 'string' && coluna in l)) return true;
+            const valor = l[coluna as keyof Linha];
+            if (op === 'eq') return valor === resto[0];
+            if (op === 'neq') return valor !== resto[0];
+            if (op === 'is') return valor === resto[0];
+            if (op === 'not') return !(resto[0] === 'is' && valor === resto[1]);
+            return true;
+          })
+        );
+      elo.select = () => {
+        if (!emUpdate) return elo;
+        const alcancou = tabela !== 'orders' || pedidoPendente;
+        return Promise.resolve({ data: alcancou ? [{ id: 'x' }] : [], error: null });
       };
-      elo.select = () => (emUpdate ? Promise.resolve({ data: [{ id: 'x' }], error: null }) : elo);
+      elo.maybeSingle = () =>
+        Promise.resolve({ data: statusDoPedido ? { status: statusDoPedido } : null, error: null });
       elo.eq = (...a: unknown[]) => registra('eq', ...a);
+      elo.neq = (...a: unknown[]) => registra('neq', ...a);
       elo.in = (...a: unknown[]) => registra('in', ...a);
       elo.is = (...a: unknown[]) => registra('is', ...a);
       elo.not = (...a: unknown[]) => registra('not', ...a);
@@ -91,6 +119,7 @@ const pendente = (id: string, extra: Partial<Linha> = {}): Linha => ({
   estado: 'pendente',
   provedor_pagamento_id: `ORD01${id}`,
   criado_em: new Date(AGORA - 10 * 60_000).toISOString(),
+  idempotency_key: `chave-${id}`,
   ...extra,
 });
 
@@ -111,8 +140,11 @@ beforeEach(() => {
   inseridos = [];
   atualizados = [];
   repetidos = new Set();
+  pedidoPendente = true;
+  statusDoPedido = 'pago';
   vi.mocked(consultaOrdem).mockResolvedValue(APROVADO);
   vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({ ok: true, ordens: [] });
+  vi.mocked(cancelaOrdem).mockResolvedValue({ ok: true, status: 'canceled', statusDetail: null });
   banco();
 });
 
@@ -263,6 +295,48 @@ describe('o que a varredura faz', () => {
     await concilia({ agoraMs: AGORA });
 
     expect(maximo).toBe(1);
+  });
+});
+
+/**
+ * A varredura nao filtra pelo status do pedido, de proposito: pagamento
+ * aprovado de pedido que o dono cancelou e exatamente o que precisa aparecer.
+ * Ao aplicar, vira aviso ao dono em vez de `pago` (#21, #24) — pelo mesmo
+ * `aplica` do webhook, que tambem encerra as irmas (#6).
+ */
+describe('dinheiro onde nao devia', () => {
+  it('aprovado em pedido que ja nao aguarda pagamento nao grava pago e avisa o dono', async () => {
+    linhas = [pendente('a')];
+    pedidoPendente = false;
+    statusDoPedido = 'cancelado';
+
+    const b = await concilia({ agoraMs: AGORA });
+
+    // O pagamento em si avancou: o que nao avancou foi o pedido.
+    expect(b.mudados).toBe(1);
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados.estado).toBe('aprovado');
+    expect(captureMessage).toHaveBeenCalledWith('pagamento aprovado em pedido nao pendente', {
+      level: 'error',
+      tags: { order_id: 'ped-a' },
+    });
+  });
+
+  it('pedido ja pago por outra via nao avisa', async () => {
+    linhas = [pendente('a')];
+    pedidoPendente = false;
+
+    await concilia({ agoraMs: AGORA });
+
+    expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  it('aprovado cancela, no provedor, a outra tentativa aberta do mesmo pedido', async () => {
+    linhas = [pendente('a'), pendente('b', { order_id: 'ped-a' })];
+
+    await concilia({ agoraMs: AGORA, limite: 1 });
+
+    expect(cancelaOrdem).toHaveBeenCalledWith('ORD01b', expect.any(String));
+    expect(atualizados.find((a) => a.dados.estado === 'cancelado')).toBeTruthy();
   });
 });
 
