@@ -14,6 +14,7 @@ import {
   urlDoPainel,
 } from '@/lib/conta/painel';
 import { leEntrega, leFrete, leStatus, POR_PAGINA, reais } from '@/lib/conta/pedidos';
+import { formataDiaHora } from '@/lib/datas';
 import { ehStatusPedido } from '@/lib/loja/status-do-pedido';
 import { ENTRAR } from '@/lib/rotas';
 import { clienteAdmin } from '@/lib/supabase/admin';
@@ -29,13 +30,6 @@ export const metadata: Metadata = {
   title: 'Pedidos — administração — Passem a Respeitar',
   robots: { index: false, follow: false },
 };
-
-const diaEHora = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 type Busca = Promise<Record<string, string | string[] | undefined>>;
 
@@ -176,7 +170,7 @@ async function Painel({ searchParams }: { searchParams: Busca }) {
                   </div>
 
                   <p className="pedido-data">
-                    <time dateTime={p.criado_em}>{diaEHora.format(new Date(p.criado_em))}</time>
+                    <time dateTime={p.criado_em}>{formataDiaHora(p.criado_em)}</time>
                     {p.entrega_nome ? ` · ${p.entrega_nome}` : ''}
                     {p.entrega_cidade ? ` · ${p.entrega_cidade}/${p.entrega_uf ?? ''}` : ''}
                   </p>
