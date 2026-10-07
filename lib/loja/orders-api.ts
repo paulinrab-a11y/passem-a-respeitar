@@ -13,6 +13,7 @@ import 'server-only';
  * import acidental em client component quebra o build em vez de vazar a chave.
  */
 
+import * as Sentry from '@sentry/nextjs';
 import { montaEstado, type ResumoDoProvedor } from './estado-do-pagamento';
 
 const BASE = 'https://api.mercadopago.com';
@@ -60,7 +61,14 @@ export type DadosDaCobranca = {
   idempotencia: string;
 };
 
-/** O que volta para quem chamou. Enxuto: nada de objeto cru do provedor. */
+/**
+ * O que volta para quem chamou. Enxuto: nada de objeto cru do provedor.
+ *
+ * Os motivos de falha nao custam igual (#23): `recusado` e o cartao, e cabe
+ * outro; `invalido` e pedido que o provedor nao aceitou; `indisponivel` e nao
+ * saber se a ordem nasceu la; `configuracao` e credencial recusada — problema
+ * nosso, nao da pessoa, e ela nao pode ler "nao aprovado" por isso.
+ */
 export type RespostaDaCobranca =
   | {
       ok: true;
@@ -69,7 +77,12 @@ export type RespostaDaCobranca =
       /** So em Pix. Vem do provedor, nunca gerado aqui. */
       pix?: { copiaECola: string; qrBase64: string | null; expiraEm: string | null };
     }
-  | { ok: false; motivo: 'recusado' | 'invalido' | 'indisponivel'; resumo?: ResumoDoProvedor };
+  | {
+      ok: false;
+      motivo: 'recusado' | 'invalido' | 'indisponivel' | 'configuracao';
+      /** O que o provedor disse da tentativa, quando disse: vai para a linha. */
+      resumo?: ResumoDoProvedor;
+    };
 
 /**
  * Uma ordem como a consulta e a busca a devolvem. Enxuta, como o resto: id,
@@ -175,6 +188,75 @@ function encontrada(ordem: OrdemDoProvedor, idPedido?: string): OrdemEncontrada 
 }
 
 /**
+ * Aviso ao dono de que a Orders API respondeu erro. Vai o HTTP e, quando ha,
+ * o code do primeiro erro — nunca o corpo, que ecoa o que mandamos (e-mail,
+ * documento). Funcao serverless congela ao responder; sem o `flush`, o
+ * evento nao sai.
+ */
+async function avisaFalha(status: number, nivel: 'error' | 'warning', code: string | null) {
+  Sentry.captureMessage('orders-api: falha', {
+    level: nivel,
+    tags: { status, ...(code ? { code } : {}) },
+  });
+  await Sentry.flush(2000);
+}
+
+/**
+ * O `code` do primeiro erro, e so ele. O corpo de erro da Orders API vem como
+ * `{ errors: [{ code, message, details }] }`; `message` e `details` repetem o
+ * que mandamos e ficam aqui. Forma que nao reconhecemos e "sem code".
+ */
+function codigoDoErro(corpo: unknown): string | null {
+  const erros = (corpo as { errors?: unknown } | null)?.errors;
+  if (!Array.isArray(erros)) return null;
+
+  const code = (erros[0] as { code?: unknown } | undefined)?.code;
+  return typeof code === 'string' && code ? code.slice(0, 64) : null;
+}
+
+/**
+ * O que um HTTP de erro na criacao quer dizer (#23).
+ *
+ * Tratar todo 4xx como "cartao recusado" escondia o pior caso: token
+ * revogado virava "nao aprovado" para TODO cliente, e o dono so descobria
+ * quando alguem reclamasse.
+ *
+ *   401/403  credencial recusada: e configuracao nossa. Aviso ao dono.
+ *   5xx      problema la; vale repetir. Aviso ao dono.
+ *   402      o cartao. O status_detail do pagamento e o que a linha guarda.
+ *   400/422  pedido que o provedor nao aceitou: o code vai para a linha, e o
+ *            dono e avisado em tom mais baixo — um CPF que a conta passou a
+ *            exigir recusa todo Pix, e isso nao pode ficar invisivel.
+ */
+async function recusaDaCriacao(status: number, corpo: unknown): Promise<RespostaDaCobranca> {
+  if (status === 401 || status === 403) {
+    await avisaFalha(status, 'error', null);
+    return { ok: false, motivo: 'configuracao' };
+  }
+
+  if (status >= 500) {
+    await avisaFalha(status, 'error', null);
+    return { ok: false, motivo: 'indisponivel' };
+  }
+
+  const pagamento = (corpo as OrdemDoProvedor | null)?.transactions?.payments?.[0];
+  const code = codigoDoErro(corpo);
+
+  // A tentativa morreu: o que sobrevive e o status cru do pagamento, se o
+  // provedor mandou um, ou o code do erro no lugar do detalhe.
+  const resumo: ResumoDoProvedor = {
+    estado: 'recusado',
+    status: pagamento?.status ?? null,
+    statusDetail: pagamento?.status_detail ?? code,
+  };
+
+  if (status === 402) return { ok: false, motivo: 'recusado', resumo };
+
+  await avisaFalha(status, 'warning', code);
+  return { ok: false, motivo: 'invalido', resumo };
+}
+
+/**
  * Cria a ordem no Mercado Pago.
  *
  * `X-Idempotency-Key` e obrigatorio na Orders API, e a chave vem da linha de
@@ -209,15 +291,14 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
     return { ok: false, motivo: 'indisponivel' };
   }
 
-  const ordem = (await resposta.json().catch(() => ({}))) as OrdemDoProvedor;
+  // Corpo que nao e JSON vira vazio, nos dois caminhos. Nunca logar `bruto`:
+  // ele carrega dado do pagador.
+  const bruto: unknown = await resposta.json().catch(() => ({}));
+
+  if (!resposta.ok) return recusaDaCriacao(resposta.status, bruto);
+
+  const ordem = (bruto ?? {}) as OrdemDoProvedor;
   const pagamento = ordem.transactions?.payments?.[0];
-
-  if (!resposta.ok) {
-    // 4xx e pedido malformado nosso ou cartao recusado; 5xx e problema la.
-    // Nunca logar `ordem` inteira: ela carrega dado do pagador.
-    return { ok: false, motivo: resposta.status >= 500 ? 'indisponivel' : 'invalido' };
-  }
-
   const meio = pagamento?.payment_method;
 
   return {

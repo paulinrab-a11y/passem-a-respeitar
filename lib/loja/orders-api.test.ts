@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
+
+const captureMessage = vi.fn();
+vi.mock('@sentry/nextjs', () => ({
+  captureMessage: (...a: unknown[]) => captureMessage(...a),
+  flush: async () => true,
+}));
+
+const {
   buscaOrdensPorReferencia,
   cancelaOrdem,
   consultaOrdem,
   criaOrdem,
   localizaOrdem,
   valorParaApi,
-} from './orders-api';
+} = await import('./orders-api');
 
 /**
  * O banco guarda centavos inteiros e a Orders API quer decimal em string. Esta
@@ -87,6 +94,7 @@ describe('criaOrdem', () => {
   };
 
   beforeEach(() => {
+    captureMessage.mockClear();
     vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
     respondeCom(PIX_OK);
   });
@@ -170,18 +178,150 @@ describe('criaOrdem', () => {
     expect(r.ok && r.resumo.estado).toBe('aprovado');
   });
 
-  // 4xx e pedido nosso malformado ou cartao recusado; 5xx e problema la. A
-  // diferenca importa: a primeira nao adianta repetir, a segunda sim.
-  it.each([
-    [400, 'invalido'],
-    [402, 'invalido'],
-    [422, 'invalido'],
-    [500, 'indisponivel'],
-    [503, 'indisponivel'],
-  ])('HTTP %i vira %s', async (status, motivo) => {
-    respondeCom({ message: 'nao deu' }, status);
+  it('2xx nao avisa ninguem', async () => {
+    await criaOrdem(DADOS);
 
-    expect(await criaOrdem(DADOS)).toEqual({ ok: false, motivo });
+    expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Nem todo HTTP de erro e cartao recusado (#23). Tratar todos iguais
+   * escondia o pior caso: token revogado virava "nao aprovado" para TODO
+   * cliente, e o dono so descobria quando alguem reclamasse.
+   */
+  describe('quando o provedor responde erro', () => {
+    /** O formato de erro da Orders API, com o que ele ecoa do pedido. */
+    const ERRO = (code: string) => ({
+      errors: [
+        {
+          code,
+          message: `o pagador quem@exemplo.test mandou documento 12345678909 invalido`,
+          details: ['payer.identification.number'],
+        },
+      ],
+    });
+
+    // Credencial recusada e problema nosso, nao da pessoa: ela nao pode ler
+    // "nao aprovado" e tentar outro cartao a toa. O dono e avisado na hora.
+    it.each([401, 403])('HTTP %i e configuracao, e avisa o dono', async (status) => {
+      respondeCom(ERRO('unauthorized'), status);
+
+      expect(await criaOrdem(DADOS)).toEqual({ ok: false, motivo: 'configuracao' });
+      expect(captureMessage).toHaveBeenCalledWith('orders-api: falha', {
+        level: 'error',
+        tags: { status },
+      });
+    });
+
+    // Problema la: vale repetir, e o dono fica sabendo.
+    it.each([500, 503])('HTTP %i e indisponivel, e avisa o dono', async (status) => {
+      respondeCom({ message: 'nao deu' }, status);
+
+      expect(await criaOrdem(DADOS)).toEqual({ ok: false, motivo: 'indisponivel' });
+      expect(captureMessage).toHaveBeenCalledWith('orders-api: falha', {
+        level: 'error',
+        tags: { status },
+      });
+    });
+
+    // Pedido que o provedor nao aceitou: o code e o que sobrevive do corpo,
+    // na linha e no aviso. Um CPF que a conta passou a exigir recusa todo
+    // Pix com 400 — e isso nao pode ficar invisivel.
+    it.each([400, 422])('HTTP %i e invalido, com o code do erro', async (status) => {
+      respondeCom(ERRO('invalid_payer_identification'), status);
+
+      expect(await criaOrdem(DADOS)).toEqual({
+        ok: false,
+        motivo: 'invalido',
+        resumo: { estado: 'recusado', status: null, statusDetail: 'invalid_payer_identification' },
+      });
+      expect(captureMessage).toHaveBeenCalledWith('orders-api: falha', {
+        level: 'warning',
+        tags: { status, code: 'invalid_payer_identification' },
+      });
+    });
+
+    // 402 e o cartao: o que a linha guarda e o status_detail do pagamento,
+    // que diz POR QUE foi recusado. Nao e aviso ao dono — e o dia a dia.
+    it('HTTP 402 e recusado, com o status_detail do cartao', async () => {
+      respondeCom(
+        {
+          id: 'ORD-9',
+          status: 'failed',
+          transactions: {
+            payments: [{ status: 'failed', status_detail: 'cc_rejected_insufficient_amount' }],
+          },
+        },
+        402
+      );
+
+      expect(await criaOrdem(DADOS)).toEqual({
+        ok: false,
+        motivo: 'recusado',
+        resumo: {
+          estado: 'recusado',
+          status: 'failed',
+          statusDetail: 'cc_rejected_insufficient_amount',
+        },
+      });
+      expect(captureMessage).not.toHaveBeenCalled();
+    });
+
+    it('HTTP 402 sem pagamento no corpo fica com o code, ou nada', async () => {
+      respondeCom(ERRO('payment_rejected'), 402);
+      expect(await criaOrdem(DADOS)).toEqual({
+        ok: false,
+        motivo: 'recusado',
+        resumo: { estado: 'recusado', status: null, statusDetail: 'payment_rejected' },
+      });
+
+      respondeCom({ message: 'nao deu' }, 402);
+      expect(await criaOrdem(DADOS)).toEqual({
+        ok: false,
+        motivo: 'recusado',
+        resumo: { estado: 'recusado', status: null, statusDetail: null },
+      });
+    });
+
+    it.each([
+      ['sem errors', { message: 'nao deu' }],
+      ['errors que nao e lista', { errors: { code: 'x' } }],
+      ['lista vazia', { errors: [] }],
+      ['code que nao e texto', { errors: [{ code: 42 }] }],
+      ['nao e JSON', 'nao e json'],
+      ['nulo', null],
+    ])('corpo %s: invalido sem code, e nao explode', async (_caso, corpo) => {
+      vi.stubGlobal('fetch', () =>
+        Promise.resolve(
+          new Response(typeof corpo === 'string' ? corpo : JSON.stringify(corpo), { status: 400 })
+        )
+      );
+
+      expect(await criaOrdem(DADOS)).toEqual({
+        ok: false,
+        motivo: 'invalido',
+        resumo: { estado: 'recusado', status: null, statusDetail: null },
+      });
+    });
+
+    it('um code enorme e cortado antes de ir para a coluna', async () => {
+      respondeCom(ERRO('x'.repeat(500)), 400);
+
+      const r = await criaOrdem(DADOS);
+      expect(!r.ok && r.resumo?.statusDetail).toBe('x'.repeat(64));
+    });
+
+    // O corpo de erro ecoa o que mandamos. Nada dele sai daqui alem do code.
+    it('nada que vai ao Sentry ou volta leva o corpo do erro', async () => {
+      respondeCom(ERRO('invalid_payer_identification'), 400);
+      const r = await criaOrdem(DADOS);
+
+      const texto = JSON.stringify([r, captureMessage.mock.calls]);
+      expect(texto).not.toContain('quem@exemplo.test');
+      expect(texto).not.toContain('12345678909');
+      expect(texto).not.toContain('payer.identification');
+      expect(texto).not.toContain('token-de-teste');
+    });
   });
 
   // Rede caindo nao e recusa: a cobranca pode ter acontecido do outro lado.

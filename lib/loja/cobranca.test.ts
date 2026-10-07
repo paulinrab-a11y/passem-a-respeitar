@@ -631,6 +631,92 @@ describe('cartao', () => {
     expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados.estado).toBe('recusado');
   });
 
+  // 402: o provedor disse POR QUE o cartao foi recusado, e isso fica na
+  // linha — e o que o dono le quando alguem pergunta "por que nao passou".
+  it('402 grava o status_detail do cartao na tentativa', async () => {
+    vi.mocked(criaOrdem).mockResolvedValue({
+      ok: false,
+      motivo: 'recusado',
+      resumo: {
+        estado: 'recusado',
+        status: 'failed',
+        statusDetail: 'cc_rejected_insufficient_amount',
+      },
+    });
+
+    const r = await pedirCartao();
+
+    expect(r).toEqual({ ok: false, motivo: 'recusado' });
+    expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      estado: 'recusado',
+      provedor_status: 'failed',
+      provedor_status_detail: 'cc_rejected_insufficient_amount',
+    });
+  });
+
+  it('400 grava o code do erro no lugar do detalhe', async () => {
+    vi.mocked(criaOrdem).mockResolvedValue({
+      ok: false,
+      motivo: 'invalido',
+      resumo: { estado: 'recusado', status: null, statusDetail: 'invalid_payer_identification' },
+    });
+
+    await pedirCartao();
+
+    expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      estado: 'recusado',
+      provedor_status: null,
+      provedor_status_detail: 'invalid_payer_identification',
+    });
+  });
+
+  // Credencial recusada pelo provedor (#23): problema nosso, e a resposta diz
+  // isso em vez de "recusado". A tentativa morre — 401 nao cria ordem
+  // nenhuma la, e deixa-la `criado` faria a proxima cobranca procurar uma
+  // orfa que nao existe e responder "estamos confirmando seu pagamento".
+  it('configuracao responde configuracao, encerra a tentativa e nao mexe no pedido', async () => {
+    vi.mocked(criaOrdem).mockResolvedValue({ ok: false, motivo: 'configuracao' });
+
+    const r = await pedirCartao();
+
+    expect(r).toEqual({ ok: false, motivo: 'configuracao' });
+    expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      estado: 'recusado',
+      provedor_status: null,
+      provedor_status_detail: null,
+    });
+    expect(atualizado.some((a) => a.tabela === 'orders')).toBe(false);
+  });
+
+  /**
+   * O cenario da #20: o provedor responde 2xx com `status: failed` — cartao
+   * sem limite. Nao e aprovacao, e a pessoa nao pode ser mandada ao pedido
+   * como se tivesse pago: para ela e recusa igual, e cabe outro cartao.
+   */
+  it.each([
+    ['recusado', 'failed', 'cc_rejected_insufficient_amount'],
+    ['cancelado', 'cancelled', 'by_collector'],
+  ] as const)('2xx com estado %s e recusa para quem paga', async (estado, status, detail) => {
+    vi.mocked(criaOrdem).mockResolvedValue({
+      ok: true,
+      provedorId: 'mp-4',
+      resumo: { estado, status, statusDetail: detail },
+    });
+
+    const r = await pedirCartao();
+
+    expect(r).toEqual({ ok: false, motivo: 'recusado' });
+    // A linha guarda o que o provedor disse, com o id da ordem que ele criou.
+    expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      provedor_pagamento_id: 'mp-4',
+      estado,
+      provedor_status: status,
+      provedor_status_detail: detail,
+    });
+    expect(atualizado.some((a) => a.tabela === 'orders')).toBe(false);
+    expect(captureMessage).not.toHaveBeenCalled();
+  });
+
   // Rede caindo nao e recusa: a cobranca pode ter acontecido do outro lado.
   // Marcar recusado aqui daria permissao para uma segunda cobranca.
   it('provedor fora do ar deixa a tentativa como criada', async () => {

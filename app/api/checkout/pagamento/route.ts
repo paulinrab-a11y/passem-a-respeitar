@@ -27,6 +27,9 @@ const RECADOS: Record<MotivoDaCobranca, string> = {
   'tentativas-demais': 'Muitas tentativas neste pedido.',
   recusado: 'O pagamento não foi aprovado. Você pode tentar de novo.',
   indisponivel: 'Não consegui falar com o pagamento agora. Tente de novo.',
+  // Problema nosso, nao do cartao: "nao aprovado" mandaria a pessoa tentar
+  // outro cartao a toa. (#23)
+  configuracao: 'O pagamento está indisponível no momento. Tente de novo mais tarde.',
   'pagamento-em-processamento':
     'Estamos confirmando seu pagamento anterior. Aguarde um minuto e tente de novo.',
   'pagamento-pendente':
@@ -43,6 +46,7 @@ const CODIGO: Record<MotivoDaCobranca, number> = {
   'tentativas-demais': 429,
   recusado: 402,
   indisponivel: 502,
+  configuracao: 502,
   // Conflito com uma cobranca que ainda esta sendo confirmada, nao falha.
   'pagamento-em-processamento': 409,
   'pagamento-pendente': 409,

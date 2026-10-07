@@ -26,7 +26,6 @@ import 'server-only';
 import { z } from 'zod';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
-import { montaEstado } from './estado-do-pagamento';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
 import { casaOrfa, encerraAbertas, marcaPago, orfaDoPedido } from './webhook';
 
@@ -76,6 +75,8 @@ export type MotivoDaCobranca =
   | 'tentativas-demais'
   | 'recusado'
   | 'indisponivel'
+  /** O provedor recusou a nossa credencial: problema nosso, nao da pessoa. (#23) */
+  | 'configuracao'
   /** A tentativa anterior ficou sem resposta e ainda nao se sabe o que houve com ela. */
   | 'pagamento-em-processamento'
   /** Ha uma cobranca aberta no provedor que nao deu para cancelar antes de abrir outra. */
@@ -228,21 +229,30 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   });
 
   if (!resposta.ok) {
-    const resumo = resposta.resumo ?? montaEstado(resposta.motivo === 'recusado' ? 'failed' : null);
+    // Sem resposta nao se sabe se a ordem nasceu la: a linha fica `criado`
+    // e a proxima cobranca pergunta (#5). Com resposta, a tentativa morreu —
+    // inclusive com a credencial recusada, que nao cria ordem nenhuma; deixa-
+    // la `criado` faria a proxima cobranca procurar uma orfa que nao existe.
+    // O que o provedor disse dela fica na linha: o status_detail do cartao,
+    // ou o code do erro. (#23)
+    const semResposta = resposta.motivo === 'indisponivel';
 
     await admin
       .from('pagamentos')
       .update({
-        estado: resposta.motivo === 'indisponivel' ? 'criado' : 'recusado',
-        provedor_status: resumo.status,
-        provedor_status_detail: resumo.statusDetail,
+        estado: semResposta ? 'criado' : 'recusado',
+        provedor_status: resposta.resumo?.status ?? null,
+        provedor_status_detail: resposta.resumo?.statusDetail ?? null,
       })
       .eq('id', linha.id);
+
+    if (semResposta) return { ok: false, motivo: 'indisponivel' };
+    if (resposta.motivo === 'configuracao') return { ok: false, motivo: 'configuracao' };
 
     // Cartao recusado NAO mexe em `orders.status`: o pedido continua
     // aguardando pagamento e cabe outra tentativa. E para isso que
     // `pagamentos.tentativa` existe.
-    return { ok: false, motivo: resposta.motivo === 'indisponivel' ? 'indisponivel' : 'recusado' };
+    return { ok: false, motivo: 'recusado' };
   }
 
   await admin
@@ -254,6 +264,14 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
       provedor_status_detail: resposta.resumo.statusDetail,
     })
     .eq('id', linha.id);
+
+  // 2xx nao e aprovacao: cartao sem limite tambem volta assim, com
+  // `status: failed`. Para quem paga e recusa igual — o formulario fica e
+  // cabe outro cartao; a linha acima ja guarda o status_detail. Mandar a
+  // pessoa para o pedido aqui era deixa-la achar que pagou. (#20)
+  if (resposta.resumo.estado === 'recusado' || resposta.resumo.estado === 'cancelado') {
+    return { ok: false, motivo: 'recusado' };
+  }
 
   // Aprovado na resposta sincrona e confirmacao server-to-server do provedor,
   // nao afirmacao do navegador — entao vale. O webhook da #45 confirma depois,

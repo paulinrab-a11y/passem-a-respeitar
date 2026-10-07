@@ -1036,6 +1036,10 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
   .esq-brick{animation:none}
 }
 .brick .detalhe-nota{margin-bottom:0}
+/* Cartao em analise (#20): ocupa a celula que era do formulario, para a
+   pagina nao encolher na troca. */
+.brick-analise{min-height:359px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.brick-analise .conta-recado{max-width:48ch}
 .pagamento-valor{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
 
 /* Pix gerado (#110) ---------------------------------------------------------- */
