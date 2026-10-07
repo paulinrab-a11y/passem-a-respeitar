@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { paginaValida } from '@/lib/conta/pedidos';
+import { formataData } from '@/lib/datas';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPedidos } from '../Esqueletos';
 import { meusPedidos } from './lista-pedidos';
@@ -12,12 +13,6 @@ export const metadata: Metadata = {
   title: 'Pedidos — Passem a Respeitar',
   robots: { index: false, follow: false },
 };
-
-const data = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
 
 const AQUI = '/conta/pedidos';
 
@@ -95,7 +90,7 @@ async function Lista({ searchParams }: { searchParams: Busca }) {
                 </div>
 
                 <p className="pedido-data">
-                  <time dateTime={pedido.criadoEm}>{data.format(new Date(pedido.criadoEm))}</time>
+                  <time dateTime={pedido.criadoEm}>{formataData(pedido.criadoEm)}</time>
                 </p>
 
                 <ul className="pedido-itens">

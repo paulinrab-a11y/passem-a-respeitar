@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { type PedidoDetalhado, pareceUuid } from '@/lib/conta/pedidos';
+import { formataData, formataDataHora } from '@/lib/datas';
 import { conciliaPedido } from '@/lib/loja/conciliacao';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPedido } from '../../Esqueletos';
@@ -13,21 +14,6 @@ export const metadata: Metadata = {
   title: 'Pedido — Passem a Respeitar',
   robots: { index: false, follow: false },
 };
-
-const dia = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-});
-
-/** A trilha ganha hora: numa linha do tempo, "quando" inclui a que horas. */
-const diaEHora = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 /** Texto do estado da etapa para quem ouve a pagina em vez de olhar. */
 const EM_PALAVRAS = {
@@ -108,7 +94,7 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
 
       <p className="detalhe-topo">
         <span className={`pedido-status ${pedido.tom}`}>{pedido.rotulo}</span>
-        <time dateTime={pedido.criadoEm}>{dia.format(new Date(pedido.criadoEm))}</time>
+        <time dateTime={pedido.criadoEm}>{formataData(pedido.criadoEm)}</time>
       </p>
 
       <section className="detalhe-bloco">
@@ -180,6 +166,7 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
           </p>
         ) : null}
 
+        {/* A trilha ganha hora: numa linha do tempo, "quando" inclui a que horas. */}
         <ol className="etapas">
           {linha.etapas.map((etapa) => (
             <li
@@ -191,7 +178,7 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
               <span className="etapa-nome">{etapa.rotulo}</span>
               <span className="etapa-quando">
                 {etapa.em ? (
-                  <time dateTime={etapa.em}>{diaEHora.format(new Date(etapa.em))}</time>
+                  <time dateTime={etapa.em}>{formataDataHora(etapa.em)}</time>
                 ) : (
                   <span aria-hidden="true">—</span>
                 )}
@@ -207,7 +194,7 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
               <span className="etapa-nome">{linha.ramo.rotulo}</span>
               <span className="etapa-quando">
                 {linha.ramo.em ? (
-                  <time dateTime={linha.ramo.em}>{diaEHora.format(new Date(linha.ramo.em))}</time>
+                  <time dateTime={linha.ramo.em}>{formataDataHora(linha.ramo.em)}</time>
                 ) : (
                   <span aria-hidden="true">—</span>
                 )}

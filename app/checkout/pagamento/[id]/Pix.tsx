@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formataDiaHora } from '@/lib/datas';
 
 /**
  * Pix gerado (Issue #110).
@@ -15,13 +16,6 @@ export type DadosDoPix = {
   qrBase64: string | null;
   expiraEm: string | null;
 };
-
-const quando = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 export default function Pix({ dados, valor }: { dados: DadosDoPix; valor: string }) {
   const [copiado, setCopiado] = useState(false);
@@ -73,9 +67,11 @@ export default function Pix({ dados, valor }: { dados: DadosDoPix; valor: string
         {copiado ? 'Código Pix copiado.' : ''}
       </p>
 
+      {/* O vencimento sai pelo helper de datas (#248): fuso fixo, entao o
+          servidor e o navegador escrevem o mesmo texto e a hidratacao bate. */}
       <p className="pix-espera">
         <span className="pedido-status atencao">Aguardando pagamento</span>
-        {dados.expiraEm ? ` · vence em ${quando.format(new Date(dados.expiraEm))}` : ''}
+        {dados.expiraEm ? ` · vence em ${formataDiaHora(dados.expiraEm)}` : ''}
       </p>
 
       <p className="detalhe-nota">

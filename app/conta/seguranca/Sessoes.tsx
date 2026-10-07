@@ -5,15 +5,9 @@ import Mensagem from '@/app/_ui/Mensagem';
 import Reautenticar from '@/app/_ui/Reautenticar';
 import Rotulo from '@/app/_ui/Rotulo';
 import type { Sessao } from '@/lib/conta/sessoes';
+import { formataMesAbreviadoHora } from '@/lib/datas';
 import { encerrarSessao, reautenticarEEncerrar } from './acoes';
 import { sessaoInicial } from './estado-sessoes';
-
-const quando = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 export default function Sessoes({
   sessoes,
@@ -62,7 +56,7 @@ export default function Sessoes({
                 {s.atual ? <span className="sessoes-selo">este aparelho</span> : null}
               </p>
               <p className="sessoes-detalhe">
-                {quando.format(new Date(s.ultimoAcesso))}
+                {formataMesAbreviadoHora(s.ultimoAcesso)}
                 {s.rede ? ` · rede ${s.rede}` : ''}
               </p>
             </div>
