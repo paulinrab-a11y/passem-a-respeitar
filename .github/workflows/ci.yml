@@ -165,8 +165,35 @@ jobs:
       # aqui, e nao no dia em que for preciso recriar o banco.
       - name: Supabase local
         run: npm run e2e:banco
+      # Navegador em cache, chave pela versao exata do Playwright (#251). O
+      # binario e o que mais demora para baixar; as dependencias do sistema
+      # (apt) nao vao para o cache e sao instaladas sempre.
+      - name: Versao do Playwright
+        id: playwright
+        run: echo "versao=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache do Chromium
+        id: cache-chromium
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.versao }}
+      # Em 07/10/2026 este passo travou ate o teto de 25 min do job (rede do
+      # runner ou apt), e um rerun igual levou 9 min. Cada tentativa tem 5 min;
+      # sao ate tres. Travar vira falha rapida, e falha passageira se resolve
+      # sozinha na tentativa seguinte.
       - name: Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.cache-chromium.outputs.cache-hit }}" = "true" ]; then
+            comando="npx playwright install-deps chromium"
+          else
+            comando="npx playwright install --with-deps chromium"
+          fi
+          for tentativa in 1 2 3; do
+            if timeout 300 $comando; then exit 0; fi
+            echo "::warning::Chromium: tentativa $tentativa falhou ou passou de 5 min"
+            sleep 10
+          done
+          exit 1
       - name: Testes de ponta a ponta
         run: npm run test:e2e
       - name: Guardar relatorio
