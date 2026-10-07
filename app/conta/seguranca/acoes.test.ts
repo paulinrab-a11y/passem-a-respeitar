@@ -5,11 +5,16 @@ import { sessaoInicial } from './estado-sessoes';
 
 let n = 0;
 let usuario: { id: string; email: string } | null = null;
+let lembrar = true;
+let cabecalhos = new Headers();
 
 const updateUser = vi.fn(async (_: { password: string }) => ({
   error: null as { message: string } | null,
 }));
 const signOut = vi.fn(async (_?: { scope: string }) => ({ error: null }));
+const clienteDeAuth = vi.fn(async (_lembrar: boolean) => ({
+  auth: { updateUser, signOut },
+}));
 
 const rpc = vi.fn(async (_f: string, _a?: unknown) => ({
   data: true as unknown,
@@ -19,9 +24,12 @@ const rpc = vi.fn(async (_f: string, _a?: unknown) => ({
 vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
   clienteServidor: async () => ({ rpc }),
-  clienteDeAuth: async () => ({
-    auth: { updateUser, signOut },
-  }),
+  clienteDeAuth: (l: boolean) => clienteDeAuth(l),
+  lembrarDaSessao: async () => lembrar,
+}));
+
+vi.mock('next/headers', () => ({
+  headers: async () => cabecalhos,
 }));
 
 const revalidatePath = vi.fn();
@@ -33,12 +41,15 @@ const HASH = 'a'.repeat(64);
 const vazada = vi.fn(async (_: string) => false);
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => vazada(s) }));
 
+type Conferencia = 'certa' | 'errada' | 'indisponivel';
+
 /** A conferencia de senha virou helper compartilhado na #40. */
-const confere = vi.fn(async (_email: string, _senha: string) => true);
+const confere = vi.fn(async (_email: string, _senha: string): Promise<Conferencia> => 'certa');
 const recente = vi.fn(async () => true);
-const refaz = vi.fn(async (_senha: string) => true);
+const refaz = vi.fn(async (_senha: string): Promise<Conferencia> => 'certa');
 vi.mock('@/lib/conta/reautenticacao', () => ({
   JANELA_MINUTOS: 15,
+  RECADO_INDISPONIVEL: 'Não deu para conferir a senha agora. Tente de novo em instantes.',
   autenticadoRecentemente: () => recente(),
   reautenticar: (senha: string) => refaz(senha),
   senhaConfere: (email: string, senha: string) => confere(email, senha),
@@ -55,16 +66,21 @@ function form(campos: Record<string, string>) {
 const completo = (extra: Record<string, string> = {}) =>
   form({ atual: 'senha-antiga-valida', nova: NOVA, confirmacao: NOVA, ...extra });
 
+const comSenha = (senha: string, identificador = HASH) => form({ identificador, senha });
+
 beforeEach(() => {
   vi.clearAllMocks();
-  confere.mockResolvedValue(true);
+  confere.mockResolvedValue('certa');
   updateUser.mockResolvedValue({ error: null });
   vazada.mockResolvedValue(false);
   rpc.mockResolvedValue({ data: true, error: null });
   recente.mockResolvedValue(true);
-  refaz.mockResolvedValue(true);
-  // Usuario novo a cada caso: o rate limit guarda estado no modulo.
-  usuario = { id: `1111-${n++}`, email: 'pessoa@exemplo.invalid' };
+  refaz.mockResolvedValue('certa');
+  lembrar = true;
+  // Usuario e IP novos a cada caso: o rate limit guarda estado no modulo.
+  n += 1;
+  usuario = { id: `1111-${n}`, email: 'pessoa@exemplo.invalid' };
+  cabecalhos = new Headers({ 'x-forwarded-for': `203.0.113.${(n % 200) + 1}` });
 });
 
 describe('caminho feliz', () => {
@@ -87,6 +103,18 @@ describe('caminho feliz', () => {
     const r = await trocarSenha(senhaInicial, completo());
     expect(r.recado?.texto).toMatch(/outros aparelhos/i);
   });
+
+  // `updateUser` regrava os cookies. Com `true` fixo, trocar a senha num
+  // computador emprestado deixava a sessao viva ali por trinta dias (#244).
+  it('respeita a escolha de manter conectado, nas duas direcoes', async () => {
+    await trocarSenha(senhaInicial, completo());
+    expect(clienteDeAuth).toHaveBeenLastCalledWith(true);
+
+    lembrar = false;
+    usuario = { id: `1111-${n}-b`, email: 'pessoa@exemplo.invalid' };
+    await trocarSenha(senhaInicial, completo());
+    expect(clienteDeAuth).toHaveBeenLastCalledWith(false);
+  });
 });
 
 describe('conferencia da senha atual', () => {
@@ -96,13 +124,27 @@ describe('conferencia da senha atual', () => {
     expect(confere).toHaveBeenCalledWith(usuario?.email, 'senha-antiga-valida');
   });
 
-  it('recusa quando a senha atual esta errada', async () => {
-    confere.mockResolvedValue(false);
+  it('recusa quando a senha atual esta errada, apontando o campo', async () => {
+    confere.mockResolvedValue('errada');
     const r = await trocarSenha(senhaInicial, completo());
 
     expect(r.recado?.tom).toBe('erro');
+    expect(r.campo).toBe('atual');
     expect(updateUser).not.toHaveBeenCalled();
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  // Servico fora do ar nao e senha errada: apontar o campo mandaria a pessoa
+  // redigitar uma senha que estava certa.
+  it('servico indisponivel pede para tentar depois, sem culpar a senha', async () => {
+    confere.mockResolvedValue('indisponivel');
+    const r = await trocarSenha(senhaInicial, completo());
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/não deu para conferir/i);
+    expect(r.recado?.texto).not.toMatch(/incorreta/i);
+    expect(r.campo).toBe(null);
+    expect(updateUser).not.toHaveBeenCalled();
   });
 });
 
@@ -125,7 +167,7 @@ describe('politica de senha', () => {
   // Ordem importa: conferir a senha atual antes gasta menos e nao manda a
   // senha de quem nem provou quem e para um servico de fora.
   it('so consulta o vazamento depois de a senha atual conferir', async () => {
-    confere.mockResolvedValue(false);
+    confere.mockResolvedValue('errada');
     await trocarSenha(senhaInicial, completo());
 
     expect(vazada).not.toHaveBeenCalled();
@@ -168,7 +210,7 @@ describe('sessao e limites', () => {
   });
 
   it('bloqueia depois de cinco tentativas', async () => {
-    confere.mockResolvedValue(false);
+    confere.mockResolvedValue('errada');
 
     for (let i = 0; i < 5; i++) {
       const r = await trocarSenha(senhaInicial, completo());
@@ -188,7 +230,7 @@ describe('sessao e limites', () => {
   });
 
   it('nenhuma senha aparece no que volta para a tela', async () => {
-    confere.mockResolvedValue(false);
+    confere.mockResolvedValue('errada');
     const r = await trocarSenha(senhaInicial, completo());
 
     const texto = JSON.stringify(r);
@@ -290,10 +332,7 @@ describe('reautenticarEEncerrar', () => {
   // O criterio da Issue: depois de reautenticar, a acao original continua de
   // onde parou. O identificador vem no mesmo formulario, entao nada se perde.
   it('refaz a acao com o mesmo identificador', async () => {
-    const r = await reautenticarEEncerrar(
-      sessaoInicial,
-      form({ identificador: HASH, senha: 'certa' })
-    );
+    const r = await reautenticarEEncerrar(sessaoInicial, comSenha('certa'));
 
     expect(refaz).toHaveBeenCalledWith('certa');
     expect(rpc).toHaveBeenCalledWith('encerra_sessao', { p_identificador: HASH });
@@ -301,36 +340,118 @@ describe('reautenticarEEncerrar', () => {
   });
 
   it('recusa senha errada e continua pedindo', async () => {
-    refaz.mockResolvedValue(false);
-    const r = await reautenticarEEncerrar(
-      sessaoInicial,
-      form({ identificador: HASH, senha: 'errada' })
-    );
+    refaz.mockResolvedValue('errada');
+    const r = await reautenticarEEncerrar(sessaoInicial, comSenha('errada'));
 
     expect(r.precisaReautenticar).toBe(true);
     expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/incorreta/i);
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  // Reautenticar cria sessao nova, entao a janela reabre sozinha — mas a acao
-  // continua passando pelas mesmas checagens de sempre.
-  it('nao pula a validacao do identificador', async () => {
-    const r = await reautenticarEEncerrar(
-      sessaoInicial,
-      form({ identificador: 'nao-e-hash', senha: 'certa' })
-    );
+  // Supabase no limite ou fora do ar: a pessoa digitou a senha certa e nao
+  // pode ouvir que errou. O modal fica aberto para ela tentar em seguida.
+  it('servico indisponivel pede para tentar depois, sem culpar a senha', async () => {
+    refaz.mockResolvedValue('indisponivel');
+    const r = await reautenticarEEncerrar(sessaoInicial, comSenha('certa'));
+
+    expect(r.precisaReautenticar).toBe(true);
+    expect(r.recado?.texto).toMatch(/não deu para conferir/i);
+    expect(r.recado?.texto).not.toMatch(/incorreta/i);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // Identificador com cara errada nao gasta tentativa de ninguem: a senha
+  // nem e conferida para uma acao que seria recusada de qualquer jeito.
+  it('nao confere a senha com identificador invalido', async () => {
+    const r = await reautenticarEEncerrar(sessaoInicial, comSenha('certa', 'nao-e-hash'));
 
     expect(r.recado?.tom).toBe('erro');
+    expect(refaz).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('recusa sem sessao, sem conferir a senha', async () => {
+    usuario = null;
+    const r = await reautenticarEEncerrar(sessaoInicial, comSenha('certa'));
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(refaz).not.toHaveBeenCalled();
   });
 
   it('a senha nao aparece no que volta para a tela', async () => {
-    refaz.mockResolvedValue(false);
-    const r = await reautenticarEEncerrar(
-      sessaoInicial,
-      form({ identificador: HASH, senha: 'minha-senha-secreta' })
-    );
+    refaz.mockResolvedValue('errada');
+    const r = await reautenticarEEncerrar(sessaoInicial, comSenha('minha-senha-secreta'));
 
     expect(JSON.stringify(r)).not.toContain('minha-senha-secreta');
+  });
+});
+
+describe('limite da reautenticacao (#244)', () => {
+  // Sem este limite, quem tem a sessao aberta num computador alheio roda a
+  // lista de senhas pelo modal, e o limite da troca de senha nao serve de
+  // nada — e a mesma senha por outra porta.
+  it('a sexta tentativa na hora e recusada antes de conferir a senha', async () => {
+    refaz.mockResolvedValue('errada');
+
+    for (let i = 0; i < 5; i++) {
+      const r = await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+      expect(r.recado?.texto).not.toMatch(/Muitas tentativas/);
+    }
+    expect(refaz).toHaveBeenCalledTimes(5);
+
+    const bloqueado = await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+
+    expect(bloqueado.recado?.texto).toMatch(/Muitas tentativas/);
+    expect(refaz).toHaveBeenCalledTimes(5);
+  });
+
+  // O modal fica aberto mostrando o motivo. Fechar esconderia o "muitas
+  // tentativas" de quem so precisa esperar.
+  it('bloqueado continua pedindo a senha, com o recado', async () => {
+    refaz.mockResolvedValue('errada');
+    for (let i = 0; i < 5; i++) await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+
+    const bloqueado = await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+
+    expect(bloqueado.precisaReautenticar).toBe(true);
+    expect(bloqueado.recado?.tom).toBe('erro');
+  });
+
+  // Acertar tambem conta: o limite e de tentativas, nao de erros. Quem acerta
+  // de primeira nunca chega perto dele.
+  it('a tentativa certa tambem gasta a cota', async () => {
+    for (let i = 0; i < 5; i++) await reautenticarEEncerrar(sessaoInicial, comSenha('certa'));
+
+    const bloqueado = await reautenticarEEncerrar(sessaoInicial, comSenha('certa'));
+    expect(bloqueado.recado?.texto).toMatch(/Muitas tentativas/);
+  });
+
+  it('a cota e por conta: outra conta no mesmo IP continua passando', async () => {
+    refaz.mockResolvedValue('errada');
+    for (let i = 0; i < 5; i++) await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+
+    usuario = { id: `1111-${n}-outra`, email: 'outra@exemplo.invalid' };
+    const r = await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+
+    expect(r.recado?.texto).not.toMatch(/Muitas tentativas/);
+  });
+
+  // Uma origem so nao testa senhas em varias contas sequestradas trocando de
+  // conta a cada cinco chutes.
+  it('a cota por IP segura quem troca de conta', async () => {
+    refaz.mockResolvedValue('errada');
+
+    for (let i = 0; i < 20; i++) {
+      usuario = { id: `1111-${n}-ip-${i}`, email: 'alguem@exemplo.invalid' };
+      const r = await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+      expect(r.recado?.texto).not.toMatch(/Muitas tentativas/);
+    }
+
+    usuario = { id: `1111-${n}-ip-21`, email: 'alguem@exemplo.invalid' };
+    const bloqueado = await reautenticarEEncerrar(sessaoInicial, comSenha('chute'));
+
+    expect(bloqueado.recado?.texto).toMatch(/Muitas tentativas/);
+    expect(refaz).toHaveBeenCalledTimes(20);
   });
 });

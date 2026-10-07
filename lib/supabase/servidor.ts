@@ -8,7 +8,7 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
-import { ehVerificador, opcoesDeSessao, opcoesDoVerificador } from './cookies';
+import { COOKIE_LEMBRAR, ehVerificador, opcoesDeSessao, opcoesDoVerificador } from './cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import type { Database } from './tipos';
 
@@ -17,8 +17,13 @@ import type { Database } from './tipos';
  *
  * O IP so vale em producao: rodando local nao ha `x-forwarded-for`, e o
  * Supabase registra o IP de saida desta maquina.
+ *
+ * Exportado para o client descartavel da conferencia de senha (#244): sem
+ * isto a sessao que ele cria, mesmo durando um instante, nasce com o IP da
+ * Vercel — e o limite por IP do Supabase conta contra o IP de saida, que e
+ * de todo mundo, em vez do de quem digitou.
  */
-async function cabecalhosDeOrigem() {
+export async function cabecalhosDeOrigem() {
   const h = await headers();
   const saida: Record<string, string> = {};
 
@@ -29,6 +34,19 @@ async function cabecalhosDeOrigem() {
   if (ip) saida['X-Forwarded-For'] = ip.split(',')[0].trim().slice(0, 64);
 
   return saida;
+}
+
+/**
+ * A escolha de "manter conectado" feita no login, lida do cookie proprio.
+ *
+ * Toda acao que regrava a sessao depois do login — reautenticar, trocar
+ * senha, trocar e-mail — passa isto para `clienteDeAuth`. Passar `true` fixo,
+ * como se fazia (#244), transformava a sessao de um computador emprestado em
+ * sessao de trinta dias no instante em que a pessoa digitava a senha para
+ * provar quem era. Sem o cookie (login anterior a ele), vale o lado seguro.
+ */
+export async function lembrarDaSessao() {
+  return (await cookies()).get(COOKIE_LEMBRAR)?.value === '1';
 }
 
 /**
