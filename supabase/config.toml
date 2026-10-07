@@ -244,8 +244,10 @@ enable_confirmations = true
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
+# Number of characters used in the email OTP. Igual ao projeto de producao
+# ("Email OTP length" no painel): o site aceita exatamente este comprimento
+# (CODIGO_DIGITOS em lib/esquemas.ts).
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 

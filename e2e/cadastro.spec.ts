@@ -46,7 +46,7 @@ test('cadastro: a conta so entra depois do codigo do e-mail', async ({ page }) =
   // e-mail: conta ainda nao confirmada recebe um codigo novo.
   const novoPedido = Date.now() - 1000;
   await cadastra();
-  const campo = await vivo(page.getByLabel(/Código de 6 dígitos/));
+  const campo = await vivo(page.getByLabel(/Código de 8 dígitos/));
   await campo.fill(await codigoDoEmail(email, novoPedido));
   await page.waitForURL('**/conta');
 
@@ -92,12 +92,12 @@ test('cadastro: digitar o codigo do e-mail confirma e entra na conta', async ({ 
   await page.getByRole('checkbox', { name: /Li e aceito/ }).check();
   await criar.click();
 
-  const campo = await vivo(page.getByLabel(/Código de 6 dígitos/));
+  const campo = await vivo(page.getByLabel(/Código de 8 dígitos/));
   // Reenviar espera os 60 s do Supabase, e a tela mostra a contagem.
   await expect(page.getByRole('button', { name: /Reenviar código \(\d+ s\)/ })).toBeDisabled();
 
   // Codigo errado: erro na tela, campo limpo, mesma tela.
-  await campo.fill('000000');
+  await campo.fill('00000000');
   await expect(page.getByRole('alert').filter({ hasText: 'inválido ou vencido' })).toBeVisible();
   await expect(campo).toHaveValue('');
   expect(await emailConfirmado(email)).toBe(false);

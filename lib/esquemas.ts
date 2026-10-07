@@ -122,11 +122,20 @@ export const esquemaConcierge = z.object({
 });
 
 /**
- * Codigo de confirmacao do cadastro (#224): seis digitos, e so. Espacos e
- * texto em volta (gente cola "Seu código: 123 456") sao tirados ANTES, no
- * campo; aqui chega o que o servidor aceita.
+ * Comprimento do codigo de confirmacao (#224). E uma configuracao do projeto
+ * no Supabase (Authentication > Sign In / Providers > Email > "Email OTP
+ * length"): producao esta em 8, e o config.toml local acompanha. Mudar la sem
+ * mudar aqui faz o campo recusar o codigo que chegou — foi o que aconteceu em
+ * 06/10/2026 com 6 aqui e 8 la.
+ */
+export const CODIGO_DIGITOS = 8;
+
+/**
+ * Codigo de confirmacao do cadastro (#224): so digitos, no comprimento certo.
+ * Espacos e texto em volta (gente cola "Seu código: 1234 5678") sao tirados
+ * ANTES, no campo; aqui chega o que o servidor aceita.
  */
 export const esquemaCodigo = z.object({
   email: z.string().trim().toLowerCase().min(1).max(254).email(),
-  codigo: z.string().regex(/^\d{6}$/),
+  codigo: z.string().regex(new RegExp(`^\\d{${CODIGO_DIGITOS}}$`)),
 });

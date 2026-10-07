@@ -5,12 +5,13 @@ import ContraRobo, { SEM_AVISO } from '@/app/_ui/ContraRobo';
 import { CAMPO_DA_ISCA } from '@/app/_ui/desafio';
 import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
+import { CODIGO_DIGITOS } from '@/lib/esquemas';
 import { confirmarCodigo, reenviarCodigo } from './acoes';
 import { codigoInicial, reenvioInicial } from './estado';
 
 /** O Supabase so manda outro e-mail depois de 60 s; a tela conta junto. */
 export const ESPERA_REENVIO_S = 60;
-const DIGITOS = 6;
+const DIGITOS = CODIGO_DIGITOS;
 
 /**
  * A tela do codigo (#224): o que aparece depois de "Criar conta".
@@ -57,7 +58,7 @@ export default function Codigo({
   }, [estado.tentativa]);
 
   function aoDigitar(valor: string) {
-    // So digitos, no maximo seis: "Seu código: 123 456" colado vira 123456.
+    // So digitos, no maximo DIGITOS: "Seu código: 1234 5678" colado vira 12345678.
     const limpo = valor.replace(/\D/g, '').slice(0, DIGITOS);
     setCodigo(limpo);
     if (limpo.length === DIGITOS && !confirmando) {
@@ -94,7 +95,7 @@ export default function Codigo({
             name="codigo"
             inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="[0-9]{6}"
+            pattern={`[0-9]{${DIGITOS}}`}
             maxLength={DIGITOS}
             required
             // biome-ignore lint/a11y/noAutofocus: a tela existe para este campo; o foco e o que a pessoa espera

@@ -360,7 +360,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .codigo-tela{animation:codigo-entra .2s cubic-bezier(0,0,.2,1) both}
 @keyframes codigo-entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .codigo-form,.codigo-reenvio{display:flex;flex-direction:column;gap:18px}
-.codigo-campo input{font-size:28px;letter-spacing:.5em;text-align:center;font-variant-numeric:tabular-nums;padding-left:calc(16px + .5em)}
+.codigo-campo input{font-size:24px;letter-spacing:.3em;text-align:center;font-variant-numeric:tabular-nums;padding-left:calc(16px + .3em)}
 .codigo-acoes{display:flex;gap:12px;flex-wrap:wrap}
 .codigo-acoes .btn{flex:1 1 180px}
 .auth-aviso{color:var(--prata);border-left-color:var(--prata-3)}
