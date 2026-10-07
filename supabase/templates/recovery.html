@@ -28,13 +28,13 @@
           <td style="padding:26px 28px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr>
               <td bgcolor="#cdd0d5" style="background:#cdd0d5;">
-                <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;">Criar senha nova</a>
+                <a href="{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=recovery" style="display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;">Criar senha nova</a>
               </td>
             </tr>
           </table></td>
         </tr>
         <tr>
-          <td style="padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;">Se o botão não abrir, copie e cole este endereço no navegador:<br><a href="{{ .ConfirmationURL }}" style="color:#cdd0d5;">{{ .ConfirmationURL }}</a></td>
+          <td style="padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;">Se o botão não abrir, copie e cole este endereço no navegador:<br><a href="{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=recovery" style="color:#cdd0d5;">{{ .RedirectTo }}&amp;token_hash={{ .TokenHash }}&amp;type=recovery</a></td>
         </tr>
         <tr>
           <td style="padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { opcoesDeSessao, opcoesDoLembrar } from './cookies';
+import {
+  ehVerificador,
+  opcoesDaRecuperacao,
+  opcoesDeSessao,
+  opcoesDoLembrar,
+  opcoesDoVerificador,
+} from './cookies';
 
 const DO_SUPABASE = { maxAge: 60 * 60 * 24 * 365, path: '/', sameSite: 'lax' as const };
 
@@ -69,5 +75,30 @@ describe('opcoesDoLembrar', () => {
     // Nao e o token, mas diz respeito a sessao. Nao ha motivo para JavaScript
     // de pagina conseguir ler nem escrever.
     expect(opcoesDoLembrar(true).httpOnly).toBe(true);
+  });
+});
+
+describe('verificador PKCE (#234)', () => {
+  it('reconhece o cookie do verificador pelo sufixo', () => {
+    expect(ehVerificador('sb-abc-auth-token-code-verifier')).toBe(true);
+    expect(ehVerificador('sb-abc-auth-token')).toBe(false);
+  });
+
+  it('vale uma hora mesmo sem manter conectado, e continua httpOnly', () => {
+    const o = opcoesDoVerificador(DO_SUPABASE);
+    expect(o.maxAge).toBe(60 * 60);
+    expect(o.expires).toBeUndefined();
+    expect(o.httpOnly).toBe(true);
+    expect(o.sameSite).toBe('lax');
+  });
+});
+
+describe('marca da recuperacao (#234)', () => {
+  it('e curta, httpOnly e so do servidor', () => {
+    const o = opcoesDaRecuperacao();
+    expect(o.maxAge).toBe(30 * 60);
+    expect(o.httpOnly).toBe(true);
+    expect(o.sameSite).toBe('lax');
+    expect(o.path).toBe('/');
   });
 });

@@ -51,7 +51,10 @@ test('troca de senha: exige a atual, e depois so a nova entra', async ({ page })
   await expect(page.getByText(u.email)).toBeVisible();
 });
 
-test('recuperacao de senha: o link do e-mail leva a uma senha nova', async ({ page }) => {
+test('recuperacao de senha: o link do e-mail leva a uma senha nova, mesmo em outro navegador', async ({
+  page,
+  browser,
+}) => {
   const u = await criaUsuario('Esqueci');
   const nova = senhaNova();
   const pedidoEm = Date.now() - 1000;
@@ -62,18 +65,24 @@ test('recuperacao de senha: o link do e-mail leva a uma senha nova', async ({ pa
   await enviar.click();
   await expect(page.getByText('Confira seu e-mail')).toBeVisible();
 
-  await page.goto(await linkDoEmail(u.email, pedidoEm));
-  await page.waitForURL('**/redefinir-senha');
+  // O link abre em outro navegador (#234): contexto novo, sem nenhum cookie
+  // do que pediu. Era onde o fluxo antigo quebrava.
+  const outro = await browser.newContext({ extraHTTPHeaders: visitante('senha') });
+  const pagina = await outro.newPage();
+  await pagina.goto(await linkDoEmail(u.email, pedidoEm));
+  await pagina.waitForURL('**/redefinir-senha');
 
-  const salvar = await vivo(page.getByRole('button', { name: 'Salvar nova senha' }));
-  await page.getByLabel('Nova senha', { exact: true }).fill(nova);
-  await page.getByLabel('Confirme a nova senha').fill(nova);
+  const salvar = await vivo(pagina.getByRole('button', { name: 'Salvar nova senha' }));
+  await pagina.getByLabel('Nova senha', { exact: true }).fill(nova);
+  await pagina.getByLabel('Confirme a nova senha').fill(nova);
   await salvar.click();
 
-  await page.waitForURL('**/conta');
-  await expect(page.getByText(u.email)).toBeVisible();
-
-  await sai(page);
+  await pagina.waitForURL('**/conta');
+  await expect(pagina.getByText(u.email)).toBeVisible();
+  // A marca da recuperacao e de uso unico: voltar a tela nao mostra o formulario.
+  await pagina.goto('/redefinir-senha');
+  await expect(pagina.getByLabel('Nova senha', { exact: true })).toHaveCount(0);
+  await outro.close();
 
   await page.goto('/entrar');
   await preencheLogin(page, u.email, u.senha);
@@ -100,4 +109,21 @@ test('recuperacao de senha: sem o link nao ha formulario de senha nova', async (
 
   await expect(page.getByText('Esse link não vale mais')).toBeVisible();
   await expect(page.getByLabel('Nova senha', { exact: true })).toHaveCount(0);
+});
+
+test('recuperacao de senha: logado por senha, /redefinir-senha manda para a Seguranca', async ({
+  page,
+}) => {
+  const u = await criaUsuario('Logado');
+  await entra(page, u.email, u.senha);
+
+  await page.goto('/redefinir-senha');
+
+  // Sessao comum nao troca a senha sem a atual (#234).
+  await expect(page.getByText('Você já está na sua conta')).toBeVisible();
+  await expect(page.getByLabel('Nova senha', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Ir para Segurança' })).toHaveAttribute(
+    'href',
+    '/conta/seguranca'
+  );
 });
