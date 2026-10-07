@@ -21,6 +21,13 @@ export const metadata: Metadata = {
  * A protecao contra bot (#28) entrou pelo mesmo motivo: o widget manda dado do
  * navegador para a Cloudflare, e isso se diz aqui.
  *
+ * A #254 fechou o que ficou para tras: o Concierge (#191) manda a conversa ao
+ * Google; o CPF da tela de pagamento passa pelo servidor a caminho do Mercado
+ * Pago; e os cookies, o CEP no navegador, a Vercel, o Supabase e o Sentry ja
+ * existiam sem estar aqui. Cada frase saiu do codigo, nao de modelo de
+ * politica: nome de cookie, duracao e o que vai para fora sao os de verdade,
+ * e o teste amarra os nomes as constantes.
+ *
  * Escrita para ser lida, nao para parecer contrato: frases curtas, cada
  * secao responde a uma pergunta. Sem data de "ultima atualizacao" inventada
  * — a data e a do commit.
@@ -56,8 +63,13 @@ export default function Privacidade() {
           <p className="detalhe-nota">
             <strong>Pagamento:</strong> o pagamento é processado pelo Mercado Pago. O número do seu
             cartão e o código de segurança <strong>nunca passam pelos nossos servidores</strong>:
-            eles são digitados em campos que pertencem ao Mercado Pago. Nós guardamos só o resultado
-            — aprovado, pendente, recusado — e um identificador da transação.
+            eles são digitados em campos que pertencem ao Mercado Pago. Nós guardamos só se foi Pix
+            ou cartão, o resultado — aprovado, pendente, recusado — e um identificador da transação.
+          </p>
+          <p className="detalhe-nota">
+            <strong>CPF:</strong> o Mercado Pago pede o CPF (ou o CNPJ) de quem paga. Esse número
+            passa pelo nosso servidor <strong>só para chegar ao Mercado Pago</strong>, junto com o
+            e-mail da sua conta, e não fica guardado aqui.
           </p>
         </section>
 
@@ -86,10 +98,11 @@ export default function Privacidade() {
         <section className="detalhe-bloco">
           <h2>Proteção contra robôs</h2>
           <p className="detalhe-nota">
-            Os formulários de entrar, criar conta, recuperar senha e o campo de convite usam o
-            Turnstile, da Cloudflare, para separar gente de script. Para isso a Cloudflare recebe
-            dados do seu navegador e da sua conexão, como o endereço IP. Isso acontece{' '}
-            <strong>só nessas telas</strong>, e não serve para publicidade.
+            Os formulários de entrar, criar conta e recuperar senha, o campo de convite e o
+            concierge usam o Turnstile, da Cloudflare, para separar gente de script. Para isso a
+            Cloudflare recebe dados do seu navegador e da sua conexão, como o endereço IP. Isso
+            acontece <strong>só nesses formulários</strong> — na home, só quando você chega no campo
+            de convite ou abre o concierge —, e não serve para publicidade.
           </p>
           <p className="detalhe-nota">
             Esses dados vão para a Cloudflare, não para nós, e valem a{' '}
@@ -101,6 +114,11 @@ export default function Privacidade() {
               política de privacidade deles
             </a>
             . Nós guardamos só a resposta: passou ou não passou.
+          </p>
+          <p className="detalhe-nota">
+            Além disso, o site conta quantos envios chegam do mesmo endereço IP — e, nos formulários
+            de conta, do mesmo e-mail — para frear quem tenta em massa. A contagem vence sozinha, em
+            minutos ou em até uma hora.
           </p>
         </section>
 
@@ -126,6 +144,118 @@ export default function Privacidade() {
             </a>
             . Quando o pedido é enviado, os Correios recebem o endereço completo, porque sem ele o
             pacote não chega.
+          </p>
+        </section>
+
+        <section className="detalhe-bloco">
+          <h2>Concierge</h2>
+          <p className="detalhe-nota">
+            O concierge da home responde com o Gemini, a inteligência artificial do Google. Cada
+            pergunta que você escreve no chat vai do nosso servidor para o Google, junto com as
+            últimas mensagens da conversa (até oito), para a resposta fazer sentido. Fora o que você
+            mesmo escrever, nada seu vai junto: nem a sua conta, nem o seu endereço IP — quem fala
+            com o Google é o servidor do site.
+          </p>
+          <p className="detalhe-nota">
+            O site <strong>não guarda a conversa</strong>: ela existe só na página aberta e some
+            quando você fecha ou recarrega a aba. Se uma resposta falhar, o registro do erro diz o
+            motivo, nunca o que foi escrito.
+          </p>
+          <p className="detalhe-nota">
+            No Google, valem os{' '}
+            <a
+              href="https://ai.google.dev/gemini-api/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              termos da API Gemini
+            </a>{' '}
+            e a{' '}
+            <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+              política de privacidade deles
+            </a>
+            , que podem permitir ao Google usar o texto para melhorar os serviços dele. Por isso,{' '}
+            <strong>não escreva no chat dado pessoal</strong>: nome completo, endereço, CPF, e-mail.
+            Dúvida sobre um pedido seu vai por <a href={`mailto:${CONTATO}`}>{CONTATO}</a>.
+          </p>
+        </section>
+
+        <section className="detalhe-bloco">
+          <h2>Cookies e o que fica no seu navegador</h2>
+          <p className="detalhe-nota">
+            Os cookies do próprio site são estes, e todos existem para o site funcionar. Nenhum é de
+            publicidade, e nenhum pode ser lido por script da página.
+          </p>
+          <p className="detalhe-nota">
+            <strong>Sessão</strong> (sb-…-auth-token): mantém você conectado. Com “Manter conectado”
+            desmarcado, some quando você fecha o navegador.
+          </p>
+          <p className="detalhe-nota">
+            <strong>Manter conectado</strong> (par_lembrar): guarda a sua escolha. Vale 30 dias
+            quando marcado; desmarcado, some com o navegador.
+          </p>
+          <p className="detalhe-nota">
+            <strong>Link do e-mail</strong> (sb-…-code-verifier): quando o site manda um link para o
+            seu e-mail, este cookie ajuda a conferir que o link voltou ao navegador que o pediu.
+            Vale uma hora.
+          </p>
+          <p className="detalhe-nota">
+            <strong>Recuperar a senha</strong> (par_recuperacao): marca, por meia hora, que você
+            entrou pelo link de recuperação. Só com ele dá para escolher uma senha nova sem digitar
+            a atual.
+          </p>
+          <p className="detalhe-nota">
+            <strong>Convite</strong> (par_convite): lembra, por 30 dias, que este navegador acertou
+            o código de convite. Não tem nada seu: só a validade e uma assinatura.
+          </p>
+          <p className="detalhe-nota">
+            Fora dos cookies, o <strong>CEP</strong> que você digita na ficha da camiseta fica
+            guardado neste navegador (par_cep, no armazenamento local), para o checkout já começar
+            com ele. Guardar não o manda a lugar nenhum: ele só sai daqui para calcular o frete e
+            preencher o endereço, como está acima. Num computador compartilhado, apague o CEP do
+            campo, e ele sai do navegador junto.
+          </p>
+          <p className="detalhe-nota">
+            Para apagar tudo, limpe os dados deste site nas configurações do navegador. Você sai da
+            conta e o convite volta a ser pedido. Na tela de pagamento, o que o Mercado Pago grava
+            no seu navegador segue a política deles, citada acima.
+          </p>
+        </section>
+
+        <section className="detalhe-bloco">
+          <h2>Onde o site roda</h2>
+          <p className="detalhe-nota">
+            O site roda na Vercel, e a conta e os pedidos ficam guardados no Supabase, num servidor
+            em São Paulo.
+          </p>
+          <p className="detalhe-nota">
+            A Vercel também conta as visitas e mede a velocidade das páginas (Vercel Analytics e
+            Speed Insights), <strong>sem cookie e sem identificar você</strong>: o que chega para
+            nós são números somados.
+          </p>
+          <p className="detalhe-nota">
+            Quando algo quebra, o relatório do erro vai para o Sentry, para a gente consertar: a
+            mensagem do erro, a página e o tipo de navegador. Ficam de fora os cookies, o que você
+            digita nos formulários e quem você é.
+          </p>
+          <p className="detalhe-nota">
+            Valem as políticas de privacidade da{' '}
+            <a
+              href="https://vercel.com/legal/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Vercel
+            </a>
+            , do{' '}
+            <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">
+              Supabase
+            </a>{' '}
+            e do{' '}
+            <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer">
+              Sentry
+            </a>
+            .
           </p>
         </section>
 

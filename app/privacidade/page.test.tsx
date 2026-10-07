@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { COOKIE_CONVITE } from '@/lib/convite';
+import { COOKIE_LEMBRAR, COOKIE_RECUPERACAO } from '@/lib/supabase/cookies';
 import Privacidade from './page';
 
 /**
@@ -22,8 +24,9 @@ describe('/privacidade', () => {
   it('conta que a Cloudflare recebe dados do navegador, e em que telas', () => {
     expect(html).toMatch(/Turnstile, da Cloudflare/);
     expect(html).toMatch(/endereço IP/);
-    expect(html).toMatch(/entrar, criar conta, recuperar senha e o campo de convite/);
-    expect(html).toMatch(/só nessas telas/i);
+    expect(html).toMatch(/entrar, criar conta e recuperar senha, o campo de convite e o concierge/);
+    expect(html).toMatch(/só nesses formulários/i);
+    expect(html).toMatch(/abre o concierge/);
     expect(html).toContain('https://www.cloudflare.com/pt-br/privacypolicy/');
   });
 
@@ -43,6 +46,48 @@ describe('/privacidade', () => {
 
   it('diz que o cartao nunca passa pelos nossos servidores', () => {
     expect(html).toMatch(/nunca passam pelos nossos servidores/i);
+  });
+
+  // O CPF passa pelo servidor a caminho do Mercado Pago (lib/loja/cobranca.ts)
+  // e nao vai para a tabela pagamentos. Se um dia for guardado, este texto
+  // deixa de ser verdade e precisa mudar junto. (#254)
+  it('conta que o CPF passa pelo servidor so para chegar ao Mercado Pago', () => {
+    expect(html).toMatch(/CPF/);
+    expect(html).toMatch(/só para chegar ao Mercado Pago/);
+    expect(html).toMatch(/não fica guardado aqui/);
+    expect(html).toMatch(/se foi Pix ou\s+cartão/);
+  });
+
+  // O concierge (#191) manda a conversa ao Google (lib/concierge/gemini.ts).
+  it('conta que o concierge manda a conversa ao Google e nao a guarda', () => {
+    expect(html).toMatch(/<h2>Concierge<\/h2>/);
+    expect(html).toMatch(/Gemini/);
+    expect(html).toMatch(/últimas mensagens da conversa \(até oito\)/);
+    expect(html).toMatch(/não guarda a conversa/);
+    expect(html).toMatch(/não escreva no chat dado pessoal/);
+    expect(html).toContain('https://policies.google.com/privacy');
+    expect(html).toContain('https://ai.google.dev/gemini-api/terms');
+  });
+
+  // Os nomes vem das constantes: renomear um cookie sem mexer na politica
+  // derruba o teste, em vez de deixar o texto apontando para um nome morto.
+  it('lista os cookies do site pelo nome de verdade, e o CEP no navegador', () => {
+    expect(html).toMatch(/Cookies e o que fica no seu navegador/);
+    for (const nome of [COOKIE_LEMBRAR, COOKIE_RECUPERACAO, COOKIE_CONVITE]) {
+      expect(html).toContain(nome);
+    }
+    expect(html).toContain('auth-token');
+    expect(html).toContain('code-verifier');
+    // Igual a CHAVE de app/_home/cep-lembrado.ts.
+    expect(html).toContain('par_cep');
+    expect(html).toMatch(/limpe os dados deste site/);
+  });
+
+  it('conta onde o site roda, a medicao de visitas e o rastreio de erro', () => {
+    expect(html).toMatch(/Vercel Analytics e\s+Speed Insights/);
+    expect(html).toMatch(/sem cookie e sem identificar você/);
+    expect(html).toMatch(/Sentry/);
+    expect(html).toMatch(/Supabase/);
   });
 
   it('cita a LGPD e os direitos', () => {
