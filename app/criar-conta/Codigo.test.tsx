@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EstadoCodigo, EstadoReenvio } from './estado';
 
 /**
- * A tela do codigo (#224): um campo, seis digitos, envio sozinho; colar com
+ * A tela do codigo (#224): um campo, oito digitos, envio sozinho; colar com
  * texto em volta funciona; codigo errado limpa o campo e mantem a tela;
  * reenviar espera 60 s; trocar e-mail devolve ao formulario.
  */
@@ -32,7 +32,7 @@ vi.mock('./acoes', () => ({
 
 import Codigo, { ESPERA_REENVIO_S } from './Codigo';
 
-const campo = () => screen.getByLabelText(/Código de 6 dígitos/) as HTMLInputElement;
+const campo = () => screen.getByLabelText(/Código de 8 dígitos/) as HTMLInputElement;
 
 beforeEach(() => {
   recebidos = [];
@@ -45,40 +45,40 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('tela do codigo (#224)', () => {
-  it('mostra o e-mail, pede seis digitos e oferece entrar', () => {
+  it('mostra o e-mail, pede oito digitos e oferece entrar', () => {
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
 
     expect(screen.getByText('maria@exemplo.com')).toBeTruthy();
     const c = campo();
     expect(c.getAttribute('inputmode')).toBe('numeric');
     expect(c.getAttribute('autocomplete')).toBe('one-time-code');
-    expect(c.maxLength).toBe(6);
+    expect(c.maxLength).toBe(8);
     expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe('/entrar');
     expect((screen.getByRole('button', { name: 'Confirmar' }) as HTMLButtonElement).disabled).toBe(
       true
     );
   });
 
-  it('colar "Seu código: 123 456" vira 123456 e envia sozinho', async () => {
+  it('colar "Seu código: 1234 5678" vira 12345678 e envia sozinho', async () => {
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
 
     await act(async () => {
-      fireEvent.change(campo(), { target: { value: 'Seu código: 123 456' } });
+      fireEvent.change(campo(), { target: { value: 'Seu código: 1234 5678' } });
     });
     await screen.findByRole('alert');
 
-    expect(recebidos).toEqual(['123456']);
+    expect(recebidos).toEqual(['12345678']);
   });
 
-  it('com cinco digitos nao envia; o botao fica desabilitado', async () => {
+  it('com sete digitos nao envia; o botao fica desabilitado', async () => {
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
 
     await act(async () => {
-      fireEvent.change(campo(), { target: { value: '12345' } });
+      fireEvent.change(campo(), { target: { value: '1234567' } });
     });
 
     expect(confirmarCodigo).not.toHaveBeenCalled();
-    expect(campo().value).toBe('12345');
+    expect(campo().value).toBe('1234567');
     expect((screen.getByRole('button', { name: 'Confirmar' }) as HTMLButtonElement).disabled).toBe(
       true
     );
@@ -88,7 +88,7 @@ describe('tela do codigo (#224)', () => {
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
 
     await act(async () => {
-      fireEvent.change(campo(), { target: { value: '000000' } });
+      fireEvent.change(campo(), { target: { value: '00000000' } });
     });
     const erro = await screen.findByRole('alert');
 

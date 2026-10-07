@@ -3,7 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
-import { esquemaCodigo, esquemaCriarConta, esquemaEmail } from '@/lib/esquemas';
+import { CODIGO_DIGITOS, esquemaCodigo, esquemaCriarConta, esquemaEmail } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import {
   CAMPO_DA_ISCA,
@@ -125,7 +125,7 @@ export async function criarConta(
 }
 
 /**
- * Confirmar o cadastro pelo codigo de seis digitos (#224).
+ * Confirmar o cadastro pelo codigo de ${CODIGO_DIGITOS} digitos (#224).
  *
  * Desde a #227 o e-mail traz so o codigo, sem link: confirmar e sempre por
  * aqui, e termina em sessao em cookie e /conta. O `verifyOtp` roda NO
@@ -142,8 +142,7 @@ const CODIGO_POR_IP = { maximo: 20, janelaMs: 10 * 60 * 1000 };
 /** Por e-mail: dez tentativas por codigo e muito; o Supabase ainda limita por baixo. */
 const CODIGO_POR_EMAIL = { maximo: 10, janelaMs: 10 * 60 * 1000 };
 
-const CODIGO_INVALIDO =
-  'Código inválido ou vencido. Confira os seis dígitos ou peça um novo abaixo.';
+const CODIGO_INVALIDO = `Código inválido ou vencido. Confira os ${CODIGO_DIGITOS} dígitos ou peça um novo abaixo.`;
 
 export async function confirmarCodigo(
   anterior: EstadoCodigo,
@@ -160,7 +159,7 @@ export async function confirmarCodigo(
     email: form.get('email'),
     codigo: String(form.get('codigo') ?? '').replace(/\D/g, ''),
   });
-  if (!dados.success) return falha('Digite os seis dígitos do código.');
+  if (!dados.success) return falha(`Digite os ${CODIGO_DIGITOS} dígitos do código.`);
   const { email, codigo } = dados.data;
 
   const ip = ipDoRequest(await headers());

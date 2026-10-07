@@ -127,14 +127,15 @@ export async function linkDoEmail(para: string, desde = 0): Promise<string> {
 }
 
 /**
- * O codigo de seis digitos do e-mail mais recente para `para` (#224).
+ * O codigo de confirmacao do e-mail mais recente para `para` (#224): oito
+ * digitos, o "Email OTP length" do projeto (config.toml local acompanha).
  *
- * Ancorado na frase do modelo, e nao em "seis digitos seguidos": o token do
- * link e hexadecimal e pode conter seis digitos por acaso — aconteceu na CI.
+ * Ancorado na frase do modelo, e nao em "digitos seguidos": o token do link
+ * e hexadecimal e pode conter digitos seguidos por acaso — aconteceu na CI.
  */
 export async function codigoDoEmail(para: string, desde = 0): Promise<string> {
   const { lido } = await emailPara(para, { desde });
-  const achado = /digite este código no site: (\d{6})\b/.exec(lido);
-  if (!achado) throw new Error(`nao achei o codigo de seis digitos no e-mail para ${para}`);
+  const achado = /digite este código no site: (\d{8})\b/.exec(lido);
+  if (!achado) throw new Error(`nao achei o codigo de oito digitos no e-mail para ${para}`);
   return achado[1];
 }

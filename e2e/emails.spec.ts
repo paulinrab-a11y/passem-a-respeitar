@@ -80,7 +80,7 @@ test('e-mail de cadastro: em portugues, so com o codigo', async ({ page }) => {
   confere(carta, 'confirmation');
   // So o codigo, sem link (#227).
   expect(carta.lido).toContain('Sem o código, nenhuma conta é criada');
-  expect(carta.lido).toMatch(/digite este código no site: \d{6}\b/);
+  expect(carta.lido).toMatch(/digite este código no site: \d{8}\b/);
   expect(carta.link).toBeNull();
   expect(carta.html).not.toContain('/auth/v1/verify?');
 });
