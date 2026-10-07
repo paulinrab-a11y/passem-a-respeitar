@@ -13,6 +13,7 @@ import 'server-only';
  * import acidental em client component quebra o build em vez de vazar a chave.
  */
 
+import * as Sentry from '@sentry/nextjs';
 import { montaEstado, type ResumoDoProvedor } from './estado-do-pagamento';
 
 const BASE = 'https://api.mercadopago.com';
@@ -60,7 +61,14 @@ export type DadosDaCobranca = {
   idempotencia: string;
 };
 
-/** O que volta para quem chamou. Enxuto: nada de objeto cru do provedor. */
+/**
+ * O que volta para quem chamou. Enxuto: nada de objeto cru do provedor.
+ *
+ * Os motivos de falha nao custam igual (#23): `recusado` e o cartao, e cabe
+ * outro; `invalido` e pedido que o provedor nao aceitou; `indisponivel` e nao
+ * saber se a ordem nasceu la; `configuracao` e credencial recusada — problema
+ * nosso, nao da pessoa, e ela nao pode ler "nao aprovado" por isso.
+ */
 export type RespostaDaCobranca =
   | {
       ok: true;
@@ -69,7 +77,43 @@ export type RespostaDaCobranca =
       /** So em Pix. Vem do provedor, nunca gerado aqui. */
       pix?: { copiaECola: string; qrBase64: string | null; expiraEm: string | null };
     }
-  | { ok: false; motivo: 'recusado' | 'invalido' | 'indisponivel'; resumo?: ResumoDoProvedor };
+  | {
+      ok: false;
+      motivo: 'recusado' | 'invalido' | 'indisponivel' | 'configuracao';
+      /** O que o provedor disse da tentativa, quando disse: vai para a linha. */
+      resumo?: ResumoDoProvedor;
+    };
+
+/**
+ * Uma ordem como a consulta e a busca a devolvem. Enxuta, como o resto: id,
+ * de que pedido e, quando nasceu, em que estado esta.
+ */
+export type OrdemEncontrada = {
+  provedorId: string;
+  /** O `external_reference` que mandamos ao criar — `orders.id`. */
+  referencia: string | null;
+  /** Quando nasceu la, em ms. `null` se o provedor nao disse. */
+  criadaEmMs: number | null;
+  resumo: ResumoDoProvedor;
+};
+
+/**
+ * Resultado de perguntar ao provedor por uma ordem. "Nao achei" e "nao
+ * consegui perguntar" sao respostas diferentes, e a diferenca e dinheiro: a
+ * primeira autoriza seguir, a segunda manda esperar.
+ */
+export type Localizacao = { ok: true; ordem: OrdemEncontrada | null } | { ok: false };
+
+/**
+ * Resultado de pedir o cancelamento. `invalido` e o provedor dizendo "nao
+ * posso": a ordem ja e final la (paga, expirada), e quem chama vai perguntar
+ * qual e o estado de verdade. `inexistente` e "nao conheco essa ordem" — id
+ * de outra conta, do sandbox — e quem chama confere antes de dar por morta.
+ * `indisponivel` e nao ter conseguido perguntar.
+ */
+export type RespostaDoCancelamento =
+  | { ok: true; status: string | null; statusDetail: string | null }
+  | { ok: false; motivo: 'invalido' | 'inexistente' | 'indisponivel' };
 
 type Pagamento = {
   id?: string;
@@ -87,6 +131,8 @@ type OrdemDoProvedor = {
   id?: string;
   status?: string;
   status_detail?: string;
+  external_reference?: string;
+  created_date?: string;
   transactions?: { payments?: Pagamento[] };
 };
 
@@ -117,6 +163,99 @@ function corpo(dados: DadosDaCobranca) {
         : {}),
     },
   };
+}
+
+/** O estado da ordem e o do primeiro pagamento dela; sem pagamento, o da ordem. */
+function resumoDaOrdem(ordem: OrdemDoProvedor): ResumoDoProvedor {
+  const pagamento = ordem.transactions?.payments?.[0];
+
+  return montaEstado(
+    pagamento?.status ?? ordem.status,
+    pagamento?.status_detail ?? ordem.status_detail
+  );
+}
+
+function encontrada(ordem: OrdemDoProvedor, idPedido?: string): OrdemEncontrada | null {
+  const provedorId = String(ordem.id ?? idPedido ?? '');
+  if (!provedorId) return null;
+
+  const criadaEm = ordem.created_date ? Date.parse(ordem.created_date) : Number.NaN;
+
+  return {
+    provedorId,
+    referencia: ordem.external_reference ?? null,
+    criadaEmMs: Number.isNaN(criadaEm) ? null : criadaEm,
+    resumo: resumoDaOrdem(ordem),
+  };
+}
+
+/**
+ * Aviso ao dono de que a Orders API respondeu erro. Vai o HTTP e, quando ha,
+ * o code do primeiro erro — nunca o corpo, que ecoa o que mandamos (e-mail,
+ * documento). Funcao serverless congela ao responder; sem o `flush`, o
+ * evento nao sai.
+ */
+async function avisaFalha(status: number, nivel: 'error' | 'warning', code: string | null) {
+  Sentry.captureMessage('orders-api: falha', {
+    level: nivel,
+    tags: { status, ...(code ? { code } : {}) },
+  });
+  await Sentry.flush(2000);
+}
+
+/**
+ * O `code` do primeiro erro, e so ele. O corpo de erro da Orders API vem como
+ * `{ errors: [{ code, message, details }] }`; `message` e `details` repetem o
+ * que mandamos e ficam aqui. Forma que nao reconhecemos e "sem code".
+ */
+function codigoDoErro(corpo: unknown): string | null {
+  const erros = (corpo as { errors?: unknown } | null)?.errors;
+  if (!Array.isArray(erros)) return null;
+
+  const code = (erros[0] as { code?: unknown } | undefined)?.code;
+  return typeof code === 'string' && code ? code.slice(0, 64) : null;
+}
+
+/**
+ * O que um HTTP de erro na criacao quer dizer (#23).
+ *
+ * Tratar todo 4xx como "cartao recusado" escondia o pior caso: token
+ * revogado virava "nao aprovado" para TODO cliente, e o dono so descobria
+ * quando alguem reclamasse.
+ *
+ *   401/403  credencial recusada: e configuracao nossa. Aviso ao dono.
+ *   5xx      problema la; vale repetir. Aviso ao dono.
+ *   402      o cartao. O status_detail do pagamento e o que a linha guarda.
+ *   400/422  pedido que o provedor nao aceitou: o code vai para a linha, e o
+ *            dono e avisado em tom mais baixo — um CPF que a conta passou a
+ *            exigir recusa todo Pix, e isso nao pode ficar invisivel.
+ */
+async function recusaDaCriacao(status: number, corpo: unknown): Promise<RespostaDaCobranca> {
+  if (status === 401 || status === 403) {
+    await avisaFalha(status, 'error', null);
+    return { ok: false, motivo: 'configuracao' };
+  }
+
+  if (status >= 500) {
+    await avisaFalha(status, 'error', null);
+    return { ok: false, motivo: 'indisponivel' };
+  }
+
+  const pagamento = (corpo as OrdemDoProvedor | null)?.transactions?.payments?.[0];
+  const code = codigoDoErro(corpo);
+
+  // A tentativa morreu: o que sobrevive e o status cru do pagamento, se o
+  // provedor mandou um, ou o code do erro no lugar do detalhe.
+  const resumo: ResumoDoProvedor = {
+    estado: 'recusado',
+    status: pagamento?.status ?? null,
+    statusDetail: pagamento?.status_detail ?? code,
+  };
+
+  if (status === 402) return { ok: false, motivo: 'recusado', resumo };
+
+  await avisaFalha(status, 'warning', code);
+  return { ok: false, motivo: 'invalido', resumo };
 }
 
 /**
@@ -154,26 +293,20 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
     return { ok: false, motivo: 'indisponivel' };
   }
 
-  const ordem = (await resposta.json().catch(() => ({}))) as OrdemDoProvedor;
+  // Corpo que nao e JSON vira vazio, nos dois caminhos. Nunca logar `bruto`:
+  // ele carrega dado do pagador.
+  const bruto: unknown = await resposta.json().catch(() => ({}));
+
+  if (!resposta.ok) return recusaDaCriacao(resposta.status, bruto);
+
+  const ordem = (bruto ?? {}) as OrdemDoProvedor;
   const pagamento = ordem.transactions?.payments?.[0];
-
-  if (!resposta.ok) {
-    // 4xx e pedido malformado nosso ou cartao recusado; 5xx e problema la.
-    // Nunca logar `ordem` inteira: ela carrega dado do pagador.
-    return { ok: false, motivo: resposta.status >= 500 ? 'indisponivel' : 'invalido' };
-  }
-
-  const resumo = montaEstado(
-    pagamento?.status ?? ordem.status,
-    pagamento?.status_detail ?? ordem.status_detail
-  );
-
   const meio = pagamento?.payment_method;
 
   return {
     ok: true,
     provedorId: String(ordem.id ?? pagamento?.id ?? ''),
-    resumo,
+    resumo: resumoDaOrdem(ordem),
     ...(meio?.qr_code
       ? {
           pix: {
@@ -187,14 +320,16 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
 }
 
 /**
- * Consulta a ordem no provedor (Issue #45).
+ * Le a ordem inteira: id, de que pedido e, quando nasceu, em que estado esta.
  *
- * E a diferenca entre "o webhook disse que foi pago" e "o Mercado Pago
- * confirmou que foi pago". O corpo que chega por HTTP e afirmacao — ate
- * assinado, ele so prova que a notificacao e autentica, nao que o estado ali
- * dentro ainda vale. Quem decide dinheiro e esta chamada.
+ * E o que o webhook usa quando o recurso notificado nao bate com linha
+ * nenhuma nossa: o `external_reference` diz de que pedido e, e a data diz se
+ * pode ser de uma tentativa cuja resposta se perdeu (#5, #14).
+ *
+ * 404 e "isso nao e ordem nossa" — resposta, nao falha. Rede, prazo e 5xx sao
+ * "nao sei", e quem chama trata diferente.
  */
-export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedor | null> {
+export async function localizaOrdem(provedorId: string): Promise<Localizacao> {
   try {
     const r = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}`, {
       headers: { Authorization: `Bearer ${token()}` },
@@ -202,18 +337,135 @@ export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedo
       cache: 'no-store',
     });
 
-    if (!r.ok) return null;
+    if (r.status === 404) return { ok: true, ordem: null };
+    if (!r.ok) return { ok: false };
 
     const ordem = (await r.json()) as OrdemDoProvedor;
-    const pagamento = ordem.transactions?.payments?.[0];
 
-    return montaEstado(
-      pagamento?.status ?? ordem.status,
-      pagamento?.status_detail ?? ordem.status_detail
-    );
+    return { ok: true, ordem: encontrada(ordem, provedorId) };
   } catch {
-    // Nao conseguir confirmar nao e o mesmo que confirmar. `null` faz o
-    // webhook devolver erro, e o provedor reenvia depois.
-    return null;
+    return { ok: false };
+  }
+}
+
+/**
+ * Consulta a ordem no provedor (Issue #45).
+ *
+ * E a diferenca entre "o webhook disse que foi pago" e "o Mercado Pago
+ * confirmou que foi pago". O corpo que chega por HTTP e afirmacao — ate
+ * assinado, ele so prova que a notificacao e autentica, nao que o estado ali
+ * dentro ainda vale. Quem decide dinheiro e esta chamada.
+ *
+ * Nao conseguir confirmar nao e o mesmo que confirmar: `null` faz o webhook
+ * devolver erro, e o provedor reenvia depois.
+ */
+export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedor | null> {
+  const localizacao = await localizaOrdem(provedorId);
+
+  return localizacao.ok && localizacao.ordem ? localizacao.ordem.resumo : null;
+}
+
+/**
+ * Cancela a ordem no provedor (#6, #21).
+ *
+ * E o que mantem UMA cobranca viva por pedido: trocar o Pix por cartao, ou o
+ * dono cancelar um pedido, nao pode deixar um QR pagavel para tras — o
+ * dinheiro entraria sem ninguem saber.
+ *
+ * A chave de idempotencia e de quem chama, e NAO pode ser a da criacao: o
+ * provedor guarda a resposta por chave, e reusar a da criacao devolveria a
+ * ordem criada com cara de cancelada.
+ *
+ * 2xx e "cancelada": o corpo so traz o status cru para a coluna. 4xx e o
+ * provedor dizendo que nao pode — a ordem ja e final la — e isso e resposta,
+ * nao falha: quem chama pergunta o estado real. 404 e separado: a ordem nao
+ * existe para esta credencial (id do sandbox com o token de producao), e
+ * tratar como "nao pode" deixaria a tentativa presa, porque a consulta
+ * tambem nao a acha. Rede, prazo e 5xx sao "nao sei".
+ */
+export async function cancelaOrdem(
+  provedorId: string,
+  idempotencia: string
+): Promise<RespostaDoCancelamento> {
+  // Fora do try pelo mesmo motivo de `criaOrdem`: variavel faltando nao pode
+  // virar "provedor indisponivel".
+  const autorizacao = `Bearer ${token()}`;
+
+  let resposta: Response;
+
+  try {
+    resposta = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}/cancel`, {
+      method: 'POST',
+      headers: { Authorization: autorizacao, 'X-Idempotency-Key': idempotencia },
+      signal: AbortSignal.timeout(PRAZO_MS),
+      cache: 'no-store',
+    });
+  } catch {
+    return { ok: false, motivo: 'indisponivel' };
+  }
+
+  // Nunca logar o corpo: ele carrega dado do pagador.
+  if (resposta.status === 404) return { ok: false, motivo: 'inexistente' };
+  if (resposta.status >= 500) return { ok: false, motivo: 'indisponivel' };
+  if (!resposta.ok) return { ok: false, motivo: 'invalido' };
+
+  const ordem = (await resposta.json().catch(() => ({}))) as OrdemDoProvedor;
+  const resumo = resumoDaOrdem(ordem);
+
+  return { ok: true, status: resumo.status, statusDetail: resumo.statusDetail };
+}
+
+/** RFC 3339 sem fracao de segundo, a forma dos exemplos da documentacao. */
+function rfc3339(ms: number): string {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/**
+ * Busca as ordens que o provedor tem para um `external_reference` — o id do
+ * pedido, que toda tentativa manda igual (#5, #14).
+ *
+ * E assim que uma tentativa cuja resposta se perdeu (timeout, deploy no meio)
+ * reencontra a ordem que o provedor criou mesmo assim, sem a gente ter o id
+ * dela. `begin_date` e `end_date` sao obrigatorios na API; quem chama passa a
+ * janela em que a ordem pode ter nascido, e isso tambem deixa de fora ordens
+ * de tentativas anteriores, que sao mais velhas.
+ *
+ * Devolve a lista toda: pode haver mais de uma (uma recusada, uma aprovada).
+ * Quem sabe qual e qual e quem conhece as linhas do pedido, nao este arquivo.
+ */
+export async function buscaOrdensPorReferencia(
+  referencia: string,
+  janela: { desdeMs: number; ateMs: number }
+): Promise<{ ok: true; ordens: OrdemEncontrada[] } | { ok: false }> {
+  const parametros = new URLSearchParams({
+    external_reference: referencia,
+    begin_date: rfc3339(janela.desdeMs),
+    end_date: rfc3339(janela.ateMs),
+  });
+
+  try {
+    const r = await fetch(`${BASE}/v1/orders?${parametros}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+      signal: AbortSignal.timeout(PRAZO_MS),
+      cache: 'no-store',
+    });
+
+    if (!r.ok) return { ok: false };
+
+    const corpo = (await r.json()) as { data?: unknown };
+
+    // Forma que nao reconhecemos e "nao sei", nunca "nao ha": uma lista vazia
+    // aqui autoriza cobrar de novo.
+    if (!Array.isArray(corpo?.data)) return { ok: false };
+
+    const ordens: OrdemEncontrada[] = [];
+    for (const o of corpo.data as OrdemDoProvedor[]) {
+      const e = encontrada(o);
+      if (e) ordens.push(e);
+    }
+
+    return { ok: true, ordens };
+  } catch {
+    return { ok: false };
   }
 }

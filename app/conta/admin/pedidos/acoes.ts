@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { ehAdmin } from '@/lib/admin';
 import { ehStatusPedido, STATUS_PEDIDO, transicaoPermitida } from '@/lib/loja/status-do-pedido';
+import { encerraAbertas } from '@/lib/loja/webhook';
 import { limita } from '@/lib/rate-limit';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
@@ -20,7 +21,10 @@ import type { EstadoAdmin } from './estado';
  *   3. limite        60 por hora por administrador
  *   4. entrada       zod: id, destino do enum, motivo curto
  *   5. transicao     validada aqui, para a mensagem ser boa...
- *   6. banco         ...e validada DE NOVO em `muda_status_pedido`, porque
+ *   6. cobranca      cancelar pedido que espera pagamento cancela ANTES a
+ *                    cobranca aberta no provedor (#21). Senao o Pix continua
+ *                    pagavel, o dinheiro entra, e o pedido diz "cancelado".
+ *   7. banco         ...e validada DE NOVO em `muda_status_pedido`, porque
  *                    rota se esquece e banco nao. E o banco carimba o autor.
  *
  * Quem nao e administrador recebe a MESMA resposta de "pedido nao
@@ -84,6 +88,30 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
       recado: { tom: 'erro', texto: `Não dá para ir de "${atual.status}" para "${para}".` },
       pedido,
     };
+  }
+
+  // Cobranca aberta no provedor morre antes do pedido. Se nao der para
+  // cancelar, o pedido nao e cancelado: um Pix vivo num pedido cancelado e
+  // dinheiro entrando sem ninguem saber. E se ela ja estava paga, o pedido
+  // ja e outro — nao e o que a pessoa estava olhando.
+  if (atual.status === 'aguardando_pagamento' && para === 'cancelado') {
+    const abertas = await encerraAbertas(admin, pedido, 'admin');
+
+    if (abertas.aprovadas > 0) {
+      return {
+        recado: { tom: 'erro', texto: 'Este pedido tem um pagamento aprovado. Recarregue.' },
+        pedido,
+      };
+    }
+    if (abertas.presas > 0) {
+      return {
+        recado: {
+          tom: 'erro',
+          texto: 'Não consegui cancelar a cobrança em aberto no provedor. Tente de novo.',
+        },
+        pedido,
+      };
+    }
   }
 
   // O autor e o id da sessao, lido no servidor. O banco valida a transicao

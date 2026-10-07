@@ -4,13 +4,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * A acao e a porta administrativa. O que se prova aqui e quem passa por ela
  * e o que ela nunca faz: aceitar papel do cliente, marcar "pago", pular
  * etapa, ou dizer a um nao-administrador que a porta existe.
+ *
+ * O Mercado Pago e um dublê; o encerramento das cobrancas abertas roda de
+ * verdade, e o que se prova e que ele vem ANTES do status, e que o status nao
+ * muda se ele falhar (#21).
  */
+vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), flush: async () => true }));
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: vi.fn() }));
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
+vi.mock('@/lib/loja/orders-api', () => ({
+  cancelaOrdem: vi.fn(),
+  consultaOrdem: vi.fn(),
+  localizaOrdem: vi.fn(),
+  buscaOrdensPorReferencia: vi.fn(),
+}));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { clienteAdmin } = await import('@/lib/supabase/admin');
+const { cancelaOrdem, consultaOrdem, localizaOrdem } = await import('@/lib/loja/orders-api');
 const { mudarStatus } = await import('./acoes');
 const { adminInicial } = await import('./estado');
 
@@ -27,7 +39,62 @@ const CLIENTE = {
 const PEDIDO = '33333333-3333-4333-8333-333333333333';
 
 let statusNoBanco: string | null = 'pago';
+/** Tentativas do pedido ainda abertas no provedor. */
+let abertas: Record<string, unknown>[] = [];
+let atualizados: { tabela: string; dados: Record<string, unknown> }[] = [];
 const rpc = vi.fn(async (_nome: string, _args: unknown) => ({ data: null, error: null }));
+
+function banco() {
+  vi.mocked(clienteAdmin).mockReturnValue({
+    from(tabela: string) {
+      const elo: Record<string, unknown> = {};
+      const ops: unknown[][] = [];
+      let emUpdate = false;
+      const anota =
+        (op: string) =>
+        (...args: unknown[]) => {
+          ops.push([op, ...args]);
+          return elo;
+        };
+      elo.eq = anota('eq');
+      elo.neq = anota('neq');
+      elo.in = anota('in');
+      elo.not = anota('not');
+      elo.select = () => (emUpdate ? Promise.resolve({ data: [{ id: 'x' }], error: null }) : elo);
+      elo.maybeSingle = async () => ({ data: statusNoBanco ? { status: statusNoBanco } : null });
+      elo.update = (dados: Record<string, unknown>) => {
+        atualizados.push({ tabela, dados });
+        emUpdate = true;
+        return elo;
+      };
+      elo.insert = () => Promise.resolve({ error: null });
+      // O banco aplicaria os filtros por linha; sem eles, a busca das irmas
+      // "menos a propria" devolveria a propria para sempre.
+      const selecionadas = () =>
+        abertas.filter((l) =>
+          ops.every(([op, coluna, ...resto]) => {
+            if (!(typeof coluna === 'string' && coluna in l)) return true;
+            const valor = l[coluna];
+            if (op === 'eq') return valor === resto[0];
+            if (op === 'neq') return valor !== resto[0];
+            if (op === 'in') return (resto[0] as unknown[]).includes(valor);
+            if (op === 'not') return !(resto[0] === 'is' && valor === resto[1]);
+            return true;
+          })
+        );
+      // Consulta sem terminal proprio (as tentativas abertas): o `await` cai
+      // aqui, como no builder de verdade do Supabase, que tambem e thenable.
+      // biome-ignore lint/suspicious/noThenProperty: o dublê imita um builder thenable
+      elo.then = (resolve: (v: unknown) => void) =>
+        resolve({
+          data: tabela === 'pagamentos' && !emUpdate ? selecionadas() : null,
+          error: null,
+        });
+      return elo;
+    },
+    rpc,
+  } as never);
+}
 
 function formulario(campos: Record<string, string>) {
   const f = new FormData();
@@ -44,21 +111,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('ADMIN_EMAILS', 'dono@whynot.test');
   statusNoBanco = 'pago';
+  abertas = [];
+  atualizados = [];
   // Id novo por teste: o limite por administrador guarda estado no modulo.
   vi.mocked(usuarioDaSessao).mockResolvedValue({
     ...ADMIN,
     id: `${ADMIN.id.slice(0, -4)}${String(n++).padStart(4, '0')}`,
   } as never);
-  vi.mocked(clienteAdmin).mockReturnValue({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: statusNoBanco ? { status: statusNoBanco } : null }),
-        }),
-      }),
-    }),
-    rpc,
-  } as never);
+  vi.mocked(cancelaOrdem).mockResolvedValue({ ok: true, status: 'canceled', statusDetail: null });
+  banco();
 });
 
 afterEach(() => {
@@ -171,5 +232,115 @@ describe('o que nunca acontece', () => {
     const r = await envia({});
 
     expect(r.recado?.texto).toMatch(/muitas mudanças/i);
+  });
+});
+
+/**
+ * O cenario da #21: o cliente gera o Pix, o dono cancela o pedido, o cliente
+ * paga o QR mesmo assim. Cancelar o pedido tem que cancelar ANTES a cobranca
+ * aberta no provedor — e se nao der, o pedido nao e cancelado.
+ */
+describe('cancelar pedido que espera pagamento', () => {
+  const PIX = {
+    id: 'pag-pix',
+    order_id: PEDIDO,
+    estado: 'pendente',
+    provedor_pagamento_id: 'ORD-PIX',
+    idempotency_key: 'chave-pix',
+  };
+  const cancelar = () => envia({ para: 'cancelado', motivo: 'duplicado' });
+
+  beforeEach(() => {
+    statusNoBanco = 'aguardando_pagamento';
+  });
+
+  it('cancela a cobranca aberta no provedor e marca o pagamento antes de mudar o status', async () => {
+    abertas = [PIX];
+
+    const r = await cancelar();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(cancelaOrdem).toHaveBeenCalledWith('ORD-PIX', expect.any(String));
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      estado: 'cancelado',
+      provedor_status: 'canceled',
+      provedor_status_detail: null,
+    });
+    // Provedor primeiro, pedido depois: a ordem E a protecao.
+    expect(vi.mocked(cancelaOrdem).mock.invocationCallOrder[0]).toBeLessThan(
+      rpc.mock.invocationCallOrder[0]
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      'muda_status_pedido',
+      expect.objectContaining({ p_para: 'cancelado' })
+    );
+  });
+
+  it('sem cobranca aberta, cancela direto', async () => {
+    const r = await cancelar();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('se a cobranca aberta nao puder ser cancelada, o pedido nao muda', async () => {
+    abertas = [PIX];
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'indisponivel' });
+
+    const r = await cancelar();
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/não consegui cancelar/i);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // O provedor nao deixa cancelar porque ja foi paga: o pedido que a pessoa
+  // esta olhando ja nao e o pedido que existe.
+  it('cobranca que o provedor diz ja estar paga: nao cancela o pedido, manda recarregar', async () => {
+    abertas = [PIX];
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue({
+      estado: 'aprovado',
+      status: 'processed',
+      statusDetail: 'accredited',
+    });
+
+    const r = await cancelar();
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/pagamento aprovado.*recarregue/i);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // Cobranca do sandbox depois de a credencial de producao entrar: o provedor
+  // nao a conhece. Nao e motivo para o dono nao conseguir cancelar o pedido.
+  it('cobranca com id que o provedor nao tem: encerra o pagamento e cancela o pedido', async () => {
+    abertas = [PIX];
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'inexistente' });
+    vi.mocked(localizaOrdem).mockResolvedValue({ ok: true, ordem: null });
+
+    const r = await cancelar();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      estado: 'cancelado',
+      provedor_status_detail: 'order_not_found',
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      'muda_status_pedido',
+      expect.objectContaining({ p_para: 'cancelado' })
+    );
+  });
+
+  it('cancelar pedido pago nao toca em cobranca', async () => {
+    statusNoBanco = 'pago';
+    abertas = [PIX];
+
+    const r = await cancelar();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+    expect(clienteAdmin).toHaveBeenCalled();
   });
 });

@@ -16,13 +16,18 @@ import 'server-only';
  * `idempotency_key` dela. Reenviar reusa a chave e o provedor devolve a MESMA
  * cobranca em vez de criar outra. Se a linha nascesse depois, uma cobranca
  * real existiria no provedor sem nenhum registro nosso.
+ *
+ * E entre o 2 e o 3, uma regra: UMA cobranca viva por pedido. A tentativa
+ * anterior que ficou sem resposta e reencontrada no provedor (#5), e a que
+ * ainda esta aberta la — Pix esperando — e cancelada antes de a nova nascer
+ * (#6). Trocar Pix por cartao nao pode deixar um QR pagavel para tras.
  */
 
 import { z } from 'zod';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
-import { montaEstado } from './estado-do-pagamento';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
+import { casaOrfa, encerraAbertas, marcaPago, orfasDoPedido } from './webhook';
 
 /**
  * O que o navegador pode mandar.
@@ -69,7 +74,13 @@ export type MotivoDaCobranca =
   | 'pedido-ja-pago'
   | 'tentativas-demais'
   | 'recusado'
-  | 'indisponivel';
+  | 'indisponivel'
+  /** O provedor recusou a nossa credencial: problema nosso, nao da pessoa. (#23) */
+  | 'configuracao'
+  /** A tentativa anterior ficou sem resposta e ainda nao se sabe o que houve com ela. */
+  | 'pagamento-em-processamento'
+  /** Ha uma cobranca aberta no provedor que nao deu para cancelar antes de abrir outra. */
+  | 'pagamento-pendente';
 
 export type ResultadoDaCobranca =
   | {
@@ -82,6 +93,14 @@ export type ResultadoDaCobranca =
 
 /** Vinte por pedido, que e o teto do check de `pagamentos.tentativa`. */
 const MAX_TENTATIVAS = 20;
+
+/**
+ * Por quanto tempo uma tentativa sem resposta ainda e "em processamento"
+ * quando o provedor diz nao ter ordem para ela. A busca pode nao enxergar na
+ * hora o que acabou de nascer la; passado isso, se nao apareceu, nao existe —
+ * e a pessoa pode tentar de novo.
+ */
+const ESPERA_PELA_ORFA_MS = 60 * 1000;
 
 export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   const entrada = esquemaCobranca.safeParse(bruto);
@@ -109,6 +128,50 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   if (pedido.status !== 'aguardando_pagamento') {
     return { ok: false, motivo: 'pedido-ja-pago' };
   }
+
+  // Tentativa anterior sem resposta (timeout, deploy no meio) pode ter virado
+  // cobranca de verdade do outro lado. Abrir outra agora e o caminho mais
+  // curto para cobrar o cartao duas vezes — entao primeiro se pergunta ao
+  // provedor o que houve com ela. Com TODAS elas, da mais nova para a mais
+  // velha: a mais nova pode nunca ter chegado la enquanto a anterior virou
+  // cobranca de verdade. (#5, #14)
+  for (const orfa of await orfasDoPedido(admin, pedido.id)) {
+    const r = await casaOrfa(admin, orfa, 'cobranca');
+
+    // A cobranca anterior aconteceu: nao se abre outra. O pedido conta a
+    // historia — aprovado ja virou `pago` ao aplicar.
+    if (r.tipo === 'aplicado' && r.estado === 'aprovado') {
+      return { ok: true, estado: 'aprovado' };
+    }
+
+    // Nao deu para perguntar, ou alguem esta vinculando agora mesmo: esperar
+    // e a unica resposta segura.
+    if (r.tipo === 'tente-de-novo' || (r.tipo === 'ignorado' && r.motivo === 'ja-vinculado')) {
+      return { ok: false, motivo: 'pagamento-em-processamento' };
+    }
+
+    // O provedor nao tem ordem para ela. Recem-criada, pode so nao ter
+    // aparecido ainda na busca; passada a espera, nunca chegou la.
+    if (
+      r.tipo === 'ignorado' &&
+      r.motivo === 'sem-ordem-no-provedor' &&
+      Date.parse(orfa.criado_em) > Date.now() - ESPERA_PELA_ORFA_MS
+    ) {
+      return { ok: false, motivo: 'pagamento-em-processamento' };
+    }
+
+    // Recusada ou cancelada do outro lado, ou nunca chegou la: esta morreu, e
+    // se olha a anterior. Pendente la, ela acabou de ganhar id — e e encerrada
+    // logo abaixo como qualquer tentativa aberta.
+  }
+
+  // Uma cobranca viva por pedido (#6). O Pix que ficou esperando e cancelado
+  // no provedor antes de a nova nascer; se nao der para cancelar, nao se abre
+  // outra. Quando o provedor nao deixa porque a anterior ja foi paga, o
+  // pedido virou `pago` ao aplicar, e e isso que se responde.
+  const abertas = await encerraAbertas(admin, pedido.id, 'cobranca');
+  if (abertas.aprovadas > 0) return { ok: true, estado: 'aprovado' };
+  if (abertas.presas > 0) return { ok: false, motivo: 'pagamento-pendente' };
 
   const { data: anteriores } = await admin
     .from('pagamentos')
@@ -167,21 +230,30 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   });
 
   if (!resposta.ok) {
-    const resumo = resposta.resumo ?? montaEstado(resposta.motivo === 'recusado' ? 'failed' : null);
+    // Sem resposta nao se sabe se a ordem nasceu la: a linha fica `criado`
+    // e a proxima cobranca pergunta (#5). Com resposta, a tentativa morreu —
+    // inclusive com a credencial recusada, que nao cria ordem nenhuma; deixa-
+    // la `criado` faria a proxima cobranca procurar uma orfa que nao existe.
+    // O que o provedor disse dela fica na linha: o status_detail do cartao,
+    // ou o code do erro. (#23)
+    const semResposta = resposta.motivo === 'indisponivel';
 
     await admin
       .from('pagamentos')
       .update({
-        estado: resposta.motivo === 'indisponivel' ? 'criado' : 'recusado',
-        provedor_status: resumo.status,
-        provedor_status_detail: resumo.statusDetail,
+        estado: semResposta ? 'criado' : 'recusado',
+        provedor_status: resposta.resumo?.status ?? null,
+        provedor_status_detail: resposta.resumo?.statusDetail ?? null,
       })
       .eq('id', linha.id);
+
+    if (semResposta) return { ok: false, motivo: 'indisponivel' };
+    if (resposta.motivo === 'configuracao') return { ok: false, motivo: 'configuracao' };
 
     // Cartao recusado NAO mexe em `orders.status`: o pedido continua
     // aguardando pagamento e cabe outra tentativa. E para isso que
     // `pagamentos.tentativa` existe.
-    return { ok: false, motivo: resposta.motivo === 'indisponivel' ? 'indisponivel' : 'recusado' };
+    return { ok: false, motivo: 'recusado' };
   }
 
   await admin
@@ -194,11 +266,21 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
     })
     .eq('id', linha.id);
 
+  // 2xx nao e aprovacao: cartao sem limite tambem volta assim, com
+  // `status: failed`. Para quem paga e recusa igual — o formulario fica e
+  // cabe outro cartao; a linha acima ja guarda o status_detail. Mandar a
+  // pessoa para o pedido aqui era deixa-la achar que pagou. (#20)
+  if (resposta.resumo.estado === 'recusado' || resposta.resumo.estado === 'cancelado') {
+    return { ok: false, motivo: 'recusado' };
+  }
+
   // Aprovado na resposta sincrona e confirmacao server-to-server do provedor,
   // nao afirmacao do navegador — entao vale. O webhook da #45 confirma depois,
-  // e a trilha de status e escrita sozinha pelo trigger da #18.
+  // e a trilha de status e escrita sozinha pelo trigger da #18. Mas so anda
+  // se o pedido ainda espera: cancelado no meio, vira aviso, nao `pago`.
+  // (#11, #24)
   if (resposta.resumo.estado === 'aprovado') {
-    await admin.from('orders').update({ status: 'pago' }).eq('id', pedido.id);
+    await marcaPago(admin, pedido.id);
   }
 
   return {

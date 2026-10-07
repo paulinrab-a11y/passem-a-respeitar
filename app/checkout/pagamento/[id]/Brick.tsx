@@ -39,6 +39,12 @@ type DadosDoBrick = {
   payer?: { identification?: { type?: string; number?: string } };
 };
 
+/**
+ * Quanto tempo o aviso de "em analise" fica na tela antes de ir ao pedido.
+ * O bastante para ler uma frase; quem nao quer esperar tem o link.
+ */
+export const ESPERA_ANALISE_MS = 3000;
+
 export default function Brick({ chavePublica, valor, valorEscrito, email, pedido }: Pagavel) {
   /**
    * O `<Payment>` so entra na arvore DEPOIS do `initMercadoPago`.
@@ -52,12 +58,22 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
   const [montado, setMontado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pix, setPix] = useState<DadosDoPix | null>(null);
+  const [analise, setAnalise] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     initMercadoPago(chavePublica, { locale: 'pt-BR' });
     setSdkPronto(true);
   }, [chavePublica]);
+
+  // Cartao em analise: a tela diz isso ANTES de ir ao pedido, e vai sozinha
+  // depois de dar tempo de ler. Sem o aviso, a pessoa caia numa pagina
+  // dizendo "Aguardando pagamento" sem saber se o cartao passou. (#20)
+  useEffect(() => {
+    if (!analise) return;
+    const t = setTimeout(() => router.push(`/conta/pedidos/${pedido}`), ESPERA_ANALISE_MS);
+    return () => clearTimeout(t);
+  }, [analise, pedido, router]);
 
   // Identidade estavel: objeto novo a cada render faria o Brick se recriar,
   // e recriar no meio de um cartao meio digitado apaga o que a pessoa digitou.
@@ -110,12 +126,28 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
 
       {pix ? <Pix dados={pix} valor={valorEscrito} /> : null}
 
+      {/* O formulario sai de cena: a cobranca ja existe la, e um segundo envio
+          abriria outra. */}
+      {analise ? (
+        <div className="brick-analise" role="status">
+          <p className="conta-recado ok">
+            Pagamento em análise. O cartão ainda não foi aprovado nem recusado — o resultado aparece
+            na página do pedido.
+          </p>
+          <p className="pedido-acoes">
+            <a href={`/conta/pedidos/${pedido}`} className="btn">
+              Ver pedido
+            </a>
+          </p>
+        </div>
+      ) : null}
+
       {/* Lugar reservado (#154). O formulario do Mercado Pago chega em quatro
           saltos, de 20 a 359 px, e empurrava o aviso de privacidade 339 px
           para baixo com a pessoa prestes a pagar. Aqui o lugar existe desde o
           primeiro byte: esqueleto e formulario ocupam a MESMA celula, e o
           formulario so aparece quando esta inteiro. */}
-      {pix ? null : (
+      {pix || analise ? null : (
         <div className="brick-pilha" data-pronto={pronto ? '' : undefined}>
           {pronto ? null : (
             <p className="sr" role="status">
@@ -182,7 +214,14 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
                     return;
                   }
 
-                  // Cartao aprovado ou em analise: o pedido e quem conta a historia.
+                  // Cartao em analise nao e cartao aprovado: a pessoa precisa
+                  // ouvir isso aqui, nao deduzir do status do pedido. (#20)
+                  if (corpo.estado === 'pendente') {
+                    setAnalise(true);
+                    return;
+                  }
+
+                  // Aprovado: o pedido e quem conta a historia.
                   router.push(`/conta/pedidos/${pedido}`);
                 }}
               />
