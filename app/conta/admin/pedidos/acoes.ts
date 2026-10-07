@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { ehAdmin } from '@/lib/admin';
 import { ehStatusPedido, STATUS_PEDIDO, transicaoPermitida } from '@/lib/loja/status-do-pedido';
-import { encerraAbertas } from '@/lib/loja/webhook';
+import { type Estorno, encerraAbertas, estornaAprovadas } from '@/lib/loja/webhook';
 import { limita } from '@/lib/rate-limit';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
@@ -24,6 +24,9 @@ import type { EstadoAdmin } from './estado';
  *   6. cobranca      cancelar pedido que espera pagamento cancela ANTES a
  *                    cobranca aberta no provedor (#21). Senao o Pix continua
  *                    pagavel, o dinheiro entra, e o pedido diz "cancelado".
+ *                    Reembolsar estorna ANTES no provedor (#22): se o estorno
+ *                    nao sai, o status nao muda — senao o cliente le
+ *                    "reembolsado" com o dinheiro ainda na conta do dono.
  *   7. banco         ...e validada DE NOVO em `muda_status_pedido`, porque
  *                    rota se esquece e banco nao. E o banco carimba o autor.
  *
@@ -33,6 +36,24 @@ import type { EstadoAdmin } from './estado';
  */
 
 const LIMITE = { maximo: 60, janelaMs: 60 * 60 * 1000 };
+
+/**
+ * Por que o reembolso nao pode seguir — ou `null` para seguir. Tres recusas,
+ * tres saidas para o dono: tentar de novo, abrir o painel do provedor, ou
+ * entender que este pedido nao tem cobranca que o site conheca.
+ */
+function recadoDoEstorno(e: Estorno): string | null {
+  if (e.presas > 0) {
+    return 'Não consegui estornar no Mercado Pago agora. O status não mudou. Tente de novo.';
+  }
+  if (e.recusadas > 0) {
+    return 'O Mercado Pago não aceitou o estorno. O status não mudou. Confira a cobrança no painel dele.';
+  }
+  if (e.estornadas === 0 && e.jaEstornadas === 0) {
+    return 'Não achei cobrança aprovada para estornar. O status não mudou.';
+  }
+  return null;
+}
 
 const esquema = z.object({
   pedido: z.string().uuid(),
@@ -114,6 +135,18 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
     }
   }
 
+  // Reembolsar devolve o dinheiro ANTES de mudar o status (#22). Antes o
+  // botao so trocava o rotulo: o cliente lia "Reembolsado" e o valor
+  // continuava na conta. Se o provedor nao estornar, o pedido nao muda — e o
+  // recado diz por que, para o dono resolver no painel dele.
+  let estornadas = 0;
+  if (para === 'reembolsado') {
+    const estorno = await estornaAprovadas(admin, pedido);
+    const recusa = recadoDoEstorno(estorno);
+    if (recusa) return { recado: { tom: 'erro', texto: recusa }, pedido };
+    estornadas = estorno.estornadas;
+  }
+
   // O autor e o id da sessao, lido no servidor. O banco valida a transicao
   // de novo e grava autor e motivo na trilha.
   const { error } = await admin.rpc('muda_status_pedido', {
@@ -136,9 +169,17 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
   // Log de auditoria: quem, qual pedido, de onde para onde. Ids, nunca nome
   // ou endereco. A trilha completa, com motivo, esta em order_status_history.
   console.info('[admin] status', usuario.id, pedido, `${atual.status} -> ${para}`);
+  if (estornadas > 0) console.info('[admin] estorno', usuario.id, pedido, estornadas);
 
   revalidatePath('/conta/admin/pedidos');
   revalidatePath(`/conta/pedidos/${pedido}`);
 
-  return { recado: { tom: 'ok', texto: 'Status atualizado.' }, pedido };
+  return {
+    recado: {
+      tom: 'ok',
+      texto:
+        estornadas > 0 ? 'Estornado no Mercado Pago. Status atualizado.' : 'Status atualizado.',
+    },
+    pedido,
+  };
 }

@@ -12,6 +12,7 @@ const {
   consultaOrdem,
   criaOrdem,
   localizaOrdem,
+  reembolsaOrdem,
   valorParaApi,
 } = await import('./orders-api');
 
@@ -684,5 +685,119 @@ describe('cancelaOrdem', () => {
 
     expect(oQueFoiEnviado().url).not.toContain('token-de-teste');
     expect(cabecalho('Authorization')).toBe('Bearer token-de-teste');
+  });
+});
+
+/**
+ * O estorno e o que faz "Reembolsar" devolver dinheiro de verdade (#22). Le a
+ * resposta como o cancelamento — a diferenca entre "nao posso" e "nao sei" e
+ * dinheiro, e nao pode depender de qual botao a pessoa apertou.
+ */
+describe('reembolsaOrdem', () => {
+  const ESTORNADA = {
+    id: 'ORD-1',
+    status: 'refunded',
+    status_detail: 'refunded',
+    transactions: {
+      payments: [{ status: 'refunded', status_detail: 'refunded' }],
+      refunds: [{ id: 'REF-1', transaction_id: 'PAY-1', amount: '129.90', status: 'processed' }],
+    },
+  };
+
+  beforeEach(() => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
+    respondeCom(ESTORNADA, 201);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  // Sem corpo, de proposito: corpo com valor e estorno parcial.
+  it('faz POST em /refund, autenticado, com a chave de idempotencia e sem corpo', async () => {
+    await reembolsaOrdem('ORD-1', 'chave-r');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1/refund');
+    expect(oQueFoiEnviado().init?.method).toBe('POST');
+    expect(cabecalho('Authorization')).toBe('Bearer token-de-teste');
+    expect(cabecalho('X-Idempotency-Key')).toBe('chave-r');
+    expect(oQueFoiEnviado().init?.body).toBeUndefined();
+  });
+
+  it('id com caractere especial vai codificado na URL', async () => {
+    await reembolsaOrdem('a/b c', 'chave-r');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/a%2Fb%20c/refund');
+  });
+
+  it('2xx e estornada, com o status cru do provedor', async () => {
+    expect(await reembolsaOrdem('ORD-1', 'chave-r')).toEqual({
+      ok: true,
+      status: 'refunded',
+      statusDetail: 'refunded',
+    });
+  });
+
+  it('corpo que nao e JSON ainda e estornada', async () => {
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response('nao e json', { status: 201 })));
+
+    expect(await reembolsaOrdem('ORD-1', 'chave-r')).toEqual({
+      ok: true,
+      status: null,
+      statusDetail: null,
+    });
+  });
+
+  // "Nao posso": ja estornada pelo painel, prazo vencido, ordem nao paga. E
+  // resposta — quem chama pergunta o estado real.
+  it.each([400, 409, 422])('HTTP %i e "nao posso": invalido', async (status) => {
+    respondeCom({ errors: [{ code: 'order_already_refunded' }] }, status);
+
+    expect(await reembolsaOrdem('ORD-1', 'chave-r')).toEqual({ ok: false, motivo: 'invalido' });
+  });
+
+  it('HTTP 404 e inexistente', async () => {
+    respondeCom({ errors: [{ code: 'order_not_found' }] }, 404);
+
+    expect(await reembolsaOrdem('ORD-1', 'chave-r')).toEqual({
+      ok: false,
+      motivo: 'inexistente',
+    });
+  });
+
+  it.each([500, 503])('HTTP %i e "nao sei": indisponivel', async (status) => {
+    respondeCom({ message: 'nao deu' }, status);
+
+    expect(await reembolsaOrdem('ORD-1', 'chave-r')).toEqual({
+      ok: false,
+      motivo: 'indisponivel',
+    });
+  });
+
+  it('rede fora e indisponivel', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('sem rede')));
+
+    expect(await reembolsaOrdem('ORD-1', 'chave-r')).toEqual({
+      ok: false,
+      motivo: 'indisponivel',
+    });
+  });
+
+  it('sem o Access Token, falha dizendo qual variavel falta', async () => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', '');
+
+    await expect(reembolsaOrdem('ORD-1', 'chave-r')).rejects.toThrow(/MERCADOPAGO_ACCESS_TOKEN/);
+  });
+
+  // O corpo do provedor carrega dado do pagador; so o status sai daqui.
+  it('nada do corpo volta alem do status, e o token vai so no header', async () => {
+    respondeCom({ ...ESTORNADA, payer: { email: 'quem@exemplo.test' } }, 201);
+
+    const r = await reembolsaOrdem('ORD-1', 'chave-r');
+
+    expect(JSON.stringify(r)).not.toContain('quem@exemplo.test');
+    expect(JSON.stringify(r)).not.toContain('token-de-teste');
+    expect(oQueFoiEnviado().url).not.toContain('token-de-teste');
   });
 });

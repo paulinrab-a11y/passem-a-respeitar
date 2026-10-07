@@ -43,6 +43,15 @@ export function transicaoPermitida(de: StatusPedido, para: StatusPedido): boolea
   return TRANSICOES[de].includes(para);
 }
 
+/**
+ * De onde se chega a um status: a tabela lida ao contrario. E o que a
+ * automacao usa para saber que pedidos um estorno no provedor alcanca (#7) —
+ * os mesmos de onde uma pessoa poderia reembolsar, e nenhum a mais.
+ */
+export function origensDe(para: StatusPedido): StatusPedido[] {
+  return STATUS_PEDIDO.filter((de) => TRANSICOES[de].includes(para));
+}
+
 /** Verbo do botao. Curto, no imperativo: e o que a pessoa vai fazer. */
 export const VERBO: Record<StatusPedido, string> = {
   aguardando_pagamento: 'Aguardar pagamento',

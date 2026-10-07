@@ -118,6 +118,10 @@ test('admin: mudar o status grava no banco, com autor e motivo, e o card sinaliz
   // Na carga da pagina nada anima (#157).
   await expect(selo).toHaveClass('pedido-status normal');
   await expect(card(page).locator('.admin-botoes')).toHaveClass('admin-botoes');
+  // O botao diz o que faz com o dinheiro (#22), antes de qualquer clique.
+  await expect(card(page).locator('.admin-nota')).toContainText(
+    'Reembolsar estorna o pagamento no Mercado Pago'
+  );
 
   // Tudo que o selo e os botoes fizerem daqui em diante fica anotado.
   await card(page).evaluate((el) => {

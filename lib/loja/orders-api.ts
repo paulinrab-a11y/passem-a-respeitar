@@ -115,6 +115,15 @@ export type RespostaDoCancelamento =
   | { ok: true; status: string | null; statusDetail: string | null }
   | { ok: false; motivo: 'invalido' | 'inexistente' | 'indisponivel' };
 
+/**
+ * Resultado de pedir o estorno. Le-se como o do cancelamento: `invalido` e o
+ * provedor dizendo "nao posso" — ordem que nao esta paga, ja estornada pelo
+ * painel dele, prazo de estorno vencido — e quem chama pergunta o estado
+ * real; `inexistente` e "nao conheco essa ordem"; `indisponivel` e nao ter
+ * conseguido perguntar.
+ */
+export type RespostaDoEstorno = RespostaDoCancelamento;
+
 type Pagamento = {
   id?: string;
   status?: string;
@@ -387,6 +396,44 @@ export async function cancelaOrdem(
   provedorId: string,
   idempotencia: string
 ): Promise<RespostaDoCancelamento> {
+  return operaOrdem(provedorId, 'cancel', idempotencia);
+}
+
+/**
+ * Estorna a ordem inteira no provedor (#22).
+ *
+ * E o que faz o botao "Reembolsar" devolver dinheiro de verdade: antes ele so
+ * trocava o status, e o cliente lia "Reembolsado" com o valor ainda na conta
+ * do dono.
+ *
+ * Sem corpo, de proposito: na Orders API o estorno total e um POST vazio em
+ * `/refund`; corpo com valor e estorno parcial, e parcial nao existe aqui. A
+ * chave de idempotencia e de quem chama, estavel por tentativa e distinta da
+ * criacao e do cancelamento, pelo mesmo motivo de `cancelaOrdem`.
+ *
+ * A leitura da resposta e a do cancelamento: 2xx e "estornada", com o status
+ * cru para a coluna; 4xx e "nao posso" (ja estornada pelo painel, prazo
+ * vencido), e quem chama pergunta o estado real; 404 e ordem que esta
+ * credencial nao tem; rede, prazo e 5xx sao "nao sei".
+ */
+export async function reembolsaOrdem(
+  provedorId: string,
+  idempotencia: string
+): Promise<RespostaDoEstorno> {
+  return operaOrdem(provedorId, 'refund', idempotencia);
+}
+
+/**
+ * `POST /v1/orders/{id}/{acao}` sem corpo — a forma comum de cancelar e de
+ * estornar. Uma funcao so para as duas lerem o HTTP do mesmo jeito: a
+ * diferenca entre "nao posso" e "nao sei" e dinheiro, e nao pode depender de
+ * qual botao a pessoa apertou.
+ */
+async function operaOrdem(
+  provedorId: string,
+  acao: 'cancel' | 'refund',
+  idempotencia: string
+): Promise<RespostaDoCancelamento> {
   // Fora do try pelo mesmo motivo de `criaOrdem`: variavel faltando nao pode
   // virar "provedor indisponivel".
   const autorizacao = `Bearer ${token()}`;
@@ -394,7 +441,7 @@ export async function cancelaOrdem(
   let resposta: Response;
 
   try {
-    resposta = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}/cancel`, {
+    resposta = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}/${acao}`, {
       method: 'POST',
       headers: { Authorization: autorizacao, 'X-Idempotency-Key': idempotencia },
       signal: AbortSignal.timeout(PRAZO_MS),

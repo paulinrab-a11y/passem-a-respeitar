@@ -17,13 +17,15 @@ vi.mock('./orders-api', () => ({
   localizaOrdem: vi.fn(),
   buscaOrdensPorReferencia: vi.fn(),
   cancelaOrdem: vi.fn(),
+  reembolsaOrdem: vi.fn(),
 }));
 
 const { clienteAdmin } = await import('@/lib/supabase/admin');
-const { buscaOrdensPorReferencia, cancelaOrdem, consultaOrdem, localizaOrdem } = await import(
-  './orders-api'
+const { buscaOrdensPorReferencia, cancelaOrdem, consultaOrdem, localizaOrdem, reembolsaOrdem } =
+  await import('./orders-api');
+const { casaOrfa, encerraAbertas, estornaAprovadas, orfasDoPedido, processa } = await import(
+  './webhook'
 );
-const { casaOrfa, encerraAbertas, orfasDoPedido, processa } = await import('./webhook');
 
 /** Caminho assinado — o dos testes originais. */
 const assinado = (corpo: unknown, recurso: string | null) =>
@@ -40,6 +42,8 @@ const APROVADO = { estado: 'aprovado' as const, status: 'processed', statusDetai
 const RECUSADO = { estado: 'recusado' as const, status: 'failed', statusDetail: 'cc_rejected' };
 const CANCELADO = { estado: 'cancelado' as const, status: 'expired', statusDetail: null };
 const CANCELADA = { ok: true as const, status: 'canceled', statusDetail: null };
+const ESTORNADO = { estado: 'estornado' as const, status: 'refunded', statusDetail: 'refunded' };
+const ESTORNADA = { ok: true as const, status: 'refunded', statusDetail: 'refunded' };
 
 type Linha = {
   id: string;
@@ -181,6 +185,7 @@ beforeEach(() => {
   vi.mocked(localizaOrdem).mockResolvedValue({ ok: true, ordem: null });
   vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({ ok: true, ordens: [] });
   vi.mocked(cancelaOrdem).mockResolvedValue(CANCELADA);
+  vi.mocked(reembolsaOrdem).mockResolvedValue(ESTORNADA);
   banco({});
 });
 
@@ -382,6 +387,157 @@ describe('efeito no pedido', () => {
         ['eq', 'status', 'aguardando_pagamento'],
       ])
     );
+  });
+
+  /**
+   * O dinheiro voltou pelo provedor — estorno pelo painel dele, chargeback —
+   * e o pedido nao pode seguir "pago": o dono produziria uma camiseta cujo
+   * valor ja nao esta com ele (#7).
+   */
+  describe('estorno no provedor', () => {
+    beforeEach(() => {
+      banco({ pagamento: { id: 'pag-1', order_id: 'ped-1', estado: 'aprovado' } });
+      vi.mocked(consultaOrdem).mockResolvedValue(ESTORNADO);
+    });
+
+    it('estornado move o pedido para reembolsado e avisa o dono', async () => {
+      const r = await assinado(notificacao(), RECURSO);
+
+      expect(r).toEqual({ tipo: 'aplicado', estado: 'estornado' });
+      expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+        estado: 'estornado',
+        provedor_status: 'refunded',
+        provedor_status_detail: 'refunded',
+      });
+      expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({
+        status: 'reembolsado',
+      });
+      expect(captureMessage).toHaveBeenCalledWith(
+        'pagamento estornado no provedor: pedido reembolsado',
+        { level: 'warning', tags: { order_id: 'ped-1' } }
+      );
+    });
+
+    // De onde se pode reembolsar, e de mais nenhum lugar: a mesma tabela que
+    // o botao usa. Cancelado e reembolsado sao finais.
+    it('so alcanca pedido pago, em producao, enviado ou entregue', async () => {
+      await assinado(notificacao(), RECURSO);
+
+      const update = consultas.find((c) => c.tabela === 'orders' && c.ops.length > 0);
+      expect(update?.ops).toEqual(
+        expect.arrayContaining([
+          ['eq', 'id', 'ped-1'],
+          ['in', 'status', ['pago', 'em_producao', 'enviado', 'entregue']],
+        ])
+      );
+    });
+
+    // O estorno pedido pelo botao ja mudou o pedido pela mao de quem apertou;
+    // um pedido cancelado e final. Nos dois casos nada muda e ninguem e
+    // acordado.
+    it('pedido que ja nao esta nesses status fica como esta, sem aviso', async () => {
+      banco({
+        pagamento: { id: 'pag-1', order_id: 'ped-1', estado: 'aprovado' },
+        pedidoPendente: false,
+      });
+
+      const r = await assinado(notificacao(), RECURSO);
+
+      expect(r).toEqual({ tipo: 'aplicado', estado: 'estornado' });
+      expect(avisos()).toEqual([]);
+    });
+
+    it('nao mexe nas irmas nem pede estorno de volta ao provedor', async () => {
+      await assinado(notificacao(), RECURSO);
+
+      expect(cancelaOrdem).not.toHaveBeenCalled();
+      expect(reembolsaOrdem).not.toHaveBeenCalled();
+    });
+
+    it('o aviso leva so o id do pedido, em tag', async () => {
+      await assinado(notificacao({ payer: { email: 'quem@exemplo.test' } }), RECURSO);
+
+      expect(captureMessage.mock.calls[0]).toEqual([
+        'pagamento estornado no provedor: pedido reembolsado',
+        { level: 'warning', tags: { order_id: 'ped-1' } },
+      ]);
+      expect(JSON.stringify(captureMessage.mock.calls)).not.toContain('quem@exemplo.test');
+    });
+
+    /**
+     * A #6 deixa duas tentativas `aprovado` no mesmo pedido e manda o dono
+     * estornar a duplicada no painel do provedor. O estorno dela chega por
+     * aqui — e o pedido, ainda sustentado pela outra, nao pode virar
+     * `reembolsado`: e final, e o dono deixaria de produzir uma camiseta paga.
+     */
+    describe('estorno da duplicada', () => {
+      const APROVADA = { id: 'pag-1', order_id: 'ped-1', estado: 'aprovado' };
+      const IRMA_APROVADA: Linha = {
+        id: 'pag-2',
+        order_id: 'ped-1',
+        estado: 'aprovado',
+        provedor_pagamento_id: 'ORD-2',
+        criado_em: em(T0),
+      };
+
+      it('deixa o pedido pago e avisa com mensagem propria', async () => {
+        banco({ pagamento: APROVADA, linhasDoPedido: [IRMA_APROVADA] });
+
+        const r = await assinado(notificacao({ payer: { email: 'quem@exemplo.test' } }), RECURSO);
+
+        expect(r).toEqual({ tipo: 'aplicado', estado: 'estornado' });
+        expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+          estado: 'estornado',
+          provedor_status: 'refunded',
+          provedor_status_detail: 'refunded',
+        });
+        expect(atualizados.some((a) => a.tabela === 'orders')).toBe(false);
+        expect(captureMessage.mock.calls).toEqual([
+          [
+            'pagamento duplicado estornado: pedido segue pago',
+            { level: 'warning', tags: { order_id: 'ped-1' } },
+          ],
+        ]);
+        expect(JSON.stringify(captureMessage.mock.calls)).not.toContain('quem@exemplo.test');
+      });
+
+      // O dublê nao reescreve a linha no `update`, entao a propria tentativa
+      // ainda se le `aprovado` aqui: so o `neq` a tira da conta.
+      it('a propria tentativa nao conta como irma', async () => {
+        banco({ pagamento: APROVADA, linhasDoPedido: [{ ...IRMA_APROVADA, id: 'pag-1' }] });
+
+        await assinado(notificacao(), RECURSO);
+
+        const emPagamentos = consultas.filter((c) => c.tabela === 'pagamentos').map((c) => c.ops);
+        expect(emPagamentos).toContainEqual(
+          expect.arrayContaining([
+            ['eq', 'order_id', 'ped-1'],
+            ['eq', 'estado', 'aprovado'],
+            ['neq', 'id', 'pag-1'],
+          ])
+        );
+        expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({
+          status: 'reembolsado',
+        });
+        expect(avisos()).toEqual(['pagamento estornado no provedor: pedido reembolsado']);
+      });
+
+      // O dono estornou as duas no painel: a segunda notificacao ja nao acha
+      // ninguem sustentando o pedido, e ai sim ele acompanha o dinheiro.
+      it('irma ja estornada nao segura o pedido', async () => {
+        banco({
+          pagamento: APROVADA,
+          linhasDoPedido: [{ ...IRMA_APROVADA, estado: 'estornado' }],
+        });
+
+        await assinado(notificacao(), RECURSO);
+
+        expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({
+          status: 'reembolsado',
+        });
+        expect(avisos()).toEqual(['pagamento estornado no provedor: pedido reembolsado']);
+      });
+    });
   });
 });
 
@@ -805,6 +961,206 @@ describe('encerraAbertas', () => {
     await encerra();
 
     expect(maximo).toBe(1);
+  });
+});
+
+/**
+ * O botao "Reembolsar" chama isto ANTES de mudar o status (#22): estorna no
+ * provedor, marca aqui, e quem chama so muda o pedido se nada ficou presa
+ * nem recusada. O que se prova e a contagem — e por ela que a acao decide —
+ * e a ordem: provedor primeiro, banco depois.
+ */
+describe('estornaAprovadas', () => {
+  const aprovada = (id: string, extra: Partial<Linha> = {}): Linha => ({
+    id: `pag-${id}`,
+    order_id: 'ped-1',
+    estado: 'aprovado',
+    provedor_pagamento_id: `ORD-${id}`,
+    criado_em: em(T0),
+    idempotency_key: `chave-${id}`,
+    ...extra,
+  });
+  const estorna = () => estornaAprovadas(clienteAdmin(), 'ped-1');
+  const marcadas = () =>
+    atualizados.filter((a) => a.tabela === 'pagamentos' && a.dados.estado === 'estornado');
+  const NADA = { estornadas: 0, jaEstornadas: 0, recusadas: 0, presas: 0 };
+
+  it('estorna no provedor cada aprovada com id, e marca aqui com o status cru', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+
+    expect(await estorna()).toEqual({ ...NADA, estornadas: 1 });
+    expect(reembolsaOrdem).toHaveBeenCalledWith('ORD-a', expect.any(String));
+    expect(marcadas().map((a) => a.dados)).toEqual([
+      { estado: 'estornado', provedor_status: 'refunded', provedor_status_detail: 'refunded' },
+    ]);
+  });
+
+  it('procura as aprovadas e as ja estornadas do pedido, com id', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+
+    await estorna();
+
+    expect(consultas.find((c) => c.tabela === 'pagamentos')?.ops).toEqual([
+      ['select', 'id, order_id, estado, provedor_pagamento_id, idempotency_key'],
+      ['eq', 'order_id', 'ped-1'],
+      ['in', 'estado', ['aprovado', 'estornado']],
+      ['not', 'provedor_pagamento_id', 'is', null],
+    ]);
+  });
+
+  // Estornar la e so entao marcar aqui: marcar antes deixaria o pedido
+  // "reembolsado" com o dinheiro na conta — o que o botao fazia.
+  it('estorna no provedor antes de marcar aqui', async () => {
+    const passos: string[] = [];
+    vi.mocked(reembolsaOrdem).mockImplementation(async () => {
+      passos.push('provedor');
+      return ESTORNADA;
+    });
+    banco({ linhasDoPedido: [aprovada('a')] });
+    const original = atualizados.push.bind(atualizados);
+    atualizados.push = ((...a: Parameters<typeof original>) => {
+      if (a[0].dados.estado === 'estornado') passos.push('banco');
+      return original(...a);
+    }) as typeof atualizados.push;
+
+    await estorna();
+
+    expect(passos).toEqual(['provedor', 'banco']);
+  });
+
+  // Se a notificacao do estorno chegou no meio e ja marcou, nada e sobrescrito.
+  it('a marcacao so alcanca tentativa ainda aprovada', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+
+    await estorna();
+
+    const update = consultas.find(
+      (c) => c.tabela === 'pagamentos' && c.ops.some((o) => o[0] === 'eq' && o[2] === 'pag-a')
+    );
+    expect(update?.ops).toEqual([
+      ['eq', 'id', 'pag-a'],
+      ['eq', 'estado', 'aprovado'],
+    ]);
+  });
+
+  // Tentar de novo depois de uma falha no meio reusa a chave e nao estorna
+  // duas vezes. E a chave nao e a da criacao nem a do cancelamento: o
+  // provedor guarda a resposta por chave.
+  it('a chave e estavel por tentativa, em formato de uuid, e nao e a da criacao nem a do cancelamento', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+    await estorna();
+    await estorna();
+
+    const chaves = vi.mocked(reembolsaOrdem).mock.calls.map((c) => c[1]);
+    expect(chaves).toHaveLength(2);
+    expect(chaves[0]).toBe(chaves[1]);
+    expect(chaves[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(chaves[0]).not.toBe('chave-a');
+
+    // A mesma tentativa, cancelada em vez de estornada, usa outra chave.
+    banco({ linhasDoPedido: [aprovada('a', { estado: 'pendente' })] });
+    await encerraAbertas(clienteAdmin(), 'ped-1', 'admin');
+    expect(vi.mocked(cancelaOrdem).mock.calls[0]?.[1]).not.toBe(chaves[0]);
+  });
+
+  // Duas aprovadas e o pagamento em duplicidade da #6: as duas voltam.
+  it('duas aprovadas: as duas voltam, uma por vez', async () => {
+    banco({ linhasDoPedido: [aprovada('a'), aprovada('b')] });
+    let emVoo = 0;
+    let maximo = 0;
+    vi.mocked(reembolsaOrdem).mockImplementation(async () => {
+      emVoo += 1;
+      maximo = Math.max(maximo, emVoo);
+      await new Promise((r) => setTimeout(r, 5));
+      emVoo -= 1;
+      return ESTORNADA;
+    });
+
+    expect(await estorna()).toEqual({ ...NADA, estornadas: 2 });
+    expect(vi.mocked(reembolsaOrdem).mock.calls.map((c) => c[0])).toEqual(['ORD-a', 'ORD-b']);
+    expect(maximo).toBe(1);
+  });
+
+  // O dinheiro ja tinha voltado por outro caminho (painel do provedor, e o
+  // webhook refletiu): nao se estorna de novo, mas quem chama fica sabendo.
+  it('a ja estornada so e contada, sem chamar o provedor', async () => {
+    banco({ linhasDoPedido: [aprovada('a', { estado: 'estornado' })] });
+
+    expect(await estorna()).toEqual({ ...NADA, jaEstornadas: 1 });
+    expect(reembolsaOrdem).not.toHaveBeenCalled();
+    expect(atualizados).toEqual([]);
+  });
+
+  it('sem aprovada nem estornada, zeros e nenhuma chamada', async () => {
+    banco({
+      linhasDoPedido: [
+        aprovada('a', { estado: 'pendente' }),
+        aprovada('b', { estado: 'recusado' }),
+      ],
+    });
+
+    expect(await estorna()).toEqual(NADA);
+    expect(reembolsaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('provedor fora do ar: presa, e nada e marcado', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'indisponivel' });
+
+    expect(await estorna()).toEqual({ ...NADA, presas: 1 });
+    expect(atualizados).toEqual([]);
+    expect(consultaOrdem).not.toHaveBeenCalled();
+  });
+
+  // O provedor recusa porque a ordem ja foi estornada pelo painel dele: a
+  // consulta confirma, a linha acompanha, e conta como feita.
+  it('provedor nao deixa porque ja esta estornada la: marca e conta como feita', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue(ESTORNADO);
+
+    expect(await estorna()).toEqual({ ...NADA, estornadas: 1 });
+    expect(consultaOrdem).toHaveBeenCalledWith('ORD-a');
+    expect(marcadas().map((a) => a.dados)).toEqual([
+      { estado: 'estornado', provedor_status: 'refunded', provedor_status_detail: 'refunded' },
+    ]);
+  });
+
+  it('provedor nao deixa e a ordem segue paga la: recusada, e nada e marcado', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+
+    expect(await estorna()).toEqual({ ...NADA, recusadas: 1 });
+    expect(atualizados).toEqual([]);
+  });
+
+  it('provedor nao deixa e a consulta falha: presa', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'invalido' });
+    vi.mocked(consultaOrdem).mockResolvedValue(null);
+
+    expect(await estorna()).toEqual({ ...NADA, presas: 1 });
+  });
+
+  // Nao ha como devolver o que o provedor nao conhece.
+  it('ordem que o provedor nao tem: recusada', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+    vi.mocked(reembolsaOrdem).mockResolvedValue({ ok: false, motivo: 'inexistente' });
+
+    expect(await estorna()).toEqual({ ...NADA, recusadas: 1 });
+    expect(atualizados).toEqual([]);
+  });
+
+  // Nada aqui passa por `aplica`: o pedido vai mudar pela mao de quem
+  // apertou, com autor e motivo, e a automacao nao toma o lugar dela.
+  it('nao registra evento, nao mexe no pedido e nao avisa: isso e de quem apertou', async () => {
+    banco({ linhasDoPedido: [aprovada('a')] });
+
+    await estorna();
+
+    expect(inseridos).toEqual([]);
+    expect(atualizados.some((a) => a.tabela === 'orders')).toBe(false);
+    expect(avisos()).toEqual([]);
   });
 });
 
