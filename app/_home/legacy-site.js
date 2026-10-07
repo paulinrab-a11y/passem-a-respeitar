@@ -3,12 +3,18 @@
 // Depende dos globais THREE, gsap e ScrollTrigger, atribuidos por HomeRuntime.tsx.
 // @ts-nocheck
 
+// Fechar a abertura e um contrato com o HomeRuntime (#238): ele fecha quando
+// este script nao chega, a intro fecha quando chega. Os dois pelo mesmo lugar.
+import { fechaAbertura } from './abertura';
+
 let booted = false;
 
 export default function initSite(CONFIG, extras) {
-// Issue #28: o que a home recebe de fora do script. Hoje, so a protecao contra
-// bot do convite; `null` quando nao ha chave configurada.
+// Issue #28: o que a home recebe de fora do script. A protecao contra bot do
+// convite (`null` quando nao ha chave configurada) e, desde a #238, se a
+// pessoa clicou em 'pular' enquanto este script ainda baixava.
 const humano = (extras && extras.humano) || null;
+const pulouAntes = !!(extras && extras.pulou);
   if (booted) return;
   booted = true;
 
@@ -303,7 +309,20 @@ $('#tocando').addEventListener('click', ()=> Som.proximo());
   })();
 })();
 
-const GL = (()=>{
+// Sem WebGL (#238): driver na lista negra, aceleracao proibida, WebView
+// antigo, Tor no modo mais fechado. O three lanca ao criar o renderer, e a
+// excecao derrubava o script inteiro ANTES de a intro existir — a pagina
+// ficava preta, com REC e um 'pular' que nao fazia nada, para sempre. Agora a
+// cena e a unica coisa que falta: o que sobra e um estado com os mesmos campos
+// que a intro e o ScrollTrigger escrevem, e `html.sem-webgl` tira o canvas do
+// caminho e mostra os elos em HTML (ver globals.css). Som, loja em fotos,
+// convite e concierge seguem como sempre.
+function semWebGL(erro){
+  console.warn('home: sem WebGL, a cena 3D fica de fora.', erro && erro.message);
+  document.documentElement.classList.add('sem-webgl');
+  return { S:{ p:0, pAlvo:0, fim:0, fimAlvo:0, queda:1, shake:0, mx:0, my:0 }, camera:null, semGL:true };
+}
+const GL = (()=>{ try {
   const canvas = $('#gl');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false, powerPreference:'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.5 : 2));
@@ -600,7 +619,7 @@ const GL = (()=>{
   });
 
   return { S, camera };
-})();
+} catch (erro) { return semWebGL(erro); } })();
 
 gsap.registerPlugin(ScrollTrigger);
 ScrollTrigger.create({
@@ -657,14 +676,17 @@ ScrollTrigger.create({
   setTimeout(()=>{ if (!fechou){ tl.kill(); GL.S.queda = 1; fecha(); } }, 19000);
   function fecha(){
     if (fechou) return; fechou = true;
-    el.classList.add('out'); el.style.display='none';
+    // O DOM (`#intro` fora, trava solta, barra visivel) e o mesmo que o
+    // HomeRuntime deixa quando este script falha (#238): um lugar so.
+    fechaAbertura(document);
     vhsOn=false; tcOn=false;
-    html.classList.remove('locked');
-    $('#bar').classList.add('on');
     ScrollTrigger.refresh();
   }
   $('#skip').addEventListener('click', ()=>{ tl.progress(1).kill(); GL.S.queda=1; fecha(); });
   $('#ligar').addEventListener('click', ()=>{ Som.liga(); $('#ligar').style.opacity=0; $('#ligar').disabled=true; });
+  // Quem clicou em 'pular' enquanto este script baixava (#238) nao clicou a
+  // toa: o clique vale agora, que ha o que pular — pelo mesmo caminho do botao.
+  if (pulouAntes) $('#skip').click();
 })();
 
 // Modal com saida animada (#49). `fecha` so poe a classe `saindo`; quem tira
