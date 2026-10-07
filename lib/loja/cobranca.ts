@@ -23,6 +23,7 @@ import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import { montaEstado } from './estado-do-pagamento';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
+import { casaOrfa, orfaDoPedido } from './webhook';
 
 /**
  * O que o navegador pode mandar.
@@ -69,7 +70,9 @@ export type MotivoDaCobranca =
   | 'pedido-ja-pago'
   | 'tentativas-demais'
   | 'recusado'
-  | 'indisponivel';
+  | 'indisponivel'
+  /** A tentativa anterior ficou sem resposta e ainda nao se sabe o que houve com ela. */
+  | 'pagamento-em-processamento';
 
 export type ResultadoDaCobranca =
   | {
@@ -82,6 +85,14 @@ export type ResultadoDaCobranca =
 
 /** Vinte por pedido, que e o teto do check de `pagamentos.tentativa`. */
 const MAX_TENTATIVAS = 20;
+
+/**
+ * Por quanto tempo uma tentativa sem resposta ainda e "em processamento"
+ * quando o provedor diz nao ter ordem para ela. A busca pode nao enxergar na
+ * hora o que acabou de nascer la; passado isso, se nao apareceu, nao existe —
+ * e a pessoa pode tentar de novo.
+ */
+const ESPERA_PELA_ORFA_MS = 60 * 1000;
 
 export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   const entrada = esquemaCobranca.safeParse(bruto);
@@ -108,6 +119,40 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   // duas vezes o mesmo pedido e o erro que ninguem perdoa.
   if (pedido.status !== 'aguardando_pagamento') {
     return { ok: false, motivo: 'pedido-ja-pago' };
+  }
+
+  // Tentativa anterior sem resposta (timeout, deploy no meio) pode ter virado
+  // cobranca de verdade do outro lado. Abrir outra agora e o caminho mais
+  // curto para cobrar o cartao duas vezes — entao primeiro se pergunta ao
+  // provedor o que houve com ela. (#5, #14)
+  const orfa = await orfaDoPedido(admin, pedido.id);
+  if (orfa) {
+    const r = await casaOrfa(admin, orfa, 'cobranca');
+
+    // A cobranca anterior existe e esta viva: e ela que vale, e nao se abre
+    // outra. O pedido conta a historia — aprovado ja virou `pago` ao aplicar.
+    if (r.tipo === 'aplicado' && (r.estado === 'aprovado' || r.estado === 'pendente')) {
+      return { ok: true, estado: r.estado };
+    }
+
+    // Nao deu para perguntar, ou alguem esta vinculando agora mesmo: esperar
+    // e a unica resposta segura.
+    if (r.tipo === 'tente-de-novo' || (r.tipo === 'ignorado' && r.motivo === 'ja-vinculado')) {
+      return { ok: false, motivo: 'pagamento-em-processamento' };
+    }
+
+    // O provedor nao tem ordem para ela. Recem-criada, pode so nao ter
+    // aparecido ainda na busca; passada a espera, nunca chegou la.
+    if (
+      r.tipo === 'ignorado' &&
+      r.motivo === 'sem-ordem-no-provedor' &&
+      Date.parse(orfa.criado_em) > Date.now() - ESPERA_PELA_ORFA_MS
+    ) {
+      return { ok: false, motivo: 'pagamento-em-processamento' };
+    }
+
+    // Recusada ou cancelada do outro lado, ou nunca chegou la: a tentativa
+    // anterior morreu, e cabe outra.
   }
 
   const { data: anteriores } = await admin

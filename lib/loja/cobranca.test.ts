@@ -6,14 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * As barreiras do banco estao conferidas contra o Supabase real e anotadas no
  * PR; a chamada de verdade ao Mercado Pago foi feita com credencial de teste.
+ *
+ * `casaOrfa` e `orfaDoPedido` tambem sao dublês: o que e deles (achar a ordem
+ * no provedor, vincular, aplicar) se prova em webhook.test.ts. Aqui se prova
+ * a DECISAO da cobranca diante do que eles respondem.
  */
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: vi.fn() }));
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
 vi.mock('./orders-api', () => ({ criaOrdem: vi.fn() }));
+vi.mock('./webhook', () => ({ casaOrfa: vi.fn(), orfaDoPedido: vi.fn() }));
 
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { clienteAdmin } = await import('@/lib/supabase/admin');
 const { criaOrdem } = await import('./orders-api');
+const { casaOrfa, orfaDoPedido } = await import('./webhook');
 const { cobra } = await import('./cobranca');
 
 const USUARIO = { id: 'uuu-1', email: 'quem@exemplo.test' };
@@ -76,6 +82,7 @@ beforeEach(() => {
   atualizado = [];
   vi.mocked(usuarioDaSessao).mockResolvedValue(USUARIO as never);
   vi.mocked(criaOrdem).mockResolvedValue(pixOk);
+  vi.mocked(orfaDoPedido).mockResolvedValue(null);
   banco({});
 });
 
@@ -174,6 +181,116 @@ describe('idempotencia', () => {
 
     expect(await pedirPix()).toEqual({ ok: false, motivo: 'tentativas-demais' });
     expect(criaOrdem).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * O cenario da #5/#14: a cobranca estourou o prazo, a linha ficou `criado`
+ * sem id, e a pessoa clica de novo. Abrir outra ordem agora e cobrar o cartao
+ * duas vezes — entao primeiro se pergunta ao provedor o que houve com a
+ * anterior, e a resposta dele decide.
+ */
+describe('tentativa anterior sem resposta', () => {
+  const orfaCom = (idadeMs: number) => ({
+    id: 'pag-orfa',
+    order_id: PEDIDO,
+    estado: 'criado',
+    criado_em: new Date(Date.now() - idadeMs).toISOString(),
+  });
+  const RECENTE = 10 * 1000;
+  const ANTIGA = 5 * 60 * 1000;
+
+  it('sem orfa, segue direto para a cobranca', async () => {
+    await pedirPix();
+
+    expect(casaOrfa).not.toHaveBeenCalled();
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
+  it('orfa aprovada do outro lado: nenhuma ordem nova, e o pedido ja esta pago', async () => {
+    const orfa = orfaCom(RECENTE);
+    vi.mocked(orfaDoPedido).mockResolvedValue(orfa);
+    vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'aplicado', estado: 'aprovado' });
+
+    const r = await pedirPix();
+
+    expect(casaOrfa).toHaveBeenCalledWith(expect.anything(), orfa, 'cobranca');
+    expect(r).toEqual({ ok: true, estado: 'aprovado' });
+    expect(gravado).toEqual([]);
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('orfa ainda pendente la: e ela que vale, nao se abre outra', async () => {
+    vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(RECENTE));
+    vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'aplicado', estado: 'pendente' });
+
+    expect(await pedirPix()).toEqual({ ok: true, estado: 'pendente' });
+    expect(gravado).toEqual([]);
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  it.each(['recusado', 'cancelado'] as const)(
+    'orfa %s do outro lado morreu: cabe tentativa nova',
+    async (estado) => {
+      vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(RECENTE));
+      vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'aplicado', estado });
+
+      const r = await pedirPix();
+
+      expect(r.ok).toBe(true);
+      expect(gravado.some((g) => g.tabela === 'pagamentos')).toBe(true);
+      expect(criaOrdem).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  // Nao conseguir perguntar nao e o mesmo que "nao existe". Esperar e a
+  // unica resposta que nao arrisca cobrar duas vezes.
+  it('provedor fora do ar ao perguntar: espera, nao cobra', async () => {
+    vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(ANTIGA));
+    vi.mocked(casaOrfa).mockResolvedValue({
+      tipo: 'tente-de-novo',
+      motivo: 'nao-consegui-confirmar',
+    });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pagamento-em-processamento' });
+    expect(gravado).toEqual([]);
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('outro caminho vinculando agora mesmo: espera', async () => {
+    vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(ANTIGA));
+    vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'ignorado', motivo: 'ja-vinculado' });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pagamento-em-processamento' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  // A busca do provedor pode nao enxergar na hora o que acabou de nascer la.
+  it('orfa recente que o provedor ainda nao mostra: espera', async () => {
+    vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(RECENTE));
+    vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'ignorado', motivo: 'sem-ordem-no-provedor' });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pagamento-em-processamento' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('orfa antiga que o provedor nunca viu: nunca chegou la, cabe tentativa nova', async () => {
+    vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(ANTIGA));
+    vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'ignorado', motivo: 'sem-ordem-no-provedor' });
+
+    const r = await pedirPix();
+
+    expect(r.ok).toBe(true);
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
+  // Uma cobranca que ja aconteceu vale mais que o teto de tentativas.
+  it('a orfa e conferida antes de contar tentativas', async () => {
+    banco({ ultimaTentativa: 20 });
+    vi.mocked(orfaDoPedido).mockResolvedValue(orfaCom(RECENTE));
+    vi.mocked(casaOrfa).mockResolvedValue({ tipo: 'aplicado', estado: 'aprovado' });
+
+    expect(await pedirPix()).toEqual({ ok: true, estado: 'aprovado' });
   });
 });
 

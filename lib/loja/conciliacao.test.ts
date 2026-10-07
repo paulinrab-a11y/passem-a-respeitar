@@ -1,24 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * A conciliacao nao decide nada sozinha: ela reusa `confirmaPeloProvedor`, o
- * mesmo caminho do webhook. O que se testa aqui e o que e dela — quem ela
- * escolhe olhar, como conta, e que uma falha nao para a fila.
+ * A conciliacao nao decide nada sozinha: ela reusa `confirmaPeloProvedor` e
+ * `casaOrfa`, os mesmos caminhos do webhook. O que se testa aqui e o que e
+ * dela — quem ela escolhe olhar, como conta, e que uma falha nao para a fila.
  */
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
-vi.mock('./orders-api', () => ({ consultaOrdem: vi.fn() }));
+vi.mock('./orders-api', () => ({
+  consultaOrdem: vi.fn(),
+  localizaOrdem: vi.fn(),
+  buscaOrdensPorReferencia: vi.fn(),
+}));
 
 const { clienteAdmin } = await import('@/lib/supabase/admin');
-const { consultaOrdem } = await import('./orders-api');
+const { buscaOrdensPorReferencia, consultaOrdem } = await import('./orders-api');
 const { concilia, conciliaPedido } = await import('./conciliacao');
 
 const AGORA = 1_760_000_000_000;
+const UM_DIA = 24 * 60 * 60 * 1000;
 
 type Linha = {
   id: string;
   order_id: string;
   estado: string;
   provedor_pagamento_id: string | null;
+  criado_em: string;
 };
 
 let linhas: Linha[] = [];
@@ -31,19 +37,29 @@ function banco() {
   vi.mocked(clienteAdmin).mockReturnValue({
     from(tabela: string) {
       const elo: Record<string, unknown> = {};
+      const ops: unknown[][] = [];
+      let emUpdate = false;
       const registra = (op: string, ...args: unknown[]) => {
         filtros.push({ tabela, op, args });
+        ops.push([op, ...args]);
         return elo;
       };
-      elo.select = () => elo;
+      // O que o banco devolveria: tudo, ou so o pedido filtrado por `eq`.
+      const selecionadas = () => {
+        const porPedido = ops.find((o) => o[0] === 'eq' && o[1] === 'order_id');
+        return porPedido ? linhas.filter((l) => l.order_id === porPedido[2]) : linhas;
+      };
+      elo.select = () => (emUpdate ? Promise.resolve({ data: [{ id: 'x' }], error: null }) : elo);
       elo.eq = (...a: unknown[]) => registra('eq', ...a);
       elo.in = (...a: unknown[]) => registra('in', ...a);
+      elo.is = (...a: unknown[]) => registra('is', ...a);
       elo.not = (...a: unknown[]) => registra('not', ...a);
       elo.lt = (...a: unknown[]) => registra('lt', ...a);
+      elo.or = (...a: unknown[]) => registra('or', ...a);
       elo.order = () => elo;
       elo.limit = (n: number) => {
         registra('limit', n);
-        return Promise.resolve({ data: linhas.slice(0, n), error: null });
+        return Promise.resolve({ data: selecionadas().slice(0, n), error: null });
       };
       elo.insert = (dados: Record<string, unknown>) => {
         inseridos.push(dados);
@@ -53,8 +69,17 @@ function banco() {
       };
       elo.update = (dados: Record<string, unknown>) => {
         atualizados.push({ tabela, dados });
+        emUpdate = true;
         return elo;
       };
+      // Consulta sem terminal proprio (`select ... order`): o `await` cai aqui,
+      // como no builder de verdade do Supabase, que tambem e thenable.
+      // biome-ignore lint/suspicious/noThenProperty: o dublê imita um builder thenable
+      elo.then = (resolve: (v: unknown) => void) =>
+        resolve({
+          data: tabela === 'pagamentos' && !emUpdate ? selecionadas() : null,
+          error: null,
+        });
       return elo;
     },
   } as never);
@@ -65,8 +90,19 @@ const pendente = (id: string, extra: Partial<Linha> = {}): Linha => ({
   order_id: `ped-${id}`,
   estado: 'pendente',
   provedor_pagamento_id: `ORD01${id}`,
+  criado_em: new Date(AGORA - 10 * 60_000).toISOString(),
   ...extra,
 });
+
+/** Tentativa cuja resposta se perdeu: em aberto, sem id do provedor. */
+const orfa = (id: string, criadaEmMs: number): Linha =>
+  pendente(id, {
+    estado: 'criado',
+    provedor_pagamento_id: null,
+    criado_em: new Date(criadaEmMs).toISOString(),
+  });
+
+const APROVADO = { estado: 'aprovado' as const, status: 'processed', statusDetail: 'accredited' };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -75,16 +111,13 @@ beforeEach(() => {
   inseridos = [];
   atualizados = [];
   repetidos = new Set();
-  vi.mocked(consultaOrdem).mockResolvedValue({
-    estado: 'aprovado',
-    status: 'processed',
-    statusDetail: 'accredited',
-  });
+  vi.mocked(consultaOrdem).mockResolvedValue(APROVADO);
+  vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({ ok: true, ordens: [] });
   banco();
 });
 
 describe('quem a varredura olha', () => {
-  it('so o que esta em aberto, com id no provedor, e com idade', async () => {
+  it('so o que esta em aberto e com idade; sem id no provedor, so dentro da janela', async () => {
     await concilia({ agoraMs: AGORA, idadeMinMs: 120_000, limite: 7 });
 
     const ops = filtros
@@ -92,18 +125,62 @@ describe('quem a varredura olha', () => {
       .map((f) => [f.op, ...(f.args as unknown[])]);
 
     expect(ops).toContainEqual(['in', 'estado', ['criado', 'pendente']]);
-    expect(ops).toContainEqual(['not', 'provedor_pagamento_id', 'is', null]);
     expect(ops).toContainEqual(['lt', 'criado_em', new Date(AGORA - 120_000).toISOString()]);
+    // Com id, qualquer idade. Sem id (resposta que se perdeu), ate um dia:
+    // depois disso a ordem nao vai mais aparecer la.
+    expect(ops).toContainEqual([
+      'or',
+      `provedor_pagamento_id.not.is.null,criado_em.gte.${new Date(AGORA - UM_DIA).toISOString()}`,
+    ]);
     expect(ops).toContainEqual(['limit', 7]);
   });
 
-  it('linha sem id no provedor e pulada mesmo se o banco a devolver', async () => {
-    linhas = [pendente('a', { provedor_pagamento_id: null })];
+  // A linha sem id e a tentativa cuja resposta se perdeu (#5). Ela e procurada
+  // pela referencia — a ordem dela, ninguem sabe qual e.
+  it('linha sem id no provedor e procurada pela referencia e casada', async () => {
+    const criada = AGORA - 10 * 60_000;
+    linhas = [orfa('a', criada)];
+    vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({
+      ok: true,
+      ordens: [
+        { provedorId: 'ORD01a', referencia: 'ped-a', criadaEmMs: criada + 2000, resumo: APROVADO },
+      ],
+    });
 
     const b = await concilia({ agoraMs: AGORA });
 
-    expect(b.olhados).toBe(0);
     expect(consultaOrdem).not.toHaveBeenCalled();
+    expect(buscaOrdensPorReferencia).toHaveBeenCalledWith('ped-a', {
+      desdeMs: criada - 5000,
+      ateMs: AGORA + 5000,
+    });
+    expect(b).toEqual({ olhados: 1, mudados: 1, semAvanco: 0, repetidos: 0, falhas: 0 });
+    const pagamentos = atualizados.filter((a) => a.tabela === 'pagamentos').map((a) => a.dados);
+    expect(pagamentos[0]).toEqual({ provedor_pagamento_id: 'ORD01a' });
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
+    expect(inseridos[0]).toMatchObject({
+      evento_id: 'conciliacao:ORD01a:processed',
+      tipo: 'conciliacao',
+      pagamento_id: 'pag-a',
+    });
+  });
+
+  it('linha sem id cuja ordem nao apareceu conta como sem avanco', async () => {
+    linhas = [orfa('a', AGORA - 10 * 60_000)];
+
+    const b = await concilia({ agoraMs: AGORA });
+
+    expect(b).toEqual({ olhados: 1, mudados: 0, semAvanco: 1, repetidos: 0, falhas: 0 });
+    expect(atualizados).toEqual([]);
+  });
+
+  it('busca fora do ar conta como falha e nao para a fila', async () => {
+    linhas = [orfa('a', AGORA - 10 * 60_000), pendente('b')];
+    vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({ ok: false });
+
+    const b = await concilia({ agoraMs: AGORA });
+
+    expect(b).toEqual({ olhados: 2, mudados: 1, semAvanco: 0, repetidos: 0, falhas: 1 });
   });
 });
 
@@ -279,5 +356,22 @@ describe('conciliaPedido', () => {
     await conciliaPedido('ped-e', AGORA);
 
     expect(consultaOrdem).toHaveBeenCalledTimes(2);
+  });
+
+  // Quem pagou e viu "tente de novo" abre o pedido: e aqui que a tentativa
+  // sem id dele reencontra a ordem, antes de qualquer cron.
+  it('tambem procura pela referencia a tentativa sem id do pedido', async () => {
+    const criada = AGORA - 60_000;
+    linhas = [orfa('o', criada)];
+    vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({
+      ok: true,
+      ordens: [
+        { provedorId: 'ORD01o', referencia: 'ped-o', criadaEmMs: criada + 2000, resumo: APROVADO },
+      ],
+    });
+
+    expect(await conciliaPedido('ped-o', AGORA)).toBe(true);
+    expect(consultaOrdem).not.toHaveBeenCalled();
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
   });
 });

@@ -27,6 +27,8 @@ const RECADOS: Record<MotivoDaCobranca, string> = {
   'tentativas-demais': 'Muitas tentativas neste pedido.',
   recusado: 'O pagamento não foi aprovado. Você pode tentar de novo.',
   indisponivel: 'Não consegui falar com o pagamento agora. Tente de novo.',
+  'pagamento-em-processamento':
+    'Estamos confirmando seu pagamento anterior. Aguarde um minuto e tente de novo.',
 };
 
 /** 4xx e problema de quem pediu; 5xx e nosso ou do provedor. */
@@ -39,6 +41,8 @@ const CODIGO: Record<MotivoDaCobranca, number> = {
   'tentativas-demais': 429,
   recusado: 402,
   indisponivel: 502,
+  // Conflito com uma cobranca que ainda esta sendo confirmada, nao falha.
+  'pagamento-em-processamento': 409,
 };
 
 export async function POST(request: NextRequest) {

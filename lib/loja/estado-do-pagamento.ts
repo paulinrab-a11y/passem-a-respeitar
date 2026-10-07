@@ -102,3 +102,14 @@ export function podeAvancar(atual: EstadoInterno, novo: EstadoInterno): boolean 
 
   return true;
 }
+
+/**
+ * Estados que ainda podem mudar por iniciativa do provedor. E o que o webhook
+ * espera, o que a conciliacao varre e o que a cobranca procura antes de abrir
+ * tentativa nova.
+ */
+export const EM_ABERTO: readonly EstadoInterno[] = ['criado', 'pendente'];
+
+export function emAberto(estado: string): boolean {
+  return (EM_ABERTO as readonly string[]).includes(estado);
+}

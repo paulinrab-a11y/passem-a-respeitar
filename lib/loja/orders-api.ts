@@ -71,6 +71,26 @@ export type RespostaDaCobranca =
     }
   | { ok: false; motivo: 'recusado' | 'invalido' | 'indisponivel'; resumo?: ResumoDoProvedor };
 
+/**
+ * Uma ordem como a consulta e a busca a devolvem. Enxuta, como o resto: id,
+ * de que pedido e, quando nasceu, em que estado esta.
+ */
+export type OrdemEncontrada = {
+  provedorId: string;
+  /** O `external_reference` que mandamos ao criar — `orders.id`. */
+  referencia: string | null;
+  /** Quando nasceu la, em ms. `null` se o provedor nao disse. */
+  criadaEmMs: number | null;
+  resumo: ResumoDoProvedor;
+};
+
+/**
+ * Resultado de perguntar ao provedor por uma ordem. "Nao achei" e "nao
+ * consegui perguntar" sao respostas diferentes, e a diferenca e dinheiro: a
+ * primeira autoriza seguir, a segunda manda esperar.
+ */
+export type Localizacao = { ok: true; ordem: OrdemEncontrada | null } | { ok: false };
+
 type Pagamento = {
   id?: string;
   status?: string;
@@ -87,6 +107,8 @@ type OrdemDoProvedor = {
   id?: string;
   status?: string;
   status_detail?: string;
+  external_reference?: string;
+  created_date?: string;
   transactions?: { payments?: Pagamento[] };
 };
 
@@ -116,6 +138,30 @@ function corpo(dados: DadosDaCobranca) {
         ? { identification: { type: dados.documento.tipo, number: dados.documento.numero } }
         : {}),
     },
+  };
+}
+
+/** O estado da ordem e o do primeiro pagamento dela; sem pagamento, o da ordem. */
+function resumoDaOrdem(ordem: OrdemDoProvedor): ResumoDoProvedor {
+  const pagamento = ordem.transactions?.payments?.[0];
+
+  return montaEstado(
+    pagamento?.status ?? ordem.status,
+    pagamento?.status_detail ?? ordem.status_detail
+  );
+}
+
+function encontrada(ordem: OrdemDoProvedor, idPedido?: string): OrdemEncontrada | null {
+  const provedorId = String(ordem.id ?? idPedido ?? '');
+  if (!provedorId) return null;
+
+  const criadaEm = ordem.created_date ? Date.parse(ordem.created_date) : Number.NaN;
+
+  return {
+    provedorId,
+    referencia: ordem.external_reference ?? null,
+    criadaEmMs: Number.isNaN(criadaEm) ? null : criadaEm,
+    resumo: resumoDaOrdem(ordem),
   };
 }
 
@@ -163,17 +209,12 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
     return { ok: false, motivo: resposta.status >= 500 ? 'indisponivel' : 'invalido' };
   }
 
-  const resumo = montaEstado(
-    pagamento?.status ?? ordem.status,
-    pagamento?.status_detail ?? ordem.status_detail
-  );
-
   const meio = pagamento?.payment_method;
 
   return {
     ok: true,
     provedorId: String(ordem.id ?? pagamento?.id ?? ''),
-    resumo,
+    resumo: resumoDaOrdem(ordem),
     ...(meio?.qr_code
       ? {
           pix: {
@@ -187,14 +228,16 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
 }
 
 /**
- * Consulta a ordem no provedor (Issue #45).
+ * Le a ordem inteira: id, de que pedido e, quando nasceu, em que estado esta.
  *
- * E a diferenca entre "o webhook disse que foi pago" e "o Mercado Pago
- * confirmou que foi pago". O corpo que chega por HTTP e afirmacao — ate
- * assinado, ele so prova que a notificacao e autentica, nao que o estado ali
- * dentro ainda vale. Quem decide dinheiro e esta chamada.
+ * E o que o webhook usa quando o recurso notificado nao bate com linha
+ * nenhuma nossa: o `external_reference` diz de que pedido e, e a data diz se
+ * pode ser de uma tentativa cuja resposta se perdeu (#5, #14).
+ *
+ * 404 e "isso nao e ordem nossa" — resposta, nao falha. Rede, prazo e 5xx sao
+ * "nao sei", e quem chama trata diferente.
  */
-export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedor | null> {
+export async function localizaOrdem(provedorId: string): Promise<Localizacao> {
   try {
     const r = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}`, {
       headers: { Authorization: `Bearer ${token()}` },
@@ -202,18 +245,85 @@ export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedo
       cache: 'no-store',
     });
 
-    if (!r.ok) return null;
+    if (r.status === 404) return { ok: true, ordem: null };
+    if (!r.ok) return { ok: false };
 
     const ordem = (await r.json()) as OrdemDoProvedor;
-    const pagamento = ordem.transactions?.payments?.[0];
 
-    return montaEstado(
-      pagamento?.status ?? ordem.status,
-      pagamento?.status_detail ?? ordem.status_detail
-    );
+    return { ok: true, ordem: encontrada(ordem, provedorId) };
   } catch {
-    // Nao conseguir confirmar nao e o mesmo que confirmar. `null` faz o
-    // webhook devolver erro, e o provedor reenvia depois.
-    return null;
+    return { ok: false };
+  }
+}
+
+/**
+ * Consulta a ordem no provedor (Issue #45).
+ *
+ * E a diferenca entre "o webhook disse que foi pago" e "o Mercado Pago
+ * confirmou que foi pago". O corpo que chega por HTTP e afirmacao — ate
+ * assinado, ele so prova que a notificacao e autentica, nao que o estado ali
+ * dentro ainda vale. Quem decide dinheiro e esta chamada.
+ *
+ * Nao conseguir confirmar nao e o mesmo que confirmar: `null` faz o webhook
+ * devolver erro, e o provedor reenvia depois.
+ */
+export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedor | null> {
+  const localizacao = await localizaOrdem(provedorId);
+
+  return localizacao.ok && localizacao.ordem ? localizacao.ordem.resumo : null;
+}
+
+/** RFC 3339 sem fracao de segundo, a forma dos exemplos da documentacao. */
+function rfc3339(ms: number): string {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/**
+ * Busca as ordens que o provedor tem para um `external_reference` — o id do
+ * pedido, que toda tentativa manda igual (#5, #14).
+ *
+ * E assim que uma tentativa cuja resposta se perdeu (timeout, deploy no meio)
+ * reencontra a ordem que o provedor criou mesmo assim, sem a gente ter o id
+ * dela. `begin_date` e `end_date` sao obrigatorios na API; quem chama passa a
+ * janela em que a ordem pode ter nascido, e isso tambem deixa de fora ordens
+ * de tentativas anteriores, que sao mais velhas.
+ *
+ * Devolve a lista toda: pode haver mais de uma (uma recusada, uma aprovada).
+ * Quem sabe qual e qual e quem conhece as linhas do pedido, nao este arquivo.
+ */
+export async function buscaOrdensPorReferencia(
+  referencia: string,
+  janela: { desdeMs: number; ateMs: number }
+): Promise<{ ok: true; ordens: OrdemEncontrada[] } | { ok: false }> {
+  const parametros = new URLSearchParams({
+    external_reference: referencia,
+    begin_date: rfc3339(janela.desdeMs),
+    end_date: rfc3339(janela.ateMs),
+  });
+
+  try {
+    const r = await fetch(`${BASE}/v1/orders?${parametros}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+      signal: AbortSignal.timeout(PRAZO_MS),
+      cache: 'no-store',
+    });
+
+    if (!r.ok) return { ok: false };
+
+    const corpo = (await r.json()) as { data?: unknown };
+
+    // Forma que nao reconhecemos e "nao sei", nunca "nao ha": uma lista vazia
+    // aqui autoriza cobrar de novo.
+    if (!Array.isArray(corpo?.data)) return { ok: false };
+
+    const ordens: OrdemEncontrada[] = [];
+    for (const o of corpo.data as OrdemDoProvedor[]) {
+      const e = encontrada(o);
+      if (e) ordens.push(e);
+    }
+
+    return { ok: true, ordens };
+  } catch {
+    return { ok: false };
   }
 }
