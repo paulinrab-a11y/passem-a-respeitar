@@ -14,3 +14,16 @@ export const RECADOS_DO_FRETE: Record<string, string> = {
   'frete-sem-medida': 'O frete está indisponível no momento. Tente de novo mais tarde.',
   'frete-limite': 'Muitas consultas de frete. Tente de novo em alguns minutos.',
 };
+
+/**
+ * Motivos que passam sozinhos (#240): a pessoa nao tem o que corrigir, so
+ * esperar — e para eles a tela oferece "Tentar de novo". CEP que nao existe e
+ * trecho sem servico ficam de fora: repetir a consulta devolve a mesma recusa,
+ * e o botao prometeria o que nao vem.
+ */
+export const MOTIVOS_TRANSITORIOS: ReadonlySet<string> = new Set([
+  'frete-fora-do-ar',
+  'frete-sem-configuracao',
+  'frete-sem-medida',
+  'frete-limite',
+]);

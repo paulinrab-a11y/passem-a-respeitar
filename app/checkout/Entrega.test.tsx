@@ -42,7 +42,9 @@ const ENDERECO = {
 };
 
 const campo = (rotulo: string) => screen.getByLabelText(rotulo) as HTMLInputElement;
-const botao = () => screen.getByRole('button') as HTMLButtonElement;
+/** O de finalizar. Pelo tipo: a caixa do frete pode ter o de tentar de novo. */
+const botao = () => document.querySelector('button[type="submit"]') as HTMLButtonElement;
+const tentar = () => screen.queryByRole('button', { name: 'Tentar de novo' });
 const reais = (texto: string) => texto.replace(/\s/g, ' ');
 
 function monta() {
@@ -194,6 +196,7 @@ describe('frete (#199)', () => {
     vi.mocked(cotarFrete).mockResolvedValue({
       ok: false,
       texto: 'Não consegui calcular o frete agora. Tente de novo em instantes.',
+      transitorio: true,
     });
     monta();
     await digitaCep('01310100');
@@ -275,6 +278,132 @@ describe('frete (#199)', () => {
     expect(
       screen.getByText(/O transporte começa depois da produção, de pelo menos 30 dias/)
     ).toBeTruthy();
+  });
+});
+
+describe('falha da cotacao (#240)', () => {
+  const FORA_DO_AR = 'Não consegui calcular o frete agora. Tente de novo em instantes.';
+  const PASSAGEIRA: RespostaDoFrete = { ok: false, texto: FORA_DO_AR, transitorio: true };
+  const DEFINITIVA: RespostaDoFrete = {
+    ok: false,
+    texto: 'Confira o CEP: não encontrei esse endereço.',
+    transitorio: false,
+  };
+
+  // A chamada e um fetch. Antes, a rejeicao dentro da transition derrubava o
+  // checkout no global-error, com o endereco digitado junto (#27).
+  it('chamada que rejeita vira o recado de fora do ar, com tentar de novo, e o formulario fica', async () => {
+    vi.mocked(cotarFrete).mockRejectedValue(new TypeError('fetch failed'));
+    const { container } = monta();
+    fireEvent.change(campo('Quem recebe'), { target: { value: 'Maria Teste' } });
+    await digitaCep('01310100');
+
+    expect(screen.getByRole('alert').textContent).toBe(FORA_DO_AR);
+    expect(tentar()).toBeTruthy();
+    expect(container.querySelectorAll('.frete-esqueleto')).toHaveLength(0);
+    expect(container.querySelector('.frete')?.getAttribute('aria-busy')).toBeNull();
+    expect(botao().disabled).toBe(true);
+    expect(botao().textContent).toContain('Frete indisponível');
+    expect(campo('Quem recebe').value).toBe('Maria Teste');
+    expect(campo('CEP').value).toBe('01310100');
+  });
+
+  it('busca de endereco que rejeita nao quebra nada: a pessoa digita', async () => {
+    vi.mocked(buscarEndereco).mockRejectedValue(new TypeError('fetch failed'));
+    monta();
+    fireEvent.change(campo('Rua'), { target: { value: 'Rua Minha' } });
+    await digitaCep('01310100');
+
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(campo('Rua').value).toBe('Rua Minha');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('tentar de novo cota o mesmo CEP de novo, com o esqueleto no lugar do botao', async () => {
+    vi.mocked(cotarFrete).mockRejectedValueOnce(new TypeError('fetch failed'));
+    const { container } = monta();
+    await digitaCep('01310100');
+    expect(tentar()).toBeTruthy();
+
+    const voo = emVoo();
+    vi.mocked(cotarFrete).mockReturnValueOnce(voo.promessa);
+    await act(async () => {
+      fireEvent.click(tentar() as HTMLButtonElement);
+    });
+
+    expect(cotarFrete).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(cotarFrete).mock.calls[1][0]).toEqual(vi.mocked(cotarFrete).mock.calls[0][0]);
+    expect(container.querySelectorAll('.frete-esqueleto')).toHaveLength(2);
+    expect(container.querySelector('.frete')?.getAttribute('aria-busy')).toBe('true');
+    expect(tentar()).toBeNull();
+    expect(botao().textContent).toContain('Aguardando o frete');
+
+    await act(async () => voo.solta(COTADO));
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(botao().disabled).toBe(false);
+  });
+
+  it('depois de falha passageira, apagar e redigitar o mesmo CEP cota de novo', async () => {
+    vi.mocked(cotarFrete).mockResolvedValueOnce(PASSAGEIRA);
+    monta();
+    await digitaCep('01310100');
+    expect(screen.getByRole('alert').textContent).toBe(FORA_DO_AR);
+
+    await digitaCep('0131010');
+    expect(screen.queryByRole('alert')).toBeNull();
+    await digitaCep('01310100');
+
+    expect(cotarFrete).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+  });
+
+  it('a falha passageira fica enquanto o CEP esta no campo: nada de cotar sozinho', async () => {
+    vi.mocked(cotarFrete).mockResolvedValue(PASSAGEIRA);
+    monta();
+    await digitaCep('01310100');
+    // Mais ciclos de efeito: um loop apareceria aqui.
+    await act(async () => {});
+    await act(async () => {});
+
+    expect(cotarFrete).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert').textContent).toBe(FORA_DO_AR);
+  });
+
+  it('recusa definitiva fica: sem tentar de novo, e redigitar o mesmo CEP nao consulta', async () => {
+    vi.mocked(cotarFrete).mockResolvedValue(DEFINITIVA);
+    monta();
+    await digitaCep('99999999');
+    expect(screen.getByRole('alert').textContent).toBe(DEFINITIVA.texto);
+    expect(tentar()).toBeNull();
+
+    await digitaCep('9999999');
+    await digitaCep('99999999');
+
+    expect(cotarFrete).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert').textContent).toBe(DEFINITIVA.texto);
+  });
+
+  // O pendente do `useTransition` valia para qualquer cotacao no ar (#31).
+  it('a cotacao lenta do CEP errado nao segura o esqueleto do CEP certo', async () => {
+    const errado = emVoo();
+    const certo = emVoo();
+    vi.mocked(cotarFrete).mockReturnValueOnce(errado.promessa).mockReturnValueOnce(certo.promessa);
+    const { container } = monta();
+
+    await digitaCep('01310101');
+    await digitaCep('01310100');
+    await act(async () => certo.solta(COTADO));
+
+    // A do CEP errado ainda esta no ar — e nao importa.
+    expect(container.querySelectorAll('.frete-esqueleto')).toHaveLength(0);
+    expect(container.querySelector('.frete')?.getAttribute('aria-busy')).toBeNull();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(botao().disabled).toBe(false);
+    expect(reais(botao().textContent ?? '')).toContain('Finalizar — R$ 143,50');
+
+    await act(async () => errado.solta(DEFINITIVA));
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 

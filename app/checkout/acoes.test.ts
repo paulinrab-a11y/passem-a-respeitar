@@ -288,10 +288,10 @@ describe('cotarFrete (#199)', () => {
     );
   });
 
-  it('sem sessao nao cota', async () => {
+  it('sem sessao nao cota, e tentar de novo nao devolve a sessao', async () => {
     vi.mocked(usuarioDaSessao).mockResolvedValue(null);
 
-    expect((await cotar()).ok).toBe(false);
+    expect(await cotar()).toMatchObject({ ok: false, transitorio: false });
     expect(opcoesDeFrete).not.toHaveBeenCalled();
   });
 
@@ -301,6 +301,7 @@ describe('cotarFrete (#199)', () => {
       expect(await cotar({ cep })).toEqual({
         ok: false,
         texto: 'Confira o CEP: não encontrei esse endereço.',
+        transitorio: false,
       });
       expect(opcoesDeFrete).not.toHaveBeenCalled();
     }
@@ -318,6 +319,7 @@ describe('cotarFrete (#199)', () => {
     expect(r).toEqual({
       ok: false,
       texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.',
+      transitorio: true,
     });
     expect(opcoesDeFrete).toHaveBeenCalledTimes(30);
   });
@@ -328,7 +330,41 @@ describe('cotarFrete (#199)', () => {
     expect(await cotar()).toEqual({
       ok: false,
       texto: 'Não consegui calcular o frete agora. Tente de novo em instantes.',
+      transitorio: true,
     });
+  });
+
+  // O que a tela usa para oferecer "Tentar de novo" (#240): so o que passa
+  // sozinho. CEP que nao existe e trecho sem servico nao mudam com outra
+  // consulta.
+  it.each([
+    ['frete-fora-do-ar', true],
+    ['frete-sem-configuracao', true],
+    ['frete-sem-medida', true],
+    ['frete-cep-invalido', false],
+    ['frete-sem-servico', false],
+  ] as const)('%s e transitorio: %s', async (motivo, transitorio) => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({ ok: false, motivo });
+
+    expect(await cotar()).toMatchObject({ ok: false, transitorio });
+  });
+
+  it('motivo desconhecido vira "fora do ar", com tentar de novo, e nao vaza', async () => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({ ok: false, motivo: 'coisa-nova' } as never);
+
+    expect(await cotar()).toEqual({
+      ok: false,
+      texto: 'Não consegui calcular o frete agora. Tente de novo em instantes.',
+      transitorio: true,
+    });
+  });
+
+  it('a resposta leva a frase e o sinal, nunca o nome do motivo', async () => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({ ok: false, motivo: 'frete-sem-configuracao' });
+
+    const r = await cotar();
+    expect(Object.keys(r).sort()).toEqual(['ok', 'texto', 'transitorio']);
+    expect(JSON.stringify(r)).not.toMatch(/motivo|configura|medida|token|melhor envio/i);
   });
 });
 

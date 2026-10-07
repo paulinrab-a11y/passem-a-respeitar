@@ -6,7 +6,7 @@ import { buscaEnderecoPeloCep, type EnderecoPeloCep } from '@/lib/loja/endereco-
 import type { OpcaoDeFrete } from '@/lib/loja/frete';
 import { criaPedido } from '@/lib/loja/pedido';
 import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
-import { RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
+import { MOTIVOS_TRANSITORIOS, RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
 import { limita } from '@/lib/rate-limit';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoDoCheckout } from './estado';
@@ -116,7 +116,23 @@ export async function finalizarCompra(
 
 export type RespostaDoFrete =
   | { ok: true; subtotalCentavos: number; opcoes: OpcaoDeFrete[] }
-  | { ok: false; texto: string };
+  /** `transitorio`: a falha passa sozinha, e a tela oferece tentar de novo (#240). */
+  | { ok: false; texto: string; transitorio: boolean };
+
+/**
+ * A recusa como a tela recebe: a frase, e se vale tentar de novo. O nome do
+ * motivo nao sai daqui — a tela nao compara frases, e a rede nao leva o que
+ * falta configurar. Motivo que este codigo nao conhece recebe a frase de
+ * "fora do ar", e com ela o botao: a frase convida a tentar de novo.
+ */
+function recusa(motivo: string): RespostaDoFrete {
+  const texto = Object.hasOwn(RECADOS, motivo) ? RECADOS[motivo] : undefined;
+  return {
+    ok: false,
+    texto: texto ?? RECADOS['frete-fora-do-ar'],
+    transitorio: texto === undefined || MOTIVOS_TRANSITORIOS.has(motivo),
+  };
+}
 
 /**
  * PAC e SEDEX para o CEP que a pessoa digitou (#199).
@@ -136,29 +152,27 @@ export async function cotarFrete(bruto: {
   cep: unknown;
 }): Promise<RespostaDoFrete> {
   const usuario = await usuarioDaSessao();
-  if (!usuario) return { ok: false, texto: RECADOS['sem-sessao'] };
+  if (!usuario) return recusa('sem-sessao');
 
   const cep = typeof bruto.cep === 'string' ? soDigitos(bruto.cep) : '';
-  if (!/^\d{8}$/.test(cep)) return { ok: false, texto: RECADOS['frete-cep-invalido'] };
+  if (!/^\d{8}$/.test(cep)) return recusa('frete-cep-invalido');
 
   const item = esquemaItemDoCarrinho.safeParse({
     slug: bruto.slug,
     tamanho: bruto.tamanho || null,
     quantidade: Number(bruto.quantidade ?? 1),
   });
-  if (!item.success) return { ok: false, texto: RECADOS['produto-indisponivel'] };
+  if (!item.success) return recusa('produto-indisponivel');
 
   const cota = await limita(
     `frete:${usuario.id}`,
     LIMITE_DO_FRETE.maximo,
     LIMITE_DO_FRETE.janelaMs
   );
-  if (!cota.permitido) {
-    return { ok: false, texto: RECADOS_DO_FRETE['frete-limite'] };
-  }
+  if (!cota.permitido) return recusa('frete-limite');
 
   const r = await opcoesDeFrete([item.data], cep);
-  if (!r.ok) return { ok: false, texto: RECADOS[r.motivo] ?? RECADOS['frete-fora-do-ar'] };
+  if (!r.ok) return recusa(r.motivo);
 
   return { ok: true, subtotalCentavos: r.subtotalCentavos, opcoes: r.opcoes };
 }

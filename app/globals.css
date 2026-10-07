@@ -980,7 +980,18 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .frete-esqueleto:hover{border-color:#1c1d20}
 .frete-esqueleto .esq-radio{grid-row:span 2;width:16px;height:16px;border:1px solid #1c1d20;border-radius:50%}
 .frete-vazio{display:flex;align-items:center;padding:0 14px;border:1px dashed #1c1d20;font-size:13px;letter-spacing:.04em;color:var(--prata-2)}
-.frete-erro{display:flex;align-items:center}
+/* Falha passageira (#240): a frase e, embaixo, "Tentar de novo". Coluna na
+   mesma caixa de altura fixa; o botao entra com a frase, pelo caminho do
+   .auth-erro. Botao de texto como o .auth-link, com sublinhado: na caixa de
+   erro tudo e texto, e algo precisa dizer que responde. O recuo alinha com o
+   texto da frase, depois da barra vermelha. */
+.frete-erro{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:12px}
+.frete-tentar{padding-left:14px;color:var(--prata);text-decoration:underline;text-underline-offset:4px;animation:auth-erro-entra .16s cubic-bezier(.22,1,.36,1) backwards}
+.frete-tentar:focus-visible{outline:2px solid var(--prata);outline-offset:2px}
+.frete-tentar:disabled{cursor:default;color:var(--prata-2)}
+@media (prefers-reduced-motion:reduce){
+  .frete-tentar{animation-name:so-fade}
+}
 .frete-nota{margin:8px 0 0;font-size:12px;letter-spacing:.06em;line-height:1.5;color:var(--prata-2)}
 .entrega>.resumo{margin-top:0}
 /* Audit de motion da #199. O esqueleto espera 150 ms para aparecer, como os da
