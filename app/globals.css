@@ -39,6 +39,11 @@ img,canvas,svg{display:block}
 #grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.28;mix-blend-mode:screen;image-rendering:pixelated}
 #scan{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.22;background:repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, transparent 1px 3px)}
 #vig{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.75) 100%)}
+/* Sem WebGL (#238): o three nao cria o renderer e o script marca a raiz. O
+   canvas vazio sai do caminho e os elos aparecem sem esperar uma camera que
+   nao existe — o mesmo que ja acontece com movimento reduzido. */
+html.sem-webgl #gl{display:none}
+html.sem-webgl .elo .box{opacity:1;transform:none}
 
 #bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:18px var(--gutter);mix-blend-mode:difference;opacity:0;transition:opacity .6s cubic-bezier(.22,1,.36,1)}
 #bar.on{opacity:1}

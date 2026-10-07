@@ -279,3 +279,48 @@ test('home: na loja, Esc fecha o guia e deixa a loja aberta', async ({ page }) =
   await page.mouse.click(5, 5);
   await expect(guia).toBeHidden();
 });
+
+/**
+ * Sem WebGL (#238): o navegador que nao oferece contexto 3D nao pode ficar
+ * preso na abertura. O WebGL e negado antes de qualquer script da pagina, e o
+ * que se mede e o que sobra: a intro fecha pelo pular, a trava cai, a barra
+ * aparece, o canvas sai, os elos sao legiveis e a loja abre em fotos. Nenhum
+ * erro de script. Nao depende de GPU: e o caminho que roda SEM ela.
+ */
+test('home: sem WebGL a abertura fecha e a pagina segue em HTML', async ({ page }) => {
+  const erros: string[] = [];
+  page.on('pageerror', (e) => erros.push(e.message));
+
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      tipo: string,
+      ...resto: unknown[]
+    ) {
+      if (/webgl/i.test(tipo)) return null;
+      return Reflect.apply(original, this, [tipo, ...resto]);
+    } as typeof original;
+  });
+
+  await page.goto('/');
+  // O script chegou, tentou a cena, marcou a raiz e seguiu.
+  await expect(page.locator('html')).toHaveClass(/\bsem-webgl\b/);
+  await expect(page.locator('#gl')).toBeHidden();
+
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+  await expect(page.locator('#intro')).toBeHidden();
+  await expect(page.locator('#bar')).toHaveClass(/\bon\b/);
+
+  // Os elos aparecem sem a camera que os revelaria.
+  await expect(page.locator('#elo-3 .box')).toHaveCSS('opacity', '1');
+
+  // E a loja abre, em fotos: sem WebGL nao ha vitrine 3D (#217).
+  await page.locator('#comprar').scrollIntoViewIfNeeded();
+  await page.locator('#comprar').click();
+  await expect(page.locator('#loja')).toBeVisible();
+  await expect(page.locator('#vitrine')).toHaveClass(/\bmodo-360\b/);
+
+  expect(erros).toEqual([]);
+});
