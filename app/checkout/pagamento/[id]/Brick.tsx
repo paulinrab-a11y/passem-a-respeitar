@@ -124,7 +124,7 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
         </p>
       ) : null}
 
-      {pix ? <Pix dados={pix} valor={valorEscrito} /> : null}
+      {pix ? <Pix dados={pix} valor={valorEscrito} pedido={pedido} /> : null}
 
       {/* O formulario sai de cena: a cobranca ja existe la, e um segundo envio
           abriria outra. */}

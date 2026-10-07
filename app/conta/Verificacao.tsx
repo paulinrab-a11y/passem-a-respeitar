@@ -12,8 +12,7 @@ export default function Verificacao() {
   return (
     <form action={acao} className="conta-aviso">
       <p>
-        Seu e-mail ainda não foi verificado. Sem isso, não dá para recuperar a senha nem receber
-        aviso de pedido.
+        Seu e-mail ainda não foi verificado. Sem isso, não dá para recuperar a senha nem comprar.
       </p>
 
       <Mensagem

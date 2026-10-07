@@ -153,6 +153,9 @@ describe('recusa', () => {
     const r = await enviar();
 
     expect(r.recado?.texto).toMatch(/confirme seu e-mail/i);
+    // Nao ha e-mail de pedido (#250): a recusa nao pode prometer um.
+    expect(r.recado?.texto).not.toMatch(/avis/i);
+    expect(r.recado?.texto).toMatch(/reenvie em Conta/);
     expect(criaPedido).not.toHaveBeenCalled();
   });
 
