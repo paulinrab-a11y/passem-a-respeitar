@@ -48,7 +48,9 @@ import 'server-only';
  * `external_reference` e a vincula a linha; a cobranca chama antes de abrir
  * tentativa nova (senao cobra duas vezes), a conciliacao chama pela cauda
  * longa, e o webhook faz o mesmo quando o recurso notificado nao bate com
- * linha nenhuma. (#5, #14)
+ * linha nenhuma. Qual ordem e de qual linha se decide pelo TEMPO: a ordem de
+ * uma tentativa nasce depois dela e antes da tentativa seguinte, e so. (#5,
+ * #14)
  *
  * UMA COBRANCA VIVA POR PEDIDO
  *
@@ -107,7 +109,7 @@ export type PagamentoEmAberto = { id: string; order_id: string; estado: string }
 
 /** O que `encerraAbertas` fez com as tentativas abertas de um pedido. */
 export type Encerramento = {
-  /** Canceladas agora, ou descobertas ja finais no provedor. */
+  /** Canceladas agora, descobertas ja finais no provedor, ou que ele nao tem. */
   encerradas: number;
   /** Aprovadas: ja estavam, ou se descobriram ao tentar cancelar. */
   aprovadas: number;
@@ -123,15 +125,22 @@ type AvisoDePagamento =
 /** Tentativa que ficou sem id do provedor: a resposta se perdeu no caminho. */
 export type PagamentoOrfao = PagamentoEmAberto & { criado_em: string };
 
+/** Uma tentativa do pedido, como `linhasDoPedido` devolve. */
+type LinhaDoPedido = PagamentoOrfao & { provedor_pagamento_id: string | null };
+
 type Admin = ReturnType<typeof clienteAdmin>;
 type Resumo = NonNullable<Awaited<ReturnType<typeof consultaOrdem>>>;
 
 /**
  * Folga entre o relogio do provedor e o nosso. A ordem nasce la DEPOIS da
  * linha aqui (a linha vem antes da chamada), entao ordem mais velha que a
- * linha, alem desta folga, nao pode ser dela.
+ * linha, alem desta folga, nao pode ser dela — e, pelo mesmo motivo, ordem
+ * mais velha que a tentativa SEGUINTE, alem da folga, nao pode ser daquela.
  */
 const FOLGA_DO_RELOGIO_MS = 5_000;
+
+/** Marca, na coluna de detalhe, a cobranca cujo id o provedor diz nao ter. */
+const ORDEM_INEXISTENTE = 'order_not_found';
 
 export async function processa(
   corpo: unknown,
@@ -210,9 +219,9 @@ async function processaAssinada(
  *
  * O caso real: a cobranca estourou o prazo, a linha ficou `criado` sem id, e
  * o provedor — que processou mesmo assim — avisa por aqui. A ordem dele traz
- * o `external_reference`, que e o id do pedido; a tentativa sem id mais
- * recente desse pedido e a dona dela, desde que a ordem tenha nascido depois
- * da linha.
+ * o `external_reference`, que e o id do pedido; a dona dela e a tentativa sem
+ * id desse pedido em cuja epoca a ordem nasceu — nao a mais recente, que pode
+ * ser outra tentativa que nunca chegou ao provedor.
  */
 async function casaPeloRecurso(
   admin: Admin,
@@ -225,10 +234,8 @@ async function casaPeloRecurso(
   const ordem = localizacao.ordem;
   if (!ordem?.referencia) return { tipo: 'ignorado', motivo: 'pagamento-desconhecido' };
 
-  const orfa = await orfaDoPedido(admin, ordem.referencia);
-  if (!orfa || nasceuAntesDa(ordem, orfa)) {
-    return { tipo: 'ignorado', motivo: 'pagamento-desconhecido' };
-  }
+  const orfa = donaDaOrdem(await linhasDoPedido(admin, ordem.referencia), ordem);
+  if (!orfa) return { tipo: 'ignorado', motivo: 'pagamento-desconhecido' };
 
   const vinculo = await vincula(admin, orfa.id, ordem.provedorId);
   if (vinculo) return vinculo;
@@ -263,8 +270,9 @@ export async function confirmaPeloProvedor(
  *
  * Toda tentativa do pedido manda o mesmo `external_reference`, entao a busca
  * devolve as ordens de TODAS elas. As que ja tem dona (id em alguma linha)
- * saem; as que sobram sao pareadas com as tentativas sem id, da mais nova
- * para a mais nova. Ordem que nasceu antes da linha nao e dela.
+ * saem; das que sobram, a desta orfa e a que nasceu na epoca dela (ver
+ * `janelaDaOrdem`). Parear por posicao nao serve: uma orfa mais nova que
+ * nunca chegou ao provedor esconderia a ordem — ate aprovada — da mais velha.
  */
 export async function casaOrfa(
   admin: Admin,
@@ -272,19 +280,12 @@ export async function casaOrfa(
   origem: OrigemDaConfirmacao,
   agoraMs = Date.now()
 ): Promise<ResultadoDoWebhook> {
-  const { data: linhas } = await admin
-    .from('pagamentos')
-    .select('id, estado, provedor_pagamento_id, criado_em')
-    .eq('order_id', orfa.order_id)
-    .order('tentativa', { ascending: false });
-
-  const todas = linhas ?? [];
+  const todas = await linhasDoPedido(admin, orfa.order_id);
   const conhecidas = new Set(todas.map((l) => l.provedor_pagamento_id).filter((id) => id));
-  const orfas = todas.filter((l) => l.provedor_pagamento_id === null && emAberto(l.estado));
+  const orfas = todas.filter(ehOrfa);
 
   // Alguem vinculou no meio do caminho (webhook, outra aba). Nada a fazer aqui.
-  const posicao = orfas.findIndex((l) => l.id === orfa.id);
-  if (posicao < 0) return { tipo: 'ignorado', motivo: 'ja-vinculado' };
+  if (!orfas.some((l) => l.id === orfa.id)) return { tipo: 'ignorado', motivo: 'ja-vinculado' };
 
   // A janela comeca na orfa mais velha: ordem de tentativa anterior, que ja
   // tem dona ou foi recusada, fica de fora pela data.
@@ -295,14 +296,14 @@ export async function casaOrfa(
   });
   if (!busca.ok) return { tipo: 'tente-de-novo', motivo: 'nao-consegui-confirmar' };
 
-  const semDona = busca.ordens
-    .filter((o) => !conhecidas.has(o.provedorId))
-    .sort((a, b) => (b.criadaEmMs ?? 0) - (a.criadaEmMs ?? 0));
-
-  const ordem = semDona[posicao];
-  if (!ordem || nasceuAntesDa(ordem, orfa)) {
-    return { tipo: 'ignorado', motivo: 'sem-ordem-no-provedor' };
-  }
+  const janela = janelaDaOrdem(todas, orfa.id);
+  const ordem = busca.ordens
+    .filter((o) => !conhecidas.has(o.provedorId) && naJanela(o, janela))
+    // A mais nova da janela: uma tentativa recusada segundos antes desta pode
+    // ter deixado uma ordem sem dona na borda, e a desta e a que veio depois.
+    // Sem data vai por ultimo — nao da para excluir, mas tambem nao desempata.
+    .sort((a, b) => (b.criadaEmMs ?? -1) - (a.criadaEmMs ?? -1))[0];
+  if (!ordem) return { tipo: 'ignorado', motivo: 'sem-ordem-no-provedor' };
 
   const vinculo = await vincula(admin, orfa.id, ordem.provedorId);
   if (vinculo) return vinculo;
@@ -310,24 +311,73 @@ export async function casaOrfa(
   return registraEAplica(admin, orfa, ordem.resumo, ordem.provedorId, origem);
 }
 
-/** A tentativa sem id mais recente do pedido que ainda esta em aberto. */
-export async function orfaDoPedido(admin: Admin, orderId: string): Promise<PagamentoOrfao | null> {
+/** As tentativas sem id do pedido que ainda estao em aberto, da mais nova para a mais velha. */
+export async function orfasDoPedido(admin: Admin, orderId: string): Promise<PagamentoOrfao[]> {
   const { data } = await admin
     .from('pagamentos')
     .select('id, order_id, estado, criado_em')
     .eq('order_id', orderId)
     .is('provedor_pagamento_id', null)
     .in('estado', [...EM_ABERTO])
-    .order('tentativa', { ascending: false })
-    .limit(1);
+    .order('tentativa', { ascending: false });
 
-  return data?.[0] ?? null;
+  return data ?? [];
 }
 
-function nasceuAntesDa(ordem: OrdemEncontrada, orfa: PagamentoOrfao): boolean {
-  if (ordem.criadaEmMs === null) return false;
+/** Todas as tentativas do pedido, da mais nova para a mais velha. */
+async function linhasDoPedido(admin: Admin, orderId: string): Promise<LinhaDoPedido[]> {
+  const { data } = await admin
+    .from('pagamentos')
+    .select('id, order_id, estado, provedor_pagamento_id, criado_em')
+    .eq('order_id', orderId)
+    .order('tentativa', { ascending: false });
 
-  return ordem.criadaEmMs < Date.parse(orfa.criado_em) - FOLGA_DO_RELOGIO_MS;
+  return data ?? [];
+}
+
+function ehOrfa(l: LinhaDoPedido): boolean {
+  return l.provedor_pagamento_id === null && emAberto(l.estado);
+}
+
+/**
+ * Em que epoca a ordem de uma tentativa pode ter nascido: da linha, com a
+ * folga, ate a tentativa seguinte, menos a folga — porque a ordem DAQUELA
+ * tambem pode parecer mais velha que ela. Vale porque a cobranca so abre
+ * tentativa nova depois de a anterior ter resposta ou ter estourado o prazo e
+ * a espera pela orfa, e o provedor cria a ordem dentro do prazo. Da mais
+ * nova, a epoca vai ate agora.
+ */
+function janelaDaOrdem(
+  todas: LinhaDoPedido[],
+  linhaId: string
+): { desdeMs: number; ateMs: number } {
+  const posicao = todas.findIndex((l) => l.id === linhaId);
+  const linha = todas[posicao];
+  const seguinte = posicao > 0 ? todas[posicao - 1] : undefined;
+
+  return {
+    desdeMs: Date.parse(linha.criado_em) - FOLGA_DO_RELOGIO_MS,
+    ateMs: seguinte
+      ? Date.parse(seguinte.criado_em) - FOLGA_DO_RELOGIO_MS
+      : Number.POSITIVE_INFINITY,
+  };
+}
+
+/** Ordem sem data nao pode ser excluida de epoca nenhuma. */
+function naJanela(ordem: OrdemEncontrada, janela: { desdeMs: number; ateMs: number }): boolean {
+  if (ordem.criadaEmMs === null) return true;
+
+  return ordem.criadaEmMs >= janela.desdeMs && ordem.criadaEmMs < janela.ateMs;
+}
+
+/**
+ * A tentativa sem id em cuja epoca a ordem nasceu. As epocas nao se
+ * sobrepoem, entao ha no maximo uma; ordem sem data fica com a mais nova.
+ * Ordem nascida na epoca de uma tentativa que ja tem id, ou que morreu sem
+ * id (recusada), nao e de orfa nenhuma.
+ */
+function donaDaOrdem(todas: LinhaDoPedido[], ordem: OrdemEncontrada): PagamentoOrfao | null {
+  return todas.find((l) => ehOrfa(l) && naJanela(ordem, janelaDaOrdem(todas, l.id))) ?? null;
 }
 
 /** `null` = vinculado agora. Senao, o motivo de nao seguir. */
@@ -498,6 +548,12 @@ export async function marcaPago(admin: Admin, orderId: string): Promise<void> {
  * pergunta o estado real e se aplica, pelo mesmo caminho do webhook. Paga,
  * conta em `aprovadas`, e o pedido ja virou `pago` ao aplicar.
  *
+ * Quando o provedor diz nao TER a ordem, e a consulta confirma, nao ha o que
+ * cancelar nem o que esperar: a linha e encerrada aqui, com a marca disso.
+ * Sem essa saida ela ficaria presa para sempre, e com ela o pedido — nem
+ * pagavel, nem cancelavel. E o caso das cobrancas de teste (`ORDTST…`) quando
+ * a credencial de producao entrar.
+ *
  * Tentativa sem id (resposta que se perdeu) fica fora: nao ha o que cancelar
  * sem id, e marca-la `cancelado` a esconderia de `casaOrfa` — se a ordem dela
  * existe e for paga, e justamente ai que se quer o aviso.
@@ -554,12 +610,34 @@ export async function encerraAbertas(
     }
 
     if (cancelamento.motivo === 'invalido') {
-      const confirmacao = await confirmaPeloProvedor(admin, l, l.provedor_pagamento_id, origem);
+      somaConfirmacao(r, await confirmaPeloProvedor(admin, l, l.provedor_pagamento_id, origem));
+      continue;
+    }
 
-      if (confirmacao.tipo === 'aplicado') {
-        if (confirmacao.estado === 'aprovado') r.aprovadas += 1;
-        else if (emAberto(confirmacao.estado)) r.presas += 1;
-        else r.encerradas += 1;
+    if (cancelamento.motivo === 'inexistente') {
+      // "Nao tenho essa ordem" so vale com a consulta dizendo o mesmo: um
+      // 404 sozinho nao enterra uma cobranca. Se a consulta a acha, afinal,
+      // vale o estado que ela disser.
+      const localizacao = await localizaOrdem(l.provedor_pagamento_id);
+
+      if (localizacao.ok && localizacao.ordem) {
+        const confirmacao = await registraEAplica(
+          admin,
+          l,
+          localizacao.ordem.resumo,
+          l.provedor_pagamento_id,
+          origem
+        );
+        somaConfirmacao(r, confirmacao);
+        continue;
+      }
+      if (localizacao.ok) {
+        await admin
+          .from('pagamentos')
+          .update({ estado: 'cancelado', provedor_status_detail: ORDEM_INEXISTENTE })
+          .eq('id', l.id)
+          .in('estado', [...EM_ABERTO]);
+        r.encerradas += 1;
         continue;
       }
     }
@@ -568,6 +646,18 @@ export async function encerraAbertas(
   }
 
   return r;
+}
+
+/**
+ * O que a confirmacao pelo provedor disse de uma tentativa que ele nao deixou
+ * cancelar, na conta de quem chamou. Nao aplicou nada — ainda pendente la,
+ * repetido, ou nao deu para perguntar — e continuar aberta.
+ */
+function somaConfirmacao(r: Encerramento, confirmacao: ResultadoDoWebhook): void {
+  if (confirmacao.tipo !== 'aplicado') r.presas += 1;
+  else if (confirmacao.estado === 'aprovado') r.aprovadas += 1;
+  else if (emAberto(confirmacao.estado)) r.presas += 1;
+  else r.encerradas += 1;
 }
 
 /**

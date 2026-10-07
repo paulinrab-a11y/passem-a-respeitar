@@ -27,7 +27,7 @@ import { z } from 'zod';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
-import { casaOrfa, encerraAbertas, marcaPago, orfaDoPedido } from './webhook';
+import { casaOrfa, encerraAbertas, marcaPago, orfasDoPedido } from './webhook';
 
 /**
  * O que o navegador pode mandar.
@@ -132,9 +132,10 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   // Tentativa anterior sem resposta (timeout, deploy no meio) pode ter virado
   // cobranca de verdade do outro lado. Abrir outra agora e o caminho mais
   // curto para cobrar o cartao duas vezes — entao primeiro se pergunta ao
-  // provedor o que houve com ela. (#5, #14)
-  const orfa = await orfaDoPedido(admin, pedido.id);
-  if (orfa) {
+  // provedor o que houve com ela. Com TODAS elas, da mais nova para a mais
+  // velha: a mais nova pode nunca ter chegado la enquanto a anterior virou
+  // cobranca de verdade. (#5, #14)
+  for (const orfa of await orfasDoPedido(admin, pedido.id)) {
     const r = await casaOrfa(admin, orfa, 'cobranca');
 
     // A cobranca anterior aconteceu: nao se abre outra. O pedido conta a
@@ -159,9 +160,9 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
       return { ok: false, motivo: 'pagamento-em-processamento' };
     }
 
-    // Recusada ou cancelada do outro lado, ou nunca chegou la: a tentativa
-    // anterior morreu, e cabe outra. Pendente la, ela acabou de ganhar id — e
-    // e encerrada logo abaixo como qualquer tentativa aberta.
+    // Recusada ou cancelada do outro lado, ou nunca chegou la: esta morreu, e
+    // se olha a anterior. Pendente la, ela acabou de ganhar id — e e encerrada
+    // logo abaixo como qualquer tentativa aberta.
   }
 
   // Uma cobranca viva por pedido (#6). O Pix que ficou esperando e cancelado

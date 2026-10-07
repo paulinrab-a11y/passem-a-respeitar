@@ -107,11 +107,13 @@ export type Localizacao = { ok: true; ordem: OrdemEncontrada | null } | { ok: fa
 /**
  * Resultado de pedir o cancelamento. `invalido` e o provedor dizendo "nao
  * posso": a ordem ja e final la (paga, expirada), e quem chama vai perguntar
- * qual e o estado de verdade. `indisponivel` e nao ter conseguido perguntar.
+ * qual e o estado de verdade. `inexistente` e "nao conheco essa ordem" — id
+ * de outra conta, do sandbox — e quem chama confere antes de dar por morta.
+ * `indisponivel` e nao ter conseguido perguntar.
  */
 export type RespostaDoCancelamento =
   | { ok: true; status: string | null; statusDetail: string | null }
-  | { ok: false; motivo: 'invalido' | 'indisponivel' };
+  | { ok: false; motivo: 'invalido' | 'inexistente' | 'indisponivel' };
 
 type Pagamento = {
   id?: string;
@@ -376,8 +378,10 @@ export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedo
  *
  * 2xx e "cancelada": o corpo so traz o status cru para a coluna. 4xx e o
  * provedor dizendo que nao pode — a ordem ja e final la — e isso e resposta,
- * nao falha: quem chama pergunta o estado real. Rede, prazo e 5xx sao "nao
- * sei".
+ * nao falha: quem chama pergunta o estado real. 404 e separado: a ordem nao
+ * existe para esta credencial (id do sandbox com o token de producao), e
+ * tratar como "nao pode" deixaria a tentativa presa, porque a consulta
+ * tambem nao a acha. Rede, prazo e 5xx sao "nao sei".
  */
 export async function cancelaOrdem(
   provedorId: string,
@@ -400,10 +404,10 @@ export async function cancelaOrdem(
     return { ok: false, motivo: 'indisponivel' };
   }
 
-  if (!resposta.ok) {
-    // Nunca logar o corpo: ele carrega dado do pagador.
-    return { ok: false, motivo: resposta.status >= 500 ? 'indisponivel' : 'invalido' };
-  }
+  // Nunca logar o corpo: ele carrega dado do pagador.
+  if (resposta.status === 404) return { ok: false, motivo: 'inexistente' };
+  if (resposta.status >= 500) return { ok: false, motivo: 'indisponivel' };
+  if (!resposta.ok) return { ok: false, motivo: 'invalido' };
 
   const ordem = (await resposta.json().catch(() => ({}))) as OrdemDoProvedor;
   const resumo = resumoDaOrdem(ordem);

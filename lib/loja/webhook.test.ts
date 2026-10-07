@@ -23,7 +23,7 @@ const { clienteAdmin } = await import('@/lib/supabase/admin');
 const { buscaOrdensPorReferencia, cancelaOrdem, consultaOrdem, localizaOrdem } = await import(
   './orders-api'
 );
-const { casaOrfa, encerraAbertas, orfaDoPedido, processa } = await import('./webhook');
+const { casaOrfa, encerraAbertas, orfasDoPedido, processa } = await import('./webhook');
 
 /** Caminho assinado — o dos testes originais. */
 const assinado = (corpo: unknown, recurso: string | null) =>
@@ -87,9 +87,7 @@ function banco({
     unknown
   > | null,
   eventoRepetido = false,
-  /** O que `orfaDoPedido` encontra. */
-  orfa = null as Linha | null,
-  /** Todas as tentativas do pedido, para `casaOrfa` e `encerraAbertas`. */
+  /** Todas as tentativas do pedido: o que `casaOrfa`, `orfasDoPedido` e `encerraAbertas` veem. */
   linhasDoPedido = [] as Linha[],
   /** O que o `update ... where id is null` do vinculo alcanca. */
   vinculo = 'alcanca' as 'alcanca' | 'ninguem' | 'duplicado',
@@ -137,10 +135,6 @@ function banco({
             tabela === 'orders' ? (statusDoPedido ? { status: statusDoPedido } : null) : pagamento,
           error: null,
         });
-      elo.limit = (n: number) => {
-        ops.push(['limit', n]);
-        return Promise.resolve({ data: orfa ? [orfa] : [], error: null });
-      };
       elo.insert = (dados: Record<string, unknown>) => {
         inseridos.push({ tabela, dados });
         return Promise.resolve(
@@ -724,6 +718,77 @@ describe('encerraAbertas', () => {
     expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados.estado).toBe('cancelado');
   });
 
+  // O provedor nao TEM a ordem (id do sandbox com a credencial de producao, por
+  // exemplo). Antes isso caia em "nao deixa cancelar" e a consulta tambem nao
+  // achava: presa para sempre, e o pedido nem pagavel nem cancelavel.
+  it('cobranca cujo id o provedor nao tem e encerrada, nao presa', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'inexistente' });
+    vi.mocked(localizaOrdem).mockResolvedValue({ ok: true, ordem: null });
+
+    expect(await encerra()).toEqual({ encerradas: 1, aprovadas: 0, presas: 0 });
+    expect(localizaOrdem).toHaveBeenCalledWith('ORD-a');
+    expect(atualizados).toEqual([
+      {
+        tabela: 'pagamentos',
+        dados: { estado: 'cancelado', provedor_status_detail: 'order_not_found' },
+      },
+    ]);
+    // So alcanca tentativa ainda aberta, como o cancelamento normal.
+    const marcacao = consultas.find(
+      (c) => c.tabela === 'pagamentos' && c.ops.length > 0 && c.ops[0][0] === 'eq'
+    );
+    expect(marcacao?.ops).toEqual([
+      ['eq', 'id', 'pag-a'],
+      ['in', 'estado', ['criado', 'pendente']],
+    ]);
+    expect(inseridos).toEqual([]);
+    expect(avisos()).toEqual([]);
+  });
+
+  // Um 404 sozinho nao enterra uma cobranca: sem a consulta confirmar, espera.
+  it('provedor diz nao ter a ordem mas a consulta falha: presa', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'inexistente' });
+    vi.mocked(localizaOrdem).mockResolvedValue({ ok: false });
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 0, presas: 1 });
+    expect(atualizados).toEqual([]);
+  });
+
+  it('provedor diz nao ter a ordem mas a consulta a acha paga: aprovada, e o pedido vira pago', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'inexistente' });
+    vi.mocked(localizaOrdem).mockResolvedValue({
+      ok: true,
+      ordem: { provedorId: 'ORD-a', referencia: 'ped-1', criadaEmMs: T0, resumo: APROVADO },
+    });
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 1, presas: 0 });
+    expect(consultaOrdem).not.toHaveBeenCalled();
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
+    expect(inseridos[0]?.dados).toMatchObject({
+      evento_id: 'cobranca:ORD-a:processed',
+      pagamento_id: 'pag-a',
+    });
+  });
+
+  it('provedor diz nao ter a ordem mas a consulta a acha pendente: presa', async () => {
+    banco({ linhasDoPedido: [aberta('a')] });
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'inexistente' });
+    vi.mocked(localizaOrdem).mockResolvedValue({
+      ok: true,
+      ordem: {
+        provedorId: 'ORD-a',
+        referencia: 'ped-1',
+        criadaEmMs: T0,
+        resumo: { estado: 'pendente', status: 'action_required', statusDetail: null },
+      },
+    });
+
+    expect(await encerra()).toEqual({ encerradas: 0, aprovadas: 0, presas: 1 });
+  });
+
   // Uma por vez: rajada no provedor e o que o limite deles pune.
   it('uma por vez, nunca em rajada', async () => {
     banco({ linhasDoPedido: [aberta('a'), aberta('b'), aberta('c')] });
@@ -799,7 +864,7 @@ describe('recurso desconhecido que e de uma tentativa sem id', () => {
   });
 
   beforeEach(() => {
-    banco({ pagamento: null, orfa: ORFA });
+    banco({ pagamento: null, linhasDoPedido: [ORFA] });
     vi.mocked(localizaOrdem).mockResolvedValue({ ok: true, ordem: ordem() });
   });
 
@@ -815,21 +880,87 @@ describe('recurso desconhecido que e de uma tentativa sem id', () => {
     expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
   });
 
-  it('procura a tentativa sem id, em aberto, mais recente do pedido da referencia', async () => {
+  // Todas as tentativas, nao so a mais recente sem id: qual e a dona se decide
+  // pela epoca, e a epoca de cada uma termina onde a seguinte comeca.
+  it('procura as tentativas do pedido da referencia, da mais nova para a mais velha', async () => {
     await assinado(notificacao(), RECURSO);
 
     const busca = consultas.find(
-      (c) => c.tabela === 'pagamentos' && c.ops.some((o) => o[0] === 'is')
+      (c) => c.tabela === 'pagamentos' && c.ops.some((o) => o[0] === 'eq' && o[1] === 'order_id')
     );
-    expect(busca?.ops).toEqual(
-      expect.arrayContaining([
-        ['eq', 'order_id', 'ped-1'],
-        ['is', 'provedor_pagamento_id', null],
-        ['in', 'estado', ['criado', 'pendente']],
-        ['order', 'tentativa', { ascending: false }],
-        ['limit', 1],
-      ])
+    expect(busca?.ops).toEqual([
+      ['select', 'id, order_id, estado, provedor_pagamento_id, criado_em'],
+      ['eq', 'order_id', 'ped-1'],
+      ['order', 'tentativa', { ascending: false }],
+    ]);
+  });
+
+  // O cenario que o pareamento por posicao errava: a tentativa mais recente
+  // nunca chegou ao provedor, e a ordem notificada e da anterior.
+  it('webhook de ordem antiga casa com a orfa da sua epoca, nao com a mais recente', async () => {
+    const MAIS_NOVA: Linha = { ...ORFA, id: 'pag-10', criado_em: em(T0 + seg(90)) };
+    banco({ pagamento: null, linhasDoPedido: [MAIS_NOVA, ORFA] });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    const vinculo = consultas.find(
+      (c) => c.tabela === 'pagamentos' && c.ops.some((o) => o[0] === 'eq' && o[1] === 'id')
     );
+    expect(vinculo?.ops).toContainEqual(['eq', 'id', 'pag-9']);
+    expect(atualizados.find((a) => a.tabela === 'pagamento_eventos')?.dados).toMatchObject({
+      pagamento_id: 'pag-9',
+    });
+  });
+
+  it('ordem nascida na epoca da tentativa mais recente fica com ela', async () => {
+    const MAIS_NOVA: Linha = { ...ORFA, id: 'pag-10', criado_em: em(T0 + seg(90)) };
+    banco({ pagamento: null, linhasDoPedido: [MAIS_NOVA, ORFA] });
+    vi.mocked(localizaOrdem).mockResolvedValue({
+      ok: true,
+      ordem: ordem({ criadaEmMs: T0 + seg(92) }),
+    });
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(atualizados.find((a) => a.tabela === 'pagamento_eventos')?.dados).toMatchObject({
+      pagamento_id: 'pag-10',
+    });
+  });
+
+  // A tentativa seguinte tem id, entao a ordem dela e conhecida e nao chegaria
+  // aqui; uma ordem desconhecida nascida na epoca dela nao e de ninguem.
+  it('ordem nascida na epoca de uma tentativa que ja tem id nao e de orfa nenhuma', async () => {
+    const COM_ID: Linha = {
+      ...ORFA,
+      id: 'pag-10',
+      estado: 'pendente',
+      provedor_pagamento_id: 'ORD-X',
+      criado_em: em(T0 + seg(90)),
+    };
+    banco({ pagamento: null, linhasDoPedido: [COM_ID, ORFA] });
+    vi.mocked(localizaOrdem).mockResolvedValue({
+      ok: true,
+      ordem: ordem({ criadaEmMs: T0 + seg(92) }),
+    });
+
+    expect(await assinado(notificacao(), RECURSO)).toEqual({
+      tipo: 'ignorado',
+      motivo: 'pagamento-desconhecido',
+    });
+    expect(atualizados).toEqual([]);
+  });
+
+  it('ordem sem data fica com a orfa mais recente', async () => {
+    const MAIS_NOVA: Linha = { ...ORFA, id: 'pag-10', criado_em: em(T0 + seg(90)) };
+    banco({ pagamento: null, linhasDoPedido: [MAIS_NOVA, ORFA] });
+    vi.mocked(localizaOrdem).mockResolvedValue({ ok: true, ordem: ordem({ criadaEmMs: null }) });
+
+    await assinado(notificacao(), RECURSO);
+
+    expect(atualizados.find((a) => a.tabela === 'pagamento_eventos')?.dados).toMatchObject({
+      pagamento_id: 'pag-10',
+    });
   });
 
   // O evento foi registrado sem saber de quem era. Agora se sabe.
@@ -880,7 +1011,7 @@ describe('recurso desconhecido que e de uma tentativa sem id', () => {
   });
 
   it('pedido da referencia sem tentativa em aberto continua desconhecido', async () => {
-    banco({ pagamento: null, orfa: null });
+    banco({ pagamento: null, linhasDoPedido: [{ ...ORFA, estado: 'recusado' }] });
 
     expect(await assinado(notificacao(), RECURSO)).toEqual({
       tipo: 'ignorado',
@@ -901,7 +1032,7 @@ describe('recurso desconhecido que e de uma tentativa sem id', () => {
   // Webhook, conciliacao e cobranca podem chegar juntos. O `is null` no
   // update garante que so o primeiro vincula; os outros nao sobrescrevem.
   it('se outro caminho vinculou no meio, nao sobrescreve nem aplica', async () => {
-    banco({ pagamento: null, orfa: ORFA, vinculo: 'ninguem' });
+    banco({ pagamento: null, linhasDoPedido: [ORFA], vinculo: 'ninguem' });
 
     const r = await assinado(notificacao(), RECURSO);
 
@@ -1031,7 +1162,7 @@ describe('casaOrfa', () => {
     expect(atualizados).toEqual([]);
   });
 
-  it('duas orfas e duas ordens: cada uma fica com a da sua vez', async () => {
+  it('duas orfas e duas ordens: cada uma fica com a da sua epoca', async () => {
     const MAIS_NOVA = linha('pag-3', T0 + seg(40));
     banco({ linhasDoPedido: [MAIS_NOVA, ORFA] });
     // Fora de ordem de proposito: quem ordena e o codigo, pela data.
@@ -1049,6 +1180,60 @@ describe('casaOrfa', () => {
     await casa(MAIS_NOVA);
     expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
       provedor_pagamento_id: 'ORD-C',
+    });
+  });
+
+  // O cenario que o pareamento por posicao errava: a mais nova nunca chegou
+  // ao provedor; parear por posicao dava a ela a unica ordem (e a recusava
+  // pela data) e deixava a mais velha sem nada — ate aprovada, invisivel, e a
+  // proxima cobranca cobrava de novo.
+  it('orfa mais nova sem ordem nao rouba a vez da mais velha', async () => {
+    const MAIS_NOVA = linha('pag-3', T0 + seg(90));
+    banco({ linhasDoPedido: [MAIS_NOVA, ORFA] });
+    vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({
+      ok: true,
+      ordens: [ordem('ORD-B', T0 + seg(2))],
+    });
+
+    expect(await casa(ORFA)).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      provedor_pagamento_id: 'ORD-B',
+    });
+    expect(atualizados.find((a) => a.tabela === 'orders')?.dados).toEqual({ status: 'pago' });
+
+    atualizados = [];
+    expect(await casa(MAIS_NOVA)).toEqual({ tipo: 'ignorado', motivo: 'sem-ordem-no-provedor' });
+    expect(atualizados).toEqual([]);
+  });
+
+  // A epoca de uma tentativa termina onde a seguinte comeca — seja a seguinte
+  // orfa ou nao. Recusada sem id, a ordem dela nao tem dona na tabela e
+  // apareceria na busca; mesmo assim nao e desta.
+  it('ordem nascida na epoca da tentativa seguinte nao e desta', async () => {
+    const RECUSADA_DEPOIS = linha('pag-3', T0 + seg(70), { estado: 'recusado' });
+    banco({ linhasDoPedido: [RECUSADA_DEPOIS, ORFA] });
+    vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({
+      ok: true,
+      ordens: [ordem('ORD-C', T0 + seg(71), RECUSADO)],
+    });
+
+    expect(await casa()).toEqual({ tipo: 'ignorado', motivo: 'sem-ordem-no-provedor' });
+    expect(atualizados).toEqual([]);
+  });
+
+  // Cartao recusado e tentativa nova tres segundos depois: a ordem da recusada
+  // cai na folga de relogio da orfa. Entre as duas, a mais nova e a desta.
+  it('na borda com uma tentativa recusada logo antes, a ordem mais nova e a desta', async () => {
+    const RECUSADA_ANTES = linha('pag-1', T0 - seg(3), { estado: 'recusado' });
+    banco({ linhasDoPedido: [ORFA, RECUSADA_ANTES] });
+    vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({
+      ok: true,
+      ordens: [ordem('ORD-A', T0 - seg(2), RECUSADO), ordem('ORD-B', T0 + seg(1))],
+    });
+
+    expect(await casa()).toEqual({ tipo: 'aplicado', estado: 'aprovado' });
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      provedor_pagamento_id: 'ORD-B',
     });
   });
 
@@ -1105,35 +1290,46 @@ describe('casaOrfa', () => {
   });
 });
 
-describe('orfaDoPedido', () => {
-  it('procura a tentativa sem id, em aberto, mais recente', async () => {
-    const ORFA = linhaOrfa();
-    banco({ orfa: ORFA });
+describe('orfasDoPedido', () => {
+  const linhaOrfa = (id: string, extra: Partial<Linha> = {}): Linha => ({
+    id,
+    order_id: 'ped-1',
+    estado: 'criado',
+    provedor_pagamento_id: null,
+    criado_em: em(T0),
+    ...extra,
+  });
 
-    expect(await orfaDoPedido(clienteAdmin(), 'ped-1')).toEqual(ORFA);
+  // Todas, nao so a mais recente: a cobranca confere cada uma antes de abrir
+  // tentativa nova, porque a mais recente pode nunca ter chegado ao provedor.
+  it('procura as tentativas sem id, em aberto, da mais nova para a mais velha', async () => {
+    const ORFAS = [linhaOrfa('pag-10'), linhaOrfa('pag-9')];
+    banco({ linhasDoPedido: ORFAS });
+
+    expect(await orfasDoPedido(clienteAdmin(), 'ped-1')).toEqual(ORFAS);
     expect(consultas.find((c) => c.tabela === 'pagamentos')?.ops).toEqual([
       ['select', 'id, order_id, estado, criado_em'],
       ['eq', 'order_id', 'ped-1'],
       ['is', 'provedor_pagamento_id', null],
       ['in', 'estado', ['criado', 'pendente']],
       ['order', 'tentativa', { ascending: false }],
-      ['limit', 1],
     ]);
   });
 
-  it('sem tentativa em aberto, nada', async () => {
-    expect(await orfaDoPedido(clienteAdmin(), 'ped-1')).toBeNull();
+  it('tentativa com id, ou ja recusada, fica de fora', async () => {
+    banco({
+      linhasDoPedido: [
+        linhaOrfa('pag-10', { estado: 'recusado' }),
+        linhaOrfa('pag-9', { estado: 'pendente', provedor_pagamento_id: 'ORD-A' }),
+      ],
+    });
+
+    expect(await orfasDoPedido(clienteAdmin(), 'ped-1')).toEqual([]);
   });
 
-  function linhaOrfa(): Linha {
-    return {
-      id: 'pag-9',
-      order_id: 'ped-1',
-      estado: 'criado',
-      provedor_pagamento_id: null,
-      criado_em: em(T0),
-    };
-  }
+  it('sem tentativa em aberto, nada', async () => {
+    expect(await orfasDoPedido(clienteAdmin(), 'ped-1')).toEqual([]);
+  });
 });
 
 /**

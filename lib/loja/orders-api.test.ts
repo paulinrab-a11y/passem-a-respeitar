@@ -641,10 +641,18 @@ describe('cancelaOrdem', () => {
   // 4xx e o provedor dizendo "nao posso": a ordem ja e final la (paga,
   // expirada). E resposta, e quem chama vai perguntar o estado real. 5xx e
   // rede sao "nao sei" — e a diferenca e dinheiro.
-  it.each([400, 404, 409, 422])('HTTP %i e "nao posso": invalido', async (status) => {
+  it.each([400, 409, 422])('HTTP %i e "nao posso": invalido', async (status) => {
     respondeCom({ message: 'nao deu' }, status);
 
     expect(await cancelaOrdem('ORD-1', 'chave-c')).toEqual({ ok: false, motivo: 'invalido' });
+  });
+
+  // 404 e "nao tenho essa ordem", e nao pode cair em "nao posso": a consulta
+  // que viria depois tambem nao a acharia, e a tentativa ficaria presa.
+  it('HTTP 404 e inexistente', async () => {
+    respondeCom({ errors: [{ code: 'order_not_found' }] }, 404);
+
+    expect(await cancelaOrdem('ORD-1', 'chave-c')).toEqual({ ok: false, motivo: 'inexistente' });
   });
 
   it.each([500, 503])('HTTP %i e "nao sei": indisponivel', async (status) => {

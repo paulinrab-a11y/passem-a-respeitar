@@ -22,7 +22,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { clienteAdmin } = await import('@/lib/supabase/admin');
-const { cancelaOrdem, consultaOrdem } = await import('@/lib/loja/orders-api');
+const { cancelaOrdem, consultaOrdem, localizaOrdem } = await import('@/lib/loja/orders-api');
 const { mudarStatus } = await import('./acoes');
 const { adminInicial } = await import('./estado');
 
@@ -311,6 +311,26 @@ describe('cancelar pedido que espera pagamento', () => {
     expect(r.recado?.tom).toBe('erro');
     expect(r.recado?.texto).toMatch(/pagamento aprovado.*recarregue/i);
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // Cobranca do sandbox depois de a credencial de producao entrar: o provedor
+  // nao a conhece. Nao e motivo para o dono nao conseguir cancelar o pedido.
+  it('cobranca com id que o provedor nao tem: encerra o pagamento e cancela o pedido', async () => {
+    abertas = [PIX];
+    vi.mocked(cancelaOrdem).mockResolvedValue({ ok: false, motivo: 'inexistente' });
+    vi.mocked(localizaOrdem).mockResolvedValue({ ok: true, ordem: null });
+
+    const r = await cancelar();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(atualizados.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
+      estado: 'cancelado',
+      provedor_status_detail: 'order_not_found',
+    });
+    expect(rpc).toHaveBeenCalledWith(
+      'muda_status_pedido',
+      expect.objectContaining({ p_para: 'cancelado' })
+    );
   });
 
   it('cancelar pedido pago nao toca em cobranca', async () => {
