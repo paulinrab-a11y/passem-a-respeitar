@@ -2,7 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { senhaConfere } from '@/lib/conta/reautenticacao';
+import { RECADO_INDISPONIVEL, senhaConfere } from '@/lib/conta/reautenticacao';
 import { limita } from '@/lib/rate-limit';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { COOKIE_LEMBRAR } from '@/lib/supabase/cookies';
@@ -53,7 +53,11 @@ export async function excluirConta(
 
   // Client descartavel, como na troca de senha: usar o da sessao rotacionaria
   // o token de quem esta prestes a nao ter mais conta.
-  if (!(await senhaConfere(usuario.email, senha))) {
+  const conferencia = await senhaConfere(usuario.email, senha);
+  if (conferencia === 'indisponivel') {
+    return erro(RECADO_INDISPONIVEL);
+  }
+  if (conferencia === 'errada') {
     return erro('A senha está incorreta.');
   }
 

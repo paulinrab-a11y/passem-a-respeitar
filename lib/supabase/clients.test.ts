@@ -25,6 +25,7 @@ vi.mock('@supabase/supabase-js', () => ({
 
 const jar = {
   getAll: vi.fn(() => [{ name: 'sb-token', value: 'abc' }]),
+  get: vi.fn((_nome: string): { value: string } | undefined => undefined),
   set: vi.fn(),
 };
 
@@ -51,6 +52,7 @@ beforeEach(() => {
   criaServidor.mockReturnValue({ tipo: 'servidor' });
   criaDireto.mockReturnValue({ tipo: 'admin' });
   jar.set.mockImplementation(() => undefined);
+  jar.get.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -218,6 +220,29 @@ describe('clienteDeAuth', () => {
       cookies: { setAll: (l: unknown[]) => void };
     };
     expect(() => opcoes.cookies.setAll([{ name: 'x', value: 'y', options: {} }])).toThrow();
+  });
+});
+
+describe('lembrarDaSessao', () => {
+  // E o que reautenticar, trocar senha e trocar e-mail passam para
+  // clienteDeAuth. Antes cada um decidia por si, e dois passavam `true` fixo:
+  // sessao de computador emprestado virava sessao de trinta dias (#244).
+  it('le a escolha do cookie proprio', async () => {
+    const { lembrarDaSessao } = await import('./servidor');
+
+    jar.get.mockReturnValue({ value: '1' });
+    expect(await lembrarDaSessao()).toBe(true);
+    expect(jar.get).toHaveBeenCalledWith('par_lembrar');
+
+    jar.get.mockReturnValue({ value: '0' });
+    expect(await lembrarDaSessao()).toBe(false);
+  });
+
+  // Login anterior ao cookie, ou cookie apagado: o lado seguro e o cookie de
+  // sessao, que morre com o navegador.
+  it('sem o cookie, nao mantem conectado', async () => {
+    const { lembrarDaSessao } = await import('./servidor');
+    expect(await lembrarDaSessao()).toBe(false);
   });
 });
 

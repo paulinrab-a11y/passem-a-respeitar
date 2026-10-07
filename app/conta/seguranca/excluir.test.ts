@@ -7,8 +7,10 @@ import { excluirConta } from './excluir';
 let n = 0;
 let usuario: { id: string; email: string } | null = null;
 
-const confere = vi.fn(async (_email: string, _senha: string) => true);
+type Conferencia = 'certa' | 'errada' | 'indisponivel';
+const confere = vi.fn(async (_email: string, _senha: string): Promise<Conferencia> => 'certa');
 vi.mock('@/lib/conta/reautenticacao', () => ({
+  RECADO_INDISPONIVEL: 'Não deu para conferir a senha agora. Tente de novo em instantes.',
   senhaConfere: (email: string, senha: string) => confere(email, senha),
 }));
 
@@ -71,7 +73,7 @@ const certo = (extra: Record<string, string> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  confere.mockResolvedValue(true);
+  confere.mockResolvedValue('certa');
   deleteUser.mockResolvedValue({ error: null });
   fotoCaminho = null;
   // Usuario novo a cada caso: o rate limit guarda estado no modulo.
@@ -98,10 +100,21 @@ describe('confirmacao', () => {
   // A senha e a reautenticacao: sem ela, quem sentou no computador alheio
   // apaga a conta de outra pessoa.
   it('recusa quando a senha esta errada', async () => {
-    confere.mockResolvedValue(false);
+    confere.mockResolvedValue('errada');
     const r = await excluirConta(exclusaoInicial, certo());
 
     expect(r.recado?.tom).toBe('erro');
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  // Numa acao irreversivel, "senha incorreta" com a senha certa e o pior
+  // recado: a pessoa redigita, redigita, e a conta continua la (#244).
+  it('conferencia indisponivel pede para tentar depois, sem apagar nada', async () => {
+    confere.mockResolvedValue('indisponivel');
+    const r = await excluirConta(exclusaoInicial, certo());
+
+    expect(r.recado?.texto).toMatch(/não deu para conferir/i);
+    expect(r.recado?.texto).not.toMatch(/incorreta/i);
     expect(deleteUser).not.toHaveBeenCalled();
   });
 
@@ -114,7 +127,7 @@ describe('confirmacao', () => {
   });
 
   it('bloqueia depois de tres tentativas', async () => {
-    confere.mockResolvedValue(false);
+    confere.mockResolvedValue('errada');
 
     for (let i = 0; i < 3; i++) await excluirConta(exclusaoInicial, certo());
     const r = await excluirConta(exclusaoInicial, certo());
@@ -202,7 +215,7 @@ describe('quando o Supabase recusa', () => {
 
 describe('a senha nunca escapa', () => {
   it('nao aparece no que volta para a tela', async () => {
-    confere.mockResolvedValue(false);
+    confere.mockResolvedValue('errada');
     const r = await excluirConta(exclusaoInicial, certo());
 
     expect(JSON.stringify(r)).not.toContain(SENHA);

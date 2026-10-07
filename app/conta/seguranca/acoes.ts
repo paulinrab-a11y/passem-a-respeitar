@@ -1,16 +1,42 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { autenticadoRecentemente, reautenticar, senhaConfere } from '@/lib/conta/reautenticacao';
+import { headers } from 'next/headers';
+import {
+  autenticadoRecentemente,
+  RECADO_INDISPONIVEL,
+  reautenticar,
+  senhaConfere,
+} from '@/lib/conta/reautenticacao';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import { esquemaTrocarSenha } from '@/lib/esquemas';
-import { limita } from '@/lib/rate-limit';
-import { clienteDeAuth, clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
+import { ipDoRequest, limita } from '@/lib/rate-limit';
+import {
+  clienteDeAuth,
+  clienteServidor,
+  lembrarDaSessao,
+  usuarioDaSessao,
+} from '@/lib/supabase/servidor';
 import type { EstadoSenha } from './estado';
 import type { EstadoSessao } from './estado-sessoes';
 
 /** Cinco tentativas por hora. O alvo aqui e quem sentou no computador alheio. */
 const LIMITE = { maximo: 5, janelaMs: 60 * 60 * 1000 };
+
+/**
+ * A reautenticacao e outra porta para a mesma senha (#244): sem limite
+ * proprio, quem tem a sessao aberta roda a lista de senhas por aqui e o
+ * limite da troca de senha nao serve de nada. Por conta, o mesmo da troca.
+ * Por IP, mais folgado: quem divide a rede nao pode ser barrado pelo vizinho,
+ * mas uma origem so tambem nao testa senhas em varias contas sequestradas.
+ */
+const REAUTH_POR_CONTA = { maximo: 5, janelaMs: 60 * 60 * 1000 };
+const REAUTH_POR_IP = { maximo: 20, janelaMs: 60 * 60 * 1000 };
+
+const MUITAS_TENTATIVAS = 'Muitas tentativas. Tente de novo mais tarde.';
+
+/** SHA-256 em hex: o formato opaco que a lista de aparelhos entrega. */
+const ehIdentificador = (valor: string) => /^[0-9a-f]{64}$/.test(valor);
 
 function erro(texto: string, tentativa: number, campo: EstadoSenha['campo'] = null): EstadoSenha {
   return { recado: { tom: 'erro', texto }, campo, tentativa };
@@ -26,7 +52,7 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
 
   const cota = await limita(`senha:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
-    return erro('Muitas tentativas. Tente de novo mais tarde.', tentativa);
+    return erro(MUITAS_TENTATIVAS, tentativa);
   }
 
   const dados = esquemaTrocarSenha.safeParse({
@@ -54,7 +80,13 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
 
   const { atual, nova } = dados.data;
 
-  if (!(await senhaConfere(usuario.email, atual))) {
+  const conferencia = await senhaConfere(usuario.email, atual);
+  // Servico fora do ar nao e senha errada: apontar o campo "atual" aqui
+  // mandaria a pessoa redigitar uma senha que estava certa.
+  if (conferencia === 'indisponivel') {
+    return erro(RECADO_INDISPONIVEL, tentativa);
+  }
+  if (conferencia === 'errada') {
     return erro('A senha atual está incorreta.', tentativa, 'atual');
   }
 
@@ -66,7 +98,10 @@ export async function trocarSenha(anterior: EstadoSenha, form: FormData): Promis
     );
   }
 
-  const supabase = await clienteDeAuth(true);
+  // `updateUser` regrava os cookies da sessao. Com a escolha real, e nao
+  // `true`: trocar a senha num computador emprestado nao pode ser o que deixa
+  // a sessao viva por trinta dias ali (#244).
+  const supabase = await clienteDeAuth(await lembrarDaSessao());
   const { error } = await supabase.auth.updateUser({ password: nova });
 
   if (error) {
@@ -101,7 +136,7 @@ export async function encerrarSessao(
 ): Promise<EstadoSessao> {
   const identificador = String(form.get('identificador') ?? '');
 
-  if (!/^[0-9a-f]{64}$/.test(identificador)) {
+  if (!ehIdentificador(identificador)) {
     return { recado: { tom: 'erro', texto: 'Sessão inválida.' }, encerrado: null };
   }
 
@@ -147,16 +182,54 @@ export async function encerrarSessao(
  * Quem decide o que refazer e a tela, que guardou o identificador. Aqui so se
  * reautentica e se delega — assim esta acao serve para qualquer outra que
  * venha a precisar da janela.
+ *
+ * Toda recusa volta com `precisaReautenticar`: o modal fica aberto mostrando
+ * o motivo. Fechar esconderia o "muitas tentativas" de quem so precisa esperar.
  */
 export async function reautenticarEEncerrar(
   anterior: EstadoSessao,
   form: FormData
 ): Promise<EstadoSessao> {
-  const senha = String(form.get('senha') ?? '');
+  // Antes da senha e antes do limite: identificador com cara errada nao gasta
+  // tentativa de ninguem, e nao ha por que conferir a senha para uma acao que
+  // `encerrarSessao` recusaria de qualquer jeito.
+  const identificador = String(form.get('identificador') ?? '');
+  if (!ehIdentificador(identificador)) {
+    return { recado: { tom: 'erro', texto: 'Sessão inválida.' }, encerrado: null };
+  }
 
-  if (!(await reautenticar(senha))) {
+  const usuario = await usuarioDaSessao();
+  if (!usuario) {
     return {
-      recado: { tom: 'erro', texto: 'A senha está incorreta.' },
+      recado: { tom: 'erro', texto: 'Sua sessão expirou. Entre de novo.' },
+      encerrado: null,
+    };
+  }
+
+  const ip = ipDoRequest(await headers());
+  const cotaConta = await limita(
+    `reauth:${usuario.id}`,
+    REAUTH_POR_CONTA.maximo,
+    REAUTH_POR_CONTA.janelaMs
+  );
+  const cotaIp = await limita(`reauth:ip:${ip}`, REAUTH_POR_IP.maximo, REAUTH_POR_IP.janelaMs);
+  if (!cotaConta.permitido || !cotaIp.permitido) {
+    return {
+      recado: { tom: 'erro', texto: MUITAS_TENTATIVAS },
+      encerrado: null,
+      precisaReautenticar: true,
+    };
+  }
+
+  const senha = String(form.get('senha') ?? '');
+  const conferencia = await reautenticar(senha);
+
+  if (conferencia !== 'certa') {
+    return {
+      recado: {
+        tom: 'erro',
+        texto: conferencia === 'errada' ? 'A senha está incorreta.' : RECADO_INDISPONIVEL,
+      },
       encerrado: null,
       precisaReautenticar: true,
     };

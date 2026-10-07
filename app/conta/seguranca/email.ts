@@ -1,13 +1,17 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { cookies, headers } from 'next/headers';
-import { senhaConfere } from '@/lib/conta/reautenticacao';
+import { headers } from 'next/headers';
+import { RECADO_INDISPONIVEL, senhaConfere } from '@/lib/conta/reautenticacao';
 import { esquemaTrocarEmail } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { urlDeRetorno } from '@/lib/site-url';
-import { COOKIE_LEMBRAR } from '@/lib/supabase/cookies';
-import { clienteDeAuth, clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
+import {
+  clienteDeAuth,
+  clienteServidor,
+  lembrarDaSessao,
+  usuarioDaSessao,
+} from '@/lib/supabase/servidor';
 import type { EstadoCancelamento, EstadoEmail } from './estado-email';
 
 /**
@@ -86,12 +90,15 @@ export async function trocarEmail(anterior: EstadoEmail, form: FormData): Promis
   }
 
   // Client descartavel: confere sem rotacionar a sessao de quem esta pedindo.
-  if (!(await senhaConfere(usuario.email, senha))) {
+  const conferencia = await senhaConfere(usuario.email, senha);
+  if (conferencia === 'indisponivel') {
+    return erro(RECADO_INDISPONIVEL, tentativa);
+  }
+  if (conferencia === 'errada') {
     return erro('A senha está incorreta.', tentativa, 'senha');
   }
 
-  const lembrar = (await cookies()).get(COOKIE_LEMBRAR)?.value === '1';
-  const supabase = await clienteDeAuth(lembrar);
+  const supabase = await clienteDeAuth(await lembrarDaSessao());
   const { error } = await supabase.auth.updateUser(
     { email },
     { emailRedirectTo: urlDeRetorno(cabecalhos, SEGURANCA) }

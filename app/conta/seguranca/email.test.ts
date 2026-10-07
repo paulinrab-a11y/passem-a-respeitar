@@ -10,8 +10,10 @@ let usuario: { id: string; email: string } | null = null;
 let lembrar: string | undefined;
 let cabecalhos = new Headers();
 
-const confere = vi.fn(async (_email: string, _senha: string) => true);
+type Conferencia = 'certa' | 'errada' | 'indisponivel';
+const confere = vi.fn(async (_email: string, _senha: string): Promise<Conferencia> => 'certa');
 vi.mock('@/lib/conta/reautenticacao', () => ({
+  RECADO_INDISPONIVEL: 'Não deu para conferir a senha agora. Tente de novo em instantes.',
   senhaConfere: (email: string, senha: string) => confere(email, senha),
 }));
 
@@ -29,14 +31,11 @@ vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
   clienteDeAuth: (l: boolean) => clienteDeAuth(l),
   clienteServidor: async () => ({ rpc }),
+  lembrarDaSessao: async () => lembrar === '1',
 }));
 
 vi.mock('next/headers', () => ({
   headers: async () => cabecalhos,
-  cookies: async () => ({
-    get: (nome: string) =>
-      nome === 'par_lembrar' && lembrar !== undefined ? { value: lembrar } : undefined,
-  }),
 }));
 
 const revalidatePath = vi.fn();
@@ -66,7 +65,7 @@ beforeEach(() => {
     host: 'passem-a-respeitar.test',
     'x-forwarded-for': `203.0.113.${(n % 200) + 1}`,
   });
-  confere.mockResolvedValue(true);
+  confere.mockResolvedValue('certa');
   updateUser.mockResolvedValue({ error: null });
   rpc.mockResolvedValue({ data: true, error: null });
   vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
@@ -150,11 +149,23 @@ describe('o que barra o pedido antes de sair e-mail', () => {
   });
 
   it('senha errada: aponta o campo e nao chama o Supabase', async () => {
-    confere.mockResolvedValue(false);
+    confere.mockResolvedValue('errada');
     const r = await trocarEmail(emailInicial, bom());
 
     expect(r.campo).toBe('senha');
     expect(r.recado?.tom).toBe('erro');
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  // Supabase no limite ou fora do ar nao e senha errada: apontar o campo
+  // mandaria a pessoa redigitar uma senha que estava certa (#244).
+  it('conferencia indisponivel pede para tentar depois, sem culpar a senha', async () => {
+    confere.mockResolvedValue('indisponivel');
+    const r = await trocarEmail(emailInicial, bom());
+
+    expect(r.campo).toBe(null);
+    expect(r.recado?.texto).toMatch(/não deu para conferir/i);
+    expect(r.recado?.texto).not.toMatch(/incorreta/i);
     expect(updateUser).not.toHaveBeenCalled();
   });
 
