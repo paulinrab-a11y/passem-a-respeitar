@@ -40,9 +40,12 @@ export async function meuPedido(id: string): Promise<Resultado> {
     .from('orders')
     // Uma consulta so, com os dois filhos embutidos. Sem N+1: itens e trilha
     // vem na mesma ida. Colunas nomeadas — `autor` e `motivo` da trilha ficam
-    // no banco, ver o comentario de `mapeiaDetalhe`.
+    // no banco, ver o comentario de `mapeiaDetalhe`. O endereco de entrega
+    // entrou na #242: e a unica tela em que a pessoa confere para onde a
+    // camiseta vai, e e dela — o filtro por `user_id` logo abaixo vale para as
+    // oito colunas como para o resto.
     .select(
-      'id, numero, criado_em, status, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(para, criado_em)'
+      'id, numero, criado_em, status, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(para, criado_em)'
     )
     .eq('id', id)
     .eq('user_id', usuario.id)

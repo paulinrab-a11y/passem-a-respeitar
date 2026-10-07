@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  leEntrega,
   leFrete,
   leStatus,
   mapeiaDetalhe,
@@ -11,6 +12,29 @@ import {
 
 /** O Intl usa espaco nao-separavel entre `R$` e o numero. */
 const limpo = (texto: string) => texto.replace(/ /g, ' ');
+
+/** Pedido de antes da #102, ou anonimizado: as oito colunas de entrega nulas. */
+const SEM_ENTREGA = {
+  entrega_nome: null,
+  entrega_cep: null,
+  entrega_logradouro: null,
+  entrega_numero: null,
+  entrega_complemento: null,
+  entrega_bairro: null,
+  entrega_cidade: null,
+  entrega_uf: null,
+};
+
+const COM_ENTREGA = {
+  entrega_nome: 'Ana Souza',
+  entrega_cep: '01310100',
+  entrega_logradouro: 'Avenida Paulista',
+  entrega_numero: '1578',
+  entrega_complemento: 'apto 92',
+  entrega_bairro: 'Bela Vista',
+  entrega_cidade: 'São Paulo',
+  entrega_uf: 'SP',
+};
 
 describe('leStatus', () => {
   it.each([
@@ -199,6 +223,7 @@ describe('mapeiaDetalhe', () => {
     frete_centavos: 0,
     frete_servico: null,
     frete_prazo_dias: null,
+    ...SEM_ENTREGA,
     order_items: [
       {
         id: 'item-1',
@@ -259,6 +284,8 @@ describe('mapeiaDetalhe', () => {
       // Entrou na #114: a tela so pergunta ao provedor enquanto isto for true.
       'aguardandoPagamento',
       'criadoEm',
+      // Entrou na #242: o endereco de entrega ja montado, ou nulo no antigo.
+      'entrega',
       // Entrou na #199: o frete ja formatado, ou nulo no pedido antigo.
       'frete',
       'itens',
@@ -297,6 +324,7 @@ describe('aguardandoPagamento', () => {
     frete_centavos: 0,
     frete_servico: null,
     frete_prazo_dias: null,
+    ...SEM_ENTREGA,
     order_items: [],
   };
 
@@ -369,6 +397,7 @@ describe('leFrete (#199)', () => {
       frete_centavos: 2350,
       frete_servico: 'pac',
       frete_prazo_dias: 8,
+      ...SEM_ENTREGA,
       order_items: [],
       order_status_history: [],
     });
@@ -376,5 +405,68 @@ describe('leFrete (#199)', () => {
     expect(pedido.frete?.servico).toBe('PAC');
     expect(limpo(pedido.frete?.valor ?? '')).toBe('R$ 23,50');
     expect(limpo(pedido.total)).toBe('R$ 143,50');
+  });
+});
+
+describe('leEntrega (#242)', () => {
+  it('monta o endereco pronto para a tela, com CEP legivel e a linha unica', () => {
+    expect(leEntrega(COM_ENTREGA)).toEqual({
+      nome: 'Ana Souza',
+      logradouro: 'Avenida Paulista',
+      numero: '1578',
+      complemento: 'apto 92',
+      bairro: 'Bela Vista',
+      cidade: 'São Paulo',
+      uf: 'SP',
+      cep: '01310-100',
+      linha: 'Avenida Paulista, 1578, apto 92 — Bela Vista, São Paulo/SP — 01310-100',
+    });
+  });
+
+  it('complemento e o unico opcional: sem ele a linha nao deixa virgula sobrando', () => {
+    const entrega = leEntrega({ ...COM_ENTREGA, entrega_complemento: null });
+
+    expect(entrega?.complemento).toBeNull();
+    expect(entrega?.linha).toBe('Avenida Paulista, 1578 — Bela Vista, São Paulo/SP — 01310-100');
+  });
+
+  it('pedido de antes da #102 nao tem entrega para mostrar', () => {
+    expect(leEntrega(SEM_ENTREGA)).toBeNull();
+  });
+
+  // O gatilho de anonimizacao apaga as oito colunas juntas, mas uma linha
+  // escrita na mao pode vir pela metade — e endereco pela metade na etiqueta
+  // e camiseta no lugar errado.
+  it.each([
+    'entrega_nome',
+    'entrega_cep',
+    'entrega_logradouro',
+    'entrega_numero',
+    'entrega_bairro',
+    'entrega_cidade',
+    'entrega_uf',
+  ] as const)('faltando %s, sai nulo em vez de pela metade', (coluna) => {
+    expect(leEntrega({ ...COM_ENTREGA, [coluna]: null })).toBeNull();
+    expect(leEntrega({ ...COM_ENTREGA, [coluna]: '' })).toBeNull();
+  });
+
+  it('o detalhe leva a entrega, e so ela: nenhuma coluna entrega_* crua', () => {
+    const pedido = mapeiaDetalhe({
+      id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+      numero: 14,
+      criado_em: '2026-10-07T10:00:00Z',
+      status: 'pago',
+      total_centavos: 14350,
+      frete_centavos: 2350,
+      frete_servico: 'sedex',
+      frete_prazo_dias: 2,
+      ...COM_ENTREGA,
+      order_items: [],
+      order_status_history: [],
+    });
+
+    expect(pedido.entrega?.nome).toBe('Ana Souza');
+    expect(pedido.entrega?.linha).toContain('01310-100');
+    expect(JSON.stringify(pedido)).not.toContain('entrega_');
   });
 });

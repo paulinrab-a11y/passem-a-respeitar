@@ -10,6 +10,7 @@ import {
   criaAdmin,
   criaPedido,
   criaUsuario,
+  type Endereco,
   type Item,
   senhaNova,
   type Usuario,
@@ -36,6 +37,17 @@ const ITEM: Item = {
   tamanho: 'M',
   quantidade: 1,
   preco_unitario_centavos: 12000,
+};
+
+/** O endereco do pedido em andamento: e o que o painel abre e copia (#242). */
+const CASA: Endereco = {
+  nome: 'Leitora Da Suite',
+  cep: '01310100',
+  logradouro: 'Rua Da Leitora',
+  numero: '5',
+  bairro: 'Bela Vista',
+  cidade: 'São Paulo',
+  uf: 'SP',
 };
 
 let pessoa: Usuario;
@@ -85,7 +97,7 @@ async function confere(page: Page, { vermelho = 0 } = {}) {
 test.beforeAll(async ({ browser }) => {
   pessoa = await criaUsuario('Leitora');
   // Um pedido em cada tom: andando, parado para sempre, esperando a pessoa.
-  emAndamento = await criaPedido(pessoa, [ITEM], ['pago', 'em_producao']);
+  emAndamento = await criaPedido(pessoa, [ITEM], ['pago', 'em_producao'], CASA);
   cancelado = await criaPedido(pessoa, [ITEM], ['cancelado']);
   aPagar = await criaPedido(pessoa, [ITEM]);
 
@@ -184,11 +196,29 @@ for (const [nome, caminho, vermelho] of COM_SESSAO) {
 
 test('acessibilidade: administracao de pedidos', async ({ administrando }) => {
   await administrando.goto('/conta/admin/pedidos');
+  const link = administrando.getByRole('link', {
+    name: `Pedido #${emAndamento.numero}`,
+    exact: true,
+  });
+  await expect(link).toBeVisible();
+
+  // Com o endereco aberto e o botao de copiar na tela (#242).
+  await administrando.locator('article', { has: link }).locator('summary').click();
   await expect(
-    administrando.getByRole('link', { name: `Pedido #${emAndamento.numero}`, exact: true })
+    administrando.getByRole('button', {
+      name: `Copiar endereço do pedido ${emAndamento.numero}`,
+    })
   ).toBeVisible();
 
-  // O selo "Aguardando pagamento" do pedido que espera.
+  // O filtro padrao e "para enviar": o pedido que espera pagamento nao esta
+  // aqui, e com ele saiu o unico texto vermelho da tela.
+  await confere(administrando);
+
+  // No filtro dos que esperam, o selo "Aguardando pagamento" do pedido que espera.
+  await administrando.goto('/conta/admin/pedidos?status=aguardando_pagamento');
+  await expect(
+    administrando.getByRole('link', { name: `Pedido #${aPagar.numero}`, exact: true })
+  ).toBeVisible();
   await confere(administrando, { vermelho: 1 });
 });
 

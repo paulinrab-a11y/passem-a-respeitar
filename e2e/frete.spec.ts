@@ -156,7 +156,9 @@ test('frete: o detalhe do pedido e a lista do administrador mostram o servico', 
   const contexto = await browser.newContext({ extraHTTPHeaders: visitante('frete') });
   const admin = await contexto.newPage();
   await entra(admin, dono.email, dono.senha);
-  await admin.goto('/conta/admin/pedidos');
+  // O painel abre em 'pagos e em producao' (#242); este pedido ainda aguarda
+  // pagamento, entao a lista completa e que o mostra.
+  await admin.goto('/conta/admin/pedidos?status=todos');
   const pedido = admin.locator('article', { has: admin.locator(`a[href="/conta/pedidos/${id}"]`) });
   await expect(pedido.locator('.pedido-frete')).toContainText('Enviar por PAC');
   await expect(pedido.locator('.pedido-frete')).toContainText('23,50');

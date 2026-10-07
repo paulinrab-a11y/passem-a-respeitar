@@ -28,6 +28,21 @@ export type Item = {
 
 type Status = 'pago' | 'em_producao' | 'enviado' | 'entregue' | 'cancelado';
 
+/**
+ * Endereco de entrega, nos nomes do checkout. CEP so com digitos e UF em
+ * maiusculas: o banco confere a forma e recusaria o resto.
+ */
+export type Endereco = {
+  nome: string;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento?: string | null;
+  bairro: string;
+  cidade: string;
+  uf: string;
+};
+
 function admin() {
   const local = ambienteLocal();
   return createClient(local.supabase, local.chaveSecreta, {
@@ -138,13 +153,35 @@ export async function lePedido(id: string) {
  * Cada `update` de status passa pelo gatilho do banco e escreve uma linha na
  * trilha — e a mesma trilha que a tela de detalhe mostra.
  */
-export async function criaPedido(dono: Usuario, itens: Item[], caminho: Status[] = []) {
+export async function criaPedido(
+  dono: Usuario,
+  itens: Item[],
+  caminho: Status[] = [],
+  endereco?: Endereco
+) {
   const banco = admin();
   const total = itens.reduce((s, i) => s + i.quantidade * i.preco_unitario_centavos, 0);
 
   const { data: pedido, error } = await banco
     .from('orders')
-    .insert({ user_id: dono.id, total_centavos: total })
+    .insert({
+      user_id: dono.id,
+      total_centavos: total,
+      // Sem endereco o pedido fica como os de antes da #102: a tela nao
+      // mostra bloco de entrega. Com ele, e o que o cliente e o dono veem.
+      ...(endereco
+        ? {
+            entrega_nome: endereco.nome,
+            entrega_cep: endereco.cep,
+            entrega_logradouro: endereco.logradouro,
+            entrega_numero: endereco.numero,
+            entrega_complemento: endereco.complemento ?? null,
+            entrega_bairro: endereco.bairro,
+            entrega_cidade: endereco.cidade,
+            entrega_uf: endereco.uf,
+          }
+        : {}),
+    })
     .select('id, numero')
     .single();
   if (error || !pedido) throw new Error(`nao criei o pedido: ${error?.message}`);

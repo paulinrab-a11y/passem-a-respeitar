@@ -1,17 +1,15 @@
-import { expect, type Page, test } from '@playwright/test';
+import { type BrowserContext, test as base, expect, type Page } from '@playwright/test';
 import {
   criaAdmin,
   criaPedido,
   criaUsuario,
+  type Endereco,
   type Item,
   lePedido,
   type Usuario,
 } from './apoio/banco';
 import { entra, vivo } from './apoio/telas';
 import { visitante } from './apoio/visitante';
-
-// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
-test.use({ extraHTTPHeaders: visitante('admin') });
 
 /**
  * Tela administrativa de pedidos (#43) e a mudanca de status (#157).
@@ -30,6 +28,44 @@ const ITEM: Item = {
 
 const MOTIVO = 'separado pela suite';
 
+/** O endereco do pedido da suite: rua que nao existe em pedido nenhum. */
+const ENDERECO: Endereco = {
+  nome: 'Destinataria Do Teste Do Admin',
+  cep: '01310100',
+  logradouro: 'Rua Que So O Admin Ve',
+  numero: '77',
+  complemento: 'fundos',
+  bairro: 'Bela Vista',
+  cidade: 'São Paulo',
+  uf: 'SP',
+};
+
+/**
+ * Um a mais do que cabe numa pagina (POR_PAGINA = 20, em lib/conta/pedidos.ts).
+ * Antes da #242, 21 abandonos de Pix bastavam para empurrar um pedido pago
+ * para fora dos 50 mais recentes.
+ */
+const PENDENTES = 21;
+
+type Sessao = Awaited<ReturnType<BrowserContext['storageState']>>;
+
+let sessaoDoAdmin: Sessao;
+
+/**
+ * O administrador entra uma vez, no `beforeAll`, e os testes do painel
+ * reaproveitam a sessao: o login tem limite de cinco tentativas por e-mail.
+ */
+const test = base.extend<{ administrando: Page }>({
+  administrando: async ({ browser }, use) => {
+    const contexto = await browser.newContext({ storageState: sessaoDoAdmin });
+    await use(await contexto.newPage());
+    await contexto.close();
+  },
+});
+
+// Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
+test.use({ extraHTTPHeaders: visitante('admin') });
+
 let admin: Usuario;
 let cliente: Usuario;
 let pedido: { id: string; numero: number };
@@ -38,10 +74,15 @@ let pedido: { id: string; numero: number };
 // seguintes sao pulados, em vez de rodarem contra um pedido recriado.
 test.describe.configure({ mode: 'serial' });
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ browser }) => {
   admin = await criaAdmin();
   cliente = await criaUsuario('Cliente');
-  pedido = await criaPedido(cliente, [ITEM], ['pago']);
+  pedido = await criaPedido(cliente, [ITEM], ['pago'], ENDERECO);
+
+  const contexto = await browser.newContext();
+  await entra(await contexto.newPage(), admin.email, admin.senha);
+  sessaoDoAdmin = await contexto.storageState();
+  await contexto.close();
 });
 
 /** O card do pedido da suite, no meio dos outros. */
@@ -166,4 +207,115 @@ test('admin: o dono do pedido ve a mudanca na tela dele', async ({ page }) => {
   await expect(page.locator('.detalhe-topo .pedido-status')).toHaveText('Em produção');
   // O motivo e nota interna: fica no banco, nao na tela do cliente.
   expect(await page.content()).not.toContain(MOTIVO);
+});
+
+/**
+ * O endereco e o painel com filtro (#242). Em serie com os de cima: o pedido
+ * da suite ja esta em producao, que continua dentro do filtro padrao.
+ */
+const filtros = (page: Page) => page.getByRole('navigation', { name: 'Filtrar por status' });
+
+test('admin: o endereco abre no card, e copiar leva a etiqueta inteira', async ({
+  administrando,
+}) => {
+  await administrando.goto('/conta/admin/pedidos');
+
+  const corpo = card(administrando).locator('.admin-entrega-corpo');
+  const rua = corpo.getByText('Rua Que So O Admin Ve, 77, fundos');
+  // Fechado por padrao: nome e cidade ja estao no card; o resto so quando se pede.
+  await expect(rua).toBeHidden();
+
+  await card(administrando).locator('summary', { hasText: 'Endereço de entrega' }).click();
+  await expect(rua).toBeVisible();
+  await expect(corpo.getByText('Bela Vista — São Paulo/SP')).toBeVisible();
+  await expect(corpo.getByText('CEP 01310-100')).toBeVisible();
+
+  await administrando.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const copiar = await vivo(
+    corpo.getByRole('button', { name: `Copiar endereço do pedido ${pedido.numero}` })
+  );
+  await copiar.click();
+
+  await expect(corpo.getByRole('status')).toHaveText('Endereço copiado.');
+  // O que foi para a area de transferencia e a etiqueta, linha a linha. No
+  // Windows a area de transferencia devolve as quebras como CRLF; o que se
+  // confere e o conteudo de cada linha, nao o fim dela.
+  const colado = await administrando.evaluate(() => navigator.clipboard.readText());
+  expect(colado.split(/\r?\n/)).toEqual([
+    ENDERECO.nome,
+    'Rua Que So O Admin Ve, 77, fundos',
+    'Bela Vista — São Paulo/SP',
+    'CEP 01310-100',
+  ]);
+});
+
+test('admin: o filtro padrao mostra o pedido a enviar mesmo com 21 pendentes mais novos', async ({
+  administrando,
+}) => {
+  // 21 abandonos de Pix depois do pedido pago, como no cenario do achado #17.
+  let maisNovo = pedido;
+  for (let i = 0; i < PENDENTES; i++) maisNovo = await criaPedido(cliente, [ITEM]);
+
+  await administrando.goto('/conta/admin/pedidos');
+
+  await expect(
+    administrando.getByRole('link', { name: `Pedido #${pedido.numero}`, exact: true })
+  ).toBeVisible();
+  await expect(
+    administrando.getByRole('link', { name: `Pedido #${maisNovo.numero}`, exact: true })
+  ).toHaveCount(0);
+  await expect(filtros(administrando).getByRole('link', { name: /^Para enviar/ })).toHaveAttribute(
+    'aria-current',
+    'page'
+  );
+
+  // O contador vem do banco inteiro: conta pelo menos os 21 criados agora.
+  const pendentes = await filtros(administrando)
+    .getByRole('link', { name: /^Aguardando pagamento/ })
+    .locator('.admin-filtro-n')
+    .textContent();
+  expect(Number(pendentes)).toBeGreaterThanOrEqual(PENDENTES);
+});
+
+test('admin: cada filtro pagina, e a pagina guarda o filtro', async ({ administrando }) => {
+  await administrando.goto('/conta/admin/pedidos?status=aguardando_pagamento');
+
+  await expect(administrando.locator('.pedidos > li')).toHaveCount(20);
+  await expect(
+    administrando.getByRole('link', { name: `Pedido #${pedido.numero}`, exact: true })
+  ).toHaveCount(0);
+
+  await administrando.getByRole('link', { name: 'Mais antigos →' }).click();
+  await administrando.waitForURL('**/conta/admin/pedidos?status=aguardando_pagamento&p=2');
+  await expect(administrando.locator('.pedidos > li').first()).toBeVisible();
+  await expect(administrando.getByText('Página 2')).toBeVisible();
+  await expect(administrando.getByRole('link', { name: '← Mais recentes' })).toHaveAttribute(
+    'href',
+    '/conta/admin/pedidos?status=aguardando_pagamento'
+  );
+});
+
+test('admin: filtro e pagina invalidos caem no padrao; pagina vazia volta para a primeira', async ({
+  administrando,
+}) => {
+  await administrando.goto('/conta/admin/pedidos?status=extraviado&p=abc');
+  await expect(filtros(administrando).getByRole('link', { name: /^Para enviar/ })).toHaveAttribute(
+    'aria-current',
+    'page'
+  );
+  await expect(
+    administrando.getByRole('link', { name: `Pedido #${pedido.numero}`, exact: true })
+  ).toBeVisible();
+
+  await administrando.goto('/conta/admin/pedidos?status=todos&p=999');
+  await administrando.waitForURL(
+    (url) =>
+      url.pathname === '/conta/admin/pedidos' &&
+      url.searchParams.get('status') === 'todos' &&
+      !url.searchParams.has('p')
+  );
+  await expect(filtros(administrando).getByRole('link', { name: /^Todos/ })).toHaveAttribute(
+    'aria-current',
+    'page'
+  );
 });
