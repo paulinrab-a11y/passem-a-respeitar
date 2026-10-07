@@ -8,6 +8,8 @@ import { describe, expect, it } from 'vitest';
  *
  *   - sem WebGL, o three lanca ao criar o renderer; a excecao fica dentro do
  *     bloco da cena, e o resto do script (intro, som, loja, convite) roda
+ *   - com WebGL disponivel, a cena que lanca nao e "sem WebGL": o catch sonda
+ *     o navegador antes de decidir, e o erro vai ao Sentry pelo runtime
  *   - a intro, o script e o runtime fecham a abertura pelo mesmo lugar
  *   - o runtime fecha a abertura quando o script nao chega, e 'pular'
  *     responde antes de o script existir
@@ -72,9 +74,29 @@ describe('script da home: a cena 3D falha sozinha', () => {
     expect(CSS).toContain('html.sem-webgl .elo .box{opacity:1;transform:none}');
   });
 
-  it('o aviso nao leva nada da pessoa: so a mensagem do erro', () => {
+  it('o catch sonda o navegador antes de decidir o tom: sem contexto avisa, com contexto reporta', () => {
+    const stub = corpo(SCRIPT, 'function semWebGL(erro){');
+    expect(SCRIPT).toContain("import { temWebGL } from './webgl';");
+    // A sondagem vem antes do aviso: e ela que escolhe entre os dois.
+    expect(posicao(stub, 'if (temWebGL()) {')).toBeLessThan(posicao(stub, 'console.warn('));
+    // Com WebGL o erro e da cena e vai a quem o runtime indicou; o script nao
+    // conhece o Sentry, como nao conhece o Turnstile.
+    expect(stub).toContain('if (reporta) reporta(erro);');
+    expect(SCRIPT).toContain(
+      "const reporta = (extras && typeof extras.reporta === 'function') ? extras.reporta : null;"
+    );
+    expect(SCRIPT).not.toMatch(/from '@sentry/);
+    // E a pagina fica igual nos dois casos: a marca na raiz e o estado sem
+    // cena vem depois do if/else, fora dele.
+    expect(posicao(stub, "classList.add('sem-webgl')")).toBeGreaterThan(
+      posicao(stub, 'console.warn(')
+    );
+  });
+
+  it('nenhum dos dois caminhos leva nada da pessoa: a mensagem no aviso, o erro no reporte', () => {
     const stub = corpo(SCRIPT, 'function semWebGL(erro){');
     expect(stub).toMatch(/console\.warn\('home: sem WebGL[^']*', erro && erro\.message\)/);
+    expect(stub).toMatch(/console\.error\('home: a cena 3D falhou[^']*', erro\)/);
     expect(stub).not.toContain('navigator');
   });
 
@@ -145,6 +167,20 @@ describe('HomeRuntime: o script que nao chega nao prende ninguem', () => {
     expect(posicao(efeito, 'legacy.default(CONFIG, {')).toBeLessThan(
       posicao(efeito, 'catch (erro) {')
     );
+  });
+
+  it('o script recebe quem reporta a cena: o Sentry, com a tag home-cena', () => {
+    const efeito = corpo(RUNTIME, 'useEffect(() => {');
+    const init = efeito.slice(
+      posicao(efeito, 'legacy.default(CONFIG, {'),
+      posicao(efeito, 'catch (erro) {')
+    );
+    expect(init).toMatch(
+      /reporta: \(erro: unknown\) =>\s*Sentry\.captureException\(erro, \{ tags: \{ onde: 'home-cena' \} \}\)/
+    );
+    // Tag diferente da falha do init: "chegou e a cena quebrou" nao e "nao chegou".
+    expect(efeito.match(/onde: 'home-init'/g)).toHaveLength(1);
+    expect(efeito.match(/onde: 'home-cena'/g)).toHaveLength(1);
   });
 
   it('concierge e ancora vem depois do try/catch: a pagina segue mesmo sem a cena', () => {

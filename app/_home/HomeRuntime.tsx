@@ -60,6 +60,13 @@ export default function HomeRuntime() {
         legacy.default(CONFIG, {
           humano: desafioDoConvite(document.getElementById('desafioConvite')),
           pulou,
+          // A cena 3D que lanca com WebGL disponivel (#238) e um bug, nao um
+          // aparelho sem 3D: o script a segura para a pagina seguir, e manda
+          // o erro por aqui para ele nao sumir em silencio. Tag propria,
+          // porque `home-init` e "o script nao chegou" e isto e "chegou e a
+          // cena quebrou" — o que uma subida de three/gsap mudaria.
+          reporta: (erro: unknown) =>
+            Sentry.captureException(erro, { tags: { onde: 'home-cena' } }),
         });
       } catch (erro) {
         if (cancelado) return;

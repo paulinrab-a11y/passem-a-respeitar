@@ -9,9 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * O que se prova aqui e o caminho de erro: chunk do three que nao baixa, init
  * que lanca. Nos dois a abertura fecha e a pagina segue — concierge montado,
  * ancora da URL honrada. 'Pular' antes de o chunk existir e o terceiro caso:
- * o clique nao fecha nada, fica anotado e vai para o script. O caminho feliz
- * esta aqui so para mostrar que ele nao mudou: a intro continua na tela, e
- * quem a fecha e o script.
+ * o clique nao fecha nada, fica anotado e vai para o script. O quarto e a
+ * cena 3D que lanca com WebGL disponivel: o script a segura e a pagina segue,
+ * mas o erro chega ao Sentry pelo `reporta` que o runtime entrega junto com
+ * `humano` e `pulou`. O caminho feliz esta aqui so para mostrar que ele nao
+ * mudou: a intro continua na tela, e quem a fecha e o script.
  *
  * Os imports dinamicos sao dubles. `three` e o unico que muda de teste para
  * teste (resolve, rejeita, demora), e como o Vitest guarda o modulo depois da
@@ -116,7 +118,11 @@ describe('quando tudo funciona', () => {
     expect(w.THREE).toMatchObject({ Scene: CENA.Scene, GLTFLoader: expect.any(Function) });
     expect(w.ScrollTrigger).toEqual({ nome: 'ScrollTrigger' });
     expect(duble.registerPlugin).toHaveBeenCalledWith({ nome: 'ScrollTrigger' });
-    expect(duble.initSite.mock.calls[0]?.[1]).toEqual({ humano: null, pulou: false });
+    expect(duble.initSite.mock.calls[0]?.[1]).toEqual({
+      humano: null,
+      pulou: false,
+      reporta: expect.any(Function),
+    });
 
     // Quem fecha a abertura e a intro do script, nao o runtime.
     esperaAberturaNaTela();
@@ -191,6 +197,32 @@ describe('quando o init do script lanca', () => {
   });
 });
 
+describe('quando a cena 3D lanca com WebGL disponivel', () => {
+  it('o script reporta pelo runtime: Sentry com a tag home-cena, e a abertura fica para a intro', async () => {
+    duble.three.mockResolvedValue(CENA);
+    const bugDaCena = new TypeError("Cannot read properties of undefined (reading 'set')");
+    duble.initSite.mockImplementation(
+      (_config: unknown, extras: { reporta: (erro: unknown) => void }) => {
+        // O que o catch do bloco GL faz quando `temWebGL()` responde que sim.
+        extras.reporta(bugDaCena);
+      }
+    );
+
+    const { fechaAbertura } = await monta();
+    await vi.waitFor(() => expect(duble.captureException).toHaveBeenCalledOnce());
+
+    expect(duble.captureException).toHaveBeenCalledWith(bugDaCena, {
+      tags: { onde: 'home-cena' },
+    });
+    // O init terminou bem: so a cena faltou, o resto do script esta la, e e a
+    // intro dele que fecha a abertura — nao o catch do runtime.
+    esperaAberturaNaTela();
+    expect(fechaAbertura).not.toHaveBeenCalled();
+    expect(duble.montaConcierge).toHaveBeenCalledOnce();
+    expect(duble.levaAteAAncora).toHaveBeenCalledWith(window);
+  });
+});
+
 describe('pular antes de o chunk chegar', () => {
   it('o clique fica anotado e vai para o script, que pula a intro ao chegar', async () => {
     let chega = (_cena: Record<string, unknown>) => {};
@@ -212,7 +244,11 @@ describe('pular antes de o chunk chegar', () => {
     chega(CENA);
     await vi.waitFor(() => expect(duble.initSite).toHaveBeenCalledOnce());
 
-    expect(duble.initSite.mock.calls[0]?.[1]).toEqual({ humano: null, pulou: true });
+    expect(duble.initSite.mock.calls[0]?.[1]).toEqual({
+      humano: null,
+      pulou: true,
+      reporta: expect.any(Function),
+    });
     expect(duble.captureException).not.toHaveBeenCalled();
   });
 

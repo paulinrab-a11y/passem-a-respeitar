@@ -6,15 +6,21 @@
 // Fechar a abertura e um contrato com o HomeRuntime (#238): ele fecha quando
 // este script nao chega, a intro fecha quando chega. Os dois pelo mesmo lugar.
 import { fechaAbertura } from './abertura';
+// E o navegador tem WebGL? A resposta decide se a cena que lancou e um
+// aparelho sem 3D (esperado) ou um bug que o Sentry precisa saber.
+import { temWebGL } from './webgl';
 
 let booted = false;
 
 export default function initSite(CONFIG, extras) {
 // Issue #28: o que a home recebe de fora do script. A protecao contra bot do
 // convite (`null` quando nao ha chave configurada) e, desde a #238, se a
-// pessoa clicou em 'pular' enquanto este script ainda baixava.
+// pessoa clicou em 'pular' enquanto este script ainda baixava e quem leva ao
+// Sentry um erro da cena 3D — este script nao importa o Sentry, como nao
+// importa o Turnstile.
 const humano = (extras && extras.humano) || null;
 const pulouAntes = !!(extras && extras.pulou);
+const reporta = (extras && typeof extras.reporta === 'function') ? extras.reporta : null;
   if (booted) return;
   booted = true;
 
@@ -317,8 +323,22 @@ $('#tocando').addEventListener('click', ()=> Som.proximo());
 // que a intro e o ScrollTrigger escrevem, e `html.sem-webgl` tira o canvas do
 // caminho e mostra os elos em HTML (ver globals.css). Som, loja em fotos,
 // convite e concierge seguem como sempre.
+//
+// So que o try/catch embrulha a cena INTEIRA, e "nao criou o contexto" nao e
+// a unica coisa que lanca ali: um bug na cena ou uma regressao de three/gsap
+// cairiam no mesmo catch e sumiriam com o canvas em silencio — e nenhum teste
+// automatico pega regressao de animacao (AGENTS.md). Antes do try a excecao
+// saia do init e chegava ao Sentry sozinha; agora e o catch que pergunta ao
+// navegador. Sem contexto WebGL, e o esperado: aviso baixo e segue. Com
+// contexto, o erro e da cena, e `reporta` o leva ao Sentry com a tag dele.
+// A pagina fica igual nos dois casos; o que muda e quem fica sabendo.
 function semWebGL(erro){
-  console.warn('home: sem WebGL, a cena 3D fica de fora.', erro && erro.message);
+  if (temWebGL()) {
+    console.error('home: a cena 3D falhou com WebGL disponivel.', erro);
+    if (reporta) reporta(erro);
+  } else {
+    console.warn('home: sem WebGL, a cena 3D fica de fora.', erro && erro.message);
+  }
   document.documentElement.classList.add('sem-webgl');
   return { S:{ p:0, pAlvo:0, fim:0, fimAlvo:0, queda:1, shake:0, mx:0, my:0 }, camera:null, semGL:true };
 }
