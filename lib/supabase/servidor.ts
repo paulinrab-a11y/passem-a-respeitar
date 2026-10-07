@@ -8,7 +8,7 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
-import { COOKIE_LEMBRAR, ehVerificador, opcoesDeSessao, opcoesDoVerificador } from './cookies';
+import { COOKIE_LEMBRAR, opcoesDoCookie } from './cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import type { Database } from './tipos';
 
@@ -55,8 +55,8 @@ export async function lembrarDaSessao() {
  * Diferente de `clienteServidor()` em duas coisas: ele nao engole o erro de
  * escrever cookie (numa Server Action a escrita funciona, e falhar calado
  * deixaria a pessoa sem sessao depois de um login que disse ter dado certo) e
- * ele aplica `opcoesDeSessao`, que endurece o cookie e trata o "manter
- * conectado".
+ * o "manter conectado" vem de quem chama, nao do cookie — no login a escolha
+ * acabou de sair do formulario e o cookie dela ainda nao existe.
  */
 export async function clienteDeAuth(lembrar: boolean) {
   const jar = await cookies();
@@ -76,17 +76,23 @@ export async function clienteDeAuth(lembrar: boolean) {
       },
       setAll(lista) {
         for (const { name, value, options } of lista) {
-          jar.set(
-            name,
-            value,
-            ehVerificador(name) ? opcoesDoVerificador(options) : opcoesDeSessao(options, lembrar)
-          );
+          jar.set(name, value, opcoesDoCookie(name, options, lembrar));
         }
       },
     },
   });
 }
 
+/**
+ * Client para LER com a sessao de quem pediu.
+ *
+ * Ler tambem escreve: com o token vencido (uma hora sem renovar), o
+ * `getUser()` renova a sessao e o Supabase pede para regravar o cookie. Fora
+ * das rotas de conta e de login — a home, `/api` — o middleware nao renova
+ * (`precisaDeSessao`), entao quem grava e este client — a barra da home chama `/api/conta/resumo` a cada
+ * visita. Gravar com as opcoes cruas do Supabase deixava o token legivel por
+ * JavaScript e valendo 400 dias, mesmo com "manter conectado" desmarcado.
+ */
 export async function clienteServidor() {
   const jar = await cookies();
 
@@ -96,14 +102,19 @@ export async function clienteServidor() {
         return jar.getAll();
       },
       setAll(lista) {
+        // A escolha do login, relida a cada gravacao: este client nao sabe
+        // como a sessao nasceu, e sem o cookie vale o lado seguro.
+        const lembrar = jar.get(COOKIE_LEMBRAR)?.value === '1';
+
         try {
           for (const { name, value, options } of lista) {
-            jar.set(name, value, options);
+            jar.set(name, value, opcoesDoCookie(name, options, lembrar));
           }
         } catch {
           // Server Component nao pode escrever cookie: o Next ja mandou os
-          // headers. Engolir aqui e o certo — o middleware renova a sessao a
-          // cada request, entao o token atualizado chega pelo outro caminho.
+          // headers. Engolir aqui e o certo — nas rotas de conta o middleware
+          // ja renovou o token antes da pagina rodar, e nas outras a proxima
+          // Route Handler ou Server Action renova e consegue gravar.
           //
           // Sem esse catch, toda pagina que so LE dado do usuario quebraria no
           // momento em que o token fosse renovado.

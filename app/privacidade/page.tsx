@@ -23,8 +23,10 @@ export const metadata: Metadata = {
  *
  * A #254 fechou o que ficou para tras: o Concierge (#191) manda a conversa ao
  * Google; o CPF da tela de pagamento passa pelo servidor a caminho do Mercado
- * Pago; e os cookies, o CEP no navegador, a Vercel, o Supabase e o Sentry ja
- * existiam sem estar aqui. Cada frase saiu do codigo, nao de modelo de
+ * Pago; e os cookies, o CEP no navegador, a Vercel, o Supabase, o Sentry, o
+ * Mailjet (os e-mails da conta saem pelo SMTP dele no Supabase Auth) e o
+ * Upstash (a contagem do rate limit, com IP e e-mail na chave) ja existiam
+ * sem estar aqui. Cada frase saiu do codigo, nao de modelo de
  * politica: nome de cookie, duracao e o que vai para fora sao os de verdade,
  * e o teste amarra os nomes as constantes.
  *
@@ -117,8 +119,9 @@ export default function Privacidade() {
           </p>
           <p className="detalhe-nota">
             Além disso, o site conta quantos envios chegam do mesmo endereço IP — e, nos formulários
-            de conta, do mesmo e-mail — para frear quem tenta em massa. A contagem vence sozinha, em
-            minutos ou em até uma hora.
+            de conta, do mesmo e-mail — para frear quem tenta em massa. A contagem fica no Upstash,
+            um banco de dados na nuvem, anotada com esse IP e esse e-mail, e some sozinha: as mais
+            longas, cerca de duas horas depois.
           </p>
         </section>
 
@@ -239,6 +242,15 @@ export default function Privacidade() {
             digita nos formulários e quem você é.
           </p>
           <p className="detalhe-nota">
+            Os e-mails da conta — confirmação de cadastro, código de confirmação, senha nova, troca
+            de e-mail e os avisos de segurança — saem pelo <strong>Mailjet</strong>. Para entregar,
+            ele recebe o seu endereço de e-mail e o texto da mensagem.
+          </p>
+          <p className="detalhe-nota">
+            O <strong>Upstash</strong> guarda a contagem de envios de Proteção contra robôs: o
+            endereço IP e, nos formulários de conta, o e-mail, por cerca de duas horas no máximo.
+          </p>
+          <p className="detalhe-nota">
             Valem as políticas de privacidade da{' '}
             <a
               href="https://vercel.com/legal/privacy-policy"
@@ -250,10 +262,26 @@ export default function Privacidade() {
             , do{' '}
             <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">
               Supabase
-            </a>{' '}
-            e do{' '}
+            </a>
+            , do{' '}
             <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer">
               Sentry
+            </a>
+            , do{' '}
+            <a
+              href="https://www.mailjet.com/legal/privacy-policy/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Mailjet
+            </a>{' '}
+            e do{' '}
+            <a
+              href="https://upstash.com/trust/privacy.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Upstash
             </a>
             .
           </p>

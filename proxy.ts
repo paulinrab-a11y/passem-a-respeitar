@@ -11,7 +11,7 @@ import {
   precisaDeSessao,
   temDesafio,
 } from '@/lib/rotas';
-import { COOKIE_LEMBRAR, opcoesDeSessao } from '@/lib/supabase/cookies';
+import { COOKIE_LEMBRAR, opcoesDoCookie } from '@/lib/supabase/cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 
 // A Issue #14 trouxe imagens, modelo 3D, textura 360 e beats para public/,
@@ -201,7 +201,7 @@ async function leSessao(request: NextRequest, requestHeaders: Headers) {
         const lembrar = request.cookies.get(COOKIE_LEMBRAR)?.value === '1';
 
         for (const { name, value, options } of lista) {
-          response.cookies.set(name, value, opcoesDeSessao(options, lembrar));
+          response.cookies.set(name, value, opcoesDoCookie(name, options, lembrar));
         }
       },
     },

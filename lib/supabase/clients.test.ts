@@ -100,15 +100,88 @@ describe('clienteServidor', () => {
     expect(opcoes.cookies.getAll()).toEqual([{ name: 'sb-token', value: 'abc' }]);
   });
 
-  it('escreve cookie quando da', async () => {
+  // As opcoes abaixo sao as que o @supabase/ssr manda quando renova o token
+  // (DEFAULT_COOKIE_OPTIONS). Repassadas cruas, como se fazia, a renovacao
+  // numa rota fora do middleware — a barra da home chama /api/conta/resumo a
+  // cada visita — gravava o token legivel por JavaScript e por 400 dias.
+  const CRUAS_DO_SUPABASE = {
+    path: '/',
+    sameSite: 'lax',
+    httpOnly: false,
+    maxAge: 400 * 24 * 60 * 60,
+  };
+
+  it('grava o token renovado endurecido, nao com as opcoes cruas', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
     const { clienteServidor } = await import('./servidor');
     await clienteServidor();
 
     const opcoes = criaServidor.mock.calls[0][2] as {
       cookies: { setAll: (l: unknown[]) => void };
     };
-    opcoes.cookies.setAll([{ name: 'sb-token', value: 'novo', options: { path: '/' } }]);
-    expect(jar.set).toHaveBeenCalledWith('sb-token', 'novo', { path: '/' });
+    opcoes.cookies.setAll([{ name: 'sb-token', value: 'novo', options: CRUAS_DO_SUPABASE }]);
+
+    expect(jar.set).toHaveBeenCalledWith(
+      'sb-token',
+      'novo',
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax', secure: true, path: '/' })
+    );
+  });
+
+  // Computador emprestado: a pessoa desmarcou "manter conectado" e volta a
+  // home uma hora depois. A renovacao nao pode virar a sessao de 400 dias.
+  it('sem par_lembrar, o token renovado continua morrendo com o navegador', async () => {
+    const { clienteServidor } = await import('./servidor');
+    await clienteServidor();
+
+    const opcoes = criaServidor.mock.calls[0][2] as {
+      cookies: { setAll: (l: unknown[]) => void };
+    };
+    opcoes.cookies.setAll([{ name: 'sb-token', value: 'novo', options: CRUAS_DO_SUPABASE }]);
+
+    expect(jar.get).toHaveBeenCalledWith('par_lembrar');
+    expect(jar.set).toHaveBeenCalledWith(
+      'sb-token',
+      'novo',
+      expect.objectContaining({ maxAge: undefined, expires: undefined })
+    );
+  });
+
+  it('com par_lembrar=1, mantem a validade que o Supabase pediu', async () => {
+    jar.get.mockReturnValue({ value: '1' });
+    const { clienteServidor } = await import('./servidor');
+    await clienteServidor();
+
+    const opcoes = criaServidor.mock.calls[0][2] as {
+      cookies: { setAll: (l: unknown[]) => void };
+    };
+    opcoes.cookies.setAll([{ name: 'sb-token', value: 'novo', options: CRUAS_DO_SUPABASE }]);
+
+    expect(jar.set).toHaveBeenCalledWith(
+      'sb-token',
+      'novo',
+      expect.objectContaining({ maxAge: CRUAS_DO_SUPABASE.maxAge, httpOnly: true })
+    );
+  });
+
+  // O Supabase apaga o pedaco que sobrou de um token maior com maxAge 0. Sem
+  // "manter conectado", tirar esse maxAge deixaria um cookie vazio no lugar.
+  it('apagar continua apagando, mesmo sem manter conectado', async () => {
+    const { clienteServidor } = await import('./servidor');
+    await clienteServidor();
+
+    const opcoes = criaServidor.mock.calls[0][2] as {
+      cookies: { setAll: (l: unknown[]) => void };
+    };
+    opcoes.cookies.setAll([
+      { name: 'sb-token.1', value: '', options: { ...CRUAS_DO_SUPABASE, maxAge: 0 } },
+    ]);
+
+    expect(jar.set).toHaveBeenCalledWith(
+      'sb-token.1',
+      '',
+      expect.objectContaining({ maxAge: 0, httpOnly: true })
+    );
   });
 
   // Server Component nao pode escrever cookie: o Next ja mandou os headers.

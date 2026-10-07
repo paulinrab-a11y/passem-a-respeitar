@@ -90,6 +90,27 @@ describe('/privacidade', () => {
     expect(html).toMatch(/Supabase/);
   });
 
+  // Os e-mails da conta saem pelo SMTP do Mailjet configurado no Supabase
+  // Auth. Ele recebe o endereco de todo mundo que tem conta, entao entra na
+  // lista de com quem o dado e compartilhado — que a LGPD manda contar.
+  it('conta que os e-mails da conta saem pelo Mailjet', () => {
+    expect(html).toMatch(/<strong>Mailjet<\/strong>/);
+    expect(html).toMatch(/recebe o seu endereço de e-mail/);
+    expect(html).toContain('https://www.mailjet.com/legal/privacy-policy/');
+  });
+
+  // lib/rate-limit.ts grava a contagem no Upstash com o IP e o e-mail na
+  // chave (`entrar:email:<e-mail>`). A janela mais longa e de uma hora, e o
+  // slidingWindow do SDK mantem a chave por duas janelas mais um segundo —
+  // por isso "cerca de duas horas", e nao "uma".
+  it('conta que a contagem de envios fica no Upstash, com IP e e-mail, por cerca de duas horas', () => {
+    expect(html).toMatch(/<strong>Upstash<\/strong>/);
+    expect(html).toMatch(/anotada com esse IP e esse e-mail/);
+    expect(html).toMatch(/cerca de duas\s+horas/);
+    expect(html).not.toMatch(/em até uma hora/);
+    expect(html).toContain('https://upstash.com/trust/privacy.pdf');
+  });
+
   it('cita a LGPD e os direitos', () => {
     expect(html).toMatch(/LGPD/);
     expect(html).toMatch(/apagar seus dados/i);
