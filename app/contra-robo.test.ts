@@ -3,10 +3,11 @@ import { limita } from '@/lib/rate-limit';
 import { RECUSA } from '@/lib/robo';
 
 /**
- * Os cinco formularios publicos, atras da protecao contra bot (#28).
+ * Os formularios publicos, atras da protecao contra bot (#28).
  *
- * O mesmo contrato, conferido nos cinco de uma vez — login, cadastro,
- * recuperacao de senha, convite e concierge (#191):
+ * O mesmo contrato, conferido em todos de uma vez — login, cadastro, reenvio
+ * do codigo do cadastro (#224), recuperacao de senha, convite e concierge
+ * (#191):
  *
  *   - isca preenchida ou envio sem token: recusa, e nada acontece
  *   - token que a Cloudflare recusa: recusa, e nada acontece
@@ -17,9 +18,12 @@ import { RECUSA } from '@/lib/robo';
  * de convite nao e conferido, nada sai para o Gemini.
  */
 
+type ErroDoSupabase = { message: string; code?: string; status?: number } | null;
+
 const auth = {
-  signInWithPassword: vi.fn(async (_: unknown) => ({ error: null })),
+  signInWithPassword: vi.fn(async (_: unknown) => ({ error: null as ErroDoSupabase })),
   signUp: vi.fn(async (_: unknown) => ({ data: { session: null }, error: null })),
+  resend: vi.fn(async (_: unknown) => ({ error: null as ErroDoSupabase })),
   resetPasswordForEmail: vi.fn(async (..._: unknown[]) => ({ error: null })),
 };
 const codigoConfere = vi.fn(async (_: string) => false);
@@ -49,8 +53,9 @@ vi.mock('@/lib/concierge/gemini', () => ({
 
 const { entrar } = await import('./entrar/acoes');
 const { estadoInicial } = await import('./entrar/estado');
-const { criarConta } = await import('./criar-conta/acoes');
+const { criarConta, reenviarCodigo } = await import('./criar-conta/acoes');
 const { criarContaInicial } = await import('./criar-conta/estado');
+const { reenvioInicial } = await import('./_ui/estado-do-codigo');
 const { recuperarSenha } = await import('./recuperar-senha/acoes');
 const { recuperarInicial } = await import('./recuperar-senha/estado');
 const { POST: convite } = await import('./api/convite/route');
@@ -122,6 +127,16 @@ const FORMULARIOS = [
     },
   },
   {
+    nome: 'reenvio do codigo',
+    acao: 'reenviar-codigo',
+    limite: () => `reenvio:ip:${ip}`,
+    andou: () => auth.resend.mock.calls.length > 0,
+    async envia(extra: Extra): Promise<Resposta> {
+      const r = await reenviarCodigo(reenvioInicial, formulario({ email: email() }, extra));
+      return { recusado: r.erro !== null, mensagem: r.erro };
+    },
+  },
+  {
     nome: 'recuperacao de senha',
     acao: 'recuperar-senha',
     limite: () => `recuperar:ip:${ip}`,
@@ -181,6 +196,8 @@ function perguntas() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  auth.signInWithPassword.mockResolvedValue({ error: null });
+  auth.resend.mockResolvedValue({ error: null });
   vi.stubGlobal('fetch', pedido);
   vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'chave-publica-de-teste');
   vi.stubEnv('TURNSTILE_SECRET_KEY', 'segredo-de-teste');
@@ -275,6 +292,67 @@ describe.each(FORMULARIOS)('$nome', (f) => {
     expect(r.mensagem).toMatch(/Muit[oa]s (tentativas|pedidos|perguntas)/);
     expect(pedido).not.toHaveBeenCalled();
     expect(f.andou()).toBe(false);
+  });
+});
+
+/**
+ * A cota de codigo por e-mail (#260) e gasta so por quem passou pelo desafio.
+ *
+ * Antes do desafio, qualquer texto passa por token. Se a cota do e-mail
+ * andasse ali, um script trocando de IP esgotaria a de qualquer pessoa com
+ * tres envios por hora, sem mandar e-mail nenhum — e, com ela, o codigo que
+ * o login manda a quem acertou a senha de uma conta pendente.
+ */
+describe('cota de codigo por e-mail (#260)', () => {
+  function deOutroIp(i: number) {
+    ip = `192.0.2.${(n % 50) * 5 + i + 1}`;
+    cabecalhos = new Headers({ host: 'passem-a-respeitar.test', 'x-forwarded-for': ip });
+  }
+
+  async function scriptComTokenFalso(alvo: string) {
+    cloudflare({ success: false, 'error-codes': ['invalid-input-response'] });
+    for (let i = 0; i < 4; i++) {
+      deOutroIp(i);
+      const r = await reenviarCodigo(
+        reenvioInicial,
+        formulario({ email: alvo }, { desafio: 'x', isca: '' })
+      );
+      expect(r.erro).toBe(RECUSA);
+    }
+    expect(auth.resend).not.toHaveBeenCalled();
+  }
+
+  it('token recusado nao gasta a cota: o reenvio de verdade ainda sai', async () => {
+    const alvo = `pendente${n}@exemplo.invalid`;
+    await scriptComTokenFalso(alvo);
+
+    cloudflare({ success: true, action: 'reenviar-codigo' });
+    deOutroIp(4);
+    const r = await reenviarCodigo(
+      reenvioInicial,
+      formulario({ email: alvo }, { desafio: TOKEN, isca: '' })
+    );
+
+    expect(r.erro).toBeNull();
+    expect(auth.resend).toHaveBeenCalledTimes(1);
+  });
+
+  it('nem a do codigo que o login manda a quem acertou a senha', async () => {
+    const alvo = `pendente${n}@exemplo.invalid`;
+    await scriptComTokenFalso(alvo);
+
+    auth.signInWithPassword.mockResolvedValue({
+      error: { message: 'Email not confirmed', code: 'email_not_confirmed', status: 400 },
+    });
+    cloudflare({ success: true, action: 'entrar' });
+    deOutroIp(4);
+    const r = await entrar(
+      estadoInicial,
+      formulario({ email: alvo, senha: 'a senha certa' }, { desafio: TOKEN, isca: '' })
+    );
+
+    expect(r.confirmar).toEqual({ email: alvo, lembrar: false, enviado: true });
+    expect(auth.resend).toHaveBeenCalledTimes(1);
   });
 });
 

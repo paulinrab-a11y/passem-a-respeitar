@@ -1,112 +1,58 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { EstadoCodigo, EstadoReenvio } from './estado';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * A tela do codigo (#224): um campo, oito digitos, envio sozinho; colar com
- * texto em volta funciona; codigo errado limpa o campo e mantem a tela;
- * reenviar espera 60 s; trocar e-mail devolve ao formulario.
+ * A tela do codigo do cadastro (#224). O campo, o envio sozinho e a espera do
+ * reenvio sao do `CodigoDeConfirmacao` e tem teste la; aqui fica o que e do
+ * cadastro: o texto que nao conta se o e-mail tem conta, o e-mail indo junto,
+ * o caminho de entrar e o de trocar o e-mail.
  */
-const confirmarCodigo = vi.fn(
-  async (anterior: EstadoCodigo, form: FormData): Promise<EstadoCodigo> => {
-    recebidos.push(String(form.get('codigo')));
-    return { erro: 'Código inválido ou vencido.', tentativa: anterior.tentativa + 1 };
-  }
-);
-const reenviarCodigo = vi.fn(
-  async (anterior: EstadoReenvio, _form: FormData): Promise<EstadoReenvio> => ({
-    erro: null,
-    aviso: 'Se o e-mail for válido, enviamos outro código.',
-    reenviadoEm: Date.now(),
-    tentativa: anterior.tentativa + 1,
-  })
-);
-let recebidos: string[] = [];
+vi.mock('./acoes', () => ({ confirmarCodigo: vi.fn(), reenviarCodigo: vi.fn() }));
 
-vi.mock('./acoes', () => ({
-  confirmarCodigo: (a: EstadoCodigo, f: FormData) => confirmarCodigo(a, f),
-  reenviarCodigo: (a: EstadoReenvio, f: FormData) => reenviarCodigo(a, f),
-}));
+import Codigo from './Codigo';
 
-import Codigo, { ESPERA_REENVIO_S } from './Codigo';
-
-const campo = () => screen.getByLabelText(/Código de 8 dígitos/) as HTMLInputElement;
-
-beforeEach(() => {
-  recebidos = [];
-  vi.clearAllMocks();
-  // requestSubmit nao existe no jsdom: vira um submit normal do formulario.
-  HTMLFormElement.prototype.requestSubmit ??= function () {
-    this.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-  };
-});
 afterEach(cleanup);
 
-describe('tela do codigo (#224)', () => {
-  it('mostra o e-mail, pede oito digitos e oferece entrar', () => {
+describe('tela do codigo do cadastro (#224)', () => {
+  it('diz "se for válido": a tela e a mesma para e-mail novo e repetido', () => {
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
 
+    expect(screen.getByText('Confira seu e-mail')).toBeTruthy();
     expect(screen.getByText('maria@exemplo.com')).toBeTruthy();
-    const c = campo();
-    expect(c.getAttribute('inputmode')).toBe('numeric');
-    expect(c.getAttribute('autocomplete')).toBe('one-time-code');
-    expect(c.maxLength).toBe(8);
+    expect(document.getElementById('codigo-intro')?.textContent).toMatch(
+      /Se maria@exemplo\.com for válido, enviamos um código de 8 dígitos/
+    );
+  });
+
+  it('o e-mail vai junto no codigo e no reenvio', () => {
+    const { container } = render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
+
+    for (const f of container.querySelectorAll('form')) {
+      expect(new FormData(f).get('email')).toBe('maria@exemplo.com');
+    }
+  });
+
+  it('oferece entrar, para quem ja tinha conta com esse e-mail', () => {
+    render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
+
     expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe('/entrar');
-    expect((screen.getByRole('button', { name: 'Confirmar' }) as HTMLButtonElement).disabled).toBe(
-      true
-    );
   });
 
-  it('colar "Seu código: 1234 5678" vira 12345678 e envia sozinho', async () => {
+  // A tela some ao recarregar ou fechar a aba. A volta e o login com a senha
+  // (#260), e nao cadastrar de novo, que descartaria a senha nova.
+  it('ensina a volta pelo login, para quem sair antes de confirmar', () => {
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
 
-    await act(async () => {
-      fireEvent.change(campo(), { target: { value: 'Seu código: 1234 5678' } });
-    });
-    await screen.findByRole('alert');
-
-    expect(recebidos).toEqual(['12345678']);
+    expect(
+      screen.getByText(
+        'Se sair desta tela antes de confirmar, entre com a senha que escolheu: mandamos um código novo.'
+      ).className
+    ).toBe('auth-rodape');
   });
 
-  it('com sete digitos nao envia; o botao fica desabilitado', async () => {
-    render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
-
-    await act(async () => {
-      fireEvent.change(campo(), { target: { value: '1234567' } });
-    });
-
-    expect(confirmarCodigo).not.toHaveBeenCalled();
-    expect(campo().value).toBe('1234567');
-    expect((screen.getByRole('button', { name: 'Confirmar' }) as HTMLButtonElement).disabled).toBe(
-      true
-    );
-  });
-
-  it('codigo errado mostra o erro, limpa o campo e mantem a tela', async () => {
-    render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
-
-    await act(async () => {
-      fireEvent.change(campo(), { target: { value: '00000000' } });
-    });
-    const erro = await screen.findByRole('alert');
-
-    expect(erro.textContent).toMatch(/inválido ou vencido/);
-    expect(campo().value).toBe('');
-    expect(screen.getByText('maria@exemplo.com')).toBeTruthy();
-  });
-
-  it('reenviar espera 60 s, com a contagem no botao', () => {
-    render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
-
-    const reenviar = screen.getByRole('button', {
-      name: new RegExp(`Reenviar código \\(${ESPERA_REENVIO_S} s\\)`),
-    }) as HTMLButtonElement;
-    expect(reenviar.disabled).toBe(true);
-  });
-
-  it('trocar e-mail avisa quem chamou', () => {
+  it('trocar e-mail avisa o formulario', () => {
     const volta = vi.fn();
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={volta} />);
 

@@ -1,9 +1,18 @@
 'use server';
 
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { EstadoCodigo, EstadoReenvio } from '@/app/_ui/estado-do-codigo';
+import {
+  CODIGO_INCOMPLETO,
+  CODIGO_INVALIDO,
+  cabeConferencia,
+  cabeReenvioDoEmail,
+  cabeReenvioDoIp,
+  mandaCodigo,
+} from '@/lib/conta/codigo';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
-import { CODIGO_DIGITOS, esquemaCodigo, esquemaCriarConta, esquemaEmail } from '@/lib/esquemas';
+import { esquemaCodigo, esquemaCriarConta, esquemaEmail } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import {
   CAMPO_DA_ISCA,
@@ -15,8 +24,9 @@ import {
 } from '@/lib/robo';
 import { CONTA, destinoSeguro } from '@/lib/rotas';
 import { urlDeRetorno } from '@/lib/site-url';
+import { COOKIE_LEMBRAR, opcoesDoLembrar } from '@/lib/supabase/cookies';
 import { clienteDeAuth } from '@/lib/supabase/servidor';
-import type { EstadoCodigo, EstadoCriarConta, EstadoReenvio } from './estado';
+import type { EstadoCriarConta } from './estado';
 
 /**
  * Cadastro (Issue #30).
@@ -26,8 +36,10 @@ import type { EstadoCodigo, EstadoCriarConta, EstadoReenvio } from './estado';
  * quem e cliente. Por isso a resposta de sucesso e a mesma nos dois casos:
  * "enviamos um codigo para X". O Supabase colabora: com confirmacao ligada, o
  * signUp de e-mail ja confirmado devolve um usuario de mentira e nao manda
- * nada. O de conta ainda nao confirmada manda um codigo novo, e e esse o
- * caminho de volta de quem saiu da tela do codigo (#227).
+ * nada. O de conta ainda nao confirmada manda um codigo novo, mas descarta a
+ * senha digitada agora: vale a do primeiro cadastro. Por isso o caminho de
+ * volta de quem saiu da tela do codigo e o login com a senha (#260), e nao
+ * cadastrar de novo.
  *
  * O aceite da politica e carimbado AQUI, com o relogio do servidor, e vai na
  * metadata do signup — a trigger do banco grava em profiles na mesma
@@ -125,25 +137,21 @@ export async function criarConta(
 }
 
 /**
- * Confirmar o cadastro pelo codigo de ${CODIGO_DIGITOS} digitos (#224).
+ * Confirmar o cadastro pelo codigo de oito digitos (#224).
  *
  * Desde a #227 o e-mail traz so o codigo, sem link: confirmar e sempre por
- * aqui, e termina em sessao em cookie e /conta. O `verifyOtp` roda NO
+ * aqui, e termina em sessao em cookie e no destino. O `verifyOtp` roda NO
  * SERVIDOR, com o cliente que grava cookie — o navegador nunca fala com o
  * Supabase direto.
+ *
+ * Serve a duas telas: a do cadastro e a do login de conta nao confirmada
+ * (#260). Da segunda vem o "manter conectado" e o `next` de quem ia para o
+ * checkout; a sessao nasce como nasceria no login.
  *
  * O que esta acao nunca diz: se o e-mail tem conta. E-mail repetido no
  * cadastro nao recebe codigo nenhum, e qualquer codigo digitado da "invalido
  * ou vencido" — a mesma resposta de um codigo errado para conta nova.
  */
-
-/** Por IP, em dez minutos: chute de codigo em serie. */
-const CODIGO_POR_IP = { maximo: 20, janelaMs: 10 * 60 * 1000 };
-/** Por e-mail: dez tentativas por codigo e muito; o Supabase ainda limita por baixo. */
-const CODIGO_POR_EMAIL = { maximo: 10, janelaMs: 10 * 60 * 1000 };
-
-const CODIGO_INVALIDO = `Código inválido ou vencido. Confira os ${CODIGO_DIGITOS} dígitos ou peça um novo abaixo.`;
-
 export async function confirmarCodigo(
   anterior: EstadoCodigo,
   form: FormData
@@ -158,41 +166,38 @@ export async function confirmarCodigo(
   const dados = esquemaCodigo.safeParse({
     email: form.get('email'),
     codigo: String(form.get('codigo') ?? '').replace(/\D/g, ''),
+    lembrar: form.get('lembrar') === '1',
   });
-  if (!dados.success) return falha(`Digite os ${CODIGO_DIGITOS} dígitos do código.`);
-  const { email, codigo } = dados.data;
+  if (!dados.success) return falha(CODIGO_INCOMPLETO);
+  const { email, codigo, lembrar } = dados.data;
 
   const ip = ipDoRequest(await headers());
-  const cotaIp = await limita(`codigo:ip:${ip}`, CODIGO_POR_IP.maximo, CODIGO_POR_IP.janelaMs);
-  const cotaEmail = await limita(
-    `codigo:email:${email}`,
-    CODIGO_POR_EMAIL.maximo,
-    CODIGO_POR_EMAIL.janelaMs
-  );
-  if (!cotaIp.permitido || !cotaEmail.permitido) {
+  if (!(await cabeConferencia(`email:${email}`, ip))) {
     return falha('Muitas tentativas. Espere alguns minutos e peça um código novo.');
   }
 
-  const supabase = await clienteDeAuth(false);
+  const supabase = await clienteDeAuth(lembrar);
   const { error } = await supabase.auth.verifyOtp({ email, token: codigo, type: 'email' });
-  if (error) {
-    // Codigo errado, vencido e e-mail sem cadastro pendente dao a mesma
-    // frase: distinguir seria contar quem esta no meio do cadastro.
-    return falha(CODIGO_INVALIDO);
-  }
+  if (error) return falha(CODIGO_INVALIDO);
+
+  // Como no login: o middleware le esta escolha a cada renovacao do token.
+  // Sem ela, a sessao de quem marcou "manter conectado" morreria ao fechar o
+  // navegador.
+  (await cookies()).set(COOKIE_LEMBRAR, lembrar ? '1' : '0', opcoesDoLembrar(lembrar));
 
   redirect(destinoSeguro(form.get('next')?.toString()));
 }
 
 /**
  * Pedir outro codigo (#224). Manda e-mail, entao e a acao cara: isca, desafio
- * da Cloudflare e dois limites. O Supabase recusa reenvio antes de 60 s, e a
- * tela ja nem oferece o botao antes disso.
+ * da Cloudflare e dois limites — os mesmos do login de conta nao confirmada,
+ * que tambem manda codigo (#260). O do IP vem antes do desafio e o do e-mail
+ * depois: ver `cabeReenvioDoIp` em lib/conta/codigo.ts. O Supabase recusa
+ * reenvio dentro do intervalo minimo, e a tela ja nem oferece o botao antes
+ * de 60 s.
  */
-const REENVIO_POR_IP = { maximo: 5, janelaMs: 60 * 60 * 1000 };
-const REENVIO_POR_EMAIL = { maximo: 3, janelaMs: 60 * 60 * 1000 };
-
 const REENVIADO = 'Se o e-mail for válido, enviamos outro código. Vale o mais recente.';
+const MUITOS_PEDIDOS = 'Muitos pedidos. Tente de novo mais tarde.';
 
 export async function reenviarCodigo(
   anterior: EstadoReenvio,
@@ -214,32 +219,21 @@ export async function reenviarCodigo(
 
   const cabecalhos = await headers();
   const ip = ipDoRequest(cabecalhos);
-  const cotaIp = await limita(`reenvio:ip:${ip}`, REENVIO_POR_IP.maximo, REENVIO_POR_IP.janelaMs);
-  const cotaEmail = await limita(
-    `reenvio:email:${email}`,
-    REENVIO_POR_EMAIL.maximo,
-    REENVIO_POR_EMAIL.janelaMs
-  );
-  if (!cotaIp.permitido || !cotaEmail.permitido) {
-    return falha('Muitos pedidos. Tente de novo mais tarde.');
-  }
+  if (!(await cabeReenvioDoIp(ip))) return falha(MUITOS_PEDIDOS);
 
   if (!(await desafioConfere(desafio, 'reenviar-codigo', ip))) return falha(RECUSA);
 
+  // So agora, com o token conferido: a cota do e-mail e a mesma do codigo que
+  // o login manda, e quem gasta precisa ter passado pelo desafio (#260).
+  if (!(await cabeReenvioDoEmail(email))) return falha(MUITOS_PEDIDOS);
+
+  // Sem olhar o resultado (#260): o unico erro que sobrava para a pessoa era
+  // o intervalo minimo do Supabase, e ele so acontece com cadastro pendente.
+  // Responder "espere um minuto" ali contava, a quem pedisse dois seguidos,
+  // quem esta no meio do cadastro. A contagem da tela ja segura quem e
+  // honesto, e o codigo anterior continua valendo quando o Supabase recusa.
   const supabase = await clienteDeAuth(false);
-  const { error } = await supabase.auth.resend({
-    type: 'signup',
-    email,
-    options: { emailRedirectTo: urlDeRetorno(cabecalhos, CONTA) },
-  });
-  if (error) {
-    // Dois casos distintos para a pessoa, um so para o atacante: o limite
-    // de 60 s do Supabase e a unica mensagem que muda. Conta ja confirmada
-    // tambem cai em erro, e recebe o recado generico — nao e para saber.
-    if (/rate|limit|60 seconds|security purposes/i.test(error.message)) {
-      return falha('Espere um minuto para pedir outro código.');
-    }
-  }
+  await mandaCodigo(supabase.auth, email, cabecalhos);
 
   return {
     erro: null,

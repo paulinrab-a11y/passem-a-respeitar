@@ -71,6 +71,10 @@ export default function Formulario() {
       <p className="auth-rodape">
         Lembrou? <a href="/entrar">Entrar</a>
       </p>
+      {/* O login manda para ca quem nao lembra a senha (#260). Para quem nunca
+          confirmou o e-mail, este e o melhor caminho: o link confirma a conta
+          e ainda deixa uma senha que a pessoa conhece. */}
+      <p className="auth-rodape">Ainda não confirmou o e-mail da conta? O link confirma também.</p>
     </form>
   );
 }

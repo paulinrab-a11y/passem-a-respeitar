@@ -17,6 +17,3 @@ export type EstadoNome = {
 };
 
 export const nomeInicial: EstadoNome = { recado: null, tentativa: 0 };
-
-export type EstadoVerificacao = EstadoNome;
-export const verificacaoInicial: EstadoVerificacao = { recado: null, tentativa: 0 };
