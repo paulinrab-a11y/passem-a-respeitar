@@ -84,14 +84,31 @@ export default async function Home() {
         </div>
         <div id="tc">00:00:00:00</div>
         <div id="tape">SP · 2026 · WHYNOT VISUALS</div>
+        {/* `.nitida` e a camada que a intro acende por cima de uma copia
+            borrada, montada no cliente (#286, ver nevoaDaLinha em
+            abertura.ts). O texto fica uma vez so no HTML. */}
         <div id="manifesto" aria-live="polite">
-          <span className="l">Não são seguidores.</span>
-          <span className="l">Não são streams.</span>
-          <span className="l">Não é dinheiro.</span>
-          <span className="l">Não é status.</span>
-          <span className="l">Existe o que construímos quando ninguém estava olhando.</span>
-          <span className="l">O respeito vem antes dos números.</span>
-          <span className="l fim">Passem a respeitar.</span>
+          <span className="l">
+            <span className="nitida">Não são seguidores.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Não são streams.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Não é dinheiro.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Não é status.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Existe o que construímos quando ninguém estava olhando.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">O respeito vem antes dos números.</span>
+          </span>
+          <span className="l fim">
+            <span className="nitida">Passem a respeitar.</span>
+          </span>
         </div>
         <button type="button" id="ligar">
           ligar o som

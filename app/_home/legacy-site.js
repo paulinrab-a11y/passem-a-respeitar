@@ -5,7 +5,11 @@
 
 // Fechar a abertura e um contrato com o HomeRuntime (#238): ele fecha quando
 // este script nao chega, a intro fecha quando chega. Os dois pelo mesmo lugar.
-import { fechaAbertura } from './abertura';
+// E o desfoque da entrada do manifesto, sem animar `filter` (#286).
+import { fechaAbertura, nevoaDaLinha } from './abertura';
+// O que a cena faz sozinha no tempo, e quando ela vai para a GPU, com e sem
+// "reduzir movimento" (#286).
+import { giroDaCorrente, paralaxe, pulsoDaLuz, relogio, vigiaDeQuadro } from './cena';
 // E o navegador tem WebGL? A resposta decide se a cena que lancou e um
 // aparelho sem 3D (esperado) ou um bug que o Sentry precisa saber.
 import { temWebGL } from './webgl';
@@ -89,7 +93,8 @@ $('#igLabel').href = CONFIG.links.igLabel;
 if (CONFIG.logoUrl){
   const logo = `<img src="${CONFIG.logoUrl}" alt="" draggable="false"><span>Passem a respeitar</span>`;
   // O logo do hero ja vem do servidor, como next/image com priority (#47).
-  $('#manifesto .fim').innerHTML = logo;
+  // Na camada nitida: a copia borrada da intro sai dela (#286).
+  $('#manifesto .fim .nitida').innerHTML = logo;
 }
 const driveAudio = id => /^(https?:|\/)/.test(id) ? [id] : [
   `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`,
@@ -560,17 +565,34 @@ const GL = (()=>{ try {
   const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
   let ultimoElo = -1, tPrev = performance.now();
 
+  // Com movimento reduzido a cena nao se mexe sozinha (#286): o relogio das
+  // derivas para em zero e o mouse sai da conta (ver cena.ts). O que sobra
+  // anda com a rolagem e assenta, e cena assentada nao vai para a GPU. O que
+  // se ve sai da camera, da corrente, da luz, do fim e da opacidade de cada
+  // PNG e frase — as posicoes deles vem da corrente e da camera.
+  const vigia = vigiaDeQuadro(), pose = [];
+  function poseDaCena(){
+    const c = camera.position, q = camera.quaternion;
+    pose.length = 0;
+    pose.push(c.x, c.y, c.z, q.x, q.y, q.z, q.w, corrente.position.y, corrente.rotation.y,
+      vermelho.intensity, S.fim, flutuantes.length, frases.length);
+    flutuantes.forEach(m=> pose.push(m.material.uniforms.op.value));
+    frases.forEach(m=> pose.push(m.material.opacity));
+    return pose;
+  }
+
   function frame(now){
     requestAnimationFrame(frame);
     if (document.hidden) return;
     const dt = Math.min((now - tPrev)/1000, 0.05); tPrev = now;
-    const t = now/1000;
+    const t = now/1000, tA = relogio(t, reduzMotion);
+    const my = paralaxe(S.my, reduzMotion);
 
     S.p += (S.pAlvo - S.p) * (1 - Math.pow(0.001, dt));
     S.fim += (S.fimAlvo - S.fim) * (1 - Math.pow(0.001, dt));
 
     corrente.position.y = (1 - S.queda) * 16;
-    corrente.rotation.y = t*0.12 + S.p*1.2 + S.mx*0.35;
+    corrente.rotation.y = giroDaCorrente(t, S.p, S.mx, reduzMotion);
     corrente.updateMatrixWorld(true);
 
     const f = S.p * (TRACKS.length - 1);
@@ -578,33 +600,33 @@ const GL = (()=>{ try {
     const fimOff = S.fim * 2.4;
     const lado = (Math.floor(f + 0.5) % 2 ? -1 : 1) * (mobile ? 0.1 : 0.75);
     camera.position.x += ((alvo.x + lado) - camera.position.x) * 0.08;
-    camera.position.y += ((alvo.y + 0.15 - fimOff - S.my*0.25) - camera.position.y) * 0.08;
+    camera.position.y += ((alvo.y + 0.15 - fimOff - my*0.25) - camera.position.y) * 0.08;
     camera.position.z += ((alvo.z + (mobile ? 6.6 : 3.4) + S.fim*1.4) - camera.position.z) * 0.08;
     tmpB.copy(alvo); tmpB.y -= fimOff;
     if (S.shake > 0.001){ tmpB.x += (Math.random()-.5)*S.shake; tmpB.y += (Math.random()-.5)*S.shake; S.shake *= 0.9; }
     camera.lookAt(tmpB);
 
     vermelho.position.set(camera.position.x + 1.4, camera.position.y - 0.5, camera.position.z - 1.6);
-    vermelho.intensity = 1.5 + Math.sin(t*1.7)*0.35 + S.fim*1.5;
+    vermelho.intensity = pulsoDaLuz(t, S.fim, reduzMotion);
 
     flutuantes.forEach(m=>{
       const d = m.userData, base = posElo(d.elo, tmpB); base.y -= corrente.position.y;
-      m.position.set(base.x + d.lado*(mobile?1.5:1.9) + Math.sin(t*0.4+d.fase)*0.18,
-                     base.y + 0.3 + Math.cos(t*0.5+d.fase)*0.22,
-                     base.z + 0.6 + Math.sin(t*0.3+d.fase)*0.3);
+      m.position.set(base.x + d.lado*(mobile?1.5:1.9) + Math.sin(tA*0.4+d.fase)*0.18,
+                     base.y + 0.3 + Math.cos(tA*0.5+d.fase)*0.22,
+                     base.z + 0.6 + Math.sin(tA*0.3+d.fase)*0.3);
       m.lookAt(camera.position);
-      m.rotation.z = Math.sin(t*0.35+d.fase)*0.12;
+      m.rotation.z = Math.sin(tA*0.35+d.fase)*0.12;
       const prox = Math.max(0, 1 - Math.abs(d.elo - f)*1.1);
       m.material.uniforms.op.value += (prox*0.95 - m.material.uniforms.op.value)*0.06;
     });
 
     frases.forEach(m=>{
       const d = m.userData, base = posElo(d.elo, tmpB); base.y -= corrente.position.y;
-      const dx = d.lado * (mobile ? 1.4 : 2.3) + Math.sin(t*0.25+d.fase)*0.12;
-      m.position.set(base.x + dx, base.y + Math.cos(t*0.32+d.fase)*0.16, base.z + d.prof + Math.sin(t*0.2+d.fase)*0.15);
+      const dx = d.lado * (mobile ? 1.4 : 2.3) + Math.sin(tA*0.25+d.fase)*0.12;
+      m.position.set(base.x + dx, base.y + Math.cos(tA*0.32+d.fase)*0.16, base.z + d.prof + Math.sin(tA*0.2+d.fase)*0.15);
       m.lookAt(camera.position);
-      m.rotateY(d.giro + Math.sin(t*0.3+d.fase)*0.25);
-      m.rotation.z += Math.sin(t*0.27+d.fase)*0.05;
+      m.rotateY(d.giro + Math.sin(tA*0.3+d.fase)*0.25);
+      m.rotation.z += Math.sin(tA*0.27+d.fase)*0.05;
       const prox = Math.max(0, 1 - Math.abs(d.elo - f)*0.75);
       m.material.opacity += (prox*0.92 - m.material.opacity)*0.06;
       m.visible = m.material.opacity > 0.01;
@@ -621,9 +643,9 @@ const GL = (()=>{ try {
       const k = ease(S.fim);
       const arr = pGeo.attributes.position.array;
       for (let i=0;i<N;i++){
-        const j=i*3, dr = Math.sin(t*0.8 + i)*0.02*(1-k);
+        const j=i*3, dr = Math.sin(tA*0.8 + i)*0.02*(1-k);
         arr[j]   = pA[j]   + (pB[j]   - pA[j])   * k + dr;
-        arr[j+1] = pA[j+1] + (pB[j+1] - pA[j+1]) * k + Math.cos(t*0.6 + i*0.3)*0.015;
+        arr[j+1] = pA[j+1] + (pB[j+1] - pA[j+1]) * k + Math.cos(tA*0.6 + i*0.3)*0.015;
         arr[j+2] = pA[j+2] + (pB[j+2] - pA[j+2]) * k;
       }
       pGeo.attributes.position.needsUpdate = true;
@@ -631,6 +653,7 @@ const GL = (()=>{ try {
       elos[TRACKS.length-1].scale.setScalar(1 - k*0.85);
       elos[TRACKS.length-1].material.opacity = 1 - k;
     }
+    if (reduzMotion && !vigia.precisaDesenhar(poseDaCena())) return;
     renderer.render(scene, camera);
   }
   function ease(x){ return x<0.5 ? 2*x*x : 1-Math.pow(-2*x+2,2)/2; }
@@ -639,7 +662,8 @@ const GL = (()=>{ try {
 
   addEventListener('resize', ()=>{
     camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
+    // `setSize` apaga o canvas: com a cena parada, nada mais o redesenharia.
+    renderer.setSize(innerWidth, innerHeight); vigia.invalida();
   });
 
   return { S, camera };
@@ -686,8 +710,18 @@ ScrollTrigger.create({
   } else {
     tl.to('#ligar', { opacity:1, duration:.6 }, .4);
     linhas.forEach((l,i)=>{
-      const fim = l.classList.contains('fim');
-      tl.to(l, { opacity:1, filter:'blur(0px)', y:0, skewX:0, duration: fim ? .9 : .55 }, fim ? '+=.55' : (i? '+=.35' : .6));
+      const fim = l.classList.contains('fim'), dur = fim ? .9 : .55;
+      tl.to(l, { opacity:1, y:0, skewX:0, duration: dur }, fim ? '+=.55' : (i? '+=.35' : .6));
+      // O desfoque saindo, sem `filter` (#286): a copia borrada some na mesma
+      // curva em que a nitida aparece. Com a opacidade da linha subindo junto,
+      // o borrado pesa no comeco e o nitido no fim, como o blur de 14px indo
+      // a zero fazia.
+      const camadas = nevoaDaLinha(l);
+      if (camadas){
+        gsap.set(camadas.nitida, { opacity:0 });
+        tl.to(camadas.nitida, { opacity:1, duration: dur }, '<');
+        tl.to(camadas.nevoa, { opacity:0, duration: dur }, '<');
+      }
       if (!fim) tl.to(l, { opacity:.28, duration:.3 }, '+=.6');
     });
     tl.add(()=>{ Som.corrente(1.4); GL.S.shake = .35; }, '-=.2');
@@ -775,7 +809,7 @@ const Loja = (()=>{
     const gola = new THREE.Mesh(new THREE.TorusGeometry(0.47, 0.065, 10, 40), new THREE.MeshStandardMaterial({ color:0x141416, roughness:0.85 }));
     gola.position.set(0, 1.18, 0.02); gola.scale.set(1, 0.72, 1); camisa.add(gola);
 
-    const tex = new THREE.TextureLoader().load(CONFIG.merchBrasao || '/brasao.png', t=>{ t.encoding = THREE.sRGBEncoding; });
+    const tex = new THREE.TextureLoader().load(CONFIG.merchBrasao || '/brasao.png', t=>{ t.encoding = THREE.sRGBEncoding; vigiaDaVitrine.invalida(); });
     const bw = 0.92, bh = bw * 393/360;
     brasao = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh, 1, 1), new THREE.MeshStandardMaterial({ color:0xf3f3f3, roughness:0.7, alphaMap:tex, transparent:true, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2 }));
     brasao.position.set(0, 0.28, 0.34/2 + 0.14 + 0.012);
@@ -795,7 +829,9 @@ const Loja = (()=>{
           const k = 3.1 / Math.max(tam.y, 0.001);
           m.position.sub(centro).multiplyScalar(k); m.scale.setScalar(k);
           m.traverse(o=>{ if (o.isMesh && o.material){ o.material.side = THREE.DoubleSide; if ('roughness' in o.material) o.material.roughness = Math.max(o.material.roughness, 0.6); } });
-          camisa.clear(); camisa.add(m);
+          // O modelo chega segundos depois do primeiro quadro: com a vitrine
+          // parada, sem isto ficava para sempre a silhueta (#286).
+          camisa.clear(); camisa.add(m); vigiaDaVitrine.invalida();
         }, undefined, tenta);
       };
       tenta();
@@ -812,6 +848,8 @@ const Loja = (()=>{
     if (!renderer) return;
     const w = vit.clientWidth, hgt = vit.clientHeight;
     renderer.setSize(w, hgt, false); camera.aspect = w/hgt; camera.updateProjectionMatrix();
+    // `setSize` apaga o canvas — tambem ao reabrir a loja, que passa por aqui.
+    vigiaDaVitrine.invalida();
   }
   addEventListener('resize', ()=> aberto && redimensiona());
   // Orcamento de quadro (#217). Com o modelo de 73 k triangulos, uma GPU por
@@ -821,9 +859,12 @@ const Loja = (()=>{
   // custo do quadro anterior: o dobro dele, entre 16 e 250 ms. Em GPU normal
   // o custo e de 1-2 ms e nada muda.
   //
-  // Com movimento reduzido a camiseta nao gira nem flutua sozinha: so se mexe
-  // quando a pessoa arrasta, e so e redesenhada enquanto se mexe.
-  let ultimoQuadro = 0, custo = 0, desenhou = false;
+  // Com movimento reduzido a camiseta nao gira, nao flutua e nao volta
+  // sozinha depois de solta: so se mexe enquanto a pessoa arrasta. E so vai
+  // para a GPU quando a imagem mudou (#286) — a pose, ou o que nao passa por
+  // ela e foi avisado: canvas redimensionado, modelo ou brasao que chegou.
+  let ultimoQuadro = 0, custo = 0;
+  const vigiaDaVitrine = vigiaDeQuadro(), poseDaVitrine = [0, 0];
   function loop(){
     if (!aberto) return;
     requestAnimationFrame(loop);
@@ -833,12 +874,13 @@ const Loja = (()=>{
     // vitrine ocupa um terco do tempo e a pagina continua respondendo.
     if (agora - ultimoQuadro < Math.max(16, custo * 3)) return;
     ultimoQuadro = agora;
-    if (!arrastando){ velY *= 0.92; rotY += velY + (reduzMotion ? 0 : 0.004); rotX += (0.05 - rotX)*0.03; }
+    if (!arrastando && !reduzMotion){ velY *= 0.92; rotY += velY + 0.004; rotX += (0.05 - rotX)*0.03; }
     camisa.rotation.set(rotX, rotY, 0);
     camisa.position.y = reduzMotion ? 0 : Math.sin(agora/1400)*0.04;
-    if (reduzMotion && desenhou && !arrastando && Math.abs(velY) < 0.0005) return;
+    poseDaVitrine[0] = rotX; poseDaVitrine[1] = rotY;
+    if (reduzMotion && !vigiaDaVitrine.precisaDesenhar(poseDaVitrine)) return;
     renderer.render(scene, camera);
-    custo = performance.now() - agora; desenhou = true;
+    custo = performance.now() - agora;
   }
   let giro = null, quadro = 0, giroX0 = 0, giroAcc = 0, giroAtivo = false, giroTimer = null;
   // 3D ou fotos (#217)? O modelo da camiseta tem 73 k triangulos com normal

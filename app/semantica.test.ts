@@ -293,6 +293,18 @@ describe('home renderizada', () => {
     }
   });
 
+  // #286: a intro acende `.nitida` por cima de uma copia borrada, montada no
+  // cliente. No HTML, cada linha tem a camada e o texto vem uma vez so.
+  it('cada linha do manifesto tem a camada nitida, e o texto vem uma vez so', async () => {
+    const linhas = [...(await home()).querySelectorAll('#manifesto .l')];
+
+    expect(linhas).toHaveLength(7);
+    for (const linha of linhas) {
+      expect([...linha.children].map((filho) => filho.className)).toEqual(['nitida']);
+    }
+    expect(linhas.at(-1)?.textContent).toBe('Passem a respeitar.');
+  });
+
   // #280: era um <div> clicavel, fora do Tab e sem papel de controle.
   it('o indicador "tocando" e um botao que nasce apagado, com o atalho exposto', async () => {
     const pill = (await home()).querySelector('#tocando');
