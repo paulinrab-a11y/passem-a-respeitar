@@ -53,6 +53,14 @@ export type CriacaoDePedido =
 type LinhaCriada = { pedido_id: string; pedido_numero: number };
 
 /**
+ * O SQLSTATE de `cria_pedido` quando falta estoque, ou quando a variacao saiu
+ * do ar entre o orcamento e a gravacao (#296). Codigo proprio, e nao o texto
+ * da mensagem nem `check_violation`: este ultimo tambem e o de "pedido sem
+ * frete", que e bug nosso e nao recado para quem compra.
+ */
+const SEM_ESTOQUE = 'ES001';
+
+/**
  * Cria o pedido do usuario da sessao.
  *
  * `bruto` e `unknown` de proposito: quem chama entrega o corpo do request como
@@ -104,6 +112,10 @@ export async function criaPedido(bruto: unknown): Promise<CriacaoDePedido> {
       prazo_dias: frete.prazoDias,
     },
   });
+
+  // O estoque e conferido no banco, com a variacao travada, e nao no
+  // orcamento: so la duas compras da ultima peca nao passam juntas.
+  if (error?.code === SEM_ESTOQUE) return { ok: false, motivo: 'produto-indisponivel' };
 
   const criado = (data as LinhaCriada[] | null)?.[0];
   if (error || !criado) return { ok: false, motivo: 'nao-consegui-gravar' };
