@@ -229,6 +229,13 @@ for (const [caso, cep, frase, oferece] of [
     'Não consegui calcular o frete agora. Tente de novo em instantes.',
     true,
   ],
+  // #290: recusa que nao e do CEP nao manda conferir o CEP.
+  [
+    'Melhor Envio recusa a medida do produto',
+    CEPS.produtoRecusado,
+    'O frete está indisponível no momento. Tente de novo mais tarde.',
+    true,
+  ],
 ] as const) {
   test(`frete: ${caso} diz o que fazer e nao deixa finalizar`, async ({ logada }) => {
     const antes = await pedidosDe(quem);
