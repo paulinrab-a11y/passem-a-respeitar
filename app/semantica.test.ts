@@ -292,4 +292,19 @@ describe('home renderizada', () => {
       expect(guia.querySelector('h2')?.id).toBe(titulos[i]);
     }
   });
+
+  // #280: era um <div> clicavel, fora do Tab e sem papel de controle.
+  it('o indicador "tocando" e um botao que nasce apagado, com o atalho exposto', async () => {
+    const pill = (await home()).querySelector('#tocando');
+
+    expect(pill?.localName).toBe('button');
+    expect(pill?.getAttribute('type')).toBe('button');
+    expect(pill?.getAttribute('aria-keyshortcuts')).toBe('N');
+    // Apagado e transparente: fora do Tab e do leitor de tela ate o som ligar.
+    expect(pill?.getAttribute('tabindex')).toBe('-1');
+    expect(pill?.getAttribute('aria-hidden')).toBe('true');
+    // O nome comeca pelo beat, que o script escreve, e diz o que o botao faz.
+    expect(pill?.querySelector('#tocandoNome')).not.toBeNull();
+    expect(pill?.querySelector('.sr')?.textContent).toBe(', pular para o próximo beat');
+  });
 });
