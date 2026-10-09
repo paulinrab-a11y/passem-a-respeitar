@@ -113,8 +113,19 @@ describe('abertura sem filter animado', () => {
 
   it('a timeline da intro nao tweena filter', () => {
     expect(SCRIPT).not.toMatch(/\bfilter\s*:\s*['"`]/);
-    expect(SCRIPT).toContain("tl.to(camadas.nevoa, { opacity:0, duration: dur }, '<');");
-    expect(SCRIPT).toContain("tl.to(camadas.nitida, { opacity:1, duration: dur }, '<');");
+    expect(SCRIPT).toContain(
+      "tl.to(camadas.nevoa, { opacity:0, duration: dur, ease: foco }, '<');"
+    );
+    expect(SCRIPT).toContain(
+      "tl.to(camadas.nitida, { opacity:1, duration: dur, ease: foco }, '<');"
+    );
+  });
+
+  it('a troca de camadas segue o quadrado da curva da linha', () => {
+    expect(SCRIPT).toContain(
+      "const curva = gsap.parseEase('power3.out'), foco = x => { const p = curva(x); return p*p; };"
+    );
+    expect(SCRIPT).toContain("const tl = gsap.timeline({ defaults:{ ease:'power3.out' } });");
   });
 });
 

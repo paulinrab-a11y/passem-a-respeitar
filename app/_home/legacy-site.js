@@ -709,18 +709,20 @@ ScrollTrigger.create({
     GL.S.queda = 1;
   } else {
     tl.to('#ligar', { opacity:1, duration:.6 }, .4);
+    // O desfoque saindo, sem `filter` (#286): a copia borrada some enquanto a
+    // nitida aparece, e a linha inteira sobe de opacidade por cima. A troca
+    // segue o quadrado da curva da linha: medido lado a lado com o blur
+    // antigo, e o que deixa o meio da entrada tao borrado quanto era — na
+    // mesma curva, o nitido chegava cedo demais.
+    const curva = gsap.parseEase('power3.out'), foco = x => { const p = curva(x); return p*p; };
     linhas.forEach((l,i)=>{
       const fim = l.classList.contains('fim'), dur = fim ? .9 : .55;
       tl.to(l, { opacity:1, y:0, skewX:0, duration: dur }, fim ? '+=.55' : (i? '+=.35' : .6));
-      // O desfoque saindo, sem `filter` (#286): a copia borrada some na mesma
-      // curva em que a nitida aparece. Com a opacidade da linha subindo junto,
-      // o borrado pesa no comeco e o nitido no fim, como o blur de 14px indo
-      // a zero fazia.
       const camadas = nevoaDaLinha(l);
       if (camadas){
         gsap.set(camadas.nitida, { opacity:0 });
-        tl.to(camadas.nitida, { opacity:1, duration: dur }, '<');
-        tl.to(camadas.nevoa, { opacity:0, duration: dur }, '<');
+        tl.to(camadas.nitida, { opacity:1, duration: dur, ease: foco }, '<');
+        tl.to(camadas.nevoa, { opacity:0, duration: dur, ease: foco }, '<');
       }
       if (!fim) tl.to(l, { opacity:.28, duration:.3 }, '+=.6');
     });
