@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ESPERA_MS } from '@/lib/concierge/gemini';
+import { ESPERA_DA_LOJA_MS, ESPERA_MS } from '@/lib/concierge/gemini';
 import { reais } from '@/lib/conta/pedidos';
-import { POST } from './route';
+import type { ProdutoDaVitrine } from '@/lib/loja/catalogo';
+import { ESPERA_DO_REDIS_MS } from '@/lib/rate-limit';
+import { ESPERA_DO_DESAFIO_MS } from '@/lib/robo';
+import { ESPERA_DO_ENVIO_MS } from '@/lib/sentry/depois';
+import { maxDuration, POST } from './route';
 
 /**
  * A rota do concierge (#191). O que se prova aqui e a ordem das barreiras e
@@ -15,24 +19,25 @@ vi.mock('@sentry/nextjs', () => ({
 }));
 
 // O catalogo e do banco; aqui, fixo. O preco nao e o de producao de proposito.
-vi.mock('@/lib/loja/catalogo', () => ({
-  vitrine: async () => [
-    {
-      slug: 'camiseta-cbac',
-      nome: 'Camiseta CBAC',
-      descricao: null,
-      variacoes: ['P', 'M'].map((tamanho) => ({ tamanho, precoCentavos: 13900 })),
-      precoCentavos: 13900,
-      guia: null,
-    },
-  ],
-}));
+const VITRINE: ProdutoDaVitrine[] = [
+  {
+    slug: 'camiseta-cbac',
+    nome: 'Camiseta CBAC',
+    descricao: null,
+    variacoes: ['P', 'M'].map((tamanho) => ({ tamanho, precoCentavos: 13900 })),
+    precoCentavos: 13900,
+    guia: null,
+  },
+];
+const vitrine = vi.fn<() => Promise<ProdutoDaVitrine[]>>();
+vi.mock('@/lib/loja/catalogo', () => ({ vitrine: () => vitrine() }));
 
 // Inventada. A de verdade nunca entra num teste.
 const CHAVE = 'chave-de-teste';
 
 const RESPOSTA = 'Sai dia 20 de novembro.';
 const ERRO_DE_ENTRADA = 'Não entendi. Escreve a pergunta de novo, mais curta.';
+const MUITAS_PERGUNTAS = 'Muitas perguntas de uma vez. Espera um pouco e tenta de novo.';
 
 const pedido = vi.fn<typeof fetch>();
 
@@ -67,6 +72,8 @@ beforeEach(() => {
   vi.stubEnv('GEMINI_API_KEY', CHAVE);
   pedido.mockReset();
   geminiResponde(RESPOSTA);
+  vitrine.mockReset();
+  vitrine.mockResolvedValue(VITRINE);
 });
 
 afterEach(() => {
@@ -255,5 +262,136 @@ describe('POST /api/concierge', () => {
     expect(r.status).toBe(502);
     expect(texto).not.toContain('aborted');
     expect(texto).not.toContain('AbortError');
+  });
+});
+
+/**
+ * O teto do site inteiro por hora (#281). Cada caso com o modulo novo: o
+ * contador global mora na memoria do rate limit, e os casos de cima ja
+ * gastaram dele. `pede` troca de IP a cada chamada, entao o que barra aqui e
+ * o teto, nao o limite por IP.
+ */
+describe('teto global por hora', () => {
+  async function rotaNova() {
+    vi.resetModules();
+    return (await import('./route')).POST;
+  }
+
+  it('passado o teto, a pergunta leva 429 com Retry-After, e nada sai para o Gemini', async () => {
+    vi.stubEnv('CONCIERGE_LIMITE_HORA', '2');
+    const post = await rotaNova();
+
+    expect((await post(pede({ mensagem: 'um' }))).status).toBe(200);
+    expect((await post(pede({ mensagem: 'dois' }))).status).toBe(200);
+    pedido.mockClear();
+
+    const bloqueado = await post(pede({ mensagem: 'tres' }));
+    expect(bloqueado.status).toBe(429);
+    expect(await bloqueado.json()).toEqual({ ok: false, erro: MUITAS_PERGUNTAS });
+    const espera = Number(bloqueado.headers.get('Retry-After'));
+    expect(espera).toBeGreaterThan(0);
+    expect(espera).toBeLessThanOrEqual(60 * 60);
+    expect(pedido).not.toHaveBeenCalled();
+  });
+
+  it('sem a variavel, o teto e de 300 por hora', async () => {
+    const post = await rotaNova();
+
+    for (let i = 0; i < 300; i++) {
+      expect((await post(pede({ mensagem: `pergunta ${i}` }))).status).toBe(200);
+    }
+    expect((await post(pede({ mensagem: 'a 301a' }))).status).toBe(429);
+  });
+
+  // Erro de digitacao na Vercel nao pode desligar o concierge, nem tirar o teto.
+  it.each(['abc', '0', '-5', '2.5'])('valor torto (%s) vale o padrao', async (valor) => {
+    vi.stubEnv('CONCIERGE_LIMITE_HORA', valor);
+    const post = await rotaNova();
+
+    for (let i = 0; i < 3; i++) {
+      expect((await post(pede({ mensagem: 'oi' }))).status).toBe(200);
+    }
+  });
+
+  // O teto conta o que gastaria a cota da chave, e so isso.
+  it('pergunta barrada antes, por formato ou isca, nao gasta o teto', async () => {
+    vi.stubEnv('CONCIERGE_LIMITE_HORA', '1');
+    const post = await rotaNova();
+
+    expect((await post(pede({ mensagem: '' }))).status).toBe(400);
+    expect((await post(pede({ mensagem: 'oi', website: 'https://spam.invalid' }))).status).toBe(
+      403
+    );
+    expect((await post(pede({ mensagem: 'agora sim' }))).status).toBe(200);
+  });
+
+  // Com o teto antes do limite por IP, um IP so gastaria a hora de todo mundo.
+  it('o IP barrado pelo proprio limite nao gasta o teto dos outros', async () => {
+    vi.stubEnv('CONCIERGE_LIMITE_HORA', '21');
+    const post = await rotaNova();
+    const ip = '198.51.100.7';
+
+    for (let i = 0; i < 20; i++) {
+      expect((await post(pede({ mensagem: 'oi' }, ip))).status).toBe(200);
+    }
+    expect((await post(pede({ mensagem: 'de novo' }, ip))).status).toBe(429);
+    expect((await post(pede({ mensagem: 'e de novo' }, ip))).status).toBe(429);
+
+    // A 21a vaga da hora continua livre para outra pessoa.
+    expect((await post(pede({ mensagem: 'oi' }, '198.51.100.8'))).status).toBe(200);
+  });
+});
+
+/**
+ * O orcamento de tempo (#281). Cada etapa vai ate o fim do proprio prazo: a
+ * Cloudflare responde um instante antes do dela, o catalogo e o Gemini nao
+ * respondem nunca. O que nao da para medir aqui — o Redis, que nos testes e
+ * a memoria, e o envio ao Sentry depois da resposta — entra pelo prazo de
+ * cada um. Com o `maxDuration` antigo, de 30 s, a conta nao fechava.
+ */
+describe('orcamento de tempo', () => {
+  it('o pior caso, com o envio ao Sentry, cabe no maxDuration', async () => {
+    vi.useFakeTimers();
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'site-de-teste');
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'segredo-de-teste');
+    vitrine.mockImplementation(() => new Promise(() => undefined));
+    pedido.mockImplementation((url, opcoes) => {
+      if (String(url).includes('challenges.cloudflare.com')) {
+        const conferido = { success: true, action: 'concierge' };
+        return new Promise((resolve) =>
+          setTimeout(
+            () => resolve(new Response(JSON.stringify(conferido))),
+            ESPERA_DO_DESAFIO_MS - 1
+          )
+        );
+      }
+      return new Promise((_resolve, reject) => {
+        opcoes?.signal?.addEventListener('abort', () =>
+          reject(new DOMException('The operation was aborted', 'AbortError'))
+        );
+      });
+    });
+
+    const inicio = Date.now();
+    let fim = 0;
+    const promessa = POST(pede({ mensagem: 'oi', desafio: 'token-de-teste' })).then((r) => {
+      fim = Date.now();
+      return r;
+    });
+    // Dois minutos, bem mais que qualquer prazo: quem decide a conta e o
+    // `expect` abaixo, nao o tempo que o teste deixou correr.
+    await vi.advanceTimersByTimeAsync(2 * 60 * 1000);
+    const r = await promessa;
+    const decorrido = fim - inicio;
+
+    expect(r.status).toBe(502);
+    // Cada etapa foi mesmo ate o fim do prazo dela...
+    expect(decorrido).toBeGreaterThanOrEqual(
+      ESPERA_DO_DESAFIO_MS - 1 + ESPERA_DA_LOJA_MS + 2 * ESPERA_MS
+    );
+    // ...e, com os dois limites no Redis e o envio ao Sentry, ainda sobra.
+    expect(decorrido + 2 * ESPERA_DO_REDIS_MS + ESPERA_DO_ENVIO_MS).toBeLessThan(
+      maxDuration * 1000
+    );
   });
 });

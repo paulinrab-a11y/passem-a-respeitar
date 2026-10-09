@@ -2,6 +2,7 @@ import 'server-only';
 
 import * as Sentry from '@sentry/nextjs';
 import { type ProdutoDaVitrine, vitrine } from '@/lib/loja/catalogo';
+import { enviaDepois } from '@/lib/sentry/depois';
 import { blocoDaLoja, PROMPT_DO_CONCIERGE } from './prompt';
 
 /**
@@ -34,7 +35,10 @@ export const MODELO_RESERVA = 'gemini-flash-lite-latest';
 const urlDoModelo = (modelo: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 
-/** Por tentativa. Duas tentativas cabem no `maxDuration` da rota. */
+/**
+ * Por tentativa. As duas, mais o catalogo, entram na soma do `maxDuration`
+ * da rota (app/api/concierge/route.ts); o teste de la confere a conta.
+ */
 export const ESPERA_MS = 12_000;
 
 /**
@@ -143,17 +147,28 @@ export function extraiTexto(resposta: RespostaDoGemini): string | null {
 
 let avisouChave = false;
 
-async function avisa(motivo: string, extra?: Record<string, unknown>) {
-  // Tambem no log da funcao: o Sentry pode estar desligado no preview, e o
-  // log da Vercel e onde se olha primeiro. So categoria, status e modelo.
-  console.error('[concierge]', [motivo, extra?.status, extra?.modelo].filter(Boolean).join(':'));
-  Sentry.captureMessage('concierge: nao consegui responder', {
-    level: 'error',
-    tags: { motivo },
-    extra,
-  });
-  // Funcao serverless congela assim que responde; sem isto o evento nao sai.
-  await Sentry.flush(2000);
+/** O que deu errado numa tentativa: categoria, e no maximo status e modelo. */
+type Aviso = { motivo: string; extra?: { status?: number; modelo: string } };
+
+/**
+ * Os avisos de uma pergunta, com um envio so ao Sentry, depois da resposta
+ * (#281). Antes cada tentativa esperava o proprio `flush`: ate 2 s a mais
+ * por modelo, dentro do tempo que a rota tem para responder.
+ */
+function avisa(avisos: Aviso[]) {
+  if (avisos.length === 0) return;
+
+  for (const { motivo, extra } of avisos) {
+    // Tambem no log da funcao: o Sentry pode estar desligado no preview, e o
+    // log da Vercel e onde se olha primeiro. So categoria, status e modelo.
+    console.error('[concierge]', [motivo, extra?.status, extra?.modelo].filter(Boolean).join(':'));
+    Sentry.captureMessage('concierge: nao consegui responder', {
+      level: 'error',
+      tags: { motivo },
+      extra,
+    });
+  }
+  enviaDepois();
 }
 
 /**
@@ -171,19 +186,27 @@ export async function pergunta(historico: Troca[], mensagem: string): Promise<st
     // Uma vez por instancia: a falta da variavel e um aviso, nao um ataque.
     if (!avisouChave) {
       avisouChave = true;
-      await avisa('sem-chave');
+      avisa([{ motivo: 'sem-chave' }]);
     }
     return null;
   }
 
   const corpo = JSON.stringify(montaCorpo(historico, mensagem, await leLoja()));
+  const avisos: Aviso[] = [];
 
-  for (const modelo of [MODELO, MODELO_RESERVA]) {
-    const resultado = await tenta(modelo, chave, corpo);
-    if (resultado.texto !== null) return resultado.texto;
-    if (!resultado.tentaOutro) return null;
+  try {
+    for (const modelo of [MODELO, MODELO_RESERVA]) {
+      const resultado = await tenta(modelo, chave, corpo);
+      if (resultado.aviso) avisos.push(resultado.aviso);
+      if (resultado.texto !== null) return resultado.texto;
+      if (!resultado.tentaOutro) return null;
+    }
+    return null;
+  } finally {
+    // Tambem quando o reserva salva a pergunta: o principal caiu, e isso
+    // e o que se quer ver no Sentry.
+    avisa(avisos);
   }
-  return null;
 }
 
 /**
@@ -208,7 +231,7 @@ async function leLoja(): Promise<ProdutoDaVitrine[]> {
   }
 }
 
-type Tentativa = { texto: string | null; tentaOutro: boolean };
+type Tentativa = { texto: string | null; tentaOutro: boolean; aviso?: Aviso };
 
 async function tenta(modelo: string, chave: string, corpo: string): Promise<Tentativa> {
   const controle = new AbortController();
@@ -228,18 +251,22 @@ async function tenta(modelo: string, chave: string, corpo: string): Promise<Tent
 
     if (!r.ok) {
       // O status e nosso para saber; o corpo do Google nao vai adiante.
-      await avisa('http', { status: r.status, modelo });
-      return { texto: null, tentaOutro: PASSA_AO_RESERVA.has(r.status) };
+      return {
+        texto: null,
+        tentaOutro: PASSA_AO_RESERVA.has(r.status),
+        aviso: { motivo: 'http', extra: { status: r.status, modelo } },
+      };
     }
 
     const texto = extraiTexto((await r.json()) as RespostaDoGemini);
-    if (texto === null) await avisa('sem-texto', { modelo });
+    if (texto === null) {
+      return { texto, tentaOutro: false, aviso: { motivo: 'sem-texto', extra: { modelo } } };
+    }
     return { texto, tentaOutro: false };
   } catch (erro) {
     const motivo = erro instanceof Error && erro.name === 'AbortError' ? 'demora' : 'rede';
-    await avisa(motivo, { modelo });
     // Demora no principal e o mesmo sintoma da sobrecarga.
-    return { texto: null, tentaOutro: motivo === 'demora' };
+    return { texto: null, tentaOutro: motivo === 'demora', aviso: { motivo, extra: { modelo } } };
   } finally {
     clearTimeout(prazo);
   }

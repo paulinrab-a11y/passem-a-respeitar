@@ -77,6 +77,7 @@ import 'server-only';
 
 import { createHash } from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
+import { enviaDepois } from '@/lib/sentry/depois';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { EM_ABERTO, type EstadoInterno, emAberto, podeAvancar } from './estado-do-pagamento';
 import {
@@ -529,7 +530,7 @@ async function aplica(
     // disso e este, porque o pedido ja estava `pago` e nada mais muda. (#6)
     const irmas = await encerraAbertas(admin, pagamento.order_id, origem, pagamento.id);
     if (irmas.aprovadas > 0) {
-      await avisaPagamento('pagamento duplicado a estornar', pagamento.order_id);
+      avisaPagamento('pagamento duplicado a estornar', pagamento.order_id);
     }
   }
 
@@ -569,7 +570,7 @@ export async function marcaPago(admin: Admin, orderId: string): Promise<void> {
     .maybeSingle();
 
   if (pedido?.status !== 'pago') {
-    await avisaPagamento('pagamento aprovado em pedido nao pendente', orderId);
+    avisaPagamento('pagamento aprovado em pedido nao pendente', orderId);
   }
 }
 
@@ -606,7 +607,7 @@ async function marcaReembolsado(admin: Admin, orderId: string, pagamentoId: stri
     .neq('id', pagamentoId);
 
   if (aprovadas?.length) {
-    await avisaPagamento('pagamento duplicado estornado: pedido segue pago', orderId, 'warning');
+    avisaPagamento('pagamento duplicado estornado: pedido segue pago', orderId, 'warning');
     return;
   }
 
@@ -618,7 +619,7 @@ async function marcaReembolsado(admin: Admin, orderId: string, pagamentoId: stri
     .select('id');
 
   if (data?.length) {
-    await avisaPagamento('pagamento estornado no provedor: pedido reembolsado', orderId, 'warning');
+    avisaPagamento('pagamento estornado no provedor: pedido reembolsado', orderId, 'warning');
   }
 }
 
@@ -857,14 +858,14 @@ function chaveDerivada(operacao: 'cancela' | 'estorna', chaveDaTentativa: string
  * valor ou corpo do provedor. `error` e dinheiro onde nao devia; `warning` e
  * dinheiro que voltou e o pedido ficou coerente com isso — acompanhou, ou
  * seguiu pago porque outra tentativa ainda o sustenta. Precisa ser visto,
- * nao acordar ninguem. Funcao serverless congela ao responder; sem o
- * `flush`, o evento nao sai.
+ * nao acordar ninguem. O envio sai depois da resposta (#281): o Mercado
+ * Pago recebe o 200 sem esperar o aviso ao dono.
  */
-async function avisaPagamento(
+function avisaPagamento(
   mensagem: AvisoDePagamento,
   orderId: string,
   nivel: 'error' | 'warning' = 'error'
-): Promise<void> {
+): void {
   Sentry.captureMessage(mensagem, { level: nivel, tags: { order_id: orderId } });
-  await Sentry.flush(2000);
+  enviaDepois();
 }

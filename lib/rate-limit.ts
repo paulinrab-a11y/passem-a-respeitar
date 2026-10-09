@@ -76,6 +76,9 @@ function limitaNaMemoria(chave: string, maximo: number, janelaMs: number): Cota 
  */
 const limitadores = new Map<string, Ratelimit>();
 
+/** Teto de cada consulta ao Redis. Rota com prazo curto conta com ele (#281). */
+export const ESPERA_DO_REDIS_MS = 1000;
+
 /**
  * Quem ja esta bloqueado nem vai ao Redis: o SDK guarda o "ate quando" aqui
  * e responde na hora. E o que segura uma rajada de custar uma chamada por
@@ -111,7 +114,7 @@ function limitador(redis: Redis, maximo: number, janelaMs: number): Ratelimit {
       // Redis lento nao pode segurar o login. Um segundo, e o SDK devolve
       // `reason: 'timeout'` — tratado abaixo como "cai na memoria", nunca
       // como "deixa passar".
-      timeout: 1000,
+      timeout: ESPERA_DO_REDIS_MS,
     });
     limitadores.set(id, l);
   }

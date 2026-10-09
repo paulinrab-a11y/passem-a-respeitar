@@ -14,6 +14,7 @@ import 'server-only';
  */
 
 import * as Sentry from '@sentry/nextjs';
+import { enviaDepois } from '@/lib/sentry/depois';
 import { montaEstado, type ResumoDoProvedor } from './estado-do-pagamento';
 
 const BASE = 'https://api.mercadopago.com';
@@ -201,15 +202,15 @@ function encontrada(ordem: OrdemDoProvedor, idPedido?: string): OrdemEncontrada 
 /**
  * Aviso ao dono de que a Orders API respondeu erro. Vai o HTTP e, quando ha,
  * o code do primeiro erro — nunca o corpo, que ecoa o que mandamos (e-mail,
- * documento). Funcao serverless congela ao responder; sem o `flush`, o
- * evento nao sai.
+ * documento). O envio sai depois da resposta (#281): quem esta no checkout
+ * ve a recusa sem esperar o aviso ao dono.
  */
-async function avisaFalha(status: number, nivel: 'error' | 'warning', code: string | null) {
+function avisaFalha(status: number, nivel: 'error' | 'warning', code: string | null) {
   Sentry.captureMessage('orders-api: falha', {
     level: nivel,
     tags: { status, ...(code ? { code } : {}) },
   });
-  await Sentry.flush(2000);
+  enviaDepois();
 }
 
 /**
@@ -239,14 +240,14 @@ function codigoDoErro(corpo: unknown): string | null {
  *            dono e avisado em tom mais baixo — um CPF que a conta passou a
  *            exigir recusa todo Pix, e isso nao pode ficar invisivel.
  */
-async function recusaDaCriacao(status: number, corpo: unknown): Promise<RespostaDaCobranca> {
+function recusaDaCriacao(status: number, corpo: unknown): RespostaDaCobranca {
   if (status === 401 || status === 403) {
-    await avisaFalha(status, 'error', null);
+    avisaFalha(status, 'error', null);
     return { ok: false, motivo: 'configuracao' };
   }
 
   if (status >= 500) {
-    await avisaFalha(status, 'error', null);
+    avisaFalha(status, 'error', null);
     return { ok: false, motivo: 'indisponivel' };
   }
 
@@ -263,7 +264,7 @@ async function recusaDaCriacao(status: number, corpo: unknown): Promise<Resposta
 
   if (status === 402) return { ok: false, motivo: 'recusado', resumo };
 
-  await avisaFalha(status, 'warning', code);
+  avisaFalha(status, 'warning', code);
   return { ok: false, motivo: 'invalido', resumo };
 }
 

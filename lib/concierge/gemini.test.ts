@@ -23,13 +23,21 @@ import { blocoDaLoja, PROMPT_DO_CONCIERGE } from './prompt';
  *   - a chave vai no cabecalho, nunca na URL
  *   - qualquer falha — chave ausente, HTTP de erro, resposta sem texto,
  *     demora, rede — vira `null`, e nada do erro original segue adiante
+ *   - o aviso ao Sentry sai num envio so, depois da resposta, e o pior caso
+ *     dura o catalogo mais as duas tentativas, nem um segundo a mais (#281)
  */
 
 const captureMessage = vi.fn();
+const flush = vi.fn(async (_ms?: number) => true);
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: (...a: unknown[]) => captureMessage(...a),
-  flush: async () => true,
+  flush: (ms?: number) => flush(ms),
 }));
+
+// O `after` do Next guarda a tarefa ate a resposta sair. Aqui ela fica
+// guardada ate o teste mandar rodar.
+const depois = vi.fn<(tarefa: () => unknown) => void>();
+vi.mock('next/server', () => ({ after: (tarefa: () => unknown) => depois(tarefa) }));
 
 // O catalogo e do banco; aqui, uma vitrine fixa com um preco que nao e o de
 // producao, para o teste provar que o numero vem dela e nao do prompt.
@@ -75,6 +83,9 @@ beforeEach(() => {
   vi.stubEnv('GEMINI_API_KEY', CHAVE);
   pedido.mockReset();
   captureMessage.mockReset();
+  flush.mockReset();
+  flush.mockResolvedValue(true);
+  depois.mockReset();
   vitrine.mockReset();
   vitrine.mockResolvedValue(VITRINE);
 });
@@ -234,6 +245,86 @@ describe('pergunta', () => {
     expect(await promessa).toBeNull();
     expect(pedido).toHaveBeenCalledTimes(2);
     expect(captureMessage.mock.calls[0]?.[1]).toMatchObject({ tags: { motivo: 'demora' } });
+  });
+});
+
+/** Um envio so ao Sentry por pergunta, e depois da resposta (#281). */
+describe('o aviso ao Sentry', () => {
+  it('resposta normal nao avisa nada', async () => {
+    respondeCom(respostaDoGemini('Veio.'));
+
+    await pergunta([], 'oi');
+
+    expect(captureMessage).not.toHaveBeenCalled();
+    expect(depois).not.toHaveBeenCalled();
+  });
+
+  it('principal e reserva caindo: dois avisos, um envio so, e so depois da resposta', async () => {
+    respondeCom({}, 503);
+
+    expect(await pergunta([], 'oi')).toBeNull();
+
+    expect(captureMessage).toHaveBeenCalledTimes(2);
+    expect(depois).toHaveBeenCalledTimes(1);
+    // A pergunta voltou e o Sentry ainda nao foi esperado.
+    expect(flush).not.toHaveBeenCalled();
+
+    await depois.mock.calls[0]?.[0]();
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
+  // O reserva salvar a pergunta nao apaga o fato de o principal ter caido.
+  it('reserva salva a pergunta: o aviso do principal vai mesmo assim', async () => {
+    pedido
+      .mockImplementationOnce(async () => new Response('{}', { status: 503 }))
+      .mockImplementationOnce(async () => new Response(JSON.stringify(respostaDoGemini('Veio.'))));
+
+    expect(await pergunta([], 'oi')).toBe('Veio.');
+
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+    expect(captureMessage.mock.calls[0]?.[1]).toMatchObject({
+      tags: { motivo: 'http' },
+      extra: { status: 503, modelo: MODELO },
+    });
+    expect(depois).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * O orcamento de tempo (#281). A rota soma este pior caso no `maxDuration`;
+ * aqui se prova que ele e so catalogo mais duas tentativas — antes, cada
+ * tentativa ainda esperava ate 2 s pelo Sentry.
+ */
+describe('o pior caso de uma pergunta', () => {
+  it('tudo pendurado: desiste no prazo de cada etapa e nao espera o Sentry', async () => {
+    vi.useFakeTimers();
+    // Sentry lento de proposito: se alguem voltar a esperar o flush antes de
+    // responder, a conta abaixo estoura.
+    flush.mockImplementation(
+      (ms = 0) => new Promise((resolve) => setTimeout(() => resolve(true), ms))
+    );
+    vitrine.mockImplementation(() => new Promise(() => undefined));
+    pedido.mockImplementation(
+      (_url, opcoes) =>
+        new Promise((_resolve, reject) => {
+          opcoes?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('demorou', 'AbortError'))
+          );
+        })
+    );
+
+    const inicio = Date.now();
+    let fim = 0;
+    const promessa = pergunta([], 'oi').then((texto) => {
+      fim = Date.now();
+      return texto;
+    });
+    await vi.advanceTimersByTimeAsync(ESPERA_DA_LOJA_MS + 2 * ESPERA_MS + 10_000);
+
+    expect(await promessa).toBeNull();
+    expect(fim - inicio).toBe(ESPERA_DA_LOJA_MS + 2 * ESPERA_MS);
+    expect(flush).not.toHaveBeenCalled();
+    expect(depois).toHaveBeenCalledTimes(1);
   });
 });
 
