@@ -48,7 +48,8 @@ const CONFERENCIA = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 /** O token de verdade tem algumas centenas de caracteres; a Cloudflare garante ate 2048. */
 const TOKEN_MAXIMO = 2048;
 
-const ESPERA_MS = 5000;
+/** Quanto se espera a Cloudflare. Rota com prazo curto conta com ele (#281). */
+export const ESPERA_DO_DESAFIO_MS = 5000;
 
 type Protecao = 'ligada' | 'desligada' | 'faltando';
 
@@ -138,7 +139,7 @@ export async function desafioConfere(desafio: unknown, acao: Acao, ip: string): 
     const r = await fetch(CONFERENCIA, {
       method: 'POST',
       body: corpo,
-      signal: AbortSignal.timeout(ESPERA_MS),
+      signal: AbortSignal.timeout(ESPERA_DO_DESAFIO_MS),
       cache: 'no-store',
     });
     resposta = (await r.json()) as Resposta;
