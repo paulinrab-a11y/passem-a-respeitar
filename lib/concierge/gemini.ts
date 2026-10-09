@@ -26,9 +26,11 @@ import { blocoDaLoja, PROMPT_DO_CONCIERGE } from './prompt';
 export const MODELO = 'gemini-flash-latest';
 
 /**
- * O reserva, so quando o principal responde 503 ou 429: o Flash gratuito
- * fica sobrecarregado com frequencia, e "saiu por um instante" nao pode ser
- * a resposta normal do site. O Lite e mais leve e raramente cai junto.
+ * O reserva, so quando o principal responde 429, 500 ou 503, ou demora: o
+ * Flash gratuito fica sobrecarregado com frequencia, e "saiu por um instante"
+ * nao pode ser a resposta normal do site. O Lite e mais leve e raramente cai
+ * junto. E por ele que uma pergunta pode virar duas chamadas: os tetos da
+ * rota (app/api/concierge/route.ts) contam perguntas, nao chamadas.
  */
 export const MODELO_RESERVA = 'gemini-flash-lite-latest';
 

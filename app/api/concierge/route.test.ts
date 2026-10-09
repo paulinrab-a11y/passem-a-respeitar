@@ -266,15 +266,23 @@ describe('POST /api/concierge', () => {
 });
 
 /**
- * O teto do site inteiro por hora (#281). Cada caso com o modulo novo: o
- * contador global mora na memoria do rate limit, e os casos de cima ja
- * gastaram dele. `pede` troca de IP a cada chamada, entao o que barra aqui e
- * o teto, nao o limite por IP.
+ * Os tetos do site inteiro, por hora e por dia (#281). Cada caso com o
+ * modulo novo: os contadores globais moram na memoria do rate limit, e os
+ * casos de cima ja gastaram deles. `pede` troca de IP a cada chamada, entao o
+ * que barra aqui e o teto, nao o limite por IP.
  */
-describe('teto global por hora', () => {
+const HORA_S = 60 * 60;
+const DIA_S = 24 * HORA_S;
+
+describe('tetos globais', () => {
   async function rotaNova() {
     vi.resetModules();
     return (await import('./route')).POST;
+  }
+
+  /** O relogio anda sem os timers: o rate limit na memoria so le `Date.now()`. */
+  function andaRelogio(segundos: number) {
+    vi.setSystemTime(Date.now() + segundos * 1000);
   }
 
   it('passado o teto, a pergunta leva 429 com Retry-After, e nada sai para o Gemini', async () => {
@@ -290,8 +298,66 @@ describe('teto global por hora', () => {
     expect(await bloqueado.json()).toEqual({ ok: false, erro: MUITAS_PERGUNTAS });
     const espera = Number(bloqueado.headers.get('Retry-After'));
     expect(espera).toBeGreaterThan(0);
-    expect(espera).toBeLessThanOrEqual(60 * 60);
+    expect(espera).toBeLessThanOrEqual(HORA_S);
     expect(pedido).not.toHaveBeenCalled();
+  });
+
+  // O Google conta a cota por dia: um teto so por hora, de 300, deixaria
+  // passar 7.200 perguntas num dia.
+  it('passado o teto do dia, a pergunta leva 429 ate o dia andar, e nada sai para o Gemini', async () => {
+    vi.stubEnv('CONCIERGE_LIMITE_DIA', '2');
+    const post = await rotaNova();
+
+    expect((await post(pede({ mensagem: 'um' }))).status).toBe(200);
+    expect((await post(pede({ mensagem: 'dois' }))).status).toBe(200);
+    pedido.mockClear();
+
+    const bloqueado = await post(pede({ mensagem: 'tres' }));
+    expect(bloqueado.status).toBe(429);
+    expect(await bloqueado.json()).toEqual({ ok: false, erro: MUITAS_PERGUNTAS });
+    const espera = Number(bloqueado.headers.get('Retry-After'));
+    expect(espera).toBeGreaterThan(HORA_S);
+    expect(espera).toBeLessThanOrEqual(DIA_S);
+    expect(pedido).not.toHaveBeenCalled();
+  });
+
+  it('sem a variavel, o teto do dia e de 1000', async () => {
+    // A hora folgada, para o que barra ser o dia.
+    vi.stubEnv('CONCIERGE_LIMITE_HORA', '5000');
+    const post = await rotaNova();
+
+    for (let i = 0; i < 1000; i++) {
+      expect((await post(pede({ mensagem: `pergunta ${i}` }))).status).toBe(200);
+    }
+    const bloqueado = await post(pede({ mensagem: 'a 1001a' }));
+    expect(bloqueado.status).toBe(429);
+    expect(Number(bloqueado.headers.get('Retry-After'))).toBeGreaterThan(HORA_S);
+  });
+
+  // A hora segura a rajada; se a pergunta barrada por ela gastasse o dia, a
+  // rajada da tarde comeria a noite do mesmo jeito.
+  it('pergunta barrada pela hora nao gasta o dia', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.stubEnv('CONCIERGE_LIMITE_HORA', '1');
+    vi.stubEnv('CONCIERGE_LIMITE_DIA', '2');
+    const post = await rotaNova();
+
+    expect((await post(pede({ mensagem: 'um' }))).status).toBe(200);
+    for (const mensagem of ['rajada', 'mais rajada']) {
+      const r = await post(pede({ mensagem }));
+      expect(r.status).toBe(429);
+      expect(Number(r.headers.get('Retry-After'))).toBeLessThanOrEqual(HORA_S);
+    }
+
+    // Hora nova: a segunda vaga do dia continua livre...
+    andaRelogio(HORA_S + 1);
+    expect((await post(pede({ mensagem: 'dois' }))).status).toBe(200);
+
+    // ...e era a ultima: na hora seguinte quem barra e o dia.
+    andaRelogio(HORA_S + 1);
+    const bloqueado = await post(pede({ mensagem: 'tres' }));
+    expect(bloqueado.status).toBe(429);
+    expect(Number(bloqueado.headers.get('Retry-After'))).toBeGreaterThan(HORA_S);
   });
 
   it('sem a variavel, o teto e de 300 por hora', async () => {
@@ -304,13 +370,15 @@ describe('teto global por hora', () => {
   });
 
   // Erro de digitacao na Vercel nao pode desligar o concierge, nem tirar o teto.
-  it.each(['abc', '0', '-5', '2.5'])('valor torto (%s) vale o padrao', async (valor) => {
-    vi.stubEnv('CONCIERGE_LIMITE_HORA', valor);
-    const post = await rotaNova();
+  describe.each(['CONCIERGE_LIMITE_HORA', 'CONCIERGE_LIMITE_DIA'])('%s', (variavel) => {
+    it.each(['abc', '0', '-5', '2.5'])('valor torto (%s) vale o padrao', async (valor) => {
+      vi.stubEnv(variavel, valor);
+      const post = await rotaNova();
 
-    for (let i = 0; i < 3; i++) {
-      expect((await post(pede({ mensagem: 'oi' }))).status).toBe(200);
-    }
+      for (let i = 0; i < 3; i++) {
+        expect((await post(pede({ mensagem: 'oi' }))).status).toBe(200);
+      }
+    });
   });
 
   // O teto conta o que gastaria a cota da chave, e so isso.
@@ -389,8 +457,9 @@ describe('orcamento de tempo', () => {
     expect(decorrido).toBeGreaterThanOrEqual(
       ESPERA_DO_DESAFIO_MS - 1 + ESPERA_DA_LOJA_MS + 2 * ESPERA_MS
     );
-    // ...e, com os dois limites no Redis e o envio ao Sentry, ainda sobra.
-    expect(decorrido + 2 * ESPERA_DO_REDIS_MS + ESPERA_DO_ENVIO_MS).toBeLessThan(
+    // ...e, com o limite por IP e os dois tetos no Redis e o envio ao Sentry,
+    // ainda sobra.
+    expect(decorrido + 3 * ESPERA_DO_REDIS_MS + ESPERA_DO_ENVIO_MS).toBeLessThan(
       maxDuration * 1000
     );
   });

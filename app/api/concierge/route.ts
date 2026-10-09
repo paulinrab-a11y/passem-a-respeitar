@@ -11,12 +11,12 @@ export const dynamic = 'force-dynamic';
 //
 //   limite por IP, no Redis ................ 1 s   lib/rate-limit.ts
 //   Turnstile, na Cloudflare ............... 5 s   lib/robo.ts
-//   teto global, no Redis .................. 1 s
+//   tetos da hora e do dia, no Redis ... 2 x 1 s
 //   catalogo, para o bloco da loja ......... 2 s   lib/concierge/gemini.ts
 //   Gemini, principal e reserva ....... 2 x 12 s   lib/concierge/gemini.ts
 //   envio ao Sentry, depois da resposta .... 2 s   lib/sentry/depois.ts
 //                                           ----
-//                                           35 s
+//                                           36 s
 //
 // Com 30, o reserva respondia e a Vercel derrubava a funcao antes de a
 // resposta sair. 60 vale no Hobby e no Pro, e o route.test.ts refaz a conta
@@ -27,26 +27,53 @@ export const maxDuration = 60;
 const MAXIMO = 20;
 const JANELA_MS = 10 * 60 * 1000;
 
-/**
- * Teto do site inteiro por hora (#281), contra a cota da chave do Gemini: o
- * limite por IP nao segura a soma de visitantes do lancamento, nem poucos IPs
- * com token de Turnstile. Batido o teto, o concierge espera a hora virar — e
- * a chave continua com cota para o dia seguinte, sem virar fatura.
- *
- * O padrao e conservador; o numero certo depende do plano da chave, e por
- * isso vem do ambiente.
- */
-const TETO_POR_HORA_PADRAO = 300;
 const HORA_MS = 60 * 60 * 1000;
+
+/**
+ * Tetos do site inteiro (#281), contra a cota da chave do Gemini: o limite
+ * por IP nao segura a soma de visitantes do lancamento, nem poucos IPs com
+ * token de Turnstile.
+ *
+ * O do dia e o que protege a cota, porque o Google conta pedidos por dia. O
+ * da hora so espalha o dia: sem ele, a rajada da tarde do lancamento leva o
+ * dia inteiro numa hora, e a noite fica sem concierge. Um teto por hora
+ * sozinho nao protege a cota: 300 por hora sao 7.200 perguntas por dia.
+ *
+ * Os tetos contam perguntas, e uma pergunta pode virar duas chamadas: o
+ * reserva entra quando o principal cai (lib/concierge/gemini.ts). Por isso o
+ * .env.example manda o teto do dia ficar abaixo da cota de cada modelo, e na
+ * metade se os dois dividirem uma cota so.
+ *
+ * Os padroes sao conservadores; o numero certo depende do plano da chave, e
+ * por isso vem do ambiente.
+ *
+ * A hora antes do dia: pergunta barrada pela hora nao gasta o dia, e a
+ * rajada que a hora segura nao come a noite. Chaves diferentes, porque o
+ * limite na memoria conta pela chave, sem olhar a janela.
+ */
+const TETOS = [
+  {
+    chave: 'concierge:global:hora',
+    variavel: 'CONCIERGE_LIMITE_HORA',
+    padrao: 300,
+    janelaMs: HORA_MS,
+  },
+  {
+    chave: 'concierge:global:dia',
+    variavel: 'CONCIERGE_LIMITE_DIA',
+    padrao: 1000,
+    janelaMs: 24 * HORA_MS,
+  },
+] as const;
 
 /**
  * Lido a cada chamada, nao no import: o teste troca o ambiente. Valor torto
  * (vazio, zero, negativo, quebrado) vale o padrao — erro de digitacao na
  * Vercel nao pode desligar o concierge, nem tirar o teto.
  */
-function tetoPorHora(): number {
-  const lido = Number(process.env.CONCIERGE_LIMITE_HORA);
-  return Number.isInteger(lido) && lido > 0 ? lido : TETO_POR_HORA_PADRAO;
+function tetoDoAmbiente(nome: string, padrao: number): number {
+  const lido = Number(process.env[nome]);
+  return Number.isInteger(lido) && lido > 0 ? lido : padrao;
 }
 
 const MUITAS_PERGUNTAS = 'Muitas perguntas de uma vez. Espera um pouco e tenta de novo.';
@@ -74,7 +101,7 @@ function erro(mensagem: string, status: number, extra?: HeadersInit) {
  *
  * Mesma ordem do convite, e pelo mesmo motivo: o que e barato de recusar vem
  * antes do que custa. Limite, depois isca e desafio, depois formato, e so
- * entao o teto global e a chamada para fora.
+ * entao os tetos globais e a chamada para fora.
  */
 export async function POST(request: Request) {
   const ip = ipDoRequest(request.headers);
@@ -110,12 +137,14 @@ export async function POST(request: Request) {
     return erro(ERRO_DE_ENTRADA, 400);
   }
 
-  // Por ultimo, colado na chamada ao Gemini: o teto conta o que gastaria a
-  // cota da chave, e so isso. Antes do limite por IP, um IP so, mesmo sem
-  // token, gastaria o teto de todo mundo com POST que nunca chega ao Google.
-  const teto = await limita('concierge:global', tetoPorHora(), HORA_MS);
-  if (!teto.permitido) {
-    return erro(MUITAS_PERGUNTAS, 429, { 'Retry-After': String(teto.esperarS) });
+  // Por ultimo, colados na chamada ao Gemini: os tetos contam so pergunta que
+  // chegaria ao Google. Antes do limite por IP, um IP so, mesmo sem token,
+  // gastaria o teto de todo mundo com POST que nunca sai daqui.
+  for (const { chave, variavel, padrao, janelaMs } of TETOS) {
+    const teto = await limita(chave, tetoDoAmbiente(variavel, padrao), janelaMs);
+    if (!teto.permitido) {
+      return erro(MUITAS_PERGUNTAS, 429, { 'Retry-After': String(teto.esperarS) });
+    }
   }
 
   const resposta = await pergunta(entrada.data.historico, entrada.data.mensagem);
