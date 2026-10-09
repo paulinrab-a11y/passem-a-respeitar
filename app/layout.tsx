@@ -29,14 +29,16 @@ const pirata = Pirata_One({
 // em /public (1000x624, perto do 1,91:1 que os cards pedem); arte propria de
 // 1200x630 e decisao do dono.
 const BASE = baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL);
-const DESCRICAO = 'O respeito vem antes dos números. EP 20.11.2026.';
+// Sem data de lancamento (#269): ela fica em sigilo ate o pre-save, por
+// decisao do dono. O concierge diz o mesmo; o card do link nao pode contar.
+const DESCRICAO = 'O respeito vem antes dos números.';
 const IMAGEM = { url: '/logo.png', width: 1000, height: 624, alt: 'Passem a Respeitar' };
 
 export const metadata: Metadata = {
   metadataBase: BASE,
   // Nome do site decidido pelo dono em 06/10/2026 (#218): a marca na frente.
   title: 'CBAC - Passem a Respeitar',
-  description: 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals. 20.11.2026.',
+  description: 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals.',
   openGraph: {
     type: 'website',
     locale: 'pt_BR',
