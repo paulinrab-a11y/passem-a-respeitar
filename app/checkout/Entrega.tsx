@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useCepLembrado } from '@/app/_home/cep-lembrado';
-import { useCampos } from '@/app/_ui/campos';
+import { comErro, useCampos } from '@/app/_ui/campos';
 import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 import { reais } from '@/lib/conta/pedidos';
@@ -39,6 +39,12 @@ const CAMPOS = [
 
 /** Só o complemento é opcional — os outros sete o banco exige. */
 const OPCIONAIS = new Set(['complemento']);
+
+/**
+ * O recado do servidor. O campo que errou aponta para ele (#47): sem a
+ * ligacao, o leitor de tela diz "invalido" e nao diz por que.
+ */
+const ID_DO_ERRO = 'erro-entrega';
 
 /**
  * Os oito comecam vazios e ficam no cliente. Controlados porque o React 19
@@ -247,7 +253,7 @@ export default function Entrega({
               disabled={pendente}
               inputMode={'modo' in campo ? campo.modo : undefined}
               maxLength={campo.nome === 'uf' ? 2 : campo.nome === 'cep' ? 9 : undefined}
-              aria-invalid={estado.campo === campo.nome || undefined}
+              {...comErro(estado.campo === campo.nome, ID_DO_ERRO)}
             />
           </label>
         ))}
@@ -282,12 +288,20 @@ export default function Entrega({
         </div>
       </dl>
 
-      <Mensagem
-        texto={estado.recado?.texto}
-        chave={estado.recado?.texto ?? ''}
-        classe={`conta-recado ${estado.recado?.tom ?? 'erro'}`}
-        papel="alert"
-      />
+      {/* Lugar reservado (#47), como nos formularios da conta (#51). Antes o
+          recado so existia com erro: entrava entre o total e o botao e
+          empurrava o Finalizar no instante em que a pessoa ia clicar. Com o
+          lugar fixo, o erro do envio anterior pode sair ja no reenvio. */}
+      <div className="erro-vaga">
+        <Mensagem
+          id={ID_DO_ERRO}
+          texto={estado.recado?.texto}
+          chave={estado.recado?.texto ?? ''}
+          classe={`conta-recado ${estado.recado?.tom ?? 'erro'}`}
+          papel="alert"
+          enviando={pendente}
+        />
+      </div>
 
       {/* `disabled` enquanto pendente e o que impede o clique duplo virar dois
           pedidos. Sem frete escolhido nao ha total, e sem total nao ha o que
@@ -397,7 +411,7 @@ function Opcoes({
             defaultChecked={servico === o.servico}
             onChange={() => escolhe(o.servico)}
             disabled={bloqueado}
-            aria-invalid={invalido || undefined}
+            {...comErro(invalido, ID_DO_ERRO)}
           />
           <span className="frete-nome">{o.nome}</span>
           <span className="frete-prazo">
