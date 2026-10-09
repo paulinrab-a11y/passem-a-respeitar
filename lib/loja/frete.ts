@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { Redis } from '@upstash/redis';
 import { z } from 'zod';
 import { CONTATO } from '@/lib/contato';
+import { enviaDepois } from '@/lib/sentry/depois';
 
 /**
  * Frete pelo CEP, com o Melhor Envio (Issue #199).
@@ -110,10 +111,12 @@ function configuracao(): Configuracao | null {
   return { token, origem, base };
 }
 
-async function avisa(motivo: string, nivel: 'warning' | 'error' = 'error') {
+function avisa(motivo: string, nivel: 'warning' | 'error' = 'error') {
   // Vai so o motivo. Nada de CEP, token ou corpo de resposta.
   Sentry.captureMessage('frete: nao consegui cotar', { level: nivel, tags: { motivo } });
-  await Sentry.flush(2000);
+  // Depois da resposta (#281): quem digitou o CEP ve "frete indisponivel"
+  // sem esperar o envio do aviso.
+  enviaDepois();
 }
 
 // ---------------------------------------------------------------------------
@@ -240,7 +243,7 @@ export async function cotaFrete({
 
   const config = configuracao();
   if (!config) {
-    if (process.env.VERCEL_ENV === 'production') await avisa('sem-configuracao');
+    if (process.env.VERCEL_ENV === 'production') avisa('sem-configuracao');
     return { ok: false, motivo: 'frete-sem-configuracao' };
   }
 
@@ -248,7 +251,7 @@ export async function cotaFrete({
     (v) => !v.pesoGramas || !v.alturaCm || !v.larguraCm || !v.comprimentoCm
   );
   if (volumes.length === 0 || semMedida) {
-    if (process.env.VERCEL_ENV === 'production') await avisa('sem-medida');
+    if (process.env.VERCEL_ENV === 'production') avisa('sem-medida');
     return { ok: false, motivo: 'frete-sem-medida' };
   }
 
@@ -292,14 +295,14 @@ export async function cotaFrete({
       cache: 'no-store',
     });
   } catch {
-    await avisa('fora-do-ar');
+    avisa('fora-do-ar');
     return { ok: false, motivo: 'frete-fora-do-ar' };
   }
 
   // Token vencido, revogado ou sem a permissao: e configuracao nossa. O
   // token do painel vale um ano, e este e o aviso de que ele venceu.
   if (resposta.status === 401 || resposta.status === 403) {
-    await avisa(`http-${resposta.status}`);
+    avisa(`http-${resposta.status}`);
     return { ok: false, motivo: 'frete-sem-configuracao' };
   }
 
@@ -307,7 +310,7 @@ export async function cotaFrete({
   if (resposta.status === 422) return { ok: false, motivo: 'frete-cep-invalido' };
 
   if (!resposta.ok) {
-    await avisa(`http-${resposta.status}`);
+    avisa(`http-${resposta.status}`);
     return { ok: false, motivo: 'frete-fora-do-ar' };
   }
 
@@ -318,7 +321,7 @@ export async function cotaFrete({
     if (!parse.success) throw new Error('resposta fora do formato');
     lido = parse.data;
   } catch {
-    await avisa('resposta-torta');
+    avisa('resposta-torta');
     return { ok: false, motivo: 'frete-fora-do-ar' };
   }
 

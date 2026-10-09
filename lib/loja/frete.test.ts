@@ -12,10 +12,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const captureMessage = vi.fn();
+const flush = vi.fn(async () => true);
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: (...a: unknown[]) => captureMessage(...a),
-  flush: async () => true,
+  flush: () => flush(),
 }));
+// O envio ao Sentry sai depois da resposta (#281); aqui so se confere o pedido.
+const enviaDepois = vi.fn();
+vi.mock('@/lib/sentry/depois', () => ({ enviaDepois: () => enviaDepois() }));
 
 const { cotaFrete, paraCentavos } = await import('./frete');
 type Volume = Parameters<typeof cotaFrete>[0]['volumes'][number];
@@ -285,6 +289,15 @@ describe('falhas', () => {
 
     expect(await cota()).toEqual({ ok: false, motivo: 'frete-fora-do-ar' });
     expect(avisos()).toEqual([`http-${status}`]);
+  });
+
+  // #281: quem digitou o CEP nao espera o aviso ao dono chegar no Sentry.
+  it('o aviso sai depois da resposta, sem esperar o Sentry', async () => {
+    responde({}, 503);
+
+    expect(await cota()).toEqual({ ok: false, motivo: 'frete-fora-do-ar' });
+    expect(enviaDepois).toHaveBeenCalledTimes(1);
+    expect(flush).not.toHaveBeenCalled();
   });
 
   it('nada que vai ao Sentry leva token, CEP ou corpo', async () => {

@@ -7,10 +7,14 @@ import type { OrdemEncontrada } from './orders-api';
  * existe para garantir que o corpo nunca decide dinheiro.
  */
 const captureMessage = vi.fn();
+const flush = vi.fn(async () => true);
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: (...a: unknown[]) => captureMessage(...a),
-  flush: async () => true,
+  flush: () => flush(),
 }));
+// O envio ao Sentry sai depois da resposta (#281); aqui so se confere o pedido.
+const enviaDepois = vi.fn();
+vi.mock('@/lib/sentry/depois', () => ({ enviaDepois: () => enviaDepois() }));
 vi.mock('@/lib/supabase/admin', () => ({ clienteAdmin: vi.fn() }));
 vi.mock('./orders-api', () => ({
   consultaOrdem: vi.fn(),
@@ -416,6 +420,9 @@ describe('efeito no pedido', () => {
         'pagamento estornado no provedor: pedido reembolsado',
         { level: 'warning', tags: { order_id: 'ped-1' } }
       );
+      // #281: o Mercado Pago recebe a resposta sem esperar o aviso ao dono.
+      expect(enviaDepois).toHaveBeenCalledTimes(1);
+      expect(flush).not.toHaveBeenCalled();
     });
 
     // De onde se pode reembolsar, e de mais nenhum lugar: a mesma tabela que
