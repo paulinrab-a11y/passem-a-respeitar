@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Supabase e Mercado Pago trocados por dublês. O que se prova e a costura:
@@ -897,5 +897,62 @@ describe('pix', () => {
     const r = await pedirPix();
 
     expect(Object.keys(r).sort()).toEqual(['estado', 'ok', 'pix']);
+  });
+});
+
+/**
+ * Quem vende (#276). Em producao, sem nome, documento e endereco de quem
+ * vende, nada se cobra — e o caminho de sempre continua igual quando eles
+ * existem. Os valores sao inventados.
+ */
+describe('venda sem quem vende identificado', () => {
+  function vendedor(cadastrado: boolean) {
+    vi.stubEnv('VENDEDOR_NOME', cadastrado ? 'Loja de Teste Ltda' : '');
+    vi.stubEnv('VENDEDOR_DOCUMENTO', cadastrado ? '00.000.000/0001-00' : '');
+    vi.stubEnv('VENDEDOR_ENDERECO', cadastrado ? 'Rua de Teste, 1, Cidade - UF' : '');
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('em producao, sem os dados, recusa antes de tocar no banco e no provedor', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vendedor(false);
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'configuracao' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+    expect(cancelaOrdem).not.toHaveBeenCalled();
+    // Nenhuma tentativa nasce: nem consulta, nem linha em `pagamentos`.
+    expect(consultas).toEqual([]);
+    expect(gravado).toEqual([]);
+    expect(captureMessage).toHaveBeenCalledWith(
+      'venda bloqueada: faltam os dados de quem vende',
+      expect.objectContaining({ level: 'error' })
+    );
+  });
+
+  it('em producao, com os dados, a cobranca segue como sempre', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vendedor(true);
+
+    const r = await pedirPix();
+
+    expect(r).toMatchObject({ ok: true, estado: 'pendente' });
+    expect(vi.mocked(criaOrdem).mock.calls[0][0].totalCentavos).toBe(12000);
+    expect(captureMessage).not.toHaveBeenCalledWith(
+      'venda bloqueada: faltam os dados de quem vende',
+      expect.anything()
+    );
+  });
+
+  // Preview cobra no Mercado Pago de teste: travar ali so atrapalharia quem
+  // testa antes da virada.
+  it('em preview, sem os dados, a cobranca segue', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vendedor(false);
+
+    expect(await pedirPix()).toMatchObject({ ok: true, estado: 'pendente' });
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
   });
 });

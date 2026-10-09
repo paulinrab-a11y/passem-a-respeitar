@@ -30,3 +30,21 @@ where n.nspname = 'public' and p.proname = 'cria_pedido';
 --   authenticated_executa  false
 --   service_role_executa   true
 --   veredito               OK
+
+-- Issue #276 — uma funcao so, a com o aceite dos termos. A assinatura mudou
+-- duas vezes (#199, #276); uma versao antiga esquecida ao lado da nova seria
+-- um caminho que cria pedido sem frete ou sem aceite.
+
+select
+  pg_get_function_identity_arguments(p.oid) as parametros,
+  case
+    when count(*) over () <> 1 then 'FALHOU'
+    when pg_get_function_identity_arguments(p.oid) not like '%p_termos_aceitos_em timestamp with time zone' then 'FALHOU'
+    else 'OK'
+  end as veredito
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public' and p.proname = 'cria_pedido';
+
+-- Esperado: uma linha, terminando em `p_termos_aceitos_em timestamp with time
+-- zone`, veredito OK.

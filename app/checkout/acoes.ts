@@ -4,7 +4,7 @@ import { opcoesDeFrete } from '@/lib/loja/catalogo';
 import { esquemaEndereco, soDigitos } from '@/lib/loja/endereco';
 import { buscaEnderecoPeloCep, type EnderecoPeloCep } from '@/lib/loja/endereco-por-cep';
 import type { OpcaoDeFrete } from '@/lib/loja/frete';
-import { criaPedido } from '@/lib/loja/pedido';
+import { criaPedido, esquemaAceiteDosTermos } from '@/lib/loja/pedido';
 import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
 import { MOTIVOS_TRANSITORIOS, RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
 import { limita } from '@/lib/rate-limit';
@@ -43,6 +43,7 @@ const RECADOS: Record<string, string> = {
   'nao-consegui-gravar': 'Não consegui criar o pedido agora. Tente de novo.',
   // Sem nomear servico (#265): hoje so o SEDEX aparece.
   'frete-escolha': 'Escolha o tipo de envio.',
+  'termos-nao-aceitos': 'Para finalizar, é preciso aceitar os termos de compra.',
 };
 
 function erro(motivo: string, campo: string | null = null): EstadoDoCheckout {
@@ -104,7 +105,22 @@ export async function finalizarCompra(
     return erro('frete-escolha', 'servico');
   }
 
-  const criado = await criaPedido({ itens: [item.data], endereco: endereco.data, servico });
+  // O aceite dos termos (#276), por ultimo porque a caixinha e o ultimo
+  // campo da tela: o erro que aparece e o do primeiro campo errado, de cima
+  // para baixo. Checkbox desmarcado nao vem no FormData, e qualquer valor que
+  // nao seja "on" vira false — que o schema recusa. O `required` do HTML e
+  // sugestao: o POST sem ele se monta em qualquer terminal.
+  const aceite = form.get('aceite') === 'on';
+  if (!esquemaAceiteDosTermos.safeParse(aceite).success) {
+    return erro('termos-nao-aceitos', 'aceite');
+  }
+
+  const criado = await criaPedido({
+    itens: [item.data],
+    endereco: endereco.data,
+    servico,
+    aceite,
+  });
   if (!criado.ok) {
     // Recusa de frete aqui e a cotacao de agora discordando da que a tela
     // mostrou: cache vencido, servico que sumiu, Melhor Envio fora. A tela

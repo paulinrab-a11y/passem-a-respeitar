@@ -6,7 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * qual campo recebe foco, e que o sucesso leva para o pedido.
  */
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: vi.fn() }));
-vi.mock('@/lib/loja/pedido', () => ({ criaPedido: vi.fn() }));
+// O schema do aceite (#276) e o de verdade: a acao confere com ele antes de
+// chamar a criacao, e um duble aqui provaria o duble.
+vi.mock('@/lib/loja/pedido', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/loja/pedido')>()),
+  criaPedido: vi.fn(),
+}));
 vi.mock('@/lib/loja/catalogo', () => ({ opcoesDeFrete: vi.fn() }));
 vi.mock('@/lib/loja/endereco-por-cep', () => ({ buscaEnderecoPeloCep: vi.fn() }));
 vi.mock('next/navigation', () => ({
@@ -42,6 +47,8 @@ function formulario(extra: Record<string, string> = {}) {
   f.set('tamanho', 'M');
   f.set('quantidade', '1');
   f.set('servico', 'pac');
+  // A caixinha dos termos (#276) marcada: e o caminho de quem finaliza.
+  f.set('aceite', 'on');
   for (const [k, v] of Object.entries(ENDERECO)) f.set(k, v);
   for (const [k, v] of Object.entries(extra)) f.set(k, v);
   return f;
@@ -94,6 +101,7 @@ describe('sucesso', () => {
       itens: [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1 }],
       endereco: { ...ENDERECO, cep: '01310100' },
       servico: 'pac',
+      aceite: true,
     });
   });
 
@@ -236,7 +244,12 @@ describe('escolha do frete (#199)', () => {
     await enviar({ frete: '0', freteCentavos: '0', preco_frete: '1' });
 
     const [entrada] = vi.mocked(criaPedido).mock.calls[0];
-    expect(Object.keys(entrada as object).sort()).toEqual(['endereco', 'itens', 'servico']);
+    expect(Object.keys(entrada as object).sort()).toEqual([
+      'aceite',
+      'endereco',
+      'itens',
+      'servico',
+    ]);
   });
 
   it.each([
@@ -297,6 +310,56 @@ describe('escolha do frete (#199)', () => {
 
     expect(r.recotarFrete).toBeFalsy();
     expect(r.campo).toBe('servico');
+  });
+});
+
+describe('aceite dos termos de compra (#276)', () => {
+  /** O formulario de quem nao marcou a caixinha: o navegador nem manda o campo. */
+  function semAceite(extra: Record<string, string> = {}) {
+    const f = formulario(extra);
+    f.delete('aceite');
+    return finalizarCompra(checkoutInicial, f);
+  }
+
+  it('sem a caixinha marcada, nao ha pedido, e o foco vai para ela', async () => {
+    const r = await semAceite();
+
+    expect(r.recado).toEqual({
+      tom: 'erro',
+      texto: 'Para finalizar, é preciso aceitar os termos de compra.',
+    });
+    expect(r.campo).toBe('aceite');
+    expect(r.irPara).toBeFalsy();
+    expect(criaPedido).not.toHaveBeenCalled();
+  });
+
+  // Checkbox marcado manda "on". Qualquer outro valor e POST montado a mao,
+  // e nao vale como aceite.
+  it.each(['true', '1', 'sim', 'ON', ''])('aceite = %j nao vale', async (valor) => {
+    const r = await enviar({ aceite: valor });
+
+    expect(r.campo).toBe('aceite');
+    expect(criaPedido).not.toHaveBeenCalled();
+  });
+
+  // O erro que aparece e o do primeiro campo da tela, de cima para baixo: o
+  // endereco e o frete vem antes da caixinha.
+  it('endereco errado aparece antes do aceite que falta', async () => {
+    expect((await semAceite({ uf: 'XX' })).campo).toBe('uf');
+  });
+
+  it('frete sem escolha aparece antes do aceite que falta', async () => {
+    expect((await semAceite({ servico: '' })).campo).toBe('servico');
+  });
+
+  // A hora do aceite e carimbada em `criaPedido`, com o relogio do servidor.
+  // Uma hora mandada pelo formulario nem chega la.
+  it('hora de aceite vinda do formulario nao chega na criacao', async () => {
+    await enviar({ termos_aceitos_em: '1999-01-01T00:00:00Z', aceito_em: '1999' });
+
+    const [entrada] = vi.mocked(criaPedido).mock.calls[0];
+    expect(entrada).toMatchObject({ aceite: true });
+    expect(JSON.stringify(entrada)).not.toMatch(/1999|termos_aceitos_em|aceito_em/);
   });
 });
 

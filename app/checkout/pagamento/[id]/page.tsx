@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { meuPedido } from '@/app/conta/pedidos/[id]/busca-pedido';
 import { pareceUuid } from '@/lib/conta/pedidos';
 import { chavePublica, emReais } from '@/lib/loja/mercadopago';
+import { vendaLiberada } from '@/lib/loja/vendedor';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import Brick from './Brick';
@@ -39,7 +40,10 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
   if (!pedido.aguardandoPagamento) redirect(`/conta/pedidos/${id}`);
 
   const usuario = await usuarioDaSessao();
-  const chave = chavePublica();
+  // Sem quem vende identificado, em producao, a tela nao monta o pagamento
+  // (#276): o mesmo "fora do ar" da chave que falta, e a rota de cobranca
+  // recusa do mesmo jeito. Preview e desenvolvimento seguem montando.
+  const chave = vendaLiberada() ? chavePublica() : null;
 
   return (
     <main className="auth conta">
@@ -63,7 +67,8 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
           {/* Falha fechada e com recado: sem a chave publica o Brick nao monta,
               e uma area vazia nao explica nada a quem esta tentando pagar. A
               leitura fica no servidor porque ele ja precisa decidir o que
-              renderizar — ler nos dois lados seriam duas verdades. */}
+              renderizar — ler nos dois lados seriam duas verdades. Vale
+              tambem para a venda travada por falta de quem vende (#276). */}
           {chave ? (
             <Brick
               chavePublica={chave}

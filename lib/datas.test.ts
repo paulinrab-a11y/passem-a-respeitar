@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  diaMaisDias,
   formataData,
   formataDataHora,
   formataDataPorExtenso,
@@ -60,6 +61,33 @@ describe('datas em horario de Brasilia (#248)', () => {
   it('o ISO que o banco devolve, com fuso explicito ou em Z, da no mesmo', () => {
     expect(formataDataHora('2026-10-06T00:30:00+00:00')).toBe(formataDataHora(NOITE));
     expect(formataDataHora('2026-10-06T00:30:00Z')).toBe(formataDataHora(NOITE));
+  });
+});
+
+/**
+ * Prazos do consumidor (#276): dias corridos no calendario de Brasilia. O
+ * processo esta em UTC aqui, como na Vercel.
+ */
+describe('diaMaisDias', () => {
+  it('conta a partir do dia de Brasilia, e nao do dia em UTC', () => {
+    // 21:30 de 05/10 em Brasilia; em UTC, ja e 06/10.
+    expect(diaMaisDias(NOITE, 0)).toEqual({ iso: '2026-10-05', texto: '05/10/2026' });
+    expect(diaMaisDias(NOITE, 7)).toEqual({ iso: '2026-10-12', texto: '12/10/2026' });
+  });
+
+  it.each([
+    // Virada de mes, de ano, e fevereiro de ano que nao e bissexto.
+    ['2026-10-28T12:00:00-03:00', 7, '2026-11-04'],
+    ['2026-12-28T12:00:00-03:00', 7, '2027-01-04'],
+    ['2027-02-25T12:00:00-03:00', 7, '2027-03-04'],
+    ['2026-10-05T12:00:00-03:00', 90, '2027-01-03'],
+  ])('%s mais %i dias e %s', (iso, dias, esperado) => {
+    expect(diaMaisDias(iso, dias).iso).toBe(esperado);
+  });
+
+  it('o primeiro e o ultimo minuto do dia dao o mesmo dia', () => {
+    expect(diaMaisDias('2026-10-05T03:00:00Z', 0).iso).toBe('2026-10-05');
+    expect(diaMaisDias('2026-10-06T02:59:00Z', 0).iso).toBe('2026-10-05');
   });
 });
 

@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
+import { vendaLiberada } from './vendedor';
 import { casaOrfa, encerraAbertas, marcaPago, orfasDoPedido } from './webhook';
 
 /**
@@ -75,7 +76,10 @@ export type MotivoDaCobranca =
   | 'tentativas-demais'
   | 'recusado'
   | 'indisponivel'
-  /** O provedor recusou a nossa credencial: problema nosso, nao da pessoa. (#23) */
+  /**
+   * Problema nosso, nao da pessoa: o provedor recusou a nossa credencial
+   * (#23), ou, em producao, faltam os dados de quem vende (#276).
+   */
   | 'configuracao'
   /** A tentativa anterior ficou sem resposta e ainda nao se sabe o que houve com ela. */
   | 'pagamento-em-processamento'
@@ -108,6 +112,12 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
 
   const usuario = await usuarioDaSessao();
   if (!usuario) return { ok: false, motivo: 'sem-sessao' };
+
+  // Em producao, sem quem vende identificado nao se cobra (#276). Antes de
+  // tocar no banco e no provedor: nenhuma tentativa nasce, nenhuma ordem
+  // existe la. Para a pessoa e o mesmo "indisponivel" da credencial
+  // recusada — problema nosso, nao do cartao dela.
+  if (!vendaLiberada()) return { ok: false, motivo: 'configuracao' };
 
   const admin = clienteAdmin();
 
