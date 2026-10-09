@@ -234,8 +234,9 @@ describe('modais da home', () => {
   });
 
   it('a trava de rolagem da loja so cai no fim da saida', () => {
+    // E a rotacao das fotos para junto (#294): a camiseta gira enquanto some.
     expect(SCRIPT).toContain(
-      "modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); })"
+      "modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); if (fotos) fotos.para(); })"
     );
   });
 });

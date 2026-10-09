@@ -17,6 +17,8 @@ import { temWebGL } from './webgl';
 import { modalAnimado } from './modal-animado';
 // Atalhos fora dos campos de texto e o indicador "tocando" como botao (#280).
 import { atalhoLivre, mostraTocando } from './teclado';
+// A vitrine em fotos: toque, arraste, setas e rotacao automatica (#294).
+import { giro360 } from './giro-360';
 
 let booted = false;
 
@@ -884,7 +886,7 @@ const Loja = (()=>{
     renderer.render(scene, camera);
     custo = performance.now() - agora;
   }
-  let giro = null, quadro = 0, giroX0 = 0, giroAcc = 0, giroAtivo = false, giroTimer = null;
+  let giro = null, fotos = null;
   // 3D ou fotos (#217)? O modelo da camiseta tem 73 k triangulos com normal
   // map. Em GPU de verdade e barato; em GPU por software — SwiftShader (Chrome
   // sem aceleracao, CI), llvmpipe (VM), aparelho sem driver — cada quadro custa
@@ -913,19 +915,8 @@ const Loja = (()=>{
     giro = document.createElement('div'); giro.className = 'giro';
     giro.style.backgroundImage = `url("${CONFIG.merch360}")`;
     vit.insertBefore(giro, vit.firstChild);
-    const mostra = i => { quadro = ((i % 4) + 4) % 4; giro.style.backgroundPosition = `${quadro*100/3}% 50%`; };
-    const passo = 80;
-    vit.addEventListener('pointerdown', e=>{ giroAtivo = true; giroX0 = e.clientX; giroAcc = 0; vit.classList.add('usada'); clearInterval(giroTimer); vit.setPointerCapture && vit.setPointerCapture(e.pointerId); });
-    vit.addEventListener('pointermove', e=>{
-      if (!giroAtivo) return; giroAcc += e.clientX - giroX0; giroX0 = e.clientX;
-      while (giroAcc >= passo){ mostra(quadro - 1); giroAcc -= passo; }
-      while (giroAcc <= -passo){ mostra(quadro + 1); giroAcc += passo; }
-    });
-    const solta = ()=>{ giroAtivo = false; };
-    vit.addEventListener('pointerup', solta); vit.addEventListener('pointercancel', solta); vit.addEventListener('pointerleave', solta);
-    addEventListener('keydown', e=>{ if (!aberto || !atalhoLivre(e)) return; if (e.key === 'ArrowRight') mostra(quadro + 1); if (e.key === 'ArrowLeft') mostra(quadro - 1); });
-    giroTimer = setInterval(()=>{ if (!aberto) return; mostra(quadro + 1); }, 1400);
-    mostra(0);
+    fotos = giro360(vit, { pinta: q => { giro.style.backgroundPosition = `${q*100/3}% 50%`; }, reduz: reduzMotion });
+    addEventListener('keydown', e=>{ if (!aberto || !atalhoLivre(e)) return; if (e.key === 'ArrowRight') fotos.gira(1); if (e.key === 'ArrowLeft') fotos.gira(-1); });
   }
   function abre(t, quem){
     // Ja aberta (#270): o laco de render vive enquanto `aberto`, e outro
@@ -936,13 +927,16 @@ const Loja = (()=>{
     if (querFotos()) init360(); else init();
     if (t){ tam = t; $$('#tamLoja button').forEach(x=>{ x.classList.toggle('on', x.dataset.t===t); x.setAttribute('aria-pressed', String(x.dataset.t===t)); }); link(); }
     modal.abre(quem); aberto = true; document.documentElement.classList.add('locked');
+    // A rotacao automatica liga a cada abertura, e nao so na primeira: depois
+    // de um arraste ela parava de vez, e reabrir a loja nao a trazia (#294).
+    if (fotos) fotos.giraSozinho();
     if (!querFotos()) requestAnimationFrame(()=>{ redimensiona(); loop(); });
     Som.corrente(0.5);
     $('#fecharLoja').focus();
   }
   // `aberto` e a trava de rolagem so caem no FIM da saida: a camiseta continua
   // girando enquanto o modal some, e a pagina de tras nao rola por baixo.
-  const modal = modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); });
+  const modal = modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); if (fotos) fotos.para(); });
   function fecha(){ modal.fecha(); }
   $('#fecharLoja').addEventListener('click', fecha);
   el.addEventListener('click', e=>{ if (e.target === el) fecha(); });
