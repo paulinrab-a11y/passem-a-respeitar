@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ambiente, limpa, opcoesComuns } from './opcoes';
 
@@ -40,14 +42,67 @@ describe('opcoesComuns', () => {
 });
 
 describe('ambiente', () => {
-  it('segue o VERCEL_ENV', () => {
+  // No navegador, so as NEXT_PUBLIC_* existem: VERCEL_ENV chega vazio. Era
+  // aqui que todo erro de producao virava 'development' (#256).
+  it('no navegador de producao e production', () => {
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', 'production');
+    vi.stubEnv('VERCEL_ENV', '');
+    expect(ambiente()).toBe('production');
+  });
+
+  it('no navegador de preview e preview', () => {
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', 'preview');
+    vi.stubEnv('VERCEL_ENV', '');
+    expect(ambiente()).toBe('preview');
+  });
+
+  // Mesmo deploy, mesmo rotulo: o servidor tem as duas, o navegador so uma.
+  it('servidor e navegador concordam', () => {
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', 'production');
+    vi.stubEnv('VERCEL_ENV', 'production');
+    const noServidor = ambiente();
+
+    vi.stubEnv('VERCEL_ENV', '');
+    expect(ambiente()).toBe(noServidor);
+  });
+
+  // Exposicao automatica desligada no painel: o servidor ainda acerta.
+  it('so com VERCEL_ENV segue o VERCEL_ENV', () => {
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', '');
     vi.stubEnv('VERCEL_ENV', 'preview');
     expect(ambiente()).toBe('preview');
   });
 
   it('fora da Vercel e desenvolvimento', () => {
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', '');
     vi.stubEnv('VERCEL_ENV', '');
     expect(ambiente()).toBe('development');
+  });
+
+  // Valor estranho nao vira rotulo, e muito menos 'production'.
+  it('valor desconhecido cai na proxima fonte', () => {
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', 'staging');
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    expect(ambiente()).toBe('preview');
+
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', 'Production');
+    vi.stubEnv('VERCEL_ENV', '');
+    expect(ambiente()).toBe('development');
+  });
+
+  it('opcoesComuns leva o ambiente para o SDK', () => {
+    vi.stubEnv('NEXT_PUBLIC_VERCEL_ENV', 'production');
+    vi.stubEnv('VERCEL_ENV', '');
+    expect(opcoesComuns('https://x@o1.ingest.sentry.io/1').environment).toBe('production');
+  });
+
+  // O teste acima roda em Node, onde qualquer forma de ler o ambiente
+  // funciona. No bundle do navegador, so `process.env.NEXT_PUBLIC_X` escrito
+  // por extenso e substituido no build; `process.env[nome]` chega undefined e
+  // o bug volta sem nenhum teste de unidade perceber.
+  it('le NEXT_PUBLIC_VERCEL_ENV na forma que o Next inlina', () => {
+    const fonte = fs.readFileSync(path.join(__dirname, 'opcoes.ts'), 'utf8');
+    expect(fonte).toMatch(/process\.env\.NEXT_PUBLIC_VERCEL_ENV\b/);
   });
 });
 

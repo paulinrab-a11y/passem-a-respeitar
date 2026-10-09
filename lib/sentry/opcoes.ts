@@ -49,10 +49,39 @@ export function limpa<E extends Evento>(evento: E): E {
   return evento;
 }
 
-export function ambiente(): string {
-  // VERCEL_ENV e 'production' | 'preview' | 'development'. Fora da Vercel, e
+/**
+ * Os tres nomes que a Vercel usa. Qualquer outro valor (variavel digitada a
+ * mao, ambiente customizado) nao vira rotulo: cai na proxima fonte. Assim
+ * 'production' so aparece quando a Vercel diz que e producao.
+ */
+const AMBIENTES = ['production', 'preview', 'development'] as const;
+type Ambiente = (typeof AMBIENTES)[number];
+
+function conhecido(valor: string | undefined): Ambiente | undefined {
+  return AMBIENTES.find((nome) => nome === valor);
+}
+
+export function ambiente(): Ambiente {
+  // Duas fontes, e a ordem importa (#256).
+  //
+  // O navegador so enxerga NEXT_PUBLIC_*: o Next troca o texto no bundle
+  // durante o build, e VERCEL_ENV chega la como undefined. So com ela, todo
+  // erro do navegador em producao chegava ao Sentry como 'development'. A
+  // Vercel preenche NEXT_PUBLIC_VERCEL_ENV sozinha no build do Next, com o
+  // mesmo valor de VERCEL_ENV, e por isso as tres configs (servidor, edge,
+  // navegador) concordam no mesmo deploy.
+  //
+  // VERCEL_ENV fica de reserva para o servidor, caso a exposicao automatica
+  // das variaveis de sistema seja desligada no painel. Fora da Vercel, e
   // desenvolvimento local.
-  return process.env.VERCEL_ENV || 'development';
+  //
+  // Escritas por extenso de proposito: `process.env[nome]` nao e substituido
+  // no build (ver lib/supabase/env.ts).
+  return (
+    conhecido(process.env.NEXT_PUBLIC_VERCEL_ENV) ??
+    conhecido(process.env.VERCEL_ENV) ??
+    'development'
+  );
 }
 
 export function opcoesComuns(dsn: string | undefined) {
