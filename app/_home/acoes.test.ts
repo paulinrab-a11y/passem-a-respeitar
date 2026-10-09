@@ -78,7 +78,7 @@ describe('cotarFreteNaFicha', () => {
 
   it.each([
     ['frete-fora-do-ar', 'Não consegui calcular o frete agora. Tente de novo em instantes.'],
-    ['frete-sem-servico', 'Os Correios não entregam nesse CEP por PAC nem por SEDEX.'],
+    ['frete-sem-servico', 'Os Correios não entregam nesse CEP.'],
     ['frete-sem-configuracao', 'O frete está indisponível no momento. Tente de novo mais tarde.'],
   ] as const)('traduz %s sem contar o que falta', async (motivo, texto) => {
     vi.mocked(opcoesDeFrete).mockResolvedValue({ ok: false, motivo });

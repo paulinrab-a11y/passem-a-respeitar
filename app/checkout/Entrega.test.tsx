@@ -149,13 +149,13 @@ describe('erro do servidor (#47)', () => {
 
   it('servico que faltou: os radios do frete apontam para o recado', async () => {
     vi.mocked(finalizarCompra).mockResolvedValueOnce({
-      recado: { tom: 'erro', texto: 'Escolha PAC ou SEDEX.' },
+      recado: { tom: 'erro', texto: 'Escolha o tipo de envio.' },
       campo: 'servico',
     });
     const { container } = monta();
     await digitaCep('01310100');
     await finalizar(container.querySelector('form') as HTMLFormElement);
-    await screen.findByText('Escolha PAC ou SEDEX.');
+    await screen.findByText('Escolha o tipo de envio.');
 
     for (const radio of screen.getAllByRole('radio')) {
       expect(radio.getAttribute('aria-invalid')).toBe('true');
@@ -210,7 +210,7 @@ describe('frete (#199)', () => {
   it('antes do CEP: diz o que fazer, nao cota, e nao deixa finalizar', () => {
     monta();
 
-    expect(screen.getByText('Digite o CEP para ver o preço do PAC e do SEDEX.')).toBeTruthy();
+    expect(screen.getByText('Digite o CEP para ver o frete dos Correios.')).toBeTruthy();
     expect(cotarFrete).not.toHaveBeenCalled();
     expect(botao().disabled).toBe(true);
     expect(botao().textContent).toContain('Informe o CEP');
@@ -508,6 +508,83 @@ describe('falha da cotacao (#240)', () => {
     await act(async () => errado.solta(DEFINITIVA));
     expect(screen.getAllByRole('radio')).toHaveLength(2);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('recusa do frete na criacao do pedido (#265)', () => {
+  const RECALCULADO =
+    'Esse envio não atende mais esse CEP. Recalculamos o frete, confira e finalize de novo.';
+  const RECUSA: EstadoDoCheckout = {
+    recado: { tom: 'erro', texto: RECALCULADO },
+    campo: null,
+    recotarFrete: true,
+  };
+  const SO_SEDEX: RespostaDoFrete = { ok: true, subtotalCentavos: 12000, opcoes: [SEDEX] };
+  const recado = () => document.getElementById('erro-entrega');
+  const finalizar = async (form: HTMLFormElement) => {
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+  };
+
+  it('a caixa esquece o servico recusado, volta ao esqueleto e cota o CEP atual', async () => {
+    vi.mocked(cotarFrete).mockResolvedValueOnce(SO_SEDEX);
+    vi.mocked(finalizarCompra).mockResolvedValueOnce(RECUSA);
+    const { container } = monta();
+    await digitaCep('01310100');
+    expect((screen.getByRole('radio', { name: /SEDEX/ }) as HTMLInputElement).checked).toBe(true);
+
+    const voo = emVoo();
+    vi.mocked(cotarFrete).mockReturnValueOnce(voo.promessa);
+    await finalizar(container.querySelector('form') as HTMLFormElement);
+
+    expect(cotarFrete).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(cotarFrete).mock.calls[1][0]).toEqual(vi.mocked(cotarFrete).mock.calls[0][0]);
+    expect(container.querySelectorAll('.frete-esqueleto')).toHaveLength(2);
+    expect(container.querySelector('.frete')?.getAttribute('aria-busy')).toBe('true');
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(botao().disabled).toBe(true);
+    expect(botao().textContent).toContain('Aguardando o frete');
+    // O recado fica no lugar dele enquanto a caixa cota.
+    expect(recado()?.textContent).toBe(RECALCULADO);
+
+    await act(async () => voo.solta({ ok: true, subtotalCentavos: 12000, opcoes: [PAC] }));
+
+    expect(screen.getAllByRole('radio')).toHaveLength(1);
+    expect((screen.getByRole('radio', { name: /PAC/ }) as HTMLInputElement).checked).toBe(true);
+    expect(botao().disabled).toBe(false);
+    expect(reais(botao().textContent ?? '')).toContain('Finalizar — R$ 143,50');
+  });
+
+  it('duas recusas seguidas cotam duas vezes', async () => {
+    vi.mocked(finalizarCompra)
+      .mockResolvedValueOnce(RECUSA)
+      .mockResolvedValueOnce({ ...RECUSA });
+    const { container } = monta();
+    const form = container.querySelector('form') as HTMLFormElement;
+    await digitaCep('01310100');
+
+    await finalizar(form);
+    expect(cotarFrete).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+
+    await finalizar(form);
+    expect(cotarFrete).toHaveBeenCalledTimes(3);
+  });
+
+  it('erro que nao e do frete deixa a caixa como esta', async () => {
+    const { container } = monta();
+    await digitaCep('01310100');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: /SEDEX/ }));
+    });
+
+    await finalizar(container.querySelector('form') as HTMLFormElement);
+    await screen.findByText('Confira o CEP.');
+
+    expect(cotarFrete).toHaveBeenCalledTimes(1);
+    expect(container.querySelectorAll('.frete-esqueleto')).toHaveLength(0);
+    expect((screen.getByRole('radio', { name: /SEDEX/ }) as HTMLInputElement).checked).toBe(true);
   });
 });
 

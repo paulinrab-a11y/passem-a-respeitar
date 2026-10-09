@@ -139,7 +139,7 @@ export default function Privacidade() {
         <section className="detalhe-bloco">
           <h2>O que fazemos com o CEP</h2>
           <p className="detalhe-nota">
-            Para mostrar o preço do PAC e do SEDEX, o site manda ao Melhor Envio o{' '}
+            Para mostrar o preço do frete dos Correios, o site manda ao Melhor Envio o{' '}
             <strong>CEP de entrega</strong>, junto com o peso, as medidas e o valor do pacote. Só
             isso: nem seu nome, nem seu e-mail, nem o resto do endereço vão nessa consulta.
           </p>
