@@ -49,20 +49,25 @@ function quadro(page: Page): Promise<string> {
   return page.locator('#vitrine .giro').evaluate((g: HTMLElement) => g.style.backgroundPosition);
 }
 
-/** Arrasta o dedo do centro de `alvo`, em dez passos, `dx` e `dy` pixels. */
+/**
+ * Arrasta o dedo do centro de `alvo`, em dez passos, `dx` e `dy` pixels.
+ *
+ * O dedo para antes de sair. Solto ainda em movimento, o arraste vira um
+ * fling, e o Chromium usa o toque seguinte para parar o fling, como no
+ * aparelho: o toque no "fechar" logo depois nao chegava como clique.
+ */
 async function arrastaComDedo(page: Page, alvo: Locator, dx: number, dy: number) {
   const caixa = await alvo.boundingBox();
   if (!caixa) throw new Error('alvo fora da tela');
   const x = caixa.x + caixa.width / 2 - dx / 2;
   const y = caixa.y + caixa.height / 2 - dy / 2;
   const cdp = await page.context().newCDPSession(page);
+  const move = (px: number, py: number) =>
+    cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: px, y: py }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
-  for (let i = 1; i <= 10; i++) {
-    await cdp.send('Input.dispatchTouchEvent', {
-      type: 'touchMove',
-      touchPoints: [{ x: x + (dx * i) / 10, y: y + (dy * i) / 10 }],
-    });
-  }
+  for (let i = 1; i <= 10; i++) await move(x + (dx * i) / 10, y + (dy * i) / 10);
+  await page.waitForTimeout(200);
+  await move(x + dx, y + dy);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await cdp.detach();
 }
