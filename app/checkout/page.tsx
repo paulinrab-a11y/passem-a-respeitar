@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import GuiaDeTamanhos from '@/app/_ui/GuiaDeTamanhos';
 import { reais } from '@/lib/conta/pedidos';
 import { guiaDeTamanhos, orcamento } from '@/lib/loja/catalogo';
+import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
@@ -127,7 +128,7 @@ export default async function Checkout({
           {/* #197: a camiseta e fabricada depois do pedido. Quem paga precisa
               saber do prazo antes de pagar, e nao depois. */}
           <p className="entrega-prazo">
-            A camiseta é fabricada depois do pedido. A entrega leva pelo menos 30 dias.
+            {`A camiseta é fabricada depois do pedido. A entrega leva pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias.`}
           </p>
 
           <Entrega

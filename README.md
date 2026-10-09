@@ -223,7 +223,8 @@ Peso e medidas são do produto, no banco. Produto sem medida não tem frete, e o
 checkout diz que o frete está indisponível.
 
 O prazo mostrado é o do transporte, em dias úteis, e começa depois da produção
-de pelo menos 30 dias (#197).
+de pelo menos 30 dias (#197). O número mora em `lib/loja/prazo.ts`
+(`PRAZO_DE_PRODUCAO_DIAS`): a ficha, o checkout e o concierge leem de lá.
 
 ## Proteção contra bot
 

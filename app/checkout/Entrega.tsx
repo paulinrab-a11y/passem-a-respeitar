@@ -8,6 +8,7 @@ import Rotulo from '@/app/_ui/Rotulo';
 import { reais } from '@/lib/conta/pedidos';
 import { cepLegivel } from '@/lib/loja/endereco';
 import type { OpcaoDeFrete, Servico } from '@/lib/loja/frete';
+import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
 import { buscarEndereco, cotarFrete, finalizarCompra, type RespostaDoFrete } from './acoes';
 import { checkoutInicial } from './estado';
@@ -282,7 +283,9 @@ export default function Entrega({
         />
         {/* #197: a camiseta e fabricada depois do pedido. O prazo dos
             Correios comeca a contar dali. */}
-        <p className="frete-nota">O transporte começa depois da produção, de pelo menos 30 dias.</p>
+        <p className="frete-nota">
+          {`O transporte começa depois da produção, de pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias.`}
+        </p>
       </fieldset>
 
       <dl className="resumo">

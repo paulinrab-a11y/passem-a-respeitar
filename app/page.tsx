@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { vitrine } from '@/lib/loja/catalogo';
+import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { precoNaFicha } from '@/lib/loja/precos';
 import BarraConta, { LugarDoMenuConta } from './_home/BarraConta';
 import { CONFIG } from './_home/config';
@@ -218,7 +219,7 @@ export default async function Home() {
               </a>
             </div>
             <p className="aviso">
-              Feita sob encomenda. Entrega em pelo menos 30 dias, para todo o Brasil.
+              {`Feita sob encomenda. Entrega em pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias, para todo o Brasil.`}
             </p>
             {/* O frete antes do login (#205). Mesma cotacao do checkout. */}
             {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoPadrao} /> : null}
@@ -324,7 +325,7 @@ export default async function Home() {
               </a>
             </div>
             <p className="aviso">
-              Feita sob encomenda. Entrega em pelo menos 30 dias, para todo o Brasil.
+              {`Feita sob encomenda. Entrega em pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias, para todo o Brasil.`}
             </p>
             {/* A mesma ficha da secao: o CEP digitado la aparece aqui. */}
             {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoPadrao} /> : null}
@@ -365,6 +366,7 @@ export default async function Home() {
         className="concierge"
         role="dialog"
         aria-labelledby="conciergeTitulo"
+        aria-describedby="conciergeNota"
         hidden
       >
         <div className="concierge-topo">
@@ -373,6 +375,11 @@ export default async function Home() {
             fechar
           </button>
         </div>
+        {/* #278: a resposta e de um modelo, e pode errar. O numero que vale e o
+            do checkout, e quem le o chat precisa saber disso antes do print. */}
+        <p className="concierge-nota" id="conciergeNota">
+          O concierge é automático e pode errar. Preço, frete e prazo valem os do checkout.
+        </p>
         <div className="concierge-lista" id="conciergeLista" aria-live="polite"></div>
         <div className="concierge-digitando" id="conciergeDigitando" aria-hidden="true">
           <span className="sr">O concierge está escrevendo</span>
