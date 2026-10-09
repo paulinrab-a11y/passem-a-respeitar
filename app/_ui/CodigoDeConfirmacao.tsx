@@ -9,6 +9,7 @@ import Rotulo from '@/app/_ui/Rotulo';
 import { CODIGO_DIGITOS } from '@/lib/esquemas';
 import {
   codigoInicial,
+  type Desfecho,
   type EstadoCodigo,
   type EstadoReenvio,
   reenvioInicial,
@@ -19,6 +20,52 @@ export const ESPERA_REENVIO_S = 60;
 const DIGITOS = CODIGO_DIGITOS;
 
 type Acao<Estado> = (anterior: Estado, form: FormData) => Promise<Estado>;
+
+/**
+ * Quando o codigo conferiu mas a pessoa nao entrou (#284). O codigo ja foi
+ * gasto, entao o recado substitui o campo: pedir outro codigo ali so daria
+ * "inválido ou vencido".
+ */
+const DESFECHOS: Record<Desfecho, { titulo: string; texto: string; href: string; rotulo: string }> =
+  {
+    'sem-senha': {
+      titulo: 'E-mail confirmado, falta a senha',
+      texto:
+        'Não consegui gravar a senha que você escolheu. Para entrar, crie uma senha nova em “Esqueci minha senha”: o link chega neste mesmo e-mail.',
+      href: '/recuperar-senha',
+      rotulo: 'Esqueci minha senha',
+    },
+    entrar: {
+      titulo: 'Conta confirmada',
+      texto: 'Sua senha está gravada. Entre com este e-mail e a senha que você acabou de escolher.',
+      href: '/entrar',
+      rotulo: 'Entrar',
+    },
+  };
+
+function DesfechoDoCodigo({ desfecho, classe }: { desfecho: Desfecho; classe: string }) {
+  const acao = useRef<HTMLAnchorElement>(null);
+  const { titulo, texto, href, rotulo } = DESFECHOS[desfecho];
+
+  // O campo do codigo, onde o foco estava, acabou de sair da tela. O foco vai
+  // para o proximo passo, e o texto descreve o link: quem usa leitor de tela
+  // ouve o recado inteiro ao cair nele, sem precisar procurar.
+  useEffect(() => {
+    acao.current?.focus();
+  }, []);
+
+  return (
+    <div className={classe}>
+      <p className="auth-sub">{titulo}</p>
+      <p className="detalhe-nota" id="codigo-desfecho">
+        {texto}
+      </p>
+      <a ref={acao} className="btn" href={href} aria-describedby="codigo-desfecho">
+        {rotulo}
+      </a>
+    </div>
+  );
+}
 
 /**
  * O campo do codigo de confirmacao (#224, #260), o mesmo nas tres telas que o
@@ -107,6 +154,11 @@ export default function CodigoDeConfirmacao({
       queueMicrotask(() => form.current?.requestSubmit());
     }
   }
+
+  // Depois de todos os hooks: a ordem deles nao pode mudar entre as renderizacoes.
+  // A troca de componente remonta a caixa, e a entrada da `.codigo-tela` roda
+  // de novo para o recado.
+  if (estado.desfecho) return <DesfechoDoCodigo desfecho={estado.desfecho} classe={classe} />;
 
   const podeReenviar = restam === 0 && !reenviando && !robo.esperando;
   const recado = reenvio.erro ?? robo.aviso ?? reenvio.aviso;

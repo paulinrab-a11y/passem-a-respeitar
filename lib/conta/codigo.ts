@@ -110,6 +110,18 @@ export async function mandaCodigo(auth: Auth, email: string, cabecalhos: Headers
 }
 
 /**
+ * Client que nao grava cookie: a sessao que nascer nele so vive na memoria
+ * desta chamada. Leva o navegador e o IP de quem pediu, para a sessao nascer
+ * com eles e o limite por IP do Supabase contar contra quem digitou (#244).
+ */
+async function clienteAvulso() {
+  return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: await cabecalhosDeOrigem() },
+  });
+}
+
+/**
  * Confere o codigo de quem ja tem sessao (o aviso de /conta), sem mexer
  * nela.
  *
@@ -121,10 +133,7 @@ export async function mandaCodigo(auth: Auth, email: string, cabecalhos: Headers
  * o e-mail confirmado, nao outra sessao.
  */
 export async function codigoDaContaConfere(email: string, codigo: string) {
-  const avulso = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: await cabecalhosDeOrigem() },
-  });
+  const avulso = await clienteAvulso();
 
   const { error } = await avulso.auth.verifyOtp({ email, token: codigo, type: 'email' });
   if (error) return false;
@@ -133,4 +142,69 @@ export async function codigoDaContaConfere(email: string, codigo: string) {
   // resposta: o codigo conferiu e o e-mail ja esta confirmado.
   await avulso.auth.signOut({ scope: 'local' });
   return true;
+}
+
+/**
+ * O que sobra de conferir o codigo do cadastro gravando a senha (#284):
+ *
+ * - `invalido`: o codigo nao conferiu, e nada mudou na conta.
+ * - `sem-senha`: o e-mail ficou confirmado, mas a senha escolhida nao foi
+ *   gravada. Nenhuma sessao ficou viva.
+ * - `pronto`: e-mail confirmado, senha gravada, as outras sessoes
+ *   derrubadas. A sessao vai para quem chamou gravar no cookie.
+ */
+export type ConfirmacaoDoCadastro =
+  | { resultado: 'invalido' }
+  | { resultado: 'sem-senha' }
+  | { resultado: 'pronto'; sessao: { access_token: string; refresh_token: string } };
+
+/**
+ * Confere o codigo da tela do cadastro e grava, na conta, a senha que a
+ * pessoa acabou de escolher (#284).
+ *
+ * Pre-sequestro de conta: alguem cadastra o e-mail de outra pessoa com uma
+ * senha DELE e nao confirma. Quando a dona do e-mail se cadastra, o
+ * Supabase nao mexe na conta pendente — so manda um codigo novo — e a senha
+ * que ela digitou e descartada. Confirmando pelo codigo, a conta ficava dela
+ * no e-mail e dele na senha. Por isso, depois do `verifyOtp`, a senha da
+ * tela e gravada com a sessao recem-nascida, e as outras sessoes caem.
+ *
+ * Tudo num client que nao grava cookie, e a sessao so sai daqui quando a
+ * senha ja e a da pessoa. Se a gravacao falhar, a sessao e encerrada antes de
+ * chegar ao navegador: entrar numa conta cuja senha pode ser de outro seria
+ * pior do que pedir uma senha nova pela recuperacao.
+ *
+ * `same_password` nao e falha, e o caso comum: sem ninguem no meio, a senha
+ * da conta pendente ja e a que a pessoa escolheu, e o Supabase recusa trocar
+ * uma senha por ela mesma.
+ */
+export async function confirmaCadastro(
+  email: string,
+  codigo: string,
+  senha: string
+): Promise<ConfirmacaoDoCadastro> {
+  const avulso = await clienteAvulso();
+
+  const { data, error } = await avulso.auth.verifyOtp({ email, token: codigo, type: 'email' });
+  if (error) return { resultado: 'invalido' };
+  // O codigo conferiu e o e-mail esta confirmado, mas sem sessao nao ha com
+  // o que gravar a senha. Na pratica o Supabase sempre devolve uma.
+  if (!data.session) return { resultado: 'sem-senha' };
+
+  const { error: erroDaSenha } = await avulso.auth.updateUser({ password: senha });
+  if (erroDaSenha && erroDaSenha.code !== 'same_password') {
+    // `global`: a que acabou de nascer e qualquer uma que tenha entrado com
+    // a senha antiga entre o codigo e esta linha. Melhor esforco: com o
+    // Supabase fora do ar, a sessao daqui morre com esta chamada mesmo, sem
+    // ter chegado ao cookie.
+    await avulso.auth.signOut({ scope: 'global' });
+    return { resultado: 'sem-senha' };
+  }
+
+  // `others`: mantem esta, que vai para o cookie, e derruba o resto. Como na
+  // troca de senha, o erro daqui nao desfaz o que ja foi gravado.
+  await avulso.auth.signOut({ scope: 'others' });
+
+  const { access_token, refresh_token } = data.session;
+  return { resultado: 'pronto', sessao: { access_token, refresh_token } };
 }

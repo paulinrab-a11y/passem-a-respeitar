@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { SENHA_MAX } from './conta/senha';
 import {
   CONCIERGE_HISTORICO_MAX,
   CONCIERGE_MENSAGEM_MAX,
   esquemaConcierge,
+  esquemaConfirmarCadastro,
   esquemaCriarConta,
   esquemaEmail,
   esquemaEntrar,
@@ -109,6 +111,57 @@ describe('esquemaCriarConta (#30)', () => {
     expect(r.success).toBe(true);
     if (r.success)
       expect(Object.keys(r.data).sort()).toEqual(['aceite', 'confirmacao', 'email', 'senha']);
+  });
+});
+
+/**
+ * A senha volta na confirmacao pelo codigo do cadastro (#284), e e a que
+ * vale na conta: passa pelas mesmas regras do cadastro, nem uma a menos.
+ */
+describe('esquemaConfirmarCadastro (#284)', () => {
+  const bom = {
+    email: 'Fulana@Exemplo.test ',
+    codigo: '12345678',
+    senha: 'uma senha razoavel',
+    confirmacao: 'uma senha razoavel',
+  };
+
+  it('aceita codigo e senha, e normaliza o e-mail como o cadastro', () => {
+    const r = esquemaConfirmarCadastro.safeParse(bom);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.email).toBe('fulana@exemplo.test');
+  });
+
+  // Cada senha que o cadastro recusa, a confirmacao tambem recusa.
+  it.each([
+    ['curta', { senha: '1234567', confirmacao: '1234567' }],
+    ['longa demais', { senha: 'a'.repeat(SENHA_MAX + 1), confirmacao: 'a'.repeat(SENHA_MAX + 1) }],
+    ['sem senha', { senha: undefined }],
+    ['sem confirmacao', { confirmacao: undefined }],
+    ['confirmacao diferente', { confirmacao: 'outra' }],
+  ])('senha %s: as mesmas regras do cadastro', (_nome, troca) => {
+    const confirmacao = esquemaConfirmarCadastro.safeParse({ ...bom, ...troca }).success;
+    const cadastro = esquemaCriarConta.safeParse({ ...bom, aceite: true, ...troca }).success;
+
+    expect(confirmacao).toBe(false);
+    expect(cadastro).toBe(confirmacao);
+  });
+
+  it('confirmacao diferente cai no campo confirmacao', () => {
+    const r = esquemaConfirmarCadastro.safeParse({ ...bom, confirmacao: 'outra' });
+    if (!r.success) expect(r.error.issues[0]?.path).toEqual(['confirmacao']);
+  });
+
+  it('o codigo continua com oito digitos', () => {
+    expect(esquemaConfirmarCadastro.safeParse({ ...bom, codigo: '1234567' }).success).toBe(false);
+  });
+
+  // Do cadastro nao vem "manter conectado", e um `lembrar` forjado nao passa.
+  it('descarta campo que nao esta no schema, inclusive lembrar', () => {
+    const r = esquemaConfirmarCadastro.safeParse({ ...bom, lembrar: true, admin: true });
+    expect(r.success).toBe(true);
+    if (r.success)
+      expect(Object.keys(r.data).sort()).toEqual(['codigo', 'confirmacao', 'email', 'senha']);
   });
 });
 

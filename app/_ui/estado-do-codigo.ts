@@ -10,7 +10,22 @@
 export type EstadoCodigo = {
   erro: string | null;
   tentativa: number;
+  /**
+   * O codigo conferiu, mas a pessoa nao entrou (#284). So o cadastro produz
+   * isto, quando o codigo grava a senha escolhida:
+   *
+   * - `sem-senha`: e-mail confirmado, senha nao gravada. O caminho e criar
+   *   uma senha em "Esqueci minha senha".
+   * - `entrar`: e-mail confirmado e senha gravada, mas a sessao nao chegou
+   *   ao navegador. O caminho e o login.
+   *
+   * Nos dois o codigo ja foi gasto: a tela troca o campo por este recado, em
+   * vez de pedir um codigo que nao vale mais.
+   */
+  desfecho?: Desfecho;
 };
+
+export type Desfecho = 'sem-senha' | 'entrar';
 
 export const codigoInicial: EstadoCodigo = { erro: null, tentativa: 0 };
 

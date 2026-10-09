@@ -43,6 +43,16 @@ function funcoesExportadas(fonte: string) {
 /** Os campos de senha dos formularios: a senha de login e a "atual" da troca. */
 const LE_SENHA = /form\.get\(['"](senha|atual)['"]\)/;
 
+/**
+ * Limites compartilhados que valem como `limita()` (#284). O codigo do
+ * cadastro e conferido em mais de uma tela, e o contador precisa ser um so:
+ * por isso a acao que confirma o cadastro, e le a senha escolhida, limita por
+ * `cabeConferencia`, de lib/conta/codigo.ts. Um nome so entra aqui se a
+ * funcao dele chamar `limita()` — conferido abaixo.
+ */
+const COMPARTILHADOS = ['cabeConferencia'];
+const LIMITA = new RegExp(`\\b(limita|${COMPARTILHADOS.join('|')})\\(`);
+
 describe('toda rota de API limita', () => {
   it('existe pelo menos uma rota (senao o teste nao testa nada)', () => {
     expect(rotas.length).toBeGreaterThan(0);
@@ -100,11 +110,19 @@ describe('toda funcao que le senha do formulario limita', () => {
         '/conta/seguranca/acoes.ts reautenticarEEncerrar',
         '/conta/seguranca/email.ts trocarEmail',
         '/conta/seguranca/excluir.ts excluirConta',
+        '/criar-conta/acoes.ts confirmarCadastro',
       ])
     );
   });
 
   it.each(casos)('%s chama limita()', (_nome, corpo) => {
-    expect(corpo).toMatch(/\blimita\(/);
+    expect(corpo).toMatch(LIMITA);
+  });
+
+  it.each(COMPARTILHADOS)('o limite compartilhado %s chama limita()', (nome) => {
+    const fonte = readFileSync(join(RAIZ, '..', 'lib', 'conta', 'codigo.ts'), 'utf8');
+    const funcao = funcoesExportadas(fonte).find((f) => f.nome === nome);
+
+    expect(funcao?.corpo).toMatch(/\blimita\(/);
   });
 });

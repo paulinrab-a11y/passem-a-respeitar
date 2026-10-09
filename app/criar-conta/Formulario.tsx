@@ -55,8 +55,16 @@ export default function Formulario() {
   }, [estado.campo, estado.tentativa]);
 
   if (estado.enviadoPara && voltouEm !== estado.tentativa) {
+    // A senha vai para a tela do codigo, que a grava na conta ao confirmar
+    // (#284). E a mesma que o cadastro acabou de aceitar: os campos ficam
+    // desabilitados enquanto ele anda, e a tela do codigo os tira da frente.
     return (
-      <Codigo email={estado.enviadoPara} aoTrocarEmail={() => setVoltouEm(estado.tentativa)} />
+      <Codigo
+        email={estado.enviadoPara}
+        senha={senha}
+        confirmacao={confirmacao}
+        aoTrocarEmail={() => setVoltouEm(estado.tentativa)}
+      />
     );
   }
 
@@ -155,9 +163,9 @@ export default function Formulario() {
       <p className="auth-rodape">
         Já tem conta? <a href="/entrar">Entrar</a>
       </p>
-      {/* Quem fechou a tela do codigo tende a voltar para ca, e cadastrar de
-          novo um e-mail pendente manda codigo mas descarta a senha nova: vale
-          a do primeiro cadastro (#260). O caminho certo e o login. O texto
+      {/* Quem fechou a tela do codigo tende a voltar para ca. Cadastrar de
+          novo tambem funciona desde a #284 — o codigo grava a senha nova —,
+          mas o login com a senha e o caminho mais curto (#260). O texto
           aparece para todo mundo, entao nao conta quem tem cadastro. */}
       <p className="auth-rodape">
         Criou a conta e não confirmou o e-mail? Entre com a senha que escolheu: mandamos um código
