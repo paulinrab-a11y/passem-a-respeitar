@@ -72,7 +72,32 @@ describe('GuiaDeTamanhos', () => {
     abre();
     expect(container.querySelectorAll('thead th[scope="col"]')).toHaveLength(4);
     expect(container.querySelectorAll('tbody th[scope="row"]')).toHaveLength(2);
-    expect(dialogo(container).getAttribute('aria-labelledby')).toBe('guia-titulo');
+  });
+
+  it('o modal tem o nome do proprio titulo', () => {
+    const { container } = monta();
+    abre();
+    const titulo = container.querySelector('dialog h2') as HTMLHeadingElement;
+
+    expect(titulo.id).not.toBe('');
+    expect(dialogo(container).getAttribute('aria-labelledby')).toBe(titulo.id);
+    expect(screen.getByRole('dialog', { name: 'Guia de tamanhos' })).toBe(dialogo(container));
+  });
+
+  // A home tem dois guias, um na ficha e outro na loja (#266). Com id fixo, os
+  // dois apontavam para o primeiro <h2> e a pagina tinha id repetido.
+  it('dois guias na mesma pagina nao repetem id', () => {
+    const { container } = render(
+      <>
+        <GuiaDeTamanhos linhas={LINHAS} produto="Camiseta CBAC" />
+        <GuiaDeTamanhos linhas={LINHAS} produto="Camiseta CBAC" />
+      </>
+    );
+    const dialogos = [...container.querySelectorAll('dialog')];
+    const titulos = [...container.querySelectorAll('dialog h2')].map((h) => h.id);
+
+    expect(new Set(titulos).size).toBe(2);
+    expect(dialogos.map((d) => d.getAttribute('aria-labelledby'))).toEqual(titulos);
   });
 
   it('fechar anima a saida, e so depois fecha de verdade', () => {
