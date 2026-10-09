@@ -107,6 +107,8 @@ const pedido = (extra: Record<string, unknown> = {}) => ({
   itens: [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 2 }],
   endereco: ENDERECO,
   servico: 'pac',
+  // A caixinha dos termos marcada (#276): o caminho de quem finaliza.
+  aceite: true,
   ...extra,
 });
 
@@ -126,6 +128,7 @@ describe('o corpo do request nao define dinheiro', () => {
       ],
       endereco: ENDERECO,
       servico: 'pac',
+      aceite: true,
       total: 1,
       totalCentavos: 100,
       subtotal: 1,
@@ -159,6 +162,8 @@ describe('o corpo do request nao define dinheiro', () => {
       'p_endereco',
       'p_frete',
       'p_itens',
+      // Entrou na #276: a hora do aceite, carimbada aqui.
+      'p_termos_aceitos_em',
       'p_total_centavos',
       'p_user_id',
     ]);
@@ -169,6 +174,7 @@ describe('o corpo do request nao define dinheiro', () => {
       itens: [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1, nome: 'Camiseta de graça' }],
       endereco: ENDERECO,
       servico: 'pac',
+      aceite: true,
     });
 
     expect(itensGravados()[0].nome).toBe('Camiseta CBAC');
@@ -369,6 +375,7 @@ describe('recusa', () => {
       itens: [{ slug: 'camiseta-cbac', tamanho: 'GG', quantidade: 1 }],
       endereco: ENDERECO,
       servico: 'pac',
+      aceite: true,
     });
 
     expect(r).toEqual({ ok: false, motivo: 'produto-indisponivel' });
@@ -379,6 +386,47 @@ describe('recusa', () => {
     bancoComCatalogo([CATALOGO], true);
 
     expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'nao-consegui-gravar' });
+  });
+});
+
+describe('aceite dos termos de compra (#276)', () => {
+  // A acao do checkout ja confere; aqui e a segunda trava, ao lado da
+  // gravacao, para quem chamar `criaPedido` por outro caminho.
+  it.each([
+    ['ausente', undefined],
+    ['falso', false],
+    ['"on" do formulario cru', 'on'],
+    ['texto "true"', 'true'],
+    ['um', 1],
+  ])('aceite %s recusa antes de cotar e de gravar', async (_, aceite) => {
+    const r = await criaPedido(pedido({ aceite }));
+
+    expect(r).toEqual({ ok: false, motivo: 'entrada-invalida' });
+    expect(cotaFrete).not.toHaveBeenCalled();
+    expect(gravado).toBeNull();
+  });
+
+  it('a hora do aceite e a do servidor, no instante da criacao', async () => {
+    const antes = Date.now();
+    await criaPedido(pedido());
+    const depois = Date.now();
+
+    const aceito = Date.parse(String(gravado?.p_termos_aceitos_em));
+    expect(aceito).toBeGreaterThanOrEqual(antes);
+    expect(aceito).toBeLessThanOrEqual(depois);
+  });
+
+  // O corpo pode trazer a hora que quiser, com o nome que quiser: o schema so
+  // conhece `aceite: true`, e o resto e descartado antes de virar objeto.
+  it('hora de aceite vinda do corpo e ignorada', async () => {
+    await criaPedido(
+      pedido({
+        termos_aceitos_em: '1999-01-01T00:00:00Z',
+        p_termos_aceitos_em: '1999-01-01T00:00:00Z',
+      })
+    );
+
+    expect(String(gravado?.p_termos_aceitos_em).startsWith('1999')).toBe(false);
   });
 });
 

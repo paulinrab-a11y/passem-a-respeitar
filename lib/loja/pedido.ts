@@ -7,7 +7,7 @@ import 'server-only';
  * da loja: o que o navegador manda sao ESCOLHAS, nunca valores.
  *
  *   entra:  { itens: [{ slug, tamanho, quantidade }], endereco: {...},
- *             servico: 'pac' | 'sedex' }
+ *             servico: 'pac' | 'sedex', aceite: true }
  *   sai:    id e numero do pedido gravado
  *
  * Nao ha parametro de preco, de total, de frete nem de `user_id`. Um corpo com
@@ -27,6 +27,15 @@ import { esquemaServico, type MotivoDoFrete } from './frete';
 import { esquemaCarrinho, type MotivoDaRecusa } from './precos';
 
 /**
+ * O aceite dos termos de compra (#276). `literal(true)`, e nao `boolean`: a
+ * caixinha desmarcada nao e "false", e recusa. A acao do checkout confere o
+ * mesmo schema antes, para dizer a pessoa o que faltou; aqui e a segunda vez,
+ * ao lado da gravacao, porque quem chama `criaPedido` pode um dia nao ser o
+ * checkout.
+ */
+export const esquemaAceiteDosTermos = z.literal(true);
+
+/**
  * O contrato do checkout. `esquemaCarrinho` e `esquemaEndereco` ja sao os
  * mesmos usados no resto da loja — se divergissem, a tela aprovaria o que a
  * gravacao recusa.
@@ -35,6 +44,7 @@ const esquemaCriacaoDePedido = z.object({
   itens: esquemaCarrinho.shape.itens,
   endereco: esquemaEndereco,
   servico: esquemaServico,
+  aceite: esquemaAceiteDosTermos,
 });
 
 type MotivoDaCriacao =
@@ -103,6 +113,10 @@ export async function criaPedido(bruto: unknown): Promise<CriacaoDePedido> {
       servico: frete.servico,
       prazo_dias: frete.prazoDias,
     },
+    // A hora do aceite e a DESTE relogio, no instante em que o pedido nasce.
+    // O corpo nao tem como trazer outra: o schema so conhece `aceite: true`,
+    // e um `termos_aceitos_em` mandado pelo navegador foi descartado no parse.
+    p_termos_aceitos_em: new Date().toISOString(),
   });
 
   const criado = (data as LinhaCriada[] | null)?.[0];

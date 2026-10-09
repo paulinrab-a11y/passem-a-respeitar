@@ -845,6 +845,12 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .detalhe-bloco h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:#fff;margin-bottom:18px}
 .detalhe-bloco .pedido-itens{margin-top:0}
 .detalhe-nota{font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);max-width:48ch;margin-bottom:18px}
+/* A versao dos termos (#276): fecha a pagina com a mesma linha que separa os
+   blocos, sem titulo — e rodape do texto, nao mais uma secao. */
+.termos-data{margin-top:40px;padding-top:24px;border-top:1px solid var(--prata-3)}
+/* Os prazos do pedido entregue (#276): a lista do resumo, com o respiro do
+   paragrafo antes do "como pedir" que vem embaixo. */
+.pos-venda-prazos{margin-bottom:18px}
 /* Para onde vai (#242): destinatario em branco, endereco numa linha so. */
 .entrega-nome{font-size:14px;letter-spacing:.02em;color:#fff}
 .entrega-endereco{margin-top:6px;font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2)}

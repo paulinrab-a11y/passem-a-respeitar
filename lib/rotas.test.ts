@@ -19,8 +19,9 @@ describe('exigeSessao', () => {
   );
 
   // `/contato` comeca com `/conta` — sem a barra no teste de prefixo, uma
-  // pagina publica de contato cairia atras do login.
-  it.each(['/', '/contato', '/conta-de-mentira', '/entrar', '/api/convite', '/merch'])(
+  // pagina publica de contato cairia atras do login. /termos (#276) tambem e
+  // publica: quem ainda nao tem conta precisa ler antes de comprar.
+  it.each(['/', '/contato', '/conta-de-mentira', '/entrar', '/api/convite', '/merch', '/termos'])(
     'deixa %s passar',
     (rota) => {
       expect(exigeSessao(rota)).toBe(false);

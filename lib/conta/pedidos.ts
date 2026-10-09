@@ -9,6 +9,7 @@
 
 import { cepLegivel, type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
 import type { StatusPedido } from '@/lib/loja/status-do-pedido';
+import { type PosVenda, posVendaDoPedido } from '@/lib/loja/termos';
 import { type EventoDoBanco, type LinhaDoTempo, montaLinhaDoTempo } from './linha-do-tempo';
 
 /** Quantos pedidos por pagina. Criterio da #41. */
@@ -317,6 +318,11 @@ export type PedidoDetalhado = {
    * exatamente o que a #42 pede para nao acontecer.
    */
   linhaDoTempo: LinhaDoTempo;
+  /**
+   * Cancelar, desistir ou trocar: o que cabe agora, e ate quando (#276).
+   * Nulo no pedido cancelado ou reembolsado, que nao tem o que pedir.
+   */
+  posVenda: PosVenda | null;
 };
 
 type LinhaDetalhe = LinhaPedido &
@@ -336,8 +342,16 @@ type LinhaDetalhe = LinhaPedido &
  * nao definir quem escreve e para quem. Nenhum dos dois esta nos criterios da
  * #42, e coluna que ninguem pediu nao precisa sair do banco.
  */
-export function mapeiaDetalhe(linha: LinhaDetalhe): PedidoDetalhado {
+export function mapeiaDetalhe(linha: LinhaDetalhe, agora: Date = new Date()): PedidoDetalhado {
   const { rotulo, tom } = leStatus(linha.status);
+
+  // O primeiro registro de "entregue" na trilha, como a etapa da linha do
+  // tempo: e o unico dia que o banco tem perto do recebimento (#276).
+  const entregueEm =
+    linha.order_status_history
+      .filter((e) => e.para === 'entregue')
+      .map((e) => e.criado_em)
+      .sort()[0] ?? null;
 
   return {
     numero: linha.numero,
@@ -351,5 +365,6 @@ export function mapeiaDetalhe(linha: LinhaDetalhe): PedidoDetalhado {
     aguardandoPagamento: linha.status === 'aguardando_pagamento',
     itens: mapeiaItens(linha.order_items),
     linhaDoTempo: montaLinhaDoTempo(linha.status, linha.order_status_history),
+    posVenda: posVendaDoPedido(linha.status, entregueEm, agora),
   };
 }

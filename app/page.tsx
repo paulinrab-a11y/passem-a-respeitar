@@ -269,6 +269,9 @@ export default async function Home() {
           <span>CBAC</span>
           {/* A politica existe desde a #109. Rodape e onde a pessoa procura. */}
           <a href="/privacidade">privacidade</a>
+          {/* Os termos de compra (#276), ao lado: quem procura como trocar ou
+              desistir procura no mesmo lugar que a privacidade. */}
+          <a href="/termos">termos de compra</a>
           {/* Credito do site (#195). Link fixo, fora do CONFIG: nao muda por ambiente. */}
           <p className="assina-credito">
             site feito pela{' '}

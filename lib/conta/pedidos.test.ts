@@ -291,6 +291,8 @@ describe('mapeiaDetalhe', () => {
       'itens',
       'linhaDoTempo',
       'numero',
+      // Entrou na #276: o que cabe pedir agora (cancelar, desistir, trocar).
+      'posVenda',
       'rotulo',
       'tom',
       'total',
@@ -308,6 +310,41 @@ describe('mapeiaDetalhe', () => {
 
     expect(pedido.itens).toEqual([]);
     expect(pedido.linhaDoTempo.semRegistro).toBe(true);
+  });
+
+  // #276: o enviado ainda nao tem dia de entrega, e a tela nao inventa um.
+  it('enviado: o que cabe pedir vai sem prazo calculado', () => {
+    expect(mapeiaDetalhe(linha).posVenda).toEqual({ etapa: 'a-caminho' });
+  });
+
+  // O prazo sai do PRIMEIRO registro de "entregue" na trilha, como a etapa
+  // da linha do tempo. Uma marcacao repetida depois nao empurra o prazo.
+  it('entregue: os prazos contam do primeiro registro de entrega', () => {
+    const pedido = mapeiaDetalhe(
+      {
+        ...linha,
+        status: 'entregue',
+        order_status_history: [
+          ...linha.order_status_history,
+          { para: 'entregue', criado_em: '2026-09-28T15:00:00Z' },
+          { para: 'entregue', criado_em: '2026-09-25T15:00:00Z' },
+        ],
+      },
+      new Date('2026-09-30T15:00:00Z')
+    );
+
+    expect(pedido.posVenda).toMatchObject({
+      etapa: 'entregue',
+      prazos: {
+        entregueEm: { iso: '2026-09-25' },
+        arrependimentoAte: { iso: '2026-10-02', texto: '02/10/2026' },
+        arrependimentoAberto: true,
+      },
+    });
+  });
+
+  it('cancelado: sem o bloco de cancelar, desistir ou trocar', () => {
+    expect(mapeiaDetalhe({ ...linha, status: 'cancelado' }).posVenda).toBeNull();
   });
 });
 

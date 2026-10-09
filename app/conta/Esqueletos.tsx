@@ -93,9 +93,13 @@ export function EsqueletoPerfil() {
         <Botao ch={9} />
       </div>
 
+      {/* Tres atalhos, como na conta: o terceiro (#276) quebra a linha no
+          telefone, e o esqueleto quebra junto em vez de o Sair descer quando
+          o perfil chega. */}
       <p className="conta-atalho">
         <Linha ch={12} />
         <Linha ch={12} />
+        <Linha ch={28} />
       </p>
 
       <div className="conta-sair">

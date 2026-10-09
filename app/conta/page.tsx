@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { ehAdmin } from '@/lib/admin';
 import { iniciais, perfilDaSessao } from '@/lib/conta/perfil';
 import { formataDataPorExtenso } from '@/lib/datas';
+import { TERMOS } from '@/lib/loja/termos';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPerfil } from './Esqueletos';
 import Foto from './Foto';
@@ -87,6 +88,9 @@ async function Perfil() {
       <p className="conta-atalho">
         <a href="/conta/pedidos">Meus pedidos</a>
         <a href="/conta/seguranca">Trocar senha</a>
+        {/* Os termos (#276), direto no "como pedir": quem chega aqui querendo
+              desistir de uma compra quer o caminho, nao o texto inteiro. */}
+        <a href={`${TERMOS}#como-pedir`}>Cancelar, desistir ou trocar</a>
         {/* So para quem e administrador (#43). O papel vem do servidor;
               esconder o link e cortesia, nao seguranca — a tela confere de novo. */}
         {ehAdmin({ email: perfil.email, emailVerificado: perfil.emailVerificado }) ? (

@@ -50,6 +50,11 @@ const DESLIGADAS = [
   'SMTP_USER',
   'UPSTASH_REDIS_REST_TOKEN',
   'UPSTASH_REDIS_REST_URL',
+  // Quem vende (#276): os dados do dono nao entram na suite. Sem eles a
+  // pagina /termos diz que estao sendo atualizados, sempre igual.
+  'VENDEDOR_DOCUMENTO',
+  'VENDEDOR_ENDERECO',
+  'VENDEDOR_NOME',
   // Na Vercel estas duas redirecionam para o host de producao (#141).
   'VERCEL_ENV',
   'VERCEL_PROJECT_PRODUCTION_URL',

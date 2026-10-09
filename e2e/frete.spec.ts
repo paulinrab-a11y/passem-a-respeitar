@@ -1,5 +1,12 @@
 import { type BrowserContext, test as base, expect, type Page, type Route } from '@playwright/test';
-import { criaAdmin, criaUsuario, leFreteDoPedido, pedidosDe, type Usuario } from './apoio/banco';
+import {
+  criaAdmin,
+  criaUsuario,
+  leAceiteDoPedido,
+  leFreteDoPedido,
+  pedidosDe,
+  type Usuario,
+} from './apoio/banco';
 import { CEPS, PORTA_DO_FRETE, TOKEN_DO_FRETE } from './apoio/melhor-envio-falso.mjs';
 import { entra, vivo } from './apoio/telas';
 import { CEPS_DO_VIACEP } from './apoio/viacep-falso.mjs';
@@ -77,6 +84,10 @@ async function preencheEndereco(pagina: Page, cep: string) {
  *  caixa do frete pode ter o de tentar de novo (#240). */
 const finalizar = (pagina: Page) => pagina.locator('form.entrega button[type="submit"]');
 
+/** A caixinha dos termos de compra (#276): sem ela marcada, nao ha pedido. */
+const aceite = (pagina: Page) =>
+  pagina.getByRole('checkbox', { name: 'Li e aceito os termos de compra' });
+
 test('frete: CEP mostra PAC e SEDEX, e o pedido grava o que o servidor cotou', async ({
   logada,
 }) => {
@@ -99,6 +110,8 @@ test('frete: CEP mostra PAC e SEDEX, e o pedido grava o que o servidor cotou', a
 
   await sedex.check();
   await expect(finalizar(logada)).toContainText('165,90');
+  await aceite(logada).check();
+  const antesDoAceite = Date.now();
   await finalizar(logada).click();
 
   await logada.waitForURL(/\/checkout\/pagamento\/[0-9a-f-]{36}$/);
@@ -113,6 +126,11 @@ test('frete: CEP mostra PAC e SEDEX, e o pedido grava o que o servidor cotou', a
     entrega_cep: '04538133',
   });
   expect(await pedidosDe(quem)).toBe(antes + 1);
+  // O aceite dos termos (#276) ficou no pedido, com a hora do servidor. A
+  // folga cobre a diferenca entre o relogio do teste e o do banco local.
+  const aceitoEm = Date.parse((await leAceiteDoPedido(id)) ?? '');
+  expect(aceitoEm).toBeGreaterThanOrEqual(antesDoAceite - 60_000);
+  expect(aceitoEm).toBeLessThanOrEqual(Date.now() + 60_000);
 
   // O que chegou no Melhor Envio: o token, a origem, o destino e as medidas.
   const [primeira] = await recebidos();
@@ -140,6 +158,7 @@ test('frete: o detalhe do pedido e a lista do administrador mostram o servico', 
   await logada.goto(CHECKOUT);
   await preencheEndereco(logada, '04538133');
   await expect(logada.getByRole('radio', { name: /PAC/ })).toBeChecked();
+  await aceite(logada).check();
   await finalizar(logada).click();
   await logada.waitForURL(/\/checkout\/pagamento\//);
   const id = logada.url().split('/').pop() as string;
@@ -406,4 +425,44 @@ test('checkout: o guia de tamanhos esta ao lado do item, com o link para trocar'
     '/#merch'
   );
   expect(hidratacao).toEqual([]);
+});
+
+/**
+ * Os termos de compra no checkout (#276): a caixinha nasce desmarcada, o link
+ * abre em outra aba sem perder o endereco, e sem o aceite o servidor nao cria
+ * o pedido — o `required` do HTML nao existe aqui, e quem recusa e a acao.
+ */
+test('checkout: sem aceitar os termos de compra nao ha pedido', async ({ logada }) => {
+  const antes = await pedidosDe(quem);
+  await logada.goto(CHECKOUT);
+  await preencheEndereco(logada, '04538133');
+  await expect(logada.getByRole('radio', { name: /PAC/ })).toBeChecked();
+  await expect(aceite(logada)).not.toBeChecked();
+
+  const [aba] = await Promise.all([
+    logada.context().waitForEvent('page'),
+    logada.getByRole('link', { name: 'termos de compra' }).click(),
+  ]);
+  await expect(aba).toHaveURL(/\/termos$/);
+  await expect(aba.getByRole('heading', { level: 1, name: 'Termos de compra' })).toBeVisible();
+  await aba.close();
+  // O link nao marca a caixinha, e o que foi digitado continua la.
+  await expect(aceite(logada)).not.toBeChecked();
+  await expect(logada.getByLabel('Quem recebe')).toHaveValue('Fulana da Suíte');
+
+  await finalizar(logada).click();
+  await expect(
+    logada
+      .getByRole('alert')
+      .filter({ hasText: 'Para finalizar, é preciso aceitar os termos de compra.' })
+  ).toBeVisible();
+  await expect(aceite(logada)).toBeFocused();
+  await expect(logada).toHaveURL(/\/checkout\?/);
+  expect(await pedidosDe(quem)).toBe(antes);
+
+  // Marcada, o mesmo formulario vira pedido.
+  await aceite(logada).check();
+  await finalizar(logada).click();
+  await logada.waitForURL(/\/checkout\/pagamento\//);
+  expect(await pedidosDe(quem)).toBe(antes + 1);
 });
