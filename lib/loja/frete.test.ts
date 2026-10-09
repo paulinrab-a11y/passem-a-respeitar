@@ -277,11 +277,73 @@ describe('falhas', () => {
     expect(avisos()).toEqual([`http-${status}`]);
   });
 
-  it('HTTP 422 e CEP que nao existe: nao avisa, e a pessoa que confere', async () => {
-    responde({ message: 'The given data was invalid.' }, 422);
+  /** O 422 do Melhor Envio, no formato de validacao do Laravel. */
+  const recusa = (errors?: Record<string, string[]>) =>
+    responde({ message: 'The given data was invalid.', ...(errors && { errors }) }, 422);
+
+  it('HTTP 422 no CEP de destino: nao avisa, e a pessoa que confere', async () => {
+    recusa({ 'to.postal_code': ['O CEP de destino é inválido.'] });
 
     expect(await cota()).toEqual({ ok: false, motivo: 'frete-cep-invalido' });
     expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  // #290: antes, todo 422 virava "Confira o CEP" em silencio. Medida ou seguro
+  // recusado recusaria todo CEP, e nenhum pedido sairia sem o dono saber.
+  it.each([
+    ['no peso do produto', 'products.0.weight', 'http-422-products.weight'],
+    ['na altura do segundo produto', 'products.1.height', 'http-422-products.height'],
+    ['no seguro', 'products.0.insurance_value', 'http-422-products.insurance_value'],
+    ['no CEP de origem', 'from.postal_code', 'http-422-from.postal_code'],
+    ['nos servicos', 'services', 'http-422-services'],
+  ])('HTTP 422 %s: e configuracao nossa, e avisa qual campo', async (_, campo, aviso) => {
+    recusa({ [campo]: ['O campo é inválido.'] });
+
+    expect(await cota()).toEqual({ ok: false, motivo: 'frete-sem-configuracao' });
+    expect(avisos()).toEqual([aviso]);
+  });
+
+  it('HTTP 422 no destino e em outro campo: vale o outro, que recusaria todo CEP', async () => {
+    recusa({ 'to.postal_code': ['inválido'], 'products.0.weight': ['inválido'] });
+
+    expect(await cota()).toEqual({ ok: false, motivo: 'frete-sem-configuracao' });
+    expect(avisos()).toEqual(['http-422-products.weight']);
+  });
+
+  it('HTTP 422 em varios campos: o aviso leva cada um uma vez, ate tres', async () => {
+    recusa({
+      'products.1.weight': ['x'],
+      'products.0.weight': ['x'],
+      'products.0.height': ['x'],
+      'products.0.width': ['x'],
+      'products.0.length': ['x'],
+    });
+
+    await cota();
+    expect(avisos()).toEqual(['http-422-products.height,products.length,products.weight']);
+  });
+
+  it.each([
+    ['sem errors', () => recusa()],
+    ['com errors vazio', () => recusa({})],
+    ['com errors em lista', () => responde({ errors: ['to.postal_code'] }, 422)],
+    [
+      'sem corpo JSON',
+      () =>
+        pedido.mockImplementation(async () => new Response('<html>422</html>', { status: 422 })),
+    ],
+  ])('HTTP 422 %s: nao da para dizer que foi o CEP, e avisa', async (_, arma) => {
+    arma();
+
+    expect(await cota()).toEqual({ ok: false, motivo: 'frete-sem-configuracao' });
+    expect(avisos()).toEqual(['http-422-sem-detalhe']);
+  });
+
+  it('HTTP 422 com campo fora do formato: o aviso nao repete o nome', async () => {
+    recusa({ 'products[0]->peso <script>': ['x'] });
+
+    await cota();
+    expect(avisos()).toEqual(['http-422-outro']);
   });
 
   it.each([429, 500, 503])('HTTP %i: sem cotacao, e avisa', async (status) => {
@@ -300,14 +362,34 @@ describe('falhas', () => {
     expect(flush).not.toHaveBeenCalled();
   });
 
+  // CEP novo nos dois: o '04538133' do primeiro teste ja esta no cache, e sem
+  // consulta nao haveria aviso nenhum para conferir.
   it('nada que vai ao Sentry leva token, CEP ou corpo', async () => {
+    const destino = novoCep();
     pedido.mockRejectedValue(new Error(`falhou com ${TOKEN}`));
-    await cota([CAMISETA], '04538133');
+    await cota([CAMISETA], destino);
 
     const texto = JSON.stringify(captureMessage.mock.calls);
+    expect(captureMessage).toHaveBeenCalledTimes(1);
     expect(texto).not.toContain(TOKEN);
-    expect(texto).not.toContain('04538133');
+    expect(texto).not.toContain(destino);
     expect(texto).not.toContain(ORIGEM);
+  });
+
+  it('nem o 422: a mensagem deles e o CEP no nome do campo ficam de fora', async () => {
+    const destino = novoCep();
+    recusa({
+      'from.postal_code': [`O CEP ${ORIGEM} não existe.`],
+      [`to.${destino}`]: [`O CEP ${destino} não existe.`],
+      [`from.${ORIGEM}.numero`]: ['x'],
+    });
+    await cota([CAMISETA], destino);
+
+    const texto = JSON.stringify(captureMessage.mock.calls);
+    expect(avisos()).toEqual(['http-422-from.numero,from.postal_code']);
+    expect(texto).not.toContain(destino);
+    expect(texto).not.toContain(ORIGEM);
+    expect(texto).not.toContain('não existe');
   });
 });
 
