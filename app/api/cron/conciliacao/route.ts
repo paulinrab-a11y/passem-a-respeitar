@@ -22,12 +22,21 @@ function autorizado(cabecalho: string | null): boolean {
   const segredo = process.env.CRON_SECRET;
   if (!segredo || !cabecalho) return false;
 
-  const esperado = `Bearer ${segredo}`;
+  const recebido = Buffer.from(cabecalho);
+  const esperado = Buffer.from(`Bearer ${segredo}`);
   // Tamanho diferente ja e "nao". Conferir antes evita o throw do
-  // timingSafeEqual e nao vaza nada que o 401 ja nao diga.
-  if (cabecalho.length !== esperado.length) return false;
+  // timingSafeEqual e nao vaza nada que o 401 ja nao diga. Em bytes, e nao
+  // em caracteres: um 'é' tem 1 caractere e 2 bytes, passava pela conta de
+  // caracteres e o throw virava 500 so no tamanho exato do segredo (#287).
+  if (recebido.length !== esperado.length) return false;
 
-  return timingSafeEqual(Buffer.from(cabecalho), Buffer.from(esperado));
+  // Quem nao passa recebe 401, sempre. Um 500 aqui e acessivel sem
+  // autenticacao e diz alguma coisa que o 401 nao diz.
+  try {
+    return timingSafeEqual(recebido, esperado);
+  } catch {
+    return false;
+  }
 }
 
 /** O cron legitimo chama uma vez por dia. Dez por minuto ja e ataque. (#22) */
