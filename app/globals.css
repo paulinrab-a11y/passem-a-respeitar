@@ -209,7 +209,12 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 #loja{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.92);display:none;place-items:center;padding:var(--gutter)}
 #loja.on{display:grid}
 #loja .in{width:min(1080px,100%);display:grid;grid-template-columns:1.15fr 1fr;gap:clamp(20px,4vw,56px);align-items:center}
-#loja .vitrine{position:relative;aspect-ratio:1/1.05;border:1px solid var(--prata-3);background:radial-gradient(ellipse at 50% 60%, #15161a 0%, #050505 70%);overflow:hidden;cursor:grab}
+/* O toque na vitrine (#294). Em fotos, quem recebe o dedo e a `.giro`, e sem
+   isto o navegador tomava o arraste como rolagem: `pointercancel` antes do
+   primeiro quadro, e a camiseta nao girava. `pan-y` deixa com o navegador so a
+   rolagem vertical do modal; o horizontal e do giro. O canvas do 3D continua
+   `none`, porque la o arraste vertical inclina a camiseta. */
+#loja .vitrine{position:relative;aspect-ratio:1/1.05;border:1px solid var(--prata-3);background:radial-gradient(ellipse at 50% 60%, #15161a 0%, #050505 70%);overflow:hidden;cursor:grab;touch-action:pan-y}
 #loja .vitrine:active{cursor:grabbing}
 #loja .vitrine canvas{width:100%;height:100%;display:block;touch-action:none}
 #loja .dica{position:absolute;left:14px;bottom:12px;font-size:11px;letter-spacing:.22em;color:var(--prata-2);pointer-events:none;transition:opacity .4s}
