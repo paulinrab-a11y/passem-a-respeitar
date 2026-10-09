@@ -16,9 +16,14 @@ vi.mock('@/lib/supabase/servidor', () => ({
   cabecalhosDeOrigem: async () => ({ 'User-Agent': 'navegador de teste' }),
 }));
 
-const { cabeConferencia, cabeReenvio, codigoDaContaConfere, mandaCodigo } = await import(
-  './codigo'
-);
+const {
+  cabeConferencia,
+  cabeReenvio,
+  cabeReenvioDoEmail,
+  cabeReenvioDoIp,
+  codigoDaContaConfere,
+  mandaCodigo,
+} = await import('./codigo');
 
 let n = 0;
 const email = () => `pessoa${n++}@exemplo.invalid`;
@@ -32,7 +37,8 @@ beforeEach(() => {
 
 describe('cabeReenvio', () => {
   // A cota e uma so para o botao de reenviar e para o login de conta nao
-  // confirmada: os dois chamam esta funcao, com as mesmas chaves.
+  // confirmada: o login chama esta funcao, o botao as duas de baixo, e as
+  // chaves sao as mesmas.
   it('tres codigos por e-mail na hora, mesmo trocando de IP', async () => {
     const alvo = email();
     for (let i = 0; i < 3; i++) expect(await cabeReenvio(alvo, ip())).toBe(true);
@@ -45,6 +51,25 @@ describe('cabeReenvio', () => {
     for (let i = 0; i < 5; i++) expect(await cabeReenvio(email(), origem)).toBe(true);
 
     expect(await cabeReenvio(email(), origem)).toBe(false);
+  });
+
+  // O botao de reenviar confere os dois em momentos diferentes, o do e-mail
+  // so depois do desafio. Separados, continuam sendo os contadores do login.
+  it('o limite do e-mail, sozinho, e o mesmo contador do login', async () => {
+    const alvo = email();
+    expect(await cabeReenvioDoEmail(alvo)).toBe(true);
+    expect(await cabeReenvioDoEmail(alvo)).toBe(true);
+    expect(await cabeReenvio(alvo, ip())).toBe(true);
+
+    expect(await cabeReenvioDoEmail(alvo)).toBe(false);
+  });
+
+  it('o do IP tambem', async () => {
+    const origem = ip();
+    for (let i = 0; i < 3; i++) expect(await cabeReenvioDoIp(origem)).toBe(true);
+    for (let i = 0; i < 2; i++) expect(await cabeReenvio(email(), origem)).toBe(true);
+
+    expect(await cabeReenvioDoIp(origem)).toBe(false);
   });
 });
 
@@ -77,12 +102,13 @@ describe('cabeConferencia', () => {
 describe('mandaCodigo', () => {
   it('pede outro e-mail de cadastro, com a volta pelo callback do site', async () => {
     const resend = vi.fn(async (_: unknown) => ({ data: {}, error: null }));
-    await mandaCodigo(
+    const enviado = await mandaCodigo(
       { resend } as never,
       'maria@exemplo.invalid',
       new Headers({ host: 'passem-a-respeitar.test' })
     );
 
+    expect(enviado).toBe(true);
     expect(resend).toHaveBeenCalledWith({
       type: 'signup',
       email: 'maria@exemplo.invalid',
@@ -90,9 +116,10 @@ describe('mandaCodigo', () => {
     });
   });
 
-  // O erro nao sobe: e o intervalo minimo do Supabase, que so acontece com
-  // cadastro pendente. Quem chama nao tem o que fazer com ele.
-  it('o erro do Supabase nao sobe', async () => {
+  // O erro nao sobe como excecao: vira `false`. O botao de reenviar ignora
+  // (o 429 so acontece com cadastro pendente); o login, que ja conferiu a
+  // senha, usa para nao dizer "enviamos" quando nada saiu.
+  it('o erro do Supabase vira falso, sem lancar', async () => {
     const resend = vi.fn(async (_: unknown) => ({
       data: {},
       error: { message: 'For security purposes…', status: 429 },
@@ -100,7 +127,7 @@ describe('mandaCodigo', () => {
 
     await expect(
       mandaCodigo({ resend } as never, 'maria@exemplo.invalid', new Headers())
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
   });
 });
 

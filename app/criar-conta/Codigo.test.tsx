@@ -40,6 +40,18 @@ describe('tela do codigo do cadastro (#224)', () => {
     expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe('/entrar');
   });
 
+  // A tela some ao recarregar ou fechar a aba. A volta e o login com a senha
+  // (#260), e nao cadastrar de novo, que descartaria a senha nova.
+  it('ensina a volta pelo login, para quem sair antes de confirmar', () => {
+    render(<Codigo email="maria@exemplo.com" aoTrocarEmail={() => {}} />);
+
+    expect(
+      screen.getByText(
+        'Se sair desta tela antes de confirmar, entre com a senha que escolheu: mandamos um código novo.'
+      ).className
+    ).toBe('auth-rodape');
+  });
+
   it('trocar e-mail avisa o formulario', () => {
     const volta = vi.fn();
     render(<Codigo email="maria@exemplo.com" aoTrocarEmail={volta} />);

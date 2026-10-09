@@ -376,7 +376,7 @@ describe('conta que nunca confirmou o e-mail (#260)', () => {
       erro: null,
       campo: null,
       tentativa: 1,
-      confirmar: { email: e, lembrar: false },
+      confirmar: { email: e, lembrar: false, enviado: true },
     });
     expect(resend).toHaveBeenCalledWith({
       type: 'signup',
@@ -413,32 +413,39 @@ describe('conta que nunca confirmou o e-mail (#260)', () => {
   });
 
   // As chaves sao as do botao de reenviar (3 por e-mail por hora): alternar
-  // entre entrar e reenviar nao manda mais e-mail que o botao sozinho.
-  it('cota do reenvio gasta: a tela aparece igual, sem e-mail novo', async () => {
+  // entre entrar e reenviar nao manda mais e-mail que o botao sozinho. Com a
+  // cota gasta a tela do codigo ainda abre (o anterior pode estar valendo),
+  // mas sabendo que nada saiu: ela nao promete um e-mail que nao vem.
+  it('cota do reenvio gasta: a tela abre, sem e-mail novo e sem prometer um', async () => {
     signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
     const alvo = email();
 
+    const enviados: boolean[] = [];
     for (let i = 0; i < 4; i++) {
       const r = await entrar(estadoInicial, formulario({ email: alvo, senha: 'certa' }));
       expect(r.erro).toBeNull();
       expect(r.confirmar?.email).toBe(alvo);
+      enviados.push(Boolean(r.confirmar?.enviado));
     }
 
+    expect(enviados).toEqual([true, true, true, false]);
     expect(resend).toHaveBeenCalledTimes(3);
   });
 
-  // No 429 o codigo anterior continua valendo; dizer outra coisa so contaria
-  // que ha cadastro pendente a quem ja provou a senha — e nao ajudaria.
-  it('o intervalo minimo do Supabase nao muda a resposta', async () => {
+  // No 429 o codigo anterior continua valendo, e a tela abre do mesmo jeito.
+  // O que muda e o texto: nada saiu agora. Isso so chega a quem ja provou a
+  // senha, entao nao conta a ninguem que ha cadastro pendente.
+  it('o intervalo minimo do Supabase abre a tela sem prometer e-mail novo', async () => {
     signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
     resend.mockResolvedValue({
       error: { message: 'For security purposes…', code: 'over_email_send_rate_limit', status: 429 },
     });
+    const e = email();
 
-    const r = await entrar(estadoInicial, formulario({ email: email(), senha: 'certa' }));
+    const r = await entrar(estadoInicial, formulario({ email: e, senha: 'certa' }));
 
     expect(r.erro).toBeNull();
-    expect(r.confirmar).toBeTruthy();
+    expect(r.confirmar).toEqual({ email: e, lembrar: false, enviado: false });
   });
 
   it('nunca entra: nada de redirect nem de cookie', async () => {

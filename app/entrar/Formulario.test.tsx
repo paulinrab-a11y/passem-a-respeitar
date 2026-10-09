@@ -6,18 +6,24 @@ import type { EstadoEntrar } from './estado';
 
 /**
  * A acao de mentira responde como a de verdade: a senha "certa-sem-confirmar"
- * e a de uma conta que nunca confirmou o e-mail (#260); o resto e credencial
- * errada.
+ * e a de uma conta que nunca confirmou o e-mail (#260), e um codigo novo sai;
+ * "certa-sem-codigo-novo" e a mesma conta com a cota de envio gasta; o resto
+ * e credencial errada.
  */
 vi.mock('./acoes', () => ({
   entrar: vi.fn(async (anterior: EstadoEntrar, form: FormData): Promise<EstadoEntrar> => {
     const tentativa = anterior.tentativa + 1;
-    if (form.get('senha') === 'certa-sem-confirmar') {
+    const senha = form.get('senha');
+    if (senha === 'certa-sem-confirmar' || senha === 'certa-sem-codigo-novo') {
       return {
         erro: null,
         campo: null,
         tentativa,
-        confirmar: { email: String(form.get('email')), lembrar: form.get('lembrar') === 'on' },
+        confirmar: {
+          email: String(form.get('email')),
+          lembrar: form.get('lembrar') === 'on',
+          enviado: senha === 'certa-sem-confirmar',
+        },
       };
     }
     return { erro: 'E-mail ou senha incorretos.', campo: 'credenciais', tentativa };
@@ -84,9 +90,13 @@ describe('login (#51)', () => {
 });
 
 describe('conta que nunca confirmou o e-mail (#260)', () => {
-  async function entraSemConfirmar(container: HTMLElement, lembrar = false) {
+  async function entraSemConfirmar(
+    container: HTMLElement,
+    lembrar = false,
+    senha = 'certa-sem-confirmar'
+  ) {
     fireEvent.change(campo('E-mail'), { target: { value: 'maria@exemplo.com' } });
-    fireEvent.change(campo('Senha'), { target: { value: 'certa-sem-confirmar' } });
+    fireEvent.change(campo('Senha'), { target: { value: senha } });
     if (lembrar) fireEvent.click(campo('Manter conectado'));
     await act(async () => {
       fireEvent.submit(container.querySelector('form') as HTMLFormElement);
@@ -105,6 +115,36 @@ describe('conta que nunca confirmou o e-mail (#260)', () => {
     expect(screen.queryByLabelText('Senha')).toBeNull();
     // A tela existe para este campo: o foco ja esta nele.
     expect(document.activeElement).toBe(screen.getByLabelText(/Código de 8 dígitos/));
+  });
+
+  // Cota de envio gasta ou intervalo minimo do Supabase: a tela abre, porque
+  // o codigo anterior pode estar valendo, mas nao promete um e-mail novo.
+  it('sem codigo novo, a tela diz que nada saiu agora', async () => {
+    const { container } = render(<Formulario next="/conta" />);
+
+    await entraSemConfirmar(container, false, 'certa-sem-codigo-novo');
+
+    const intro = document.getElementById('codigo-intro')?.textContent ?? '';
+    expect(intro).toMatch(
+      /Sua conta ainda não foi confirmada\. Não deu para mandar um código novo para maria@exemplo\.com agora: use o último que chegou/
+    );
+    expect(intro).not.toMatch(/Enviamos/);
+    expect(screen.getByLabelText(/Código de 8 dígitos/)).toBeTruthy();
+  });
+
+  // O link da recuperacao tambem confirma o e-mail e nao depende de codigo:
+  // e a saida de quem nao tem codigo valendo, tenha saido um agora ou nao.
+  it.each([
+    ['com codigo novo', 'certa-sem-confirmar'],
+    ['sem codigo novo', 'certa-sem-codigo-novo'],
+  ])('%s, o rodape aponta Esqueci minha senha', async (_, senha) => {
+    const { container } = render(<Formulario next="/conta" />);
+
+    await entraSemConfirmar(container, false, senha);
+
+    const link = screen.getByRole('link', { name: 'Esqueci minha senha' });
+    expect(link.getAttribute('href')).toBe('/recuperar-senha');
+    expect(link.closest('p')?.textContent).toMatch(/também confirma o e-mail/);
   });
 
   // O codigo termina em sessao: para onde a pessoa ia e se a sessao e para

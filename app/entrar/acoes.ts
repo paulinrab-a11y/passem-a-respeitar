@@ -133,14 +133,19 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
   // inverter essa ordem.
   //
   // Um codigo novo sai sob as cotas do botao de reenviar, as mesmas chaves:
-  // alternar entre entrar e reenviar nao manda mais e-mail que o botao. Cota
-  // gasta ou intervalo minimo do Supabase nao mudam a resposta — o codigo
-  // anterior continua valendo, e a tela tem o botao de reenviar.
+  // alternar entre entrar e reenviar nao manda mais e-mail que o botao. O
+  // desafio e a senha ja passaram, entao as duas andam aqui juntas.
+  //
+  // Cota gasta ou intervalo minimo do Supabase ainda abrem a tela do codigo
+  // (o anterior pode estar valendo), mas com `enviado: false`: dizer
+  // "enviamos" sem ter mandado deixaria a pessoa esperando um e-mail que nao
+  // vem. Nao vira oraculo, porque so chega a quem provou a senha.
   //
   // O `par_lembrar` fica para depois do codigo: ainda nao ha sessao.
   if (error?.code === 'email_not_confirmed') {
-    if (await cabeReenvio(email, ip)) await mandaCodigo(supabase.auth, email, cabecalhos);
-    return { erro: null, campo: null, tentativa, confirmar: { email, lembrar } };
+    const enviado =
+      (await cabeReenvio(email, ip)) && (await mandaCodigo(supabase.auth, email, cabecalhos));
+    return { erro: null, campo: null, tentativa, confirmar: { email, lembrar, enviado } };
   }
 
   if (error) {

@@ -19,6 +19,9 @@ test('cadastro: quem saiu da tela do codigo confirma pelo login (#260)', async (
 
   await page.goto('/criar-conta');
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
+  // O caminho de volta ja esta escrito antes do cadastro: cadastrar de novo
+  // descartaria a senha nova.
+  await expect(page.getByText('Criou a conta e não confirmou o e-mail?')).toBeVisible();
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(senha);
   await page.getByLabel('Confirme a senha').fill(senha);
@@ -42,8 +45,11 @@ test('cadastro: quem saiu da tela do codigo confirma pelo login (#260)', async (
   await preencheLogin(page, email, senha);
   await expect(page.getByText('Sua conta ainda não foi confirmada')).toBeVisible();
   await expect(page).toHaveURL(/\/entrar/);
-  // Dois e-mails: o do cadastro e o que o login acabou de mandar.
+  // Dois e-mails: o do cadastro e o que o login acabou de mandar. E a tela
+  // sabe que mandou: o "enviamos" vem da resposta do Supabase, nao de um
+  // texto fixo.
   await expect.poll(() => quantosPara(email)).toBe(2);
+  await expect(page.getByText(/Enviamos um código de 8 dígitos/)).toBeVisible();
 
   // O codigo novo, lido do e-mail de verdade — o mais recente; o anterior
   // deixou de valer. Oito digitos: envia sozinho.

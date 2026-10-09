@@ -40,18 +40,38 @@ export const CODIGO_INVALIDO = `Código inválido ou vencido. Confira os ${CODIG
 export const CODIGO_INCOMPLETO = `Digite os ${CODIGO_DIGITOS} dígitos do código.`;
 
 /**
- * Ainda cabe mandar um codigo para `email` a partir de `ip`? Os dois
- * contadores andam sempre, como nos outros limites do site: parar no
- * primeiro deixaria o segundo sem registro da tentativa.
+ * Os dois limites de quem pede codigo, em funcoes separadas porque o botao de
+ * reenviar os confere em momentos diferentes. O do IP vem antes do desafio da
+ * Cloudflare: rajada nao pode virar uma chamada para fora por request. O do
+ * e-mail so depois dele. Antes do desafio, qualquer texto passa por token, e
+ * um script trocando de IP gastaria a cota de um e-mail alheio sem mandar
+ * nada — e, com ela, o codigo que o login manda a quem acertou a senha
+ * (#260).
  */
-export async function cabeReenvio(email: string, ip: string) {
-  const porIp = await limita(`reenvio:ip:${ip}`, REENVIO_POR_IP.maximo, REENVIO_POR_IP.janelaMs);
-  const porEmail = await limita(
+export async function cabeReenvioDoIp(ip: string) {
+  const cota = await limita(`reenvio:ip:${ip}`, REENVIO_POR_IP.maximo, REENVIO_POR_IP.janelaMs);
+  return cota.permitido;
+}
+
+export async function cabeReenvioDoEmail(email: string) {
+  const cota = await limita(
     `reenvio:email:${email}`,
     REENVIO_POR_EMAIL.maximo,
     REENVIO_POR_EMAIL.janelaMs
   );
-  return porIp.permitido && porEmail.permitido;
+  return cota.permitido;
+}
+
+/**
+ * Os dois de uma vez, para quem ja passou pelo desafio: o login, que so
+ * chega aqui com a senha certa. Os dois contadores andam sempre, como nos
+ * outros limites do site: parar no primeiro deixaria o segundo sem registro
+ * da tentativa.
+ */
+export async function cabeReenvio(email: string, ip: string) {
+  const porIp = await cabeReenvioDoIp(ip);
+  const porEmail = await cabeReenvioDoEmail(email);
+  return porIp && porEmail;
 }
 
 /**
@@ -68,21 +88,25 @@ export async function cabeConferencia(alvo: `email:${string}` | `conta:${string}
 type Auth = Pick<SupabaseClient['auth'], 'resend'>;
 
 /**
- * Pede ao Supabase outro e-mail de cadastro, com codigo novo.
+ * Pede ao Supabase outro e-mail de cadastro, com codigo novo, e diz se ele
+ * aceitou o pedido.
  *
- * O resultado nao volta de proposito. Para e-mail desconhecido e conta ja
- * confirmada o Supabase responde 200 sem mandar nada; o unico erro que
- * sobra para conta pendente e o intervalo minimo entre e-mails (429). Repassar
- * esse erro era contar a quem pede dois codigos seguidos que ali existe um
- * cadastro pendente (#260). E no 429 o codigo anterior continua valendo:
- * um reenvio que da certo invalida o anterior, um recusado nao.
+ * Para e-mail desconhecido e conta ja confirmada o Supabase responde 200 sem
+ * mandar nada; o erro que sobra para conta pendente e o intervalo minimo entre
+ * e-mails (429). Por isso o botao de reenviar, que responde a qualquer um,
+ * ignora a resposta: repassar o 429 era contar a quem pede dois codigos
+ * seguidos que ali existe um cadastro pendente (#260). So o login, que ja
+ * conferiu a senha, usa a resposta, para nao dizer "enviamos" quando nada
+ * saiu. No 429 o codigo anterior continua valendo: um reenvio que da certo
+ * invalida o anterior, um recusado nao.
  */
 export async function mandaCodigo(auth: Auth, email: string, cabecalhos: Headers) {
-  await auth.resend({
+  const { error } = await auth.resend({
     type: 'signup',
     email,
     options: { emailRedirectTo: urlDeRetorno(cabecalhos, CONTA) },
   });
+  return !error;
 }
 
 /**

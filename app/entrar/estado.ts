@@ -30,8 +30,12 @@ export type EstadoEntrar = {
    * Senha certa de conta que nunca confirmou o e-mail (#260): o formulario da
    * lugar a tela do codigo, que precisa do e-mail e do "manter conectado"
    * escolhido aqui. Nunca preenchido com a senha errada.
+   *
+   * `enviado` diz se um codigo novo saiu agora. Falso quando a cota de envio
+   * acabou ou o Supabase recusou: a tela muda o texto em vez de prometer um
+   * e-mail que nao vai chegar.
    */
-  confirmar?: { email: string; lembrar: boolean };
+  confirmar?: { email: string; lembrar: boolean; enviado: boolean };
 };
 
 export const estadoInicial: EstadoEntrar = { erro: null, campo: null, tentativa: 0 };

@@ -35,6 +35,12 @@ export default function Codigo({
       <p className="auth-rodape">
         Já tem conta com esse e-mail? <a href="/entrar">Entrar</a>
       </p>
+      {/* Esta tela some ao recarregar ou fechar a aba. A volta e o login com a
+          senha, e nao cadastrar de novo, que descartaria a senha nova (#260). */}
+      <p className="auth-rodape">
+        Se sair desta tela antes de confirmar, entre com a senha que escolheu: mandamos um código
+        novo.
+      </p>
     </CodigoDeConfirmacao>
   );
 }

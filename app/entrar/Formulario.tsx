@@ -32,6 +32,7 @@ export default function Formulario({ next }: { next: string }) {
         email={estado.confirmar.email}
         next={next}
         lembrar={estado.confirmar.lembrar}
+        enviado={estado.confirmar.enviado}
         aoVoltar={() => setVoltouEm(estado.tentativa)}
       />
     );

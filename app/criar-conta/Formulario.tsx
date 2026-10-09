@@ -155,6 +155,14 @@ export default function Formulario() {
       <p className="auth-rodape">
         Já tem conta? <a href="/entrar">Entrar</a>
       </p>
+      {/* Quem fechou a tela do codigo tende a voltar para ca, e cadastrar de
+          novo um e-mail pendente manda codigo mas descarta a senha nova: vale
+          a do primeiro cadastro (#260). O caminho certo e o login. O texto
+          aparece para todo mundo, entao nao conta quem tem cadastro. */}
+      <p className="auth-rodape">
+        Criou a conta e não confirmou o e-mail? Entre com a senha que escolheu: mandamos um código
+        novo.
+      </p>
     </form>
   );
 }

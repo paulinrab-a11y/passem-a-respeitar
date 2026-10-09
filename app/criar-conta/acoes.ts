@@ -7,7 +7,8 @@ import {
   CODIGO_INCOMPLETO,
   CODIGO_INVALIDO,
   cabeConferencia,
-  cabeReenvio,
+  cabeReenvioDoEmail,
+  cabeReenvioDoIp,
   mandaCodigo,
 } from '@/lib/conta/codigo';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
@@ -190,10 +191,13 @@ export async function confirmarCodigo(
 /**
  * Pedir outro codigo (#224). Manda e-mail, entao e a acao cara: isca, desafio
  * da Cloudflare e dois limites — os mesmos do login de conta nao confirmada,
- * que tambem manda codigo (#260). O Supabase recusa reenvio dentro do
- * intervalo minimo, e a tela ja nem oferece o botao antes de 60 s.
+ * que tambem manda codigo (#260). O do IP vem antes do desafio e o do e-mail
+ * depois: ver `cabeReenvioDoIp` em lib/conta/codigo.ts. O Supabase recusa
+ * reenvio dentro do intervalo minimo, e a tela ja nem oferece o botao antes
+ * de 60 s.
  */
 const REENVIADO = 'Se o e-mail for válido, enviamos outro código. Vale o mais recente.';
+const MUITOS_PEDIDOS = 'Muitos pedidos. Tente de novo mais tarde.';
 
 export async function reenviarCodigo(
   anterior: EstadoReenvio,
@@ -215,11 +219,13 @@ export async function reenviarCodigo(
 
   const cabecalhos = await headers();
   const ip = ipDoRequest(cabecalhos);
-  if (!(await cabeReenvio(email, ip))) {
-    return falha('Muitos pedidos. Tente de novo mais tarde.');
-  }
+  if (!(await cabeReenvioDoIp(ip))) return falha(MUITOS_PEDIDOS);
 
   if (!(await desafioConfere(desafio, 'reenviar-codigo', ip))) return falha(RECUSA);
+
+  // So agora, com o token conferido: a cota do e-mail e a mesma do codigo que
+  // o login manda, e quem gasta precisa ter passado pelo desafio (#260).
+  if (!(await cabeReenvioDoEmail(email))) return falha(MUITOS_PEDIDOS);
 
   // Sem olhar o resultado (#260): o unico erro que sobrava para a pessoa era
   // o intervalo minimo do Supabase, e ele so acontece com cadastro pendente.
