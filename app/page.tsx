@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { vitrine } from '@/lib/loja/catalogo';
 import { precoNaFicha } from '@/lib/loja/precos';
-import BarraConta from './_home/BarraConta';
+import BarraConta, { LugarDoMenuConta } from './_home/BarraConta';
 import { CONFIG } from './_home/config';
 import FreteNaFicha from './_home/FreteNaFicha';
 import Galeria from './_home/Galeria';
@@ -70,6 +70,9 @@ export default async function Home() {
           <BarraConta />
         </nav>
       </header>
+      {/* O painel da conta abre aqui, fora de #bar e logo depois dele na
+          ordem do Tab: ver BarraConta. */}
+      <LugarDoMenuConta />
 
       <div id="intro" role="dialog" aria-label="Abertura">
         <canvas id="vhs" width="192" height="108"></canvas>

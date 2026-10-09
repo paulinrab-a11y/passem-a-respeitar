@@ -168,6 +168,59 @@ test('acessibilidade: home, com a intro na tela', async ({ page }) => {
   expect((await laudo(page)).violacoes).toEqual([]);
 });
 
+/**
+ * O menu da conta na barra da home, so pelo teclado (#262). O painel sai de
+ * #bar por portal; quando ia para o fim do <body>, ficava a umas quinze
+ * paradas de Tab do botao que o abria.
+ */
+test('acessibilidade: home logada, menu da conta pelo teclado', async ({ logada }) => {
+  test.setTimeout(90_000);
+
+  await logada.goto('/');
+  await logada.locator('#skip').click();
+  await logada.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  const gatilho = logada.locator('#bar').getByRole('button', { name: pessoa.nome, exact: true });
+  const painel = logada.getByRole('navigation', { name: 'Sua conta' });
+  const conta = painel.getByRole('link', { name: 'Conta', exact: true });
+
+  await gatilho.focus();
+  await logada.keyboard.press('Enter');
+  await expect(conta).toBeFocused();
+  await expect(gatilho).toHaveAttribute('aria-expanded', 'true');
+
+  // Com o painel aberto e o foco dentro dele.
+  expect((await laudo(logada)).violacoes).toEqual([]);
+
+  // Para tras, o botao; para a frente, o painel, item a item.
+  await logada.keyboard.press('Shift+Tab');
+  await expect(gatilho).toBeFocused();
+  await logada.keyboard.press('Tab');
+  await expect(conta).toBeFocused();
+  for (const nome of ['Pedidos', 'Segurança']) {
+    await logada.keyboard.press('Tab');
+    await expect(painel.getByRole('link', { name: nome, exact: true })).toBeFocused();
+  }
+  await logada.keyboard.press('Tab');
+  await expect(painel.getByRole('button', { name: 'Sair', exact: true })).toBeFocused();
+
+  // Depois de Sair vem a pagina, e o painel fecha em vez de ficar por cima.
+  await logada.keyboard.press('Tab');
+  await expect(painel).toHaveCount(0);
+  await expect(gatilho).toHaveAttribute('aria-expanded', 'false');
+  expect(
+    await logada.evaluate(() => document.querySelector('main')?.contains(document.activeElement))
+  ).toBe(true);
+
+  // Escape fecha e devolve o foco ao botao.
+  await gatilho.focus();
+  await logada.keyboard.press('Enter');
+  await expect(conta).toBeFocused();
+  await logada.keyboard.press('Escape');
+  await expect(painel).toHaveCount(0);
+  await expect(gatilho).toBeFocused();
+});
+
 const COM_SESSAO = [
   ['conta', () => '/conta', 0],
   ['seguranca', () => '/conta/seguranca', 0],
