@@ -57,6 +57,7 @@ function montaHome() {
 
 const intro = () => document.getElementById('intro') as HTMLElement;
 const bar = () => document.getElementById('bar') as HTMLElement;
+const main = () => document.querySelector('main') as HTMLElement;
 const skip = () => document.getElementById('skip') as HTMLButtonElement;
 const travada = () => document.documentElement.classList.contains('locked');
 
@@ -66,12 +67,18 @@ function esperaAberturaFechada() {
   expect(intro().style.display).toBe('none');
   expect(travada()).toBe(false);
   expect(bar().classList.contains('on')).toBe(true);
+  // O fundo inerte da abertura (#270) sai junto.
+  expect(document.querySelectorAll('[inert]')).toHaveLength(0);
 }
 
+/** Com a abertura na tela, o resto da pagina e inerte desde a montagem (#270). */
 function esperaAberturaNaTela() {
   expect(intro().classList.contains('out')).toBe(false);
   expect(intro().style.display).toBe('');
   expect(bar().classList.contains('on')).toBe(false);
+  expect(bar().hasAttribute('inert')).toBe(true);
+  expect(main().hasAttribute('inert')).toBe(true);
+  expect(intro().hasAttribute('inert')).toBe(false);
 }
 
 async function monta() {
