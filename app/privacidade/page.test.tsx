@@ -58,6 +58,23 @@ describe('/privacidade', () => {
     expect(html).toMatch(/se foi Pix ou\s+cartão/);
   });
 
+  // `cabecalhosDeOrigem` (lib/supabase/servidor.ts) repassa o IP e o
+  // user-agent de quem entra para o Supabase gravar em auth.sessions, e a
+  // tela de aparelhos conectados (#38) le os dois. A linha nao tem prazo: em
+  // producao nao ha timebox nem limite de inatividade (sessao de 29/09 ainda
+  // la em 09/10, `not_after` vazio), entao so sai com Sair, encerrar, troca
+  // de senha ou exclusao da conta — fechar o navegador nao basta, e o texto
+  // diz isso. O log de auditoria do Auth nao e gravado no banco (zero linhas
+  // em auth.audit_log_entries), por isso nao entra aqui. (#254)
+  it('conta que cada sessao guarda IP e navegador, e ate quando', () => {
+    expect(html).toMatch(/<strong>Aparelhos conectados:<\/strong>/);
+    expect(html).toMatch(/o Supabase guarda o endereço IP e o tipo de navegador e de\s+sistema/);
+    expect(html).toContain('href="/conta/seguranca"');
+    expect(html).toMatch(/a tela mostra só o começo do IP/);
+    expect(html).toMatch(/O registro fica até a\s+sessão ser encerrada/);
+    expect(html).toMatch(/Fechar o navegador sem sair apaga o cookie, mas não esse registro/);
+  });
+
   // O concierge (#191) manda a conversa ao Google (lib/concierge/gemini.ts).
   it('conta que o concierge manda a conversa ao Google e nao a guarda', () => {
     expect(html).toMatch(/<h2>Concierge<\/h2>/);

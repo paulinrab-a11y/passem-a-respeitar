@@ -26,7 +26,9 @@ export const metadata: Metadata = {
  * Pago; e os cookies, o CEP no navegador, a Vercel, o Supabase, o Sentry, o
  * Mailjet (os e-mails da conta saem pelo SMTP dele no Supabase Auth) e o
  * Upstash (a contagem do rate limit, com IP e e-mail na chave) ja existiam
- * sem estar aqui. Cada frase saiu do codigo, nao de modelo de
+ * sem estar aqui. Assim como o IP e o user-agent que `cabecalhosDeOrigem`
+ * (lib/supabase/servidor.ts) repassa para o Supabase gravar em auth.sessions,
+ * e que a tela de aparelhos conectados (#38) mostra. Cada frase saiu do codigo, nao de modelo de
  * politica: nome de cookie, duracao e o que vai para fora sao os de verdade,
  * e o teste amarra os nomes as constantes.
  *
@@ -57,6 +59,15 @@ export default function Privacidade() {
           <p className="detalhe-nota">
             <strong>Conta:</strong> e-mail, nome e, se você enviar, uma foto. Servem para você
             entrar, ver seus pedidos e receber avisos sobre eles.
+          </p>
+          <p className="detalhe-nota">
+            <strong>Aparelhos conectados:</strong> para cada sessão aberta — cada aparelho em que
+            você entrou —, o Supabase guarda o endereço IP e o tipo de navegador e de sistema. É o
+            que aparece em <a href="/conta/seguranca">Conta › Segurança</a>, para você reconhecer um
+            acesso estranho e encerrar; a tela mostra só o começo do IP. O registro fica até a
+            sessão ser encerrada: quando você clica em Sair, encerra o aparelho nessa tela, troca a
+            senha (as outras sessões caem) ou apaga a conta.{' '}
+            <strong>Fechar o navegador sem sair apaga o cookie, mas não esse registro.</strong>
           </p>
           <p className="detalhe-nota">
             <strong>Pedidos:</strong> o que você comprou, quanto pagou, e o endereço de entrega. Sem
