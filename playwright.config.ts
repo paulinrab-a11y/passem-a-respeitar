@@ -16,6 +16,18 @@ import { SITE } from './e2e/apoio/ambiente.mjs';
 
 const noCI = Boolean(process.env.CI);
 
+/** Os dominios do Mercado Pago e do Mercado Livre, sem endereco nenhum. */
+const SEM_MERCADO_PAGO = [
+  'mercadopago.com',
+  'mercadopago.com.br',
+  'mercadolibre.com',
+  'mercadolivre.com',
+  'mercadolivre.com.br',
+  'mlstatic.com',
+]
+  .map((dominio) => `MAP *${dominio} ~NOTFOUND`)
+  .join(', ');
+
 export default defineConfig({
   testDir: './e2e',
   globalSetup: './e2e/apoio/antes.ts',
@@ -46,7 +58,21 @@ export default defineConfig({
   // So Chromium. O cookie de sessao e `Secure`, e em http so o Chromium e o
   // Firefox aceitam cookie `Secure` vindo de localhost; o WebKit recusa, e o
   // login local nunca funcionaria nele.
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // A suite tem chave publica do Mercado Pago (#274), entao toda tela de
+        // pagamento tenta carregar o SDK deles — e o SDK, com uma chave que
+        // nao existe, chamaria api.mercadopago.com. Para o Chromium da suite
+        // esses hosts nao tem endereco: nada sai daqui para o Mercado Pago, em
+        // nenhum arquivo de teste. Quem precisa do formulario poe um falso no
+        // lugar (apoio/brick-falso.ts), antes de a rede ser consultada.
+        launchOptions: { args: [`--host-resolver-rules=${SEM_MERCADO_PAGO}`] },
+      },
+    },
+  ],
 
   webServer: {
     command: 'node e2e/apoio/servidor.mjs',

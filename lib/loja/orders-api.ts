@@ -18,6 +18,39 @@ import { montaEstado, type ResumoDoProvedor } from './estado-do-pagamento';
 
 const BASE = 'https://api.mercadopago.com';
 
+/** Os unicos hosts que o desvio da suite aceita: esta maquina. */
+const MAQUINA_LOCAL = new Set(['127.0.0.1', 'localhost']);
+
+/**
+ * Para onde vao as chamadas (#274). Lido a cada chamada, nao no topo do
+ * modulo: o teste troca o ambiente.
+ *
+ * `MERCADOPAGO_API_URL` existe para a suite de ponta a ponta apontar para um
+ * Mercado Pago falso nesta maquina, como o `MELHOR_ENVIO_URL` do frete. Em
+ * producao ela e ignorada.
+ *
+ * Aqui o desvio e mais estreito que o do frete: so vale `http` para esta
+ * maquina. O Access Token vai no cabecalho de TODA chamada, e e ele que cobra
+ * e estorna. Uma variavel esquecida num preview, apontando para outro host,
+ * entregaria a chave a quem estivesse do outro lado. Endereco que nao e desta
+ * maquina e ignorado, e a chamada vai ao Mercado Pago de verdade.
+ */
+function base(): string {
+  if (process.env.VERCEL_ENV === 'production') return BASE;
+
+  const desvio = process.env.MERCADOPAGO_API_URL;
+  if (!desvio) return BASE;
+
+  try {
+    const url = new URL(desvio);
+    if (url.protocol === 'http:' && MAQUINA_LOCAL.has(url.hostname)) return url.origin;
+  } catch {
+    // Texto que nao e URL cai no mesmo lugar que host de fora.
+  }
+
+  return BASE;
+}
+
 /** Passado o prazo, a tentativa vira erro em vez de pendurar o checkout. */
 const PRAZO_MS = 20_000;
 
@@ -285,7 +318,7 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
   let resposta: Response;
 
   try {
-    resposta = await fetch(`${BASE}/v1/orders`, {
+    resposta = await fetch(`${base()}/v1/orders`, {
       method: 'POST',
       headers: {
         Authorization: autorizacao,
@@ -340,7 +373,7 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
  */
 export async function localizaOrdem(provedorId: string): Promise<Localizacao> {
   try {
-    const r = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}`, {
+    const r = await fetch(`${base()}/v1/orders/${encodeURIComponent(provedorId)}`, {
       headers: { Authorization: `Bearer ${token()}` },
       signal: AbortSignal.timeout(PRAZO_MS),
       cache: 'no-store',
@@ -441,7 +474,7 @@ async function operaOrdem(
   let resposta: Response;
 
   try {
-    resposta = await fetch(`${BASE}/v1/orders/${encodeURIComponent(provedorId)}/${acao}`, {
+    resposta = await fetch(`${base()}/v1/orders/${encodeURIComponent(provedorId)}/${acao}`, {
       method: 'POST',
       headers: { Authorization: autorizacao, 'X-Idempotency-Key': idempotencia },
       signal: AbortSignal.timeout(PRAZO_MS),
@@ -491,7 +524,7 @@ export async function buscaOrdensPorReferencia(
   });
 
   try {
-    const r = await fetch(`${BASE}/v1/orders?${parametros}`, {
+    const r = await fetch(`${base()}/v1/orders?${parametros}`, {
       headers: { Authorization: `Bearer ${token()}` },
       signal: AbortSignal.timeout(PRAZO_MS),
       cache: 'no-store',

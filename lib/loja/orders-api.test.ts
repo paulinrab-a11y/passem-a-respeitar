@@ -801,3 +801,81 @@ describe('reembolsaOrdem', () => {
     expect(oQueFoiEnviado().url).not.toContain('token-de-teste');
   });
 });
+
+/**
+ * O desvio da suite (#274): a suite de ponta a ponta aponta a Orders API para
+ * um Mercado Pago falso nesta maquina. O Access Token vai junto em toda
+ * chamada, entao o desvio so vale para esta maquina, e nunca em producao.
+ */
+describe('para onde vao as chamadas', () => {
+  beforeEach(() => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
+    vi.stubEnv('MERCADOPAGO_API_URL', '');
+    vi.stubEnv('VERCEL_ENV', '');
+    respondeCom(ORDEM, 200);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('sem desvio, vai ao Mercado Pago', async () => {
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1');
+  });
+
+  it('o desvio da suite vale fora de producao, para as quatro operacoes', async () => {
+    vi.stubEnv('MERCADOPAGO_API_URL', 'http://127.0.0.1:46332');
+
+    await localizaOrdem('ORD-1');
+    expect(oQueFoiEnviado().url).toBe('http://127.0.0.1:46332/v1/orders/ORD-1');
+
+    await cancelaOrdem('ORD-1', 'chave-c');
+    expect(oQueFoiEnviado().url).toBe('http://127.0.0.1:46332/v1/orders/ORD-1/cancel');
+
+    await buscaOrdensPorReferencia('ped-1', { desdeMs: 0, ateMs: 1000 });
+    expect(oQueFoiEnviado().url).toMatch(/^http:\/\/127\.0\.0\.1:46332\/v1\/orders\?/);
+
+    respondeCom({ id: 'ORD-1' }, 201);
+    await criaOrdem({
+      pedidoId: 'ped-1',
+      totalCentavos: 12000,
+      email: 'quem@exemplo.test',
+      metodo: { tipo: 'pix' },
+      idempotencia: 'chave-1',
+    });
+    expect(oQueFoiEnviado().url).toBe('http://127.0.0.1:46332/v1/orders');
+  });
+
+  it('localhost tambem e esta maquina, e caminho no fim nao muda nada', async () => {
+    vi.stubEnv('MERCADOPAGO_API_URL', 'http://localhost:46332/qualquer/coisa');
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('http://localhost:46332/v1/orders/ORD-1');
+  });
+
+  it('em producao e ignorado: ninguem aponta a cobranca para outro lugar por variavel', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('MERCADOPAGO_API_URL', 'http://127.0.0.1:46332');
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1');
+  });
+
+  // Fora de producao tambem: o token iria no cabecalho para quem estivesse
+  // do outro lado.
+  it.each([
+    ['host de fora', 'https://outro-lugar.invalid'],
+    ['http para host de fora', 'http://outro-lugar.invalid:46332'],
+    ['https para esta maquina', 'https://127.0.0.1:46332'],
+    ['nome que so comeca como esta maquina', 'http://localhost.outro-lugar.invalid'],
+    ['texto que nao e endereco', 'nao e url'],
+  ])('%s e ignorado', async (_caso, desvio) => {
+    vi.stubEnv('MERCADOPAGO_API_URL', desvio);
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1');
+  });
+});
