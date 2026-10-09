@@ -133,6 +133,13 @@ describe('/privacidade', () => {
     expect(html).toMatch(/apagar seus dados/i);
   });
 
+  // Nenhum e-mail sai por causa de pedido (#250): o e-mail da conta serve
+  // para entrar e recuperar a senha, e os pedidos se acompanham no site.
+  it('nao promete aviso de pedido por e-mail', () => {
+    expect(html).not.toMatch(/avisos sobre eles|aviso de pedido/i);
+    expect(html).toMatch(/entrar, recuperar a senha e acompanhar seus pedidos/);
+  });
+
   it('nao inventa data de atualizacao', () => {
     expect(html).not.toMatch(/última atualização|atualizado em/i);
   });

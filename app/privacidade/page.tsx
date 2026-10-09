@@ -58,7 +58,7 @@ export default function Privacidade() {
           <h2>O que guardamos</h2>
           <p className="detalhe-nota">
             <strong>Conta:</strong> e-mail, nome e, se você enviar, uma foto. Servem para você
-            entrar, ver seus pedidos e receber avisos sobre eles.
+            entrar, recuperar a senha e acompanhar seus pedidos.
           </p>
           <p className="detalhe-nota">
             <strong>Aparelhos conectados:</strong> para cada sessão aberta — cada aparelho em que

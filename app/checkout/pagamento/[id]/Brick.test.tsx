@@ -29,6 +29,9 @@ vi.mock('@mercadopago/sdk-react', () => ({
   },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => roteador }));
+// A tela do Pix confere o pagamento por uma acao do servidor (#250). Aqui ela
+// so precisa existir; o que ela responde e assunto do Pix.test.tsx.
+vi.mock('./acoes', () => ({ conferePagamento: vi.fn(async () => 'aguardando') }));
 
 import Brick, { ESPERA_ANALISE_MS } from './Brick';
 

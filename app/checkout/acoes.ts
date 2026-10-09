@@ -28,8 +28,10 @@ const LIMITE_DO_ENDERECO = { maximo: 30, janelaMs: 10 * 60 * 1000 };
 const RECADOS: Record<string, string> = {
   'entrada-invalida': 'Confira os dados de entrega.',
   'sem-sessao': 'Sua sessão expirou. Entre de novo.',
+  // Nada de prometer e-mail sobre o pedido: ele ainda nao existe (#55, #250).
+  // E o de cadastro traz so o codigo, sem link, desde a #227.
   'email-nao-verificado':
-    'Confirme seu e-mail antes de comprar — é por ele que avisamos do pedido. O link está na sua caixa de entrada, ou reenvie em Conta.',
+    'Confirme seu e-mail antes de comprar. O código está na sua caixa de entrada, ou reenvie em Conta.',
   'produto-indisponivel': 'Esse produto não está disponível agora.',
   'quantidade-invalida': 'Quantidade inválida.',
   'carrinho-vazio': 'Escolha um produto antes de finalizar.',
@@ -57,8 +59,8 @@ export async function finalizarCompra(
   if (!usuario) return erro('sem-sessao');
 
   // O "acesso limitado" da conta nao verificada (#30): olhar pedidos pode,
-  // criar nao. Sem e-mail confirmado nao ha como avisar de nada — e e o
-  // e-mail que o Mercado Pago recebe como pagador.
+  // criar nao. O e-mail e o que o Mercado Pago recebe como pagador e o que
+  // recupera a conta; nao confirmado, pode ser de outra pessoa.
   if (!usuario.email_confirmed_at) return erro('email-nao-verificado');
 
   const cota = await limita(`checkout:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
