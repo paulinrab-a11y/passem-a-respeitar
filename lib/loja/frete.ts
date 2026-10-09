@@ -65,7 +65,10 @@ export type OpcaoDeFrete = {
 };
 
 export type MotivoDoFrete =
-  /** Falta token, CEP de origem, ou o ambiente nao bate com producao. */
+  /**
+   * Falta token, CEP de origem, ou o ambiente nao bate com producao. Ou o
+   * Melhor Envio recusou um campo que nao e o CEP de destino (#290).
+   */
   | 'frete-sem-configuracao'
   /** Algum produto do carrinho ainda nao tem peso e medidas. */
   | 'frete-sem-medida'
@@ -169,6 +172,49 @@ function opcoesDa(resposta: z.infer<typeof esquemaDaResposta>): OpcaoDeFrete[] {
   }
 
   return opcoes;
+}
+
+/** A validacao deles e a do Laravel: `{ message, errors: { 'to.postal_code': [...] } }`. */
+const esquemaDaRecusa = z.object({ errors: z.record(z.string(), z.unknown()) });
+
+/** No aviso cabem tres campos: e o bastante para o dono saber onde mexer. */
+const CAMPOS_NO_AVISO = 3;
+
+/**
+ * O que um HTTP 422 recusou (#290).
+ *
+ * Antes, todo 422 virava "Confira o CEP", sem aviso. Mas a mesma validacao
+ * recusa o CEP de origem, as medidas e o seguro da camiseta — e ai TODO CEP
+ * levaria a mesma recusa, nenhum pedido sairia e o dono nao saberia. So o
+ * destino (`to.*`) e da pessoa. Qualquer outro campo, ou 422 sem dizer qual,
+ * e configuracao nossa e vai para o aviso.
+ *
+ * `campos` vira tag no Sentry: so o nome do campo, sem indice e sem digito
+ * (`products.0.weight` vira `products.weight`), para nao levar CEP nem a
+ * mensagem deles. Nome fora desse formato vira `outro`.
+ */
+async function camposRecusados(
+  resposta: Response
+): Promise<{ soDestino: true } | { soDestino: false; campos: string }> {
+  let chaves: string[] = [];
+  try {
+    const parse = esquemaDaRecusa.safeParse(await resposta.json());
+    if (parse.success) chaves = Object.keys(parse.data.errors);
+  } catch {
+    // Sem corpo JSON: nao da para dizer que foi o CEP.
+  }
+
+  const nomes = chaves.map((chave) => {
+    const nome = chave.toLowerCase().replace(/\.\d+(?=\.|$)/g, '');
+    return /^[a-z_]{1,30}(?:\.[a-z_]{1,30}){0,3}$/.test(nome) ? nome : 'outro';
+  });
+  const doDestino = (nome: string) => nome === 'to' || nome.startsWith('to.');
+
+  if (nomes.length > 0 && nomes.every(doDestino)) return { soDestino: true };
+
+  const nossos = [...new Set(nomes.filter((n) => !doDestino(n)))].sort();
+  const campos = nossos.length > 0 ? nossos.slice(0, CAMPOS_NO_AVISO).join(',') : 'sem-detalhe';
+  return { soDestino: false, campos };
 }
 
 // ---------------------------------------------------------------------------
@@ -306,8 +352,13 @@ export async function cotaFrete({
     return { ok: false, motivo: 'frete-sem-configuracao' };
   }
 
-  // Validacao: o mais comum e CEP que nao existe.
-  if (resposta.status === 422) return { ok: false, motivo: 'frete-cep-invalido' };
+  // Validacao. So o CEP de destino e da pessoa; o resto e nosso (#290).
+  if (resposta.status === 422) {
+    const recusa = await camposRecusados(resposta);
+    if (recusa.soDestino) return { ok: false, motivo: 'frete-cep-invalido' };
+    avisa(`http-422-${recusa.campos}`);
+    return { ok: false, motivo: 'frete-sem-configuracao' };
+  }
 
   if (!resposta.ok) {
     avisa(`http-${resposta.status}`);
