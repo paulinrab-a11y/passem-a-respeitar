@@ -474,8 +474,11 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .conta-selo.ok{color:var(--prata-2);border-color:var(--prata-3)}
 .conta-desde{margin-top:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
 
-.conta-aviso{margin-top:30px;border-left:2px solid var(--vermelho);padding-left:14px;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
-.conta-aviso p{font-size:13px;line-height:1.5;letter-spacing:.02em;color:var(--prata-2);max-width:46ch}
+/* O aviso de e-mail nao verificado, agora com o campo do codigo (#260). Sem
+   entrada propria: chega junto com o resto do perfil. O texto e a
+   `.detalhe-nota`, e a margem dela sai porque o espaco ja e o `gap`. */
+.conta-codigo{margin-top:30px;border-left:2px solid var(--vermelho);padding-left:14px;display:flex;flex-direction:column;gap:18px}
+.conta-codigo .detalhe-nota{margin-bottom:0}
 
 .conta-bloco{margin-top:30px;display:flex;flex-direction:column;gap:14px;align-items:stretch}
 .conta-bloco .auth-enviar{align-self:flex-start;margin-top:0}

@@ -182,6 +182,30 @@ describe('os formularios da issue', () => {
   );
 });
 
+/**
+ * O campo do codigo de confirmacao (#224, #260) mora em `_ui` e serve ao
+ * cadastro, ao login e a /conta. O rotulo dele tem classe a mais
+ * (`codigo-campo`), por isso fica fora da lista acima; o resto vale igual.
+ */
+describe('campo do codigo de confirmacao', () => {
+  const texto = readFileSync('app/_ui/CodigoDeConfirmacao.tsx', 'utf8');
+
+  it('marca erro e liga a mensagem pelo comErro, sem aria-invalid escrito a mao', () => {
+    expect(texto).toMatch(/\{\.\.\.comErro\(Boolean\(estado\.erro\), 'codigo-erro'/);
+    expect(texto).not.toMatch(/aria-invalid=/);
+  });
+
+  it('o erro e o recado do reenvio usam o lugar reservado', () => {
+    expect(texto).toMatch(/<Erro\s+id="codigo-erro"/);
+    expect(texto).toMatch(/<Erro\s+id="reenvio-recado"/);
+  });
+
+  it('o campo tem rotulo de texto, e nenhum placeholder', () => {
+    expect(texto).toMatch(/<label className="auth-campo codigo-campo">\s*<span>Código de/);
+    expect(texto).not.toMatch(/placeholder=/);
+  });
+});
+
 describe('codigo de convite', () => {
   const home = readFileSync('app/page.tsx', 'utf8');
   const script = readFileSync('app/_home/legacy-site.js', 'utf8');
@@ -235,6 +259,8 @@ describe('lugar reservado no CSS', () => {
       'app/checkout/acoes.ts',
       // As frases do frete tambem voltam do Finalizar: o pedido cota de novo.
       'lib/loja/recados-do-frete.ts',
+      // O aviso de /conta ganhou o lugar reservado do campo do codigo (#260).
+      'app/conta/acoes.ts',
     ].map((a) => readFileSync(a, 'utf8'));
 
     const mensagens = acoes.flatMap((t) =>

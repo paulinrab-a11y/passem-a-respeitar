@@ -138,4 +138,7 @@ export const CODIGO_DIGITOS = 8;
 export const esquemaCodigo = z.object({
   email: z.string().trim().toLowerCase().min(1).max(254).email(),
   codigo: z.string().regex(new RegExp(`^\\d{${CODIGO_DIGITOS}}$`)),
+  // "Manter conectado" de quem chegou pelo login (#260). Do cadastro nao vem:
+  // la a caixa nao existe, e sem ela vale o lado seguro.
+  lembrar: z.boolean().default(false),
 });

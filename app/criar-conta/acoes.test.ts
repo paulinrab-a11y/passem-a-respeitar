@@ -13,12 +13,17 @@ const senhaVazada = vi.fn(async (_s: string) => false);
 const verifyOtp = vi.fn(async (_o: unknown) => ({ error: null as { message: string } | null }));
 const resend = vi.fn(async (_o: unknown) => ({ error: null as { message: string } | null }));
 let cabecalhos = new Headers({ host: 'passem-a-respeitar.test' });
+const clienteDeAuth = vi.fn(async (_lembrar: boolean) => ({ auth: { signUp, verifyOtp, resend } }));
+const jarSet = vi.fn();
 
 vi.mock('@/lib/supabase/servidor', () => ({
-  clienteDeAuth: async () => ({ auth: { signUp, verifyOtp, resend } }),
+  clienteDeAuth: (lembrar: boolean) => clienteDeAuth(lembrar),
 }));
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => senhaVazada(s) }));
-vi.mock('next/headers', () => ({ headers: async () => cabecalhos }));
+vi.mock('next/headers', () => ({
+  headers: async () => cabecalhos,
+  cookies: async () => ({ set: jarSet }),
+}));
 vi.mock('next/navigation', () => ({
   redirect: (d: string) => {
     throw new Error(`redirect:${d}`);
@@ -26,7 +31,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 const { criarConta, confirmarCodigo, reenviarCodigo } = await import('./acoes');
-const { criarContaInicial, codigoInicial, reenvioInicial } = await import('./estado');
+const { criarContaInicial } = await import('./estado');
+const { codigoInicial, reenvioInicial } = await import('@/app/_ui/estado-do-codigo');
 
 let n = 0;
 const email = () => `pessoa${n++}@exemplo.invalid`;
@@ -233,6 +239,49 @@ describe('confirmar pelo codigo (#224)', () => {
     expect(r1.tentativa).toBe(1);
   });
 
+  // Do cadastro nao vem "manter conectado": a sessao nasce de navegador, e
+  // a escolha fica registrada como no login, para o middleware ler.
+  it('sem lembrar, a sessao morre com o navegador e o par_lembrar fica 0', async () => {
+    await expect(confirmarCodigo(codigoInicial, codigoBom())).rejects.toThrow('redirect:');
+
+    expect(clienteDeAuth).toHaveBeenCalledWith(false);
+    expect(jarSet).toHaveBeenCalledWith(
+      'par_lembrar',
+      '0',
+      expect.objectContaining({ httpOnly: true, maxAge: undefined })
+    );
+  });
+
+  // Do login (#260): quem marcou "manter conectado" antes do codigo continua
+  // com a sessao de trinta dias depois dele.
+  it('lembrar vindo do login vira sessao de trinta dias', async () => {
+    await expect(confirmarCodigo(codigoInicial, codigoBom({ lembrar: '1' }))).rejects.toThrow(
+      'redirect:'
+    );
+
+    expect(clienteDeAuth).toHaveBeenCalledWith(true);
+    expect(jarSet).toHaveBeenCalledWith(
+      'par_lembrar',
+      '1',
+      expect.objectContaining({ maxAge: 60 * 60 * 24 * 30 })
+    );
+  });
+
+  it('qualquer outro valor de lembrar vale o lado seguro', async () => {
+    await expect(confirmarCodigo(codigoInicial, codigoBom({ lembrar: 'on' }))).rejects.toThrow(
+      'redirect:'
+    );
+
+    expect(clienteDeAuth).toHaveBeenCalledWith(false);
+  });
+
+  it('codigo errado nao grava a escolha: nao ha sessao', async () => {
+    verifyOtp.mockResolvedValue({ error: { message: 'Token has expired or is invalid' } });
+    await confirmarCodigo(codigoInicial, codigoBom({ lembrar: '1' }));
+
+    expect(jarSet).not.toHaveBeenCalled();
+  });
+
   it('menos de oito digitos nao chega ao Supabase', async () => {
     const r = await confirmarCodigo(codigoInicial, codigoBom({ codigo: '1234567' }));
 
@@ -287,14 +336,27 @@ describe('reenviar o codigo (#224)', () => {
     expect(r.aviso).toMatch(/se o e-mail for válido/i);
   });
 
-  it('o limite de 60 s do Supabase vira pedido de espera', async () => {
+  // O intervalo minimo do Supabase so acontece com cadastro pendente. Dizer
+  // "espere um minuto" ali contava, a quem pedisse dois seguidos, quem esta no
+  // meio do cadastro (#260). A resposta e a mesma de um envio que deu certo.
+  it('o intervalo minimo do Supabase recebe o mesmo recado de sucesso', async () => {
+    // Outro e-mail: o limite por e-mail guarda estado entre os casos.
+    const certo = await reenviarCodigo(
+      reenvioInicial,
+      pedido({ email: 'pendente@exemplo.invalid' })
+    );
+
     resend.mockResolvedValue({
       error: { message: 'For security purposes, you can only request this after 42 seconds.' },
     });
-    const r = await reenviarCodigo(reenvioInicial, pedido());
+    const recusado = await reenviarCodigo(
+      reenvioInicial,
+      pedido({ email: 'pendente@exemplo.invalid' })
+    );
 
-    expect(r.erro).toMatch(/espere um minuto/i);
-    expect(r.aviso).toBeNull();
+    expect(recusado.erro).toBeNull();
+    expect(recusado.aviso).toBe(certo.aviso);
+    expect(recusado.reenviadoEm).toBeGreaterThan(0);
   });
 
   it('e-mail torto nao chega ao Supabase', async () => {

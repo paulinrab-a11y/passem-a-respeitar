@@ -3,6 +3,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { cabeReenvio, mandaCodigo } from '@/lib/conta/codigo';
 import { esquemaEntrar } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { CAMPO_DA_ISCA, CAMPO_DO_DESAFIO, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
@@ -12,24 +13,21 @@ import { clienteDeAuth } from '@/lib/supabase/servidor';
 import type { EstadoEntrar } from './estado';
 
 /**
- * Mensagem unica para e-mail inexistente, senha errada, conta nao confirmada e
- * formato invalido.
+ * Mensagem unica para e-mail inexistente, senha errada e formato invalido.
  *
  * Qualquer diferenca vira oraculo de cadastro: o atacante roda uma lista de
  * e-mails, separa os que respondem "senha incorreta" dos que respondem
  * "e-mail nao encontrado", e sai dali com a lista de quem tem conta. Isso vale
  * dinheiro em phishing, e o site entrega de graca.
  *
- * O aviso sobre confirmacao aparece SEMPRE, inclusive quando o e-mail nem
- * existe. Ajuda quem acabou de se cadastrar sem contar nada sobre quem e
- * cadastrado.
- *
- * O e-mail de cadastro so traz codigo (#227), e o codigo so se digita na tela
- * que aparece depois de "Criar conta". Quem saiu dela volta pelo cadastro: com
- * o mesmo e-mail, o Supabase manda um codigo novo para conta nao confirmada.
+ * A dica aparece SEMPRE, inclusive quando o e-mail nem existe, e nao conta
+ * nada sobre quem e cadastrado. Ela aponta a recuperacao porque o link de la
+ * tambem confirma o e-mail de quem nunca confirmou, e deixa a pessoa com uma
+ * senha que ela conhece. Mandar cadastrar de novo, como antes (#260), dava um
+ * codigo novo mas descartava a senha digitada no segundo cadastro.
  */
 const ERRO_GENERICO =
-  'E-mail ou senha incorretos. Acabou de criar a conta e não confirmou? Faça o cadastro de novo com o mesmo e-mail: chega um código novo.';
+  'E-mail ou senha incorretos. Esqueceu a senha? O link de “Esqueci minha senha” também confirma o e-mail.';
 
 /** Por IP: segura varredura de e-mails a partir de uma origem. */
 const POR_IP = { maximo: 20, janelaMs: 15 * 60 * 1000 };
@@ -83,7 +81,8 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
 
   const { email, senha, lembrar } = dados.data;
 
-  const ip = ipDoRequest(await headers());
+  const cabecalhos = await headers();
+  const ip = ipDoRequest(cabecalhos);
   const cotaIp = await limita(`entrar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
   const cotaEmail = await limita(`entrar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
 
@@ -124,6 +123,25 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
   // O piso vale para erro E para sucesso: so o erro ter piso faria o sucesso
   // ser o unico caminho rapido, o que tambem e informacao.
   await segura(inicio);
+
+  // Conta que nunca confirmou o e-mail, com a senha CERTA (#260). O Supabase
+  // confere a senha antes de olhar a confirmacao: senha errada responde
+  // `invalid_credentials` para e-mail desconhecido, conta confirmada e conta
+  // pendente, igual. Entao esta resposta so chega a quem provou a senha, e a
+  // tela do codigo nao conta a mais ninguem quem tem cadastro. O e2e da
+  // senha errada em conta pendente existe para pegar o dia em que o Supabase
+  // inverter essa ordem.
+  //
+  // Um codigo novo sai sob as cotas do botao de reenviar, as mesmas chaves:
+  // alternar entre entrar e reenviar nao manda mais e-mail que o botao. Cota
+  // gasta ou intervalo minimo do Supabase nao mudam a resposta — o codigo
+  // anterior continua valendo, e a tela tem o botao de reenviar.
+  //
+  // O `par_lembrar` fica para depois do codigo: ainda nao ha sessao.
+  if (error?.code === 'email_not_confirmed') {
+    if (await cabeReenvio(email, ip)) await mandaCodigo(supabase.auth, email, cabecalhos);
+    return { erro: null, campo: null, tentativa, confirmar: { email, lembrar } };
+  }
 
   if (error) {
     return { erro: ERRO_GENERICO, campo: 'credenciais', tentativa };

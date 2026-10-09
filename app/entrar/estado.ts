@@ -26,6 +26,12 @@ export type EstadoEntrar = {
    * relogio para isso nao paga nada.
    */
   tentativa: number;
+  /**
+   * Senha certa de conta que nunca confirmou o e-mail (#260): o formulario da
+   * lugar a tela do codigo, que precisa do e-mail e do "manter conectado"
+   * escolhido aqui. Nunca preenchido com a senha errada.
+   */
+  confirmar?: { email: string; lembrar: boolean };
 };
 
 export const estadoInicial: EstadoEntrar = { erro: null, campo: null, tentativa: 0 };

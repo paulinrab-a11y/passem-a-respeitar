@@ -6,6 +6,7 @@ import { comErro, useCaixinha, useCampos } from '@/app/_ui/campos';
 import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
 import { entrar } from './acoes';
+import Codigo from './Codigo';
 import { estadoInicial } from './estado';
 
 export default function Formulario({ next }: { next: string }) {
@@ -20,6 +21,21 @@ export default function Formulario({ next }: { next: string }) {
   // erro, que ja esta reservado: nada anda quando ele aparece.
   const [robo, setRobo] = useState(SEM_AVISO);
   const andando = pendente || robo.esperando;
+  // "Voltar" na tela do codigo (#260) devolve o formulario com o que ja
+  // estava digitado. Guarda EM QUAL envio a pessoa voltou: entrar de novo e
+  // outro envio, e a tela do codigo aparece outra vez.
+  const [voltouEm, setVoltouEm] = useState(-1);
+
+  if (estado.confirmar && voltouEm !== estado.tentativa) {
+    return (
+      <Codigo
+        email={estado.confirmar.email}
+        next={next}
+        lembrar={estado.confirmar.lembrar}
+        aoVoltar={() => setVoltouEm(estado.tentativa)}
+      />
+    );
+  }
 
   return (
     <form action={acao} className="auth-form" noValidate>
