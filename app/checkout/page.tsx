@@ -101,13 +101,17 @@ export default async function Checkout({
               </span>
             </li>
           </ul>
+          {/* <div> e nao <p> (#266): o guia traz um <dialog> com titulo e
+              tabela, que nao cabem num paragrafo. Dentro de <p>, o navegador
+              fechava o paragrafo antes do <dialog>, o link saia da linha e a
+              hidratacao achava outra pagina. */}
           {guia ? (
-            <p className="guia-no-checkout">
+            <div className="guia-no-checkout">
               <GuiaDeTamanhos linhas={guia} produto={linha.nome} />
               <a href={`/#merch`} className="auth-link">
                 Trocar o tamanho
               </a>
-            </p>
+            </div>
           ) : null}
 
           <dl className="resumo">

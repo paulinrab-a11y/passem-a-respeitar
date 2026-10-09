@@ -1,13 +1,67 @@
+// @vitest-environment jsdom
+
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import Checkout from './checkout/page';
+import Home from './page';
 
 /**
- * Semantica do seletor de tamanho e dos canvas decorativos (#59).
+ * Semantica do seletor de tamanho e dos canvas decorativos (#59), e do HTML
+ * que o servidor entrega (#266).
  *
  * O lint ja pega o que e erro de marcacao. O que ele nao pega e o que estes
  * testes seguram: o visual do <fieldset> zerado, o contrato com o script
- * legado, e o nome de classe que nao pode colidir.
+ * legado, o nome de classe que nao pode colidir, e o aninhamento que o parser
+ * do navegador desfaz.
  */
+
+// Ambiente jsdom so pelo DOMParser e pelo parser de HTML. As paginas sao
+// renderizadas com dados fixos: o que se mede e a marcacao, nao o banco.
+const { GUIA, LINHA } = vi.hoisted(() => ({
+  GUIA: [
+    { tamanho: 'P', altura: 79, largura: 67, manga: 23 },
+    { tamanho: 'M', altura: 81, largura: 70, manga: 24 },
+  ],
+  LINHA: {
+    produtoSlug: 'camiseta-cbac',
+    nome: 'Camiseta CBAC',
+    tamanho: 'M',
+    quantidade: 1,
+    precoUnitarioCentavos: 12000,
+    subtotalCentavos: 12000,
+  },
+}));
+
+vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: async () => ({ id: 'pessoa' }) }));
+vi.mock('@/lib/loja/catalogo', () => ({
+  orcamento: async () => ({
+    ok: true,
+    linhas: [LINHA],
+    subtotalCentavos: 12000,
+    frete: null,
+    totalCentavos: 12000,
+  }),
+  guiaDeTamanhos: async () => GUIA,
+  vitrine: async () => [
+    {
+      slug: LINHA.produtoSlug,
+      nome: LINHA.nome,
+      descricao: 'Camiseta oversized.',
+      variacoes: ['P', 'M'].map((tamanho) => ({ tamanho, precoCentavos: 12000 })),
+      precoCentavos: 12000,
+      guia: GUIA,
+    },
+  ],
+}));
+vi.mock('@/app/checkout/acoes', () => ({
+  finalizarCompra: vi.fn(),
+  cotarFrete: vi.fn(),
+  buscarEndereco: vi.fn(),
+}));
+vi.mock('@/app/_home/acoes', () => ({ cotarFreteNaFicha: vi.fn() }));
+vi.mock('@/app/conta/acoes', () => ({ sair: vi.fn() }));
+
 const HOME = readFileSync('app/page.tsx', 'utf8');
 const CSS = readFileSync('app/globals.css', 'utf8');
 const SCRIPT = readFileSync('app/_home/legacy-site.js', 'utf8');
@@ -135,5 +189,107 @@ describe('nomes de classe que nao podem colidir', () => {
 
   it('a regra do texto da loja continua valendo', () => {
     expect(CSS).toMatch(/#loja \.rotulo\{margin-top:24px;/);
+  });
+});
+
+/**
+ * O HTML que o servidor manda, lido duas vezes (#266).
+ *
+ * Como XML, ele e a arvore que o JSX escreveu, sem correcao nenhuma. Pelo
+ * parser de HTML, e a arvore que o navegador monta. Se as duas divergem, o
+ * navegador reorganizou alguma coisa (um <dialog> dentro de <p> fecha o <p>
+ * antes da hora), e a hidratacao do React encontra outra pagina: erro no
+ * console, re-render no cliente e um evento no Sentry a cada visita.
+ */
+function comoEscrito(html: string): Element {
+  // O React poe um <script> inline junto de formulario com acao (o replay do
+  // envio feito antes da hidratacao). Conteudo de script e texto cru no HTML e
+  // vira CDATA aqui, para o `&&` dele nao ser lido como entidade.
+  const xml = html.replace(
+    /<(script|style)\b([^>]*)>([\s\S]*?)<\/\1>/g,
+    '<$1$2><![CDATA[$3]]></$1>'
+  );
+  const doc = new DOMParser().parseFromString(`<raiz>${xml}</raiz>`, 'application/xml');
+  expect(doc.querySelector('parsererror'), 'markup do React lido como XML').toBeNull();
+  return doc.documentElement;
+}
+
+function comoONavegadorLe(html: string): Element {
+  const raiz = document.implementation.createHTMLDocument('').createElement('div');
+  raiz.innerHTML = html;
+  return raiz;
+}
+
+/** Uma linha por elemento, recuada pela profundidade. Texto nao entra. */
+function estrutura(raiz: Element): string[] {
+  const linhas: string[] = [];
+  const anda = (el: Element, nivel: number) => {
+    linhas.push(`${'  '.repeat(nivel)}${el.localName.toLowerCase()}`);
+    for (const filho of el.children) anda(filho, nivel + 1);
+  };
+  for (const filho of raiz.children) anda(filho, 0);
+  return linhas;
+}
+
+function confereArvore(html: string) {
+  const escrita = estrutura(comoEscrito(html));
+
+  // Piso para o teste nao passar comparando duas arvores vazias.
+  expect(escrita.length).toBeGreaterThan(50);
+  expect(estrutura(comoONavegadorLe(html))).toEqual(escrita);
+}
+
+const checkout = async () =>
+  renderToStaticMarkup(
+    await Checkout({ searchParams: Promise.resolve({ p: LINHA.produtoSlug, tam: 'M', q: '1' }) })
+  );
+
+describe('checkout renderizado', () => {
+  it('o navegador monta a mesma arvore que o React escreveu', async () => {
+    confereArvore(await checkout());
+  });
+
+  it('nenhum <dialog> dentro de <p>', async () => {
+    const escrito = comoEscrito(await checkout());
+
+    expect(escrito.querySelectorAll('dialog')).toHaveLength(1);
+    expect(escrito.querySelectorAll('p dialog')).toHaveLength(0);
+  });
+
+  it('o botao do guia e o link de trocar o tamanho ficam na mesma linha', async () => {
+    const linha = comoONavegadorLe(await checkout()).querySelector('.guia-no-checkout');
+    const filhos = [...(linha?.children ?? [])].map((el) => el.localName);
+
+    expect(filhos).toEqual(['button', 'dialog', 'a']);
+    expect(linha?.lastElementChild?.textContent).toBe('Trocar o tamanho');
+  });
+});
+
+describe('home renderizada', () => {
+  const markup = async () => renderToStaticMarkup(await Home());
+  const home = async () => comoONavegadorLe(await markup());
+
+  it('o navegador monta a mesma arvore que o React escreveu', async () => {
+    confereArvore(await markup());
+  });
+
+  it('nenhum id repetido', async () => {
+    const ids = [...(await home()).querySelectorAll('[id]')].map((el) => el.id);
+    const repetidos = ids.filter((id, i) => ids.indexOf(id) !== i);
+
+    expect(ids.length).toBeGreaterThan(0);
+    expect(repetidos).toEqual([]);
+  });
+
+  it('os dois guias, da ficha e da loja, tem cada um o seu titulo', async () => {
+    const pagina = await home();
+    const guias = [...pagina.querySelectorAll('dialog.guia')];
+    const titulos = guias.map((g) => g.getAttribute('aria-labelledby'));
+
+    expect(guias).toHaveLength(2);
+    expect(new Set(titulos).size).toBe(2);
+    for (const [i, guia] of guias.entries()) {
+      expect(guia.querySelector('h2')?.id).toBe(titulos[i]);
+    }
   });
 });

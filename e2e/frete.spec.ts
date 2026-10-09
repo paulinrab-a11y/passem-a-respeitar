@@ -370,9 +370,28 @@ test('endereco: CEP geral traz cidade e UF e nao apaga a rua', async ({ logada }
 test('checkout: o guia de tamanhos esta ao lado do item, com o link para trocar', async ({
   logada,
 }) => {
+  // #266: com o guia dentro de <p>, o navegador fechava o paragrafo antes do
+  // <dialog>, o link saia da linha e a hidratacao do React falhava.
+  const hidratacao: string[] = [];
+  const anota = (texto: string) => {
+    if (/hydrat|react\.dev\/errors\/(418|423|425)\b/i.test(texto)) hidratacao.push(texto);
+  };
+  logada.on('pageerror', (e) => anota(e.message));
+  logada.on('console', (m) => {
+    if (m.type() === 'error') anota(m.text());
+  });
+
   await logada.goto(CHECKOUT);
   const link = logada.getByRole('button', { name: 'Guia de tamanhos' });
   await vivo(link);
+  // O HTML do servidor, pelo parser do navegador. Na pagina viva nao serve: se
+  // a hidratacao falha, o React remonta a linha no cliente e esconde o defeito.
+  const filhos = await logada.evaluate(async (url) => {
+    const html = await (await fetch(url)).text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return [...(doc.querySelector('.guia-no-checkout')?.children ?? [])].map((el) => el.localName);
+  }, CHECKOUT);
+  expect(filhos).toEqual(['button', 'dialog', 'a']);
   await link.click();
 
   const guia = logada.locator('dialog.guia');
@@ -386,4 +405,5 @@ test('checkout: o guia de tamanhos esta ao lado do item, com o link para trocar'
     'href',
     '/#merch'
   );
+  expect(hidratacao).toEqual([]);
 });

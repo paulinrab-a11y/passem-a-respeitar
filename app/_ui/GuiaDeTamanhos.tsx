@@ -1,6 +1,6 @@
 'use client';
 
-import { type MouseEvent, useEffect, useRef } from 'react';
+import { type MouseEvent, useEffect, useId, useRef } from 'react';
 import type { LinhaDoGuia } from '@/lib/loja/guia-de-tamanhos';
 
 /**
@@ -26,6 +26,9 @@ export default function GuiaDeTamanhos({
 }) {
   const dialogo = useRef<HTMLDialogElement>(null);
   const prazo = useRef(0);
+  // A home tem dois guias, na ficha e na loja (#266). Com id fixo, os dois
+  // <dialog> apontavam para o primeiro <h2> e a pagina repetia o id.
+  const titulo = useId();
 
   function abre() {
     const el = dialogo.current;
@@ -68,7 +71,7 @@ export default function GuiaDeTamanhos({
       <dialog
         ref={dialogo}
         className="guia"
-        aria-labelledby="guia-titulo"
+        aria-labelledby={titulo}
         onClick={aoClicar}
         onCancel={(e) => {
           e.preventDefault();
@@ -85,7 +88,7 @@ export default function GuiaDeTamanhos({
           <button type="button" className="fechar" onClick={fecha}>
             fechar
           </button>
-          <h2 id="guia-titulo">Guia de tamanhos</h2>
+          <h2 id={titulo}>Guia de tamanhos</h2>
           <p className="guia-sub">{produto}. Medidas da peça, em centímetros.</p>
 
           <table className="guia-tabela">
