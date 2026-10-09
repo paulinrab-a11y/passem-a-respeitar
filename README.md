@@ -1,7 +1,9 @@
 # Passem a Respeitar — site do EP (Santxx x Ch3fe / Whynot Visuals)
 
-Site oficial do EP. Lançamento **20.11.2026**.
-Produção: https://passem-a-respeitar-paulin7.vercel.app
+Site oficial do EP. A data de lançamento fica em sigilo até o pré-save (#269):
+não escreva dia, mês nem ano dela em código, textos ou documentos deste
+repositório, que é público.
+Produção: https://www.cbacoccupation.com.br
 
 Next.js 15 (App Router) + TypeScript, hospedado na Vercel. A home é a página
 original do site portada para JSX sem alteração visual: intro VHS, manifesto,
