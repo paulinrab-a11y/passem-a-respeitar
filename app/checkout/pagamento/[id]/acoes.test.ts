@@ -16,6 +16,8 @@ const { conferePagamento } = await import('./acoes');
 
 const PEDIDO = '33333333-3333-4333-8333-333333333333';
 
+/** Uma leitura em que o banco responde erro, e nao status. */
+const CAIU = '!caiu';
 /** O status que o banco devolve a cada leitura, em ordem. `null` e "nao achei". */
 let leituras: (string | null)[] = [];
 let filtros: unknown[][] = [];
@@ -52,6 +54,7 @@ beforeEach(() => {
         async maybeSingle() {
           if (erroDoBanco) return { data: null, error: { message: 'caiu' } };
           const status = leituras.length > 1 ? leituras.shift() : leituras[0];
+          if (status === CAIU) return { data: null, error: { message: 'caiu' } };
           return { data: status ? { status } : null, error: null };
         },
       };
@@ -140,6 +143,19 @@ describe('a resposta', () => {
     vi.mocked(conciliaPedido).mockResolvedValue(true);
 
     expect(await conferePagamento(PEDIDO)).toBe('aguardando');
+  });
+
+  // A conciliacao pode ter achado o pagamento. Se a releitura nao volta, a
+  // tela nao pode dizer "ainda nao apareceu": ninguem leu o pedido depois.
+  it.each([
+    ['nao acha o pedido', null],
+    ['da erro no banco', CAIU],
+  ])('a conciliacao mudou algo e a releitura %s: falhou', async (_nome, releitura) => {
+    leituras = ['aguardando_pagamento', releitura];
+    vi.mocked(conciliaPedido).mockResolvedValue(true);
+
+    expect(await conferePagamento(PEDIDO)).toBe('falhou');
+    expect(colunas).toEqual(['orders:status', 'orders:status']);
   });
 
   it('a resposta e so a palavra, sem nada do pedido', async () => {

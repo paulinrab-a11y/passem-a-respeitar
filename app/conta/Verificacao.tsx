@@ -11,9 +11,12 @@ export default function Verificacao() {
 
   return (
     <form action={acao} className="conta-aviso">
-      <p>
-        Seu e-mail ainda não foi verificado. Sem isso, não dá para recuperar a senha nem comprar.
-      </p>
+      {/* So o que o codigo barra de fato: o checkout recusa conta sem e-mail
+          confirmado (app/checkout/acoes.ts). Recuperar a senha nao e barrado
+          — nem aqui, nem no Supabase, cujo link de recuperacao ainda confirma
+          o e-mail de quem o abre. Dizer o contrario afastava a pessoa do
+          caminho que funciona (#250). */}
+      <p>Seu e-mail ainda não foi verificado. Sem isso, não dá para comprar.</p>
 
       <Mensagem
         texto={estado.recado?.texto}

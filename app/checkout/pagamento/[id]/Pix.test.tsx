@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const acao = vi.hoisted(() => ({ confere: vi.fn() }));
 // Um roteador so, estavel entre renders como o de verdade.
 const roteador = vi.hoisted(() => ({ push: vi.fn() }));
+// O unico fetch da tela: o de /api/conta/resumo, que diz se ainda ha sessao.
+const resumo = vi.fn();
 
 vi.mock('./acoes', () => ({ conferePagamento: acao.confere }));
 vi.mock('next/navigation', () => ({ useRouter: () => roteador }));
@@ -21,6 +23,22 @@ import Pix, { CONFERE_A_CADA_MS, CONFERE_POR_MS } from './Pix';
 
 const PEDIDO = '11111111-1111-4111-8111-111111111111';
 const DO_PEDIDO = `/conta/pedidos/${PEDIDO}`;
+const LOGIN_E_PEDIDO = `/entrar?next=${encodeURIComponent(DO_PEDIDO)}`;
+
+/**
+ * O que o Next 16 faz com a acao quando o proxy redireciona o POST sem sessao
+ * para /entrar: a promessa rejeita (server-action-reducer).
+ */
+const desviada = () => new Error('An unexpected response was received from the server.');
+
+/** Como /api/conta/resumo responde. Sem rede, o `fetch` rejeita. */
+function respondeResumo(status: number, corpo: unknown) {
+  resumo.mockResolvedValue({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => corpo,
+  });
+}
 
 let visivel: DocumentVisibilityState = 'visible';
 
@@ -32,6 +50,9 @@ const monta = () =>
       pedido={PEDIDO}
     />
   );
+
+const link = (c: HTMLElement, texto: string) =>
+  [...c.querySelectorAll('a')].find((a) => a.textContent === texto);
 
 const botao = (c: HTMLElement) =>
   [...c.querySelectorAll('button')].find((b) =>
@@ -55,11 +76,15 @@ beforeEach(() => {
   });
   acao.confere.mockReset().mockResolvedValue('aguardando');
   roteador.push.mockClear();
+  resumo.mockReset();
+  respondeResumo(200, { logado: true });
+  vi.stubGlobal('fetch', resumo);
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('o que a tela diz', () => {
@@ -84,9 +109,8 @@ describe('o que a tela diz', () => {
 
   it('tem o caminho para o pedido', () => {
     const { container } = monta();
-    const link = [...container.querySelectorAll('a')].find((a) => a.textContent === 'Ver o pedido');
 
-    expect(link?.getAttribute('href')).toBe(DO_PEDIDO);
+    expect(link(container, 'Ver o pedido')?.getAttribute('href')).toBe(DO_PEDIDO);
   });
 
   it('o lugar do recado existe vazio, antes de qualquer conferencia', () => {
@@ -172,6 +196,118 @@ describe('o botao Conferir pagamento', () => {
     });
 
     expect(container.querySelector('[role="alert"]')?.textContent).toMatch(/Não consegui conferir/);
+    // Rejeicao pode ser sessao vencida: a tela perguntou antes de dizer "falhou".
+    expect(resumo).toHaveBeenCalledWith('/api/conta/resumo', { cache: 'no-store' });
+    expect(link(container, 'Ver o pedido')).toBeDefined();
+  });
+
+  // O guarda de ida unica: a resposta do botao e a da conferencia sozinha
+  // podem chegar juntas, em qualquer ordem. Um push so, para o pedido.
+  it.each([
+    ['a sozinha responde antes do botao', ['sozinha', 'botao']],
+    ['o botao responde antes da sozinha', ['botao', 'sozinha']],
+  ])('"mudou" nas duas ao mesmo tempo (%s): vai ao pedido uma vez so', async (_nome, ordem) => {
+    vi.useFakeTimers();
+    const doBotao = adiada<string>();
+    const sozinha = adiada<string>();
+    acao.confere.mockReturnValueOnce(doBotao.promessa).mockReturnValueOnce(sozinha.promessa);
+    const { container } = monta();
+
+    // As duas no ar: primeiro o toque, depois a volta do relogio.
+    act(() => {
+      fireEvent.click(botao(container));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CONFERE_A_CADA_MS);
+    });
+    expect(acao.confere).toHaveBeenCalledTimes(2);
+
+    for (const quem of ordem) {
+      await act(async () => {
+        (quem === 'sozinha' ? sozinha : doBotao).resolve('mudou');
+      });
+    }
+
+    expect(roteador.push).toHaveBeenCalledTimes(1);
+    expect(roteador.push).toHaveBeenCalledWith(DO_PEDIDO);
+  });
+
+  it('"mudou" de novo depois da ida nao empurra outra navegacao', async () => {
+    acao.confere.mockResolvedValue('mudou');
+    const { container } = monta();
+
+    await act(async () => {
+      fireEvent.click(botao(container));
+    });
+    await act(async () => {
+      fireEvent.click(botao(container));
+    });
+
+    expect(acao.confere).toHaveBeenCalledTimes(2);
+    expect(roteador.push).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Sessao vencida. O proxy redireciona o POST da acao para /entrar antes de
+ * ela rodar, e a promessa rejeita: o 'sem-sessao' da acao quase nunca chega.
+ * A tela pergunta a /api/conta/resumo, e so com "ninguem logado" diz que a
+ * sessao acabou — com o QR na tela e o caminho de volta pelo login.
+ */
+describe('sessao vencida', () => {
+  it('acao desviada e ninguem logado: avisa, e o link leva ao login e de volta ao pedido', async () => {
+    acao.confere.mockRejectedValue(desviada());
+    respondeResumo(200, { logado: false });
+    const { container } = monta();
+
+    await act(async () => {
+      fireEvent.click(botao(container));
+    });
+
+    const alerta = container.querySelector('.erro-vaga [role="alert"]');
+    expect(alerta?.textContent).toMatch(/Sua sessão expirou/);
+    expect(alerta?.textContent).toMatch(/O Pix continua valendo/);
+    expect(link(container, 'Entrar e ver o pedido')?.getAttribute('href')).toBe(LOGIN_E_PEDIDO);
+    expect(link(container, 'Ver o pedido')).toBeUndefined();
+    expect(container.querySelector('.pix-codigo input')).not.toBeNull();
+    expect(roteador.push).not.toHaveBeenCalled();
+  });
+
+  it('o sem-sessao da propria acao da o mesmo aviso, sem perguntar ao resumo', async () => {
+    acao.confere.mockResolvedValue('sem-sessao');
+    const { container } = monta();
+
+    await act(async () => {
+      fireEvent.click(botao(container));
+    });
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toMatch(/Sua sessão expirou/);
+    expect(link(container, 'Entrar e ver o pedido')?.getAttribute('href')).toBe(LOGIN_E_PEDIDO);
+    expect(resumo).not.toHaveBeenCalled();
+  });
+
+  // Rejeicao tambem e rede caida. Na duvida a tela diz "nao consegui", e nao
+  // "saia": mandar ao login quem ainda esta logado seria o erro pior.
+  it.each([
+    ['ainda ha sessao', () => respondeResumo(200, { logado: true })],
+    [
+      'o resumo esta no limite (429 com logado false)',
+      () => respondeResumo(429, { logado: false }),
+    ],
+    ['o resumo nao responde', () => resumo.mockRejectedValue(new TypeError('Failed to fetch'))],
+    ['o resumo responde outra coisa', () => respondeResumo(200, null)],
+  ])('acao rejeitada e %s: falhou, e o link fica', async (_nome, prepara) => {
+    acao.confere.mockRejectedValue(desviada());
+    prepara();
+    const { container } = monta();
+
+    await act(async () => {
+      fireEvent.click(botao(container));
+    });
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toMatch(/Não consegui conferir/);
+    expect(link(container, 'Ver o pedido')?.getAttribute('href')).toBe(DO_PEDIDO);
+    expect(link(container, 'Entrar e ver o pedido')).toBeUndefined();
   });
 });
 
@@ -247,16 +383,62 @@ describe('a conferencia sozinha', () => {
     expect(roteador.push).toHaveBeenCalledTimes(1);
   });
 
-  it('sem sessao: para de perguntar, e o QR fica', async () => {
+  // Dali em diante a tela nao cumpre o que o texto promete: diz isso uma vez.
+  it.each([
+    ['a acao responde sem-sessao', () => acao.confere.mockResolvedValue('sem-sessao')],
+    [
+      'o proxy desvia a acao e ninguem esta logado',
+      () => {
+        acao.confere.mockRejectedValue(desviada());
+        respondeResumo(200, { logado: false });
+      },
+    ],
+  ])('sem sessao (%s): avisa uma vez, para de perguntar, e o QR fica', async (_nome, prepara) => {
     vi.useFakeTimers();
-    acao.confere.mockResolvedValue('sem-sessao');
+    prepara();
     const { container } = monta();
 
     await passa(CONFERE_A_CADA_MS * 3);
 
     expect(acao.confere).toHaveBeenCalledTimes(1);
+    expect(container.querySelectorAll('.erro-vaga [role="alert"]')).toHaveLength(1);
+    expect(container.querySelector('[role="alert"]')?.textContent).toMatch(/Sua sessão expirou/);
+    expect(link(container, 'Entrar e ver o pedido')?.getAttribute('href')).toBe(LOGIN_E_PEDIDO);
     expect(container.querySelector('.pix-codigo input')).not.toBeNull();
     expect(roteador.push).not.toHaveBeenCalled();
+  });
+
+  it('o botao ja descobriu a sessao vencida: a sozinha nao pergunta nem avisa de novo', async () => {
+    vi.useFakeTimers();
+    acao.confere.mockRejectedValue(desviada());
+    respondeResumo(200, { logado: false });
+    const { container } = monta();
+
+    await act(async () => {
+      fireEvent.click(botao(container));
+    });
+    const aviso = container.querySelector('[role="alert"]');
+    expect(aviso?.textContent).toMatch(/Sua sessão expirou/);
+
+    await passa(CONFERE_A_CADA_MS * 3);
+
+    expect(acao.confere).toHaveBeenCalledTimes(1);
+    // O mesmo paragrafo: aviso novo trocaria a key e seria anunciado de novo.
+    expect(container.querySelector('[role="alert"]')).toBe(aviso);
+  });
+
+  it('rede caida na sozinha fica calada: pergunta ao resumo e segue', async () => {
+    vi.useFakeTimers();
+    acao.confere.mockRejectedValue(new TypeError('Failed to fetch'));
+    resumo.mockRejectedValue(new TypeError('Failed to fetch'));
+    const { container } = monta();
+
+    await passa(CONFERE_A_CADA_MS * 2);
+
+    expect(acao.confere).toHaveBeenCalledTimes(2);
+    expect(resumo).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.erro-vaga')?.children).toHaveLength(0);
+    expect(link(container, 'Ver o pedido')).toBeDefined();
   });
 
   it('erro e rede caida nao param o relogio', async () => {

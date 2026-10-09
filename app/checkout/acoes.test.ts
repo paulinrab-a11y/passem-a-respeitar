@@ -156,6 +156,10 @@ describe('recusa', () => {
     // Nao ha e-mail de pedido (#250): a recusa nao pode prometer um.
     expect(r.recado?.texto).not.toMatch(/avis/i);
     expect(r.recado?.texto).toMatch(/reenvie em Conta/);
+    // O e-mail de cadastro so traz o codigo desde a #227: falar em link
+    // manda a pessoa procurar um botao que nao existe.
+    expect(r.recado?.texto).toMatch(/código/);
+    expect(r.recado?.texto).not.toMatch(/link/i);
     expect(criaPedido).not.toHaveBeenCalled();
   });
 

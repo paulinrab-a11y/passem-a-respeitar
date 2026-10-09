@@ -29,8 +29,9 @@ const RECADOS: Record<string, string> = {
   'entrada-invalida': 'Confira os dados de entrega.',
   'sem-sessao': 'Sua sessão expirou. Entre de novo.',
   // Nada de prometer e-mail sobre o pedido: ele ainda nao existe (#55, #250).
+  // E o de cadastro traz so o codigo, sem link, desde a #227.
   'email-nao-verificado':
-    'Confirme seu e-mail antes de comprar. O link está na sua caixa de entrada, ou reenvie em Conta.',
+    'Confirme seu e-mail antes de comprar. O código está na sua caixa de entrada, ou reenvie em Conta.',
   'produto-indisponivel': 'Esse produto não está disponível agora.',
   'quantidade-invalida': 'Quantidade inválida.',
   'carrinho-vazio': 'Escolha um produto antes de finalizar.',

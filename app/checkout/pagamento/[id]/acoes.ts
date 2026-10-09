@@ -39,6 +39,10 @@ export async function conferePagamento(pedido: unknown): Promise<Conferencia> {
   const id = esquema.safeParse(pedido);
   if (!id.success) return 'falhou';
 
+  // Quase nunca sai daqui: sem sessao, o proxy redireciona o POST da acao
+  // para /entrar antes de ela rodar, e quem percebe e a tela (ver `pergunta`
+  // em Pix.tsx). Fica pela sessao que cai entre o proxy e esta linha, e
+  // porque a acao nao confia no que veio antes dela.
   const usuario = await usuarioDaSessao();
   if (!usuario) return 'sem-sessao';
 
@@ -56,8 +60,12 @@ export async function conferePagamento(pedido: unknown): Promise<Conferencia> {
   if (!(await conciliaPedido(id.data))) return 'aguardando';
 
   // A conciliacao so diz "mudou alguma tentativa". Quem diz se o pedido saiu
-  // da espera e o pedido, lido de novo pelo mesmo caminho.
-  return (await aindaAguarda(id.data, usuario.id)) === false ? 'mudou' : 'aguardando';
+  // da espera e o pedido, lido de novo pelo mesmo caminho. Releitura que
+  // falhou e falha, e nao "aguardando": a conciliacao pode ter achado o
+  // pagamento, e "ainda nao apareceu" seria afirmar o que ninguem leu.
+  const depois = await aindaAguarda(id.data, usuario.id);
+  if (depois === null) return 'falhou';
+  return depois ? 'aguardando' : 'mudou';
 }
 
 /**

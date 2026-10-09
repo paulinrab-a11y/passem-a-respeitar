@@ -3,8 +3,9 @@ import 'server-only';
 /**
  * Endereco publico do site, para montar link que volta para ca (Issue #30).
  *
- * Os e-mails de confirmacao e de recuperacao carregam um link de retorno, e
- * esse link precisa saber onde o site esta:
+ * Os e-mails de recuperacao e de troca de e-mail carregam um link de retorno
+ * (o de cadastro, desde a #227, traz so o codigo), e esse link precisa saber
+ * onde o site esta:
  *
  *   1. `NEXT_PUBLIC_SITE_URL`, quando definida — e o dominio final (#54).
  *      Trocar de dominio e trocar esta variavel, nada mais.
