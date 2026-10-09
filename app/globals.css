@@ -1305,6 +1305,9 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .desafio-convite{display:flex;justify-content:center}
 .desafio-convite:empty{display:none}
 .auth-form>.erro-vaga{margin-block:-4px}
+/* O checkout (#47) tem o mesmo gap de 18 px: o lugar vazio ja e espaco, e o
+   gap inteiro dos dois lados afastaria o botao do total. */
+.entrega>.erro-vaga{margin-block:-4px}
 .troca-email>.erro-vaga{margin-top:14px}
 .troca-email>.erro-vaga>.conta-recado{margin-top:0}
 @media (max-width:767px){

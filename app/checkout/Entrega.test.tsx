@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fimDaAnimacao } from '@/app/_ui/fim-da-animacao';
 import type { RespostaDoFrete } from './acoes';
 import type { EstadoDoCheckout } from './estado';
 
@@ -99,6 +100,109 @@ describe('Entrega (#130)', () => {
       expect(campo(rotulo).value, rotulo).toBe(valor);
     }
     expect(campo('CEP').getAttribute('aria-invalid')).toBe('true');
+  });
+});
+
+describe('erro do servidor (#47)', () => {
+  const vaga = () => document.querySelector('.entrega > .erro-vaga') as HTMLElement;
+  const finalizar = async (form: HTMLFormElement) => {
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+  };
+
+  it('o lugar do recado existe vazio desde o primeiro quadro, entre o total e o botao', () => {
+    const { container } = monta();
+    const filhos = [...(container.querySelector('form') as HTMLFormElement).children];
+
+    expect(vaga()).toBeTruthy();
+    expect(vaga().children).toHaveLength(0);
+    expect(filhos.indexOf(vaga())).toBe(filhos.indexOf(botao()) - 1);
+    expect(filhos.indexOf(vaga())).toBe(
+      filhos.indexOf(container.querySelector('.resumo') as Element) + 1
+    );
+  });
+
+  it('sem erro, nenhum campo se diz invalido nem aponta para o recado', () => {
+    const { container } = monta();
+
+    for (const input of container.querySelectorAll('input:not([type="hidden"])')) {
+      expect(input.hasAttribute('aria-invalid'), input.getAttribute('name') ?? '').toBe(false);
+      expect(input.hasAttribute('aria-describedby'), input.getAttribute('name') ?? '').toBe(false);
+    }
+  });
+
+  it('o campo que errou aponta para o recado, que entra no lugar reservado', async () => {
+    const { container } = monta();
+    await finalizar(container.querySelector('form') as HTMLFormElement);
+    const recado = await screen.findByRole('alert');
+
+    expect(recado.id).toBe('erro-entrega');
+    expect(recado.textContent).toBe('Confira o CEP.');
+    expect(recado.parentElement).toBe(vaga());
+    expect(campo('CEP').getAttribute('aria-invalid')).toBe('true');
+    expect(campo('CEP').getAttribute('aria-describedby')).toBe('erro-entrega');
+    // So o que errou: os outros sete nao ganham descricao de um erro que nao e deles.
+    expect(campo('Rua').hasAttribute('aria-describedby')).toBe(false);
+    expect(campo('Rua').hasAttribute('aria-invalid')).toBe(false);
+  });
+
+  it('servico que faltou: os radios do frete apontam para o recado', async () => {
+    vi.mocked(finalizarCompra).mockResolvedValueOnce({
+      recado: { tom: 'erro', texto: 'Escolha PAC ou SEDEX.' },
+      campo: 'servico',
+    });
+    const { container } = monta();
+    await digitaCep('01310100');
+    await finalizar(container.querySelector('form') as HTMLFormElement);
+    await screen.findByText('Escolha PAC ou SEDEX.');
+
+    for (const radio of screen.getAllByRole('radio')) {
+      expect(radio.getAttribute('aria-invalid')).toBe('true');
+      expect(radio.getAttribute('aria-describedby')).toBe('erro-entrega');
+    }
+    expect(campo('CEP').hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it('no reenvio o erro antigo sai, o lugar fica, e a resposta nova entra nele', async () => {
+    const { container } = monta();
+    const form = container.querySelector('form') as HTMLFormElement;
+    await finalizar(form);
+    const antigo = await screen.findByRole('alert');
+
+    let responde: (e: EstadoDoCheckout) => void = () => {};
+    vi.mocked(finalizarCompra).mockReturnValueOnce(
+      new Promise((r) => {
+        responde = r;
+      })
+    );
+    await finalizar(form);
+
+    // Ainda no ar: o recado do envio anterior ja nao fala deste.
+    expect(antigo.className).toContain('saindo');
+    fimDaAnimacao(antigo);
+    expect(vaga().children).toHaveLength(0);
+    expect(vaga().isConnected).toBe(true);
+
+    await act(async () =>
+      responde({ recado: { tom: 'erro', texto: 'Confira o CEP.' }, campo: 'cep' })
+    );
+
+    const novo = await screen.findByRole('alert');
+    expect(novo).not.toBe(antigo);
+    expect(novo.id).toBe('erro-entrega');
+    expect(novo.parentElement).toBe(vaga());
+  });
+
+  it('todo campo de texto tem rotulo escrito, e nenhum usa placeholder', () => {
+    const { container } = monta();
+    const campos = [...container.querySelectorAll('input[type="text"]')];
+
+    expect(campos).toHaveLength(8);
+    for (const input of campos) {
+      expect(input.closest('label')?.querySelector('span')?.textContent?.trim()).toBeTruthy();
+      expect(input.hasAttribute('placeholder')).toBe(false);
+    }
   });
 });
 

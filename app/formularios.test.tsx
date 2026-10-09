@@ -103,6 +103,8 @@ function fontes(raiz: string, extensao: RegExp): { caminho: string; texto: strin
   });
 }
 
+const CHECKOUT = 'app/checkout/Entrega.tsx';
+
 const FORMULARIOS = [
   'app/entrar/Formulario.tsx',
   'app/criar-conta/Formulario.tsx',
@@ -110,6 +112,8 @@ const FORMULARIOS = [
   'app/redefinir-senha/Formulario.tsx',
   'app/conta/seguranca/TrocarSenha.tsx',
   'app/conta/seguranca/TrocarEmail.tsx',
+  // Ficou de fora da #51 e voltou a ter campo marcado sem motivo (#47).
+  CHECKOUT,
 ];
 
 describe('os formularios da issue', () => {
@@ -144,6 +148,14 @@ describe('os formularios da issue', () => {
     expect(texto).toMatch(/<div className="erro-vaga">[\s\S]*id="recado-do-email"/);
   });
 
+  it('checkout: o recado do servidor entra num lugar reservado, com o id que os campos apontam', () => {
+    const texto = readFileSync(CHECKOUT, 'utf8');
+
+    expect(texto).toContain("const ID_DO_ERRO = 'erro-entrega';");
+    expect(texto).toMatch(/<div className="erro-vaga">\s*<Mensagem\s+id=\{ID_DO_ERRO\}/);
+    expect(texto.match(/\{\.\.\.comErro\([^)]*, ID_DO_ERRO\)\}/g)).toHaveLength(2);
+  });
+
   it('troca de senha: o aviso de erro interrompe, o de sucesso espera', () => {
     const texto = readFileSync('app/conta/seguranca/TrocarSenha.tsx', 'utf8');
 
@@ -151,7 +163,9 @@ describe('os formularios da issue', () => {
     expect(texto).toContain('id="aviso-da-senha"');
   });
 
-  it.each(FORMULARIOS)(
+  // No checkout os campos saem de uma lista, e o par rotulo-campo nao aparece
+  // no fonte. Ele e cobrado na tela, em app/checkout/Entrega.test.tsx.
+  it.each(FORMULARIOS.filter((f) => f !== CHECKOUT))(
     '%s: todo campo tem rotulo de texto, e nenhum usa placeholder',
     (arquivo) => {
       const texto = readFileSync(arquivo, 'utf8');
@@ -207,7 +221,10 @@ describe('lugar reservado no CSS', () => {
 
   it('nenhuma mensagem de erro dos formularios passa do lugar reservado', () => {
     // 58 caracteres por linha e o que cabe em 420px com a fonte de 13px e
-    // o recuo da borda. Duas linhas no computador.
+    // o recuo da borda. Duas linhas no computador. O checkout tem 560px e
+    // nenhum recuo: o limite dos outros sobra para ele. Medido na #261: a
+    // mais longa dele, a do e-mail nao confirmado (97), da 2 linhas no
+    // computador e 3 em 320px.
     const LIMITE = 58 * 2;
     const acoes = [
       'app/entrar/acoes.ts',
@@ -215,6 +232,9 @@ describe('lugar reservado no CSS', () => {
       'app/recuperar-senha/acoes.ts',
       'app/redefinir-senha/acoes.ts',
       'app/conta/seguranca/email.ts',
+      'app/checkout/acoes.ts',
+      // As frases do frete tambem voltam do Finalizar: o pedido cota de novo.
+      'lib/loja/recados-do-frete.ts',
     ].map((a) => readFileSync(a, 'utf8'));
 
     const mensagens = acoes.flatMap((t) =>
