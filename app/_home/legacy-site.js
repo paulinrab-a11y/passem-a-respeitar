@@ -11,6 +11,8 @@ import { fechaAbertura } from './abertura';
 import { temWebGL } from './webgl';
 // Loja e sala: saida animada (#49), fundo inerte e um modal por vez (#270).
 import { modalAnimado } from './modal-animado';
+// Atalhos fora dos campos de texto e o indicador "tocando" como botao (#280).
+import { atalhoLivre, mostraTocando } from './teclado';
 
 let booted = false;
 
@@ -239,7 +241,7 @@ const Som = (()=>{
     player._fontes = driveAudio(b.url);
     player.src = player._fontes.shift(); player.volume = 0;
     player.play().then(()=> fade(0.7, 1200)).catch(err=> console.warn('play:', err.message));
-    pillNome.textContent = b.nome; pill.classList.add('on');
+    pillNome.textContent = b.nome; mostraTocando(pill, true);
   }
   function liga(){
     init();
@@ -249,7 +251,7 @@ const Som = (()=>{
       subGain.gain.value = 0; hissGain.gain.value = 0;
       master.gain.cancelScheduledValues(ctx.currentTime);
       master.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.5);
-      if (player && player.src && player.paused && player.currentTime > 0){ player.play().then(()=> fade(0.7, 800)).catch(()=>{}); pill.classList.add('on'); }
+      if (player && player.src && player.paused && player.currentTime > 0){ player.play().then(()=> fade(0.7, 800)).catch(()=>{}); mostraTocando(pill, true); }
       else tocaBeat();
     } else {
       master.gain.cancelScheduledValues(ctx.currentTime);
@@ -263,11 +265,11 @@ const Som = (()=>{
     master.gain.cancelScheduledValues(ctx.currentTime);
     master.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
     if (player) fade(0, 500, ()=> player.pause());
-    pill.classList.remove('on');
+    mostraTocando(pill, false);
     btn.classList.remove('on'); btn.setAttribute('aria-pressed','false');
   }
   function proximo(){ if (!temBeats || !ligado) return; idx++; if (idx >= ordem.length) embaralha(); fade(0, 400, tocaBeat); }
-  document.addEventListener('keydown', e=>{ if (e.key === 'n' || e.key === 'N') proximo(); });
+  document.addEventListener('keydown', e=>{ if (!atalhoLivre(e)) return; if (e.key === 'n' || e.key === 'N') proximo(); });
   function corrente(forca=1){
     if (!ligado) return;
     const n = 4 + Math.floor(Math.random()*4);
@@ -877,7 +879,7 @@ const Loja = (()=>{
     });
     const solta = ()=>{ giroAtivo = false; };
     vit.addEventListener('pointerup', solta); vit.addEventListener('pointercancel', solta); vit.addEventListener('pointerleave', solta);
-    addEventListener('keydown', e=>{ if (!aberto) return; if (e.key === 'ArrowRight') mostra(quadro + 1); if (e.key === 'ArrowLeft') mostra(quadro - 1); });
+    addEventListener('keydown', e=>{ if (!aberto || !atalhoLivre(e)) return; if (e.key === 'ArrowRight') mostra(quadro + 1); if (e.key === 'ArrowLeft') mostra(quadro - 1); });
     giroTimer = setInterval(()=>{ if (!aberto) return; mostra(quadro + 1); }, 1400);
     mostra(0);
   }

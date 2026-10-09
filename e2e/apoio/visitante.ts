@@ -30,6 +30,7 @@ const ARQUIVOS = [
   'robo',
   'concierge',
   'frete',
+  'confirmar-email',
   'pagamento',
 ] as const;
 

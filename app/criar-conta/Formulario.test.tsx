@@ -65,6 +65,21 @@ describe('cadastro curto (#207)', () => {
   });
 });
 
+describe('quem criou a conta e nao confirmou (#260)', () => {
+  // Cadastrar de novo um e-mail pendente manda codigo, mas descarta a senha
+  // nova. O formulario aponta o login antes disso. Aparece para todo mundo,
+  // entao nao conta quem tem cadastro.
+  it('o rodape aponta o login com a senha que a pessoa escolheu', () => {
+    render(<Formulario />);
+
+    const dica = screen.getByText(
+      'Criou a conta e não confirmou o e-mail? Entre com a senha que escolheu: mandamos um código novo.'
+    );
+    expect(dica.className).toBe('auth-rodape');
+    expect(screen.getByRole('link', { name: 'Entrar' }).getAttribute('href')).toBe('/entrar');
+  });
+});
+
 describe('tela do codigo (#224)', () => {
   it('depois do envio aparece a tela do codigo; trocar e-mail volta com os campos', async () => {
     resposta = 'enviado';

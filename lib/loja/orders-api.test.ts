@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const captureMessage = vi.fn();
+const flush = vi.fn(async () => true);
 vi.mock('@sentry/nextjs', () => ({
   captureMessage: (...a: unknown[]) => captureMessage(...a),
-  flush: async () => true,
+  flush: () => flush(),
 }));
+// O envio ao Sentry sai depois da resposta (#281); aqui so se confere o pedido.
+const enviaDepois = vi.fn();
+vi.mock('@/lib/sentry/depois', () => ({ enviaDepois: () => enviaDepois() }));
 
 const {
   buscaOrdensPorReferencia,
@@ -96,6 +100,8 @@ describe('criaOrdem', () => {
 
   beforeEach(() => {
     captureMessage.mockClear();
+    flush.mockClear();
+    enviaDepois.mockClear();
     vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
     respondeCom(PIX_OK);
   });
@@ -212,6 +218,16 @@ describe('criaOrdem', () => {
         level: 'error',
         tags: { status },
       });
+    });
+
+    // #281: quem esta no checkout ve a recusa sem esperar o aviso ao dono.
+    it('o aviso sai depois da resposta, sem esperar o Sentry', async () => {
+      respondeCom(ERRO('unauthorized'), 401);
+
+      await criaOrdem(DADOS);
+
+      expect(enviaDepois).toHaveBeenCalledTimes(1);
+      expect(flush).not.toHaveBeenCalled();
     });
 
     // Problema la: vale repetir, e o dono fica sabendo.

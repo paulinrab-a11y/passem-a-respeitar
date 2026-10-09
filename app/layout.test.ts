@@ -29,4 +29,18 @@ describe('metadata do layout (#215)', () => {
     expect(tw.card).toBe('summary_large_image');
     expect(tw.images).toEqual(og.images);
   });
+
+  // A data de lancamento fica em sigilo ate o pre-save (#269). Descricao e
+  // card do link sao o que mais circula: nenhuma data, em nenhum formato.
+  it('nao publica data de lancamento na descricao nem no card do link', async () => {
+    vi.resetModules();
+    const { metadata } = await import('./layout');
+    const og = metadata.openGraph as Record<string, unknown>;
+    const tw = metadata.twitter as Record<string, unknown>;
+    const DATA = /\b\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?\b|\b20\d{2}\b|novembro|dezembro|outubro/i;
+
+    for (const texto of [metadata.description, og.description, tw.description]) {
+      expect(String(texto)).not.toMatch(DATA);
+    }
+  });
 });

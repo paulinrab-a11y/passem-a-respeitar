@@ -2,12 +2,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { entrar } from './acoes';
 import { estadoInicial } from './estado';
 
+type ErroDoSupabase = { message: string; code?: string; status?: number } | null;
+
 const signInWithPassword = vi.fn(async (_: { email: string; password: string }) => ({
-  error: null as { message: string } | null,
+  error: null as ErroDoSupabase,
 }));
+const resend = vi.fn(async (_: unknown) => ({ error: null as ErroDoSupabase }));
 const clienteDeAuth = vi.fn(async (_lembrar: boolean) => ({
-  auth: { signInWithPassword },
+  auth: { signInWithPassword, resend },
 }));
+
+/** O que o Supabase responde a senha CERTA de conta que nunca confirmou. */
+const NAO_CONFIRMADA = { message: 'Email not confirmed', code: 'email_not_confirmed', status: 400 };
+/** E a senha errada — de conta pendente, confirmada ou de e-mail que nao existe. */
+const CREDENCIAL_ERRADA = {
+  message: 'Invalid login credentials',
+  code: 'invalid_credentials',
+  status: 400,
+};
 
 const captureMessage = vi.fn();
 const flush = vi.fn(async () => true);
@@ -59,6 +71,7 @@ function deIpNovo() {
 beforeEach(() => {
   vi.clearAllMocks();
   signInWithPassword.mockResolvedValue({ error: null });
+  resend.mockResolvedValue({ error: null });
   deIpNovo();
   // O piso de tempo (#23) e testado num caso proprio; nos outros ele so
   // deixaria a suite lenta.
@@ -138,17 +151,33 @@ describe('mensagem generica', () => {
     expect(credencialErrada.erro).toBeTruthy();
   });
 
-  it('e a mesma para conta nao confirmada', async () => {
+  // Conta nao confirmada com a senha ERRADA recebe `invalid_credentials`: o
+  // Supabase confere a senha antes de olhar a confirmacao (#260). So o codigo
+  // `email_not_confirmed` abre a tela do codigo; a frase solta, sem ele, cai
+  // na mensagem generica, que e o lado seguro.
+  it('a frase "Email not confirmed" sem o codigo do erro nao abre nada', async () => {
     signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     const a = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
 
     deIpNovo();
-    // O Supabase responde "Email not confirmed" neste caso, o que contaria que
-    // a conta existe. A acao nao repassa a mensagem dele.
     signInWithPassword.mockResolvedValue({ error: { message: 'Email not confirmed' } });
     const b = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
 
     expect(a.erro).toBe(b.erro);
+    expect(b.confirmar).toBeUndefined();
+    expect(resend).not.toHaveBeenCalled();
+  });
+
+  // A mensagem antiga mandava cadastrar de novo, e o Supabase descarta a
+  // senha do segundo cadastro (#260). A recuperacao confirma o e-mail e deixa
+  // uma senha conhecida.
+  it('aponta a recuperacao de senha, e nao um cadastro novo', async () => {
+    signInWithPassword.mockResolvedValue({ error: CREDENCIAL_ERRADA });
+    const r = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+
+    expect(r.erro).toMatch(/Esqueci minha senha/);
+    expect(r.erro).toMatch(/confirma o e-mail/);
+    expect(r.erro).not.toMatch(/cadastro/i);
   });
 
   it('nunca repassa a mensagem do Supabase', async () => {
@@ -329,5 +358,111 @@ describe('sinal para o alerta (#8)', () => {
     await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
 
     expect(captureMessage).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Conta que nunca confirmou o e-mail (#260). Quem saiu da tela do codigo do
+ * cadastro volta por aqui: com a senha certa, o login da lugar a tela do
+ * codigo e manda um codigo novo.
+ */
+describe('conta que nunca confirmou o e-mail (#260)', () => {
+  it('a senha certa abre a tela do codigo e manda um codigo novo', async () => {
+    signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
+    const e = email();
+    const r = await entrar(estadoInicial, formulario({ email: e, senha: 'certa' }));
+
+    expect(r).toEqual({
+      erro: null,
+      campo: null,
+      tentativa: 1,
+      confirmar: { email: e, lembrar: false, enviado: true },
+    });
+    expect(resend).toHaveBeenCalledWith({
+      type: 'signup',
+      email: e,
+      options: { emailRedirectTo: expect.stringMatching(/\/auth\/callback\?next=%2Fconta$/) },
+    });
+  });
+
+  // Ainda nao ha sessao: a escolha so vira cookie depois do codigo.
+  it('leva o manter conectado para a tela, sem gravar cookie', async () => {
+    signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
+    const r = await entrar(
+      estadoInicial,
+      formulario({ email: email(), senha: 'certa', lembrar: 'on' })
+    );
+
+    expect(r.confirmar?.lembrar).toBe(true);
+    expect(clienteDeAuth).toHaveBeenCalledWith(true);
+    expect(jarSet).not.toHaveBeenCalled();
+  });
+
+  // O que impede a tela do codigo de virar oraculo de cadastro: sem a senha,
+  // conta pendente, conta confirmada e e-mail desconhecido sao a mesma coisa.
+  it('senha errada e e-mail desconhecido: a mesma mensagem, e nenhum codigo', async () => {
+    signInWithPassword.mockResolvedValue({ error: CREDENCIAL_ERRADA });
+    const pendente = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+    deIpNovo();
+    const desconhecido = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+
+    expect(pendente.erro).toBe(desconhecido.erro);
+    expect(pendente.confirmar).toBeUndefined();
+    expect(desconhecido.confirmar).toBeUndefined();
+    expect(resend).not.toHaveBeenCalled();
+  });
+
+  // As chaves sao as do botao de reenviar (3 por e-mail por hora): alternar
+  // entre entrar e reenviar nao manda mais e-mail que o botao sozinho. Com a
+  // cota gasta a tela do codigo ainda abre (o anterior pode estar valendo),
+  // mas sabendo que nada saiu: ela nao promete um e-mail que nao vem.
+  it('cota do reenvio gasta: a tela abre, sem e-mail novo e sem prometer um', async () => {
+    signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
+    const alvo = email();
+
+    const enviados: boolean[] = [];
+    for (let i = 0; i < 4; i++) {
+      const r = await entrar(estadoInicial, formulario({ email: alvo, senha: 'certa' }));
+      expect(r.erro).toBeNull();
+      expect(r.confirmar?.email).toBe(alvo);
+      enviados.push(Boolean(r.confirmar?.enviado));
+    }
+
+    expect(enviados).toEqual([true, true, true, false]);
+    expect(resend).toHaveBeenCalledTimes(3);
+  });
+
+  // No 429 o codigo anterior continua valendo, e a tela abre do mesmo jeito.
+  // O que muda e o texto: nada saiu agora. Isso so chega a quem ja provou a
+  // senha, entao nao conta a ninguem que ha cadastro pendente.
+  it('o intervalo minimo do Supabase abre a tela sem prometer e-mail novo', async () => {
+    signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
+    resend.mockResolvedValue({
+      error: { message: 'For security purposes…', code: 'over_email_send_rate_limit', status: 429 },
+    });
+    const e = email();
+
+    const r = await entrar(estadoInicial, formulario({ email: e, senha: 'certa' }));
+
+    expect(r.erro).toBeNull();
+    expect(r.confirmar).toEqual({ email: e, lembrar: false, enviado: false });
+  });
+
+  it('nunca entra: nada de redirect nem de cookie', async () => {
+    signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
+
+    await expect(
+      entrar(estadoInicial, formulario({ email: email(), senha: 'certa', next: '/checkout' }))
+    ).resolves.toBeTruthy();
+    expect(jarSet).not.toHaveBeenCalled();
+  });
+
+  it('respeita o piso de tempo', async () => {
+    vi.stubEnv('LOGIN_PISO_MS', '80');
+    signInWithPassword.mockResolvedValue({ error: NAO_CONFIRMADA });
+
+    const t0 = Date.now();
+    await entrar(estadoInicial, formulario({ email: email(), senha: 'certa' }));
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(75);
   });
 });

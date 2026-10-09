@@ -75,6 +75,29 @@ export async function criaUsuario(nome: string, email = emailNovo(nome.toLowerCa
 }
 
 /**
+ * Conta que nunca confirmou o e-mail (#260), sem passar pela tela de cadastro.
+ *
+ * Criada pelo admin sem `email_confirm`, ela fica igual a de quem se cadastrou
+ * e fechou a tela do codigo: o Supabase recusa o login com
+ * `email_not_confirmed` e aceita o reenvio do codigo. Pela tela custaria um
+ * dos cinco cadastros por hora do IP.
+ */
+export async function criaPendente(nome: string) {
+  const email = emailNovo(nome.toLowerCase());
+  const senha = senhaNova();
+
+  const { data, error } = await admin().auth.admin.createUser({
+    email,
+    password: senha,
+    user_metadata: { termos_aceitos_em: new Date().toISOString() },
+  });
+  if (error || !data.user) throw new Error(`nao criei a conta pendente: ${error?.message}`);
+  if (data.user.email_confirmed_at) throw new Error('a conta pendente nasceu confirmada');
+
+  return { id: data.user.id, nome, email, senha } satisfies Usuario;
+}
+
+/**
  * O administrador da suite: o unico e-mail que o servidor de teste aceita como tal.
  *
  * O endereco e fixo, entao pode ja existir: quando um teste falha o Playwright
