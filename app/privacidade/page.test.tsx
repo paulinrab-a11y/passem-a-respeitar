@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { COOKIE_CONVITE } from '@/lib/convite';
+import { COOKIE_LEMBRAR, COOKIE_RECUPERACAO } from '@/lib/supabase/cookies';
 import Privacidade from './page';
 
 /**
@@ -22,8 +24,9 @@ describe('/privacidade', () => {
   it('conta que a Cloudflare recebe dados do navegador, e em que telas', () => {
     expect(html).toMatch(/Turnstile, da Cloudflare/);
     expect(html).toMatch(/endereço IP/);
-    expect(html).toMatch(/entrar, criar conta, recuperar senha e o campo de convite/);
-    expect(html).toMatch(/só nessas telas/i);
+    expect(html).toMatch(/entrar, criar conta e recuperar senha, o campo de convite e o concierge/);
+    expect(html).toMatch(/só nesses formulários/i);
+    expect(html).toMatch(/abre o concierge/);
     expect(html).toContain('https://www.cloudflare.com/pt-br/privacypolicy/');
   });
 
@@ -43,6 +46,86 @@ describe('/privacidade', () => {
 
   it('diz que o cartao nunca passa pelos nossos servidores', () => {
     expect(html).toMatch(/nunca passam pelos nossos servidores/i);
+  });
+
+  // O CPF passa pelo servidor a caminho do Mercado Pago (lib/loja/cobranca.ts)
+  // e nao vai para a tabela pagamentos. Se um dia for guardado, este texto
+  // deixa de ser verdade e precisa mudar junto. (#254)
+  it('conta que o CPF passa pelo servidor so para chegar ao Mercado Pago', () => {
+    expect(html).toMatch(/CPF/);
+    expect(html).toMatch(/só para chegar ao Mercado Pago/);
+    expect(html).toMatch(/não fica guardado aqui/);
+    expect(html).toMatch(/se foi Pix ou\s+cartão/);
+  });
+
+  // `cabecalhosDeOrigem` (lib/supabase/servidor.ts) repassa o IP e o
+  // user-agent de quem entra para o Supabase gravar em auth.sessions, e a
+  // tela de aparelhos conectados (#38) le os dois. A linha nao tem prazo: em
+  // producao nao ha timebox nem limite de inatividade (sessao de 29/09 ainda
+  // la em 09/10, `not_after` vazio), entao so sai com Sair, encerrar, troca
+  // de senha ou exclusao da conta — fechar o navegador nao basta, e o texto
+  // diz isso. O log de auditoria do Auth nao e gravado no banco (zero linhas
+  // em auth.audit_log_entries), por isso nao entra aqui. (#254)
+  it('conta que cada sessao guarda IP e navegador, e ate quando', () => {
+    expect(html).toMatch(/<strong>Aparelhos conectados:<\/strong>/);
+    expect(html).toMatch(/o Supabase guarda o endereço IP e o tipo de navegador e de\s+sistema/);
+    expect(html).toContain('href="/conta/seguranca"');
+    expect(html).toMatch(/a tela mostra só o começo do IP/);
+    expect(html).toMatch(/O registro fica até a\s+sessão ser encerrada/);
+    expect(html).toMatch(/Fechar o navegador sem sair apaga o cookie, mas não esse registro/);
+  });
+
+  // O concierge (#191) manda a conversa ao Google (lib/concierge/gemini.ts).
+  it('conta que o concierge manda a conversa ao Google e nao a guarda', () => {
+    expect(html).toMatch(/<h2>Concierge<\/h2>/);
+    expect(html).toMatch(/Gemini/);
+    expect(html).toMatch(/últimas mensagens da conversa \(até oito\)/);
+    expect(html).toMatch(/não guarda a conversa/);
+    expect(html).toMatch(/não escreva no chat dado pessoal/);
+    expect(html).toContain('https://policies.google.com/privacy');
+    expect(html).toContain('https://ai.google.dev/gemini-api/terms');
+  });
+
+  // Os nomes vem das constantes: renomear um cookie sem mexer na politica
+  // derruba o teste, em vez de deixar o texto apontando para um nome morto.
+  it('lista os cookies do site pelo nome de verdade, e o CEP no navegador', () => {
+    expect(html).toMatch(/Cookies e o que fica no seu navegador/);
+    for (const nome of [COOKIE_LEMBRAR, COOKIE_RECUPERACAO, COOKIE_CONVITE]) {
+      expect(html).toContain(nome);
+    }
+    expect(html).toContain('auth-token');
+    expect(html).toContain('code-verifier');
+    // Igual a CHAVE de app/_home/cep-lembrado.ts.
+    expect(html).toContain('par_cep');
+    expect(html).toMatch(/limpe os dados deste site/);
+  });
+
+  it('conta onde o site roda, a medicao de visitas e o rastreio de erro', () => {
+    expect(html).toMatch(/Vercel Analytics e\s+Speed Insights/);
+    expect(html).toMatch(/sem cookie e sem identificar você/);
+    expect(html).toMatch(/Sentry/);
+    expect(html).toMatch(/Supabase/);
+  });
+
+  // Os e-mails da conta saem pelo SMTP do Mailjet configurado no Supabase
+  // Auth. Ele recebe o endereco de todo mundo que tem conta, entao entra na
+  // lista de com quem o dado e compartilhado — que a LGPD manda contar.
+  it('conta que os e-mails da conta saem pelo Mailjet', () => {
+    expect(html).toMatch(/<strong>Mailjet<\/strong>/);
+    expect(html).toMatch(/recebe o seu endereço de e-mail/);
+    expect(html).toContain('https://www.mailjet.com/legal/privacy-policy/');
+  });
+
+  // lib/rate-limit.ts grava a contagem no Upstash com o IP e o e-mail na
+  // chave (`entrar:email:<e-mail>`). A janela mais longa e de uma hora, e o
+  // slidingWindow do SDK mantem a chave por duas janelas mais um segundo —
+  // por isso "cerca de duas horas", e nao "uma".
+  it('conta que a contagem de envios fica no Upstash, com IP e e-mail, por cerca de duas horas', () => {
+    expect(html).toMatch(/<strong>Upstash<\/strong>/);
+    expect(html).toMatch(/anotada com esse IP e esse e-mail/);
+    expect(html).toMatch(/cerca de duas\s+horas/);
+    expect(html).not.toMatch(/em até uma hora/);
+    expect(html).toContain('https://upstash.com/trust/privacy.pdf');
   });
 
   it('cita a LGPD e os direitos', () => {

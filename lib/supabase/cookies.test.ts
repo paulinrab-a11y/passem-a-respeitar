@@ -3,6 +3,7 @@ import {
   ehVerificador,
   opcoesDaRecuperacao,
   opcoesDeSessao,
+  opcoesDoCookie,
   opcoesDoLembrar,
   opcoesDoVerificador,
 } from './cookies';
@@ -59,6 +60,13 @@ describe('opcoesDeSessao', () => {
       const o = opcoesDeSessao({ expires: new Date('2030-01-01') }, false);
       expect(o.expires).toBeUndefined();
     });
+
+    // O Supabase apaga cookie com maxAge 0 (logout, pedaco de token que
+    // sobrou). Virar cookie de sessao ali deixaria um cookie vazio no
+    // navegador em vez de apagar.
+    it('desmarcado nao impede de apagar', () => {
+      expect(opcoesDeSessao({ ...DO_SUPABASE, maxAge: 0 }, false).maxAge).toBe(0);
+    });
   });
 });
 
@@ -90,6 +98,35 @@ describe('verificador PKCE (#234)', () => {
     expect(o.expires).toBeUndefined();
     expect(o.httpOnly).toBe(true);
     expect(o.sameSite).toBe('lax');
+  });
+
+  it('depois que o link volta, o verificador e apagado de verdade', () => {
+    expect(opcoesDoVerificador({ ...DO_SUPABASE, maxAge: 0 }).maxAge).toBe(0);
+  });
+});
+
+describe('opcoesDoCookie', () => {
+  it('o verificador ganha a validade propria', () => {
+    expect(opcoesDoCookie('sb-abc-auth-token-code-verifier', DO_SUPABASE, false).maxAge).toBe(
+      60 * 60
+    );
+  });
+
+  it('o token segue o manter conectado', () => {
+    expect(opcoesDoCookie('sb-abc-auth-token', DO_SUPABASE, false).maxAge).toBeUndefined();
+    expect(opcoesDoCookie('sb-abc-auth-token', DO_SUPABASE, true).maxAge).toBe(DO_SUPABASE.maxAge);
+  });
+
+  // As opcoes cruas do @supabase/ssr sao httpOnly false. Nenhum caminho de
+  // gravacao pode deixar isso passar.
+  it('nenhum dos dois sai legivel por JavaScript', () => {
+    for (const nome of [
+      'sb-abc-auth-token',
+      'sb-abc-auth-token.0',
+      'sb-abc-auth-token-code-verifier',
+    ]) {
+      expect(opcoesDoCookie(nome, { ...DO_SUPABASE, httpOnly: false }, false).httpOnly).toBe(true);
+    }
   });
 });
 
