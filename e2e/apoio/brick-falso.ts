@@ -22,7 +22,7 @@ import type { Page } from '@playwright/test';
  */
 
 /** O que o formulario falso conta para o teste, em `window.__brickFalso`. */
-export type Contagem = { criados: number; desmontados: number };
+type Contagem = { criados: number; desmontados: number };
 
 /** Roda DENTRO da pagina, antes de tudo. Nada de fora entra aqui. */
 function instala() {

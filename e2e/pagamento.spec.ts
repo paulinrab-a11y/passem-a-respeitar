@@ -256,7 +256,16 @@ test('pagamento: cartao em analise mostra o aviso e depois abre o pedido', async
   await expect(selo(pagina)).toHaveText('Aguardando pagamento');
 });
 
-/** Gera o Pix pela tela e devolve o id da ordem que o Mercado Pago falso criou. */
+/** A proxima volta do relogio da tela do Pix; depois o tempo volta a correr. */
+async function proximaConferencia(pagina: Page) {
+  await pagina.clock.fastForward(CONFERE_A_CADA_MS);
+  await pagina.clock.resume();
+}
+
+/**
+ * Gera o Pix pela tela e devolve o id da ordem que o Mercado Pago falso criou.
+ * Sai com o relogio da pagina parado: ver `proximaConferencia`.
+ */
 async function geraPix(cena: Cena): Promise<string> {
   const { pagina, pedido } = cena;
   const form = await abrePagamento(cena);
@@ -265,6 +274,11 @@ async function geraPix(cena: Cena): Promise<string> {
 
   const codigo = pagina.getByLabel('Pix copia e cola');
   await expect(codigo).toBeVisible();
+  // O relogio da pagina para aqui, com a tela do Pix recem-montada: a
+  // conferencia sozinha so roda quando o teste mandar. Correndo solto, numa
+  // maquina lenta os 10 s de verdade passariam antes da hora, e a conferencia
+  // gastaria cedo a cota de uma consulta por minuto ao provedor.
+  await pagina.clock.pauseAt(await pagina.evaluate(() => Date.now() + 500));
   await expect(form).toHaveCount(0);
 
   const [tentativa] = await lePagamentos(pedido.id);
@@ -314,7 +328,7 @@ test('pagamento: Pix pendente vira pago quando o Mercado Pago avisa, e a tela ab
 
   // Nada empurra isso para a aba aberta: ela descobre na proxima conferencia.
   await expect(pagina).toHaveURL(new RegExp(`/checkout/pagamento/${pedido.id}$`));
-  await pagina.clock.fastForward(CONFERE_A_CADA_MS);
+  await proximaConferencia(pagina);
 
   await pagina.waitForURL(`**/conta/pedidos/${pedido.id}`);
   await expect(selo(pagina)).toHaveText('Pago');
@@ -333,7 +347,7 @@ test('pagamento: Pix pago sem aviso do Mercado Pago e achado pela conferencia da
   await envelhecePagamentos(pedido.id, 60_000);
   expect((await lePedido(pedido.id)).status).toBe('aguardando_pagamento');
 
-  await pagina.clock.fastForward(CONFERE_A_CADA_MS);
+  await proximaConferencia(pagina);
 
   await pagina.waitForURL(`**/conta/pedidos/${pedido.id}`);
   await expect(selo(pagina)).toHaveText('Pago');
