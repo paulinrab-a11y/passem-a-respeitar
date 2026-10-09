@@ -227,7 +227,7 @@ describe('escolha do frete (#199)', () => {
   ])('%s: pede para escolher, foca no grupo e nao cria', async (_, servico) => {
     const r = await enviar({ servico });
 
-    expect(r.recado?.texto).toBe('Escolha PAC ou SEDEX.');
+    expect(r.recado?.texto).toBe('Escolha o tipo de envio.');
     expect(r.campo).toBe('servico');
     expect(criaPedido).not.toHaveBeenCalled();
   });
@@ -242,8 +242,11 @@ describe('escolha do frete (#199)', () => {
   it.each([
     ['frete-fora-do-ar', 'Não consegui calcular o frete agora. Tente de novo em instantes.'],
     ['frete-cep-invalido', 'Confira o CEP: não encontrei esse endereço.'],
-    ['frete-sem-servico', 'Os Correios não entregam nesse CEP por PAC nem por SEDEX.'],
-    ['frete-servico-indisponivel', 'Esse tipo de envio não atende esse CEP. Escolha o outro.'],
+    ['frete-sem-servico', 'Os Correios não entregam nesse CEP.'],
+    [
+      'frete-servico-indisponivel',
+      'Esse envio não atende mais esse CEP. Recalculamos o frete, confira e finalize de novo.',
+    ],
   ] as const)('traduz %s', async (motivo, texto) => {
     vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo });
 
@@ -262,6 +265,39 @@ describe('escolha do frete (#199)', () => {
       expect(texto).not.toMatch(/token|medida|configura|melhor envio/i);
     }
   );
+
+  // A cotacao da criacao discordou da tela: a caixa cota de novo (#265).
+  it.each([
+    'frete-servico-indisponivel',
+    'frete-sem-servico',
+    'frete-cep-invalido',
+    'frete-fora-do-ar',
+    'frete-sem-configuracao',
+    'frete-sem-medida',
+  ] as const)('%s pede para a tela recotar o frete', async (motivo) => {
+    vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo });
+
+    const r = await enviar();
+    expect(r.recotarFrete).toBe(true);
+    // Um sim ou nao: o nome do motivo nao sai para a tela.
+    expect(JSON.stringify(r)).not.toContain(motivo);
+  });
+
+  it.each(['produto-indisponivel', 'catalogo-indisponivel', 'nao-consegui-gravar'] as const)(
+    '%s nao mexe no frete da tela',
+    async (motivo) => {
+      vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo });
+
+      expect((await enviar()).recotarFrete).toBe(false);
+    }
+  );
+
+  it('a escolha que faltou nao recota: o que falta e a pessoa marcar', async () => {
+    const r = await enviar({ servico: '' });
+
+    expect(r.recotarFrete).toBeFalsy();
+    expect(r.campo).toBe('servico');
+  });
 });
 
 describe('cotarFrete (#199)', () => {

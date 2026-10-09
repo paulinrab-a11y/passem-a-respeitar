@@ -18,6 +18,12 @@ export type EstadoDoCheckout = {
    * propria CSP para o Brick montar, e so a ganha como documento. (#118)
    */
   irPara?: string | null;
+  /**
+   * A criacao do pedido recusou o frete (#265): a caixa esquece a cotacao que
+   * mostrava e cota de novo. Um sim ou nao, e nao o motivo — a tela nao
+   * compara frases, e a rede nao leva o que falta configurar.
+   */
+  recotarFrete?: boolean;
 };
 
 export const checkoutInicial: EstadoDoCheckout = { recado: null, campo: null };

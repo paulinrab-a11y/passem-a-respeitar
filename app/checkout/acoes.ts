@@ -41,7 +41,8 @@ const RECADOS: Record<string, string> = {
   // Frete (#199): as mesmas frases da ficha da home (#205).
   ...RECADOS_DO_FRETE,
   'nao-consegui-gravar': 'Não consegui criar o pedido agora. Tente de novo.',
-  'frete-escolha': 'Escolha PAC ou SEDEX.',
+  // Sem nomear servico (#265): hoje so o SEDEX aparece.
+  'frete-escolha': 'Escolha o tipo de envio.',
 };
 
 function erro(motivo: string, campo: string | null = null): EstadoDoCheckout {
@@ -104,7 +105,14 @@ export async function finalizarCompra(
   }
 
   const criado = await criaPedido({ itens: [item.data], endereco: endereco.data, servico });
-  if (!criado.ok) return erro(criado.motivo);
+  if (!criado.ok) {
+    // Recusa de frete aqui e a cotacao de agora discordando da que a tela
+    // mostrou: cache vencido, servico que sumiu, Melhor Envio fora. A tela
+    // cota de novo em vez de deixar marcado o servico recusado, que so
+    // repetiria o erro e gastaria a cota acima (#265). A escolha que faltou
+    // nao passa por aqui: ela e da pessoa, nao da cotacao.
+    return { ...erro(criado.motivo), recotarFrete: criado.motivo.startsWith('frete-') };
+  }
 
   // Para o PAGAMENTO, nao para o detalhe (#113): o pedido nasce
   // `aguardando_pagamento`, e mandar a pessoa para uma tela que so descreve o

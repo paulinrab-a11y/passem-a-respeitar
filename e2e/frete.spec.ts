@@ -82,7 +82,7 @@ test('frete: CEP mostra PAC e SEDEX, e o pedido grava o que o servidor cotou', a
 }) => {
   const antes = await pedidosDe(quem);
   await logada.goto(CHECKOUT);
-  await expect(logada.getByText('Digite o CEP para ver o preço do PAC e do SEDEX.')).toBeVisible();
+  await expect(logada.getByText('Digite o CEP para ver o frete dos Correios.')).toBeVisible();
   await expect(finalizar(logada)).toBeDisabled();
 
   await preencheEndereco(logada, '04538-133');
@@ -182,7 +182,7 @@ test('frete: servico adulterado no navegador nao vira pedido', async ({ logada }
   await finalizar(logada).click();
 
   await expect(
-    logada.getByRole('alert').filter({ hasText: 'Escolha PAC ou SEDEX.' })
+    logada.getByRole('alert').filter({ hasText: 'Escolha o tipo de envio.' })
   ).toBeVisible();
   await expect(logada).toHaveURL(/\/checkout\?/);
   expect(await pedidosDe(quem)).toBe(antes);
@@ -280,7 +280,7 @@ test('frete: fora do ar, tentar de novo consulta de novo, e redigitar o CEP tamb
 
   // Apagar e redigitar o ultimo digito (#28): antes nao fazia nada.
   await logada.getByLabel('CEP').fill(CEPS.foraDoAr.slice(0, 7));
-  await expect(logada.getByText('Digite o CEP para ver o preço do PAC e do SEDEX.')).toBeVisible();
+  await expect(logada.getByText('Digite o CEP para ver o frete dos Correios.')).toBeVisible();
   await logada.getByLabel('CEP').fill(CEPS.foraDoAr);
   await expect.poll(async () => (await recebidos()).length).toBe(3);
   await expect(alerta).toHaveText(frase);

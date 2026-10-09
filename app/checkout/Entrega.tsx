@@ -17,7 +17,7 @@ import { checkoutInicial } from './estado';
  *
  * O unico Client Component do checkout. O resumo e o preco dos produtos sao
  * servidos prontos pelo servidor — aqui so mora o que precisa de interacao:
- * digitar, ver o frete do CEP, escolher PAC ou SEDEX, receber erro e nao
+ * digitar, ver o frete do CEP, escolher o tipo de envio, receber erro e nao
  * deixar clicar duas vezes.
  *
  * Os campos ocultos carregam a ESCOLHA (slug, tamanho, quantidade), nunca o
@@ -151,6 +151,14 @@ export default function Entrega({
 
   /** O botao da falha passageira: esquecer a resposta e o efeito cota de novo. */
   const tentaDeNovo = () => setFrete(NENHUM);
+
+  // A criacao do pedido cotou de novo e recusou o frete (#265). A caixa nao
+  // fica com o servico recusado marcado — clicar de novo repetiria o erro —:
+  // volta ao esqueleto e cota o CEP atual. Pelo estado inteiro, e nao pela
+  // flag: duas recusas seguidas sao duas respostas, e a segunda tambem cota.
+  useEffect(() => {
+    if (estado.recotarFrete) setFrete(NENHUM);
+  }, [estado]);
 
   // Rua, bairro, cidade e UF pelo CEP (#204), junto com o frete. A resposta
   // so entra se o CEP no campo ainda for o mesmo: trocar o CEP no meio da
@@ -346,7 +354,8 @@ function Opcoes({
   invalido: boolean;
 }) {
   if (!completo) {
-    return <p className="frete-vazio">Digite o CEP para ver o preço do PAC e do SEDEX.</p>;
+    // Sem nomear servico (#265): hoje so o SEDEX aparece.
+    return <p className="frete-vazio">Digite o CEP para ver o frete dos Correios.</p>;
   }
 
   if (cotando || !resposta) {
