@@ -50,9 +50,14 @@ export default function Termos() {
           ← Passem a Respeitar
         </a>
 
-        <h1>Termos de compra</h1>
+        {/* Uma palavra, como as outras telas: "Termos de compra" quebrava em
+            duas linhas no telefone, e o titulo de entrelinha curta da
+            identidade encavalava uma linha na outra. O resto vai embaixo, no
+            mesmo subtitulo de /recuperar-senha. Medido no preview. */}
+        <h1>Termos</h1>
+        <p className="auth-sub">De compra, troca e arrependimento</p>
 
-        <p className="detalhe-nota">
+        <p className="detalhe-nota termos-intro">
           O que vale quando você compra a Camiseta CBAC neste site: quem vende, quanto custa, como
           paga, e como cancelar, desistir ou trocar.
         </p>

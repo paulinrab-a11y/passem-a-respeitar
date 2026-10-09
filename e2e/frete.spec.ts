@@ -451,7 +451,7 @@ test('checkout: sem aceitar os termos de compra nao ha pedido', async ({ logada 
     logada.getByRole('link', { name: 'termos de compra' }).click(),
   ]);
   await expect(aba).toHaveURL(/\/termos$/);
-  await expect(aba.getByRole('heading', { level: 1, name: 'Termos de compra' })).toBeVisible();
+  await expect(aba.getByRole('heading', { level: 1, name: 'Termos', exact: true })).toBeVisible();
   await aba.close();
   // O link nao marca a caixinha, e o que foi digitado continua la.
   await expect(aceite(logada)).not.toBeChecked();

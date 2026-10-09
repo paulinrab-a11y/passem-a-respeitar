@@ -16,7 +16,7 @@ test('termos: a pagina abre sem sessao, com as secoes que a lei pede', async ({ 
   const resposta = await page.goto('/termos');
   expect(resposta?.status()).toBe(200);
 
-  await expect(page.getByRole('heading', { level: 1, name: 'Termos de compra' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Termos', exact: true })).toBeVisible();
   for (const secao of [
     'Quem vende',
     'Desistir em 7 dias',

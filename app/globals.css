@@ -848,6 +848,8 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 /* A versao dos termos (#276): fecha a pagina com a mesma linha que separa os
    blocos, sem titulo — e rodape do texto, nao mais uma secao. */
 .termos-data{margin-top:40px;padding-top:24px;border-top:1px solid var(--prata-3)}
+/* O subtitulo so tem margem em cima; sem esta, o paragrafo encostava nele. */
+.termos-intro{margin-top:28px}
 /* Os prazos do pedido entregue (#276): a lista do resumo, com o respiro do
    paragrafo antes do "como pedir" que vem embaixo. */
 .pos-venda-prazos{margin-bottom:18px}
