@@ -324,3 +324,63 @@ test('home: sem WebGL a abertura fecha e a pagina segue em HTML', async ({ page 
 
   expect(erros).toEqual([]);
 });
+
+/**
+ * Atalhos e indicador "tocando" (#280). N pula o beat em qualquer lugar da
+ * pagina — menos onde a pessoa digita: no concierge, cada "n" de uma frase
+ * trocava a faixa. E o indicador e um botao, alcancavel pelo teclado, so
+ * enquanto aparece.
+ */
+test('home: N pula o beat fora dos campos, nao enquanto a pessoa digita', async ({ page }) => {
+  // A cena 3D roda por software no navegador sem tela.
+  test.setTimeout(90_000);
+  // O que se mede e a troca de faixa, nao o audio. Com o play() de verdade, a
+  // promessa dele resolve quando o beat carrega e sobe o volume por cima do
+  // fade de saida de um N apertado antes disso: a troca se perde e o teste
+  // dependeria da velocidade da maquina.
+  await page.addInitScript(() => {
+    HTMLMediaElement.prototype.play = () => new Promise<void>(() => {});
+  });
+
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  const pill = page.locator('#tocando');
+  const nome = page.locator('#tocandoNome');
+  const pular = page.getByRole('button', { name: /pular para o próximo beat/ });
+
+  // Som desligado: o indicador e transparente, e fica fora do Tab e do leitor.
+  await expect(pill).toHaveAttribute('tabindex', '-1');
+  await expect(pular).toHaveCount(0);
+
+  await page.locator('#som').click();
+  await expect(pill).toHaveClass(/\bon\b/);
+  await expect(nome).not.toHaveText('');
+  // Aceso, e um botao com nome: o beat que toca e o que ele faz.
+  await expect(pular).toHaveId('tocando');
+  await expect(pill).not.toHaveAttribute('tabindex', '-1');
+  const primeiro = (await nome.textContent()) ?? '';
+
+  const abrir = page.getByRole('button', { name: 'concierge' });
+  await abrir.click();
+  const campo = page.locator('#conciergeTexto');
+  await expect(campo).toBeFocused();
+  await campo.pressSequentially('não, N novo');
+  // O fade da troca e de 400 ms: folga para uma troca que nao devia vir.
+  await page.waitForTimeout(1000);
+  await expect(campo).toHaveValue('não, N novo');
+  await expect(nome).toHaveText(primeiro);
+
+  // Fora do campo, o atalho volta a valer.
+  await page.keyboard.press('Escape');
+  await expect(abrir).toBeFocused();
+  await page.keyboard.press('n');
+  await expect(nome).not.toHaveText(primeiro);
+  const segundo = (await nome.textContent()) ?? '';
+
+  // E o indicador pula pelo teclado, como pelo clique.
+  await pill.focus();
+  await page.keyboard.press('Enter');
+  await expect(nome).not.toHaveText(segundo);
+});

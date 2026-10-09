@@ -262,7 +262,19 @@ export default async function Home() {
         </footer>
       </main>
 
-      <div className="tocando" id="tocando" title="pular (N)">
+      {/* Botao (#280): teclado e leitor de tela tambem pulam o beat. Nasce
+          apagado e, por isso, fora do Tab e do leitor de tela; o script o
+          acende quando o som liga (app/_home/teclado.ts). O nome comeca pelo
+          beat, que e o texto visivel. */}
+      <button
+        type="button"
+        className="tocando"
+        id="tocando"
+        title="pular (N)"
+        aria-keyshortcuts="N"
+        tabIndex={-1}
+        aria-hidden="true"
+      >
         <span className="eq">
           <i></i>
           <i></i>
@@ -270,7 +282,8 @@ export default async function Home() {
           <i></i>
         </span>
         <span id="tocandoNome"></span>
-      </div>
+        <span className="sr">, pular para o próximo beat</span>
+      </button>
 
       <div id="loja" role="dialog" aria-modal="true" aria-labelledby="lojaTitulo">
         <button type="button" className="fechar" id="fecharLoja">
