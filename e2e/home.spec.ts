@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { visitante } from './apoio/visitante';
 
 // Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
@@ -383,4 +383,163 @@ test('home: N pula o beat fora dos campos, nao enquanto a pessoa digita', async 
   await pill.focus();
   await page.keyboard.press('Enter');
   await expect(nome).not.toHaveText(segundo);
+});
+
+/**
+ * "Reduzir movimento" na cena 3D (#286). Nenhum teste automatico pega
+ * regressao de animacao (AGENTS.md); o que se mede aqui e o que da para medir
+ * sem olhar: se o canvas parou de mudar e se ainda tem desenho.
+ *
+ * Parado = duas capturas da tela, com um intervalo, saem iguais byte a byte.
+ * O grao do VHS e um canvas animado por script: com a preferencia ele ja sai
+ * da tela; sem ela, sai pela mao do teste, para a medida enxergar so a cena.
+ */
+async function telaParada(page: Page): Promise<boolean> {
+  const antes = await page.screenshot({ animations: 'disabled' });
+  await page.waitForTimeout(700);
+  const depois = await page.screenshot({ animations: 'disabled' });
+  return antes.equals(depois);
+}
+
+test('home: com reduzir movimento o fundo 3D assenta e para; sem, continua girando', async ({
+  page,
+}) => {
+  // A cena 3D roda por software no navegador sem tela: assentar leva quadros.
+  test.setTimeout(120_000);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  // A abertura inteira leva uns 12 s; com a preferencia, e um fade curto.
+  // Sem clicar em pular.
+  await expect(page.locator('#intro')).toBeHidden({ timeout: 8_000 });
+  await expect(page.locator('#gl')).toBeVisible();
+
+  // A camera chega ao alvo por lerp e os PNGs acendem devagar; depois disso,
+  // nada mais muda na tela.
+  await expect.poll(() => telaParada(page), { timeout: 60_000, intervals: [0] }).toBe(true);
+  expect(await telaParada(page)).toBe(true);
+
+  // Sem a preferencia, a mesma medida ve a corrente girando: e o que prova que
+  // ela enxerga a cena, e que o "parado" de cima nao e um canvas vazio.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+  await page.evaluate(() => {
+    for (const id of ['grain', 'scan', 'vig']) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    }
+  });
+  expect(await telaParada(page)).toBe(false);
+});
+
+/**
+ * A vitrine 3D com reduzir movimento (#286). Ela desenhava um quadro e parava:
+ * o modelo da camiseta chegava depois e nao aparecia (ficava a silhueta), e
+ * fechar e reabrir a loja ou redimensionar a janela apagava o canvas, que
+ * ficava vazio.
+ *
+ * O CI so tem GPU por software, e nela a vitrine escolhe as fotos (#217). Aqui
+ * o nome da GPU e trocado antes de qualquer script, para a vitrine escolher o
+ * 3D. O modelo fica preso na rede ate a silhueta estar na tela.
+ *
+ * Desenhado = a captura com o canvas difere da captura com ele escondido. O
+ * canvas e transparente: vazio, as duas sao o fundo da vitrine.
+ */
+async function vitrineDesenhada(page: Page): Promise<boolean> {
+  const canvas = page.locator('#glLoja');
+  const caixa = await canvas.boundingBox();
+  if (!caixa) return false;
+  const com = await page.screenshot({ clip: caixa, animations: 'disabled' });
+  await canvas.evaluate((c: HTMLElement) => {
+    c.style.visibility = 'hidden';
+  });
+  const sem = await page.screenshot({ clip: caixa, animations: 'disabled' });
+  await canvas.evaluate((c: HTMLElement) => {
+    c.style.visibility = '';
+  });
+  return !com.equals(sem);
+}
+
+async function capturaDaVitrine(page: Page): Promise<Buffer> {
+  const caixa = await page.locator('#glLoja').boundingBox();
+  if (!caixa) throw new Error('vitrine fora da tela');
+  return page.screenshot({ clip: caixa, animations: 'disabled' });
+}
+
+test('home: com reduzir movimento a vitrine 3D mostra o modelo e redesenha ao reabrir e redimensionar', async ({
+  page,
+}) => {
+  test.setTimeout(150_000);
+  const erros: string[] = [];
+  page.on('pageerror', (e) => erros.push(e.message));
+
+  await page.addInitScript(() => {
+    // UNMASKED_RENDERER_WEBGL, da extensao de debug que a vitrine consulta.
+    const NOME_DA_GPU = 0x9246;
+    const original = WebGLRenderingContext.prototype.getParameter;
+    WebGLRenderingContext.prototype.getParameter = function (
+      this: WebGLRenderingContext,
+      p: number
+    ) {
+      if (p === NOME_DA_GPU) return 'ANGLE (GPU de teste)';
+      return Reflect.apply(original, this, [p]);
+    } as typeof original;
+  });
+
+  let soltaModelo: () => void = () => {};
+  const modeloPreso = new Promise<void>((solta) => {
+    soltaModelo = solta;
+  });
+  await page.route('**/merch/camiseta.gltf', async (rota) => {
+    await modeloPreso;
+    await rota.continue();
+  });
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await expect(page.locator('#intro')).toBeHidden({ timeout: 8_000 });
+
+  const comprar = page.locator('#comprar');
+  await comprar.scrollIntoViewIfNeeded();
+  await comprar.click();
+  const loja = page.locator('#loja');
+  await expect(loja).toBeVisible();
+  await expect(page.locator('#vitrine')).not.toHaveClass(/\bmodo-360\b/);
+
+  // A silhueta, com o brasao, e o primeiro desenho; e assenta.
+  await expect.poll(() => vitrineDesenhada(page), { timeout: 30_000 }).toBe(true);
+  let silhueta = await capturaDaVitrine(page);
+  await expect
+    .poll(
+      async () => {
+        await page.waitForTimeout(500);
+        const agora = await capturaDaVitrine(page);
+        const igual = agora.equals(silhueta);
+        silhueta = agora;
+        return igual;
+      },
+      { timeout: 30_000, intervals: [0] }
+    )
+    .toBe(true);
+
+  // O modelo chega: a vitrine troca a silhueta pela camiseta, sem arraste.
+  soltaModelo();
+  await expect
+    .poll(async () => (await capturaDaVitrine(page)).equals(silhueta), { timeout: 60_000 })
+    .toBe(false);
+
+  // Redimensionar apaga o canvas; a vitrine redesenha.
+  await page.setViewportSize({ width: 1100, height: 680 });
+  await expect.poll(() => vitrineDesenhada(page), { timeout: 30_000 }).toBe(true);
+
+  // Fechar e reabrir tambem.
+  await page.locator('#fecharLoja').click();
+  await expect(loja).toBeHidden();
+  await comprar.click();
+  await expect(loja).toBeVisible();
+  await expect.poll(() => vitrineDesenhada(page), { timeout: 30_000 }).toBe(true);
+
+  expect(erros).toEqual([]);
 });

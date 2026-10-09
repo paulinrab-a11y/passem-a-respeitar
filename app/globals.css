@@ -70,7 +70,13 @@ html.sem-webgl .elo .box{opacity:1;transform:none}
 #tc{position:absolute;top:26px;right:var(--gutter);font-size:15px;letter-spacing:.16em;font-variant-numeric:tabular-nums}
 #tape{position:absolute;bottom:26px;left:var(--gutter);font-size:12px;letter-spacing:.2em;color:var(--prata-2)}
 #manifesto{width:min(920px,100%);text-align:left;max-height:calc(100vh - 200px);display:flex;flex-direction:column;justify-content:center}
-#manifesto .l{display:block;font-family:var(--display);font-size:clamp(16px, min(4.2vw, 4.6vh), 52px);line-height:1.02;text-transform:uppercase;color:var(--prata);opacity:0;filter:blur(14px);transform:translateY(6px) skewX(-2deg);will-change:filter,opacity,transform}
+#manifesto .l{display:block;position:relative;font-family:var(--display);font-size:clamp(16px, min(4.2vw, 4.6vh), 52px);line-height:1.02;text-transform:uppercase;color:var(--prata);opacity:0;transform:translateY(6px) skewX(-2deg);will-change:opacity,transform}
+/* O desfoque da entrada sem animar `filter` (#286): a `.nevoa` e uma copia da
+   linha, montada pela intro, borrada uma vez e parada, exatamente em cima da
+   `.nitida`. A timeline so troca a opacidade das duas. Cada uma na sua camada,
+   para a troca nao repintar o borrado a cada quadro. */
+#manifesto .nitida{display:block;will-change:opacity}
+#manifesto .nevoa{position:absolute;left:0;top:0;width:100%;filter:blur(14px);pointer-events:none;will-change:opacity}
 #manifesto .l.fim{font-family:var(--logo);text-transform:none;font-size:clamp(48px, 10vw, 136px);line-height:.9;margin-top:.25em;color:#fff;text-shadow:0 0 30px var(--vermelho-luz), 0 0 2px #fff}
 #manifesto .fim img{width:min(520px,70vw,60vh);height:auto;filter:drop-shadow(0 0 30px var(--vermelho-luz))}
 #manifesto .fim img+span,#hero h1 img+span,#sala h3 img+span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -326,7 +332,8 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
   #grain,#scan,#vig{display:none}
   .elo .box{opacity:1;transform:none;transition:none}
   #hero .desce.rolou::after,#hero .desce::after{animation:none}
-  #manifesto .l{opacity:1;filter:none;transform:none}
+  #manifesto .l{opacity:1;transform:none}
+  #manifesto .nevoa{display:none}
   /* Os dois loops infinitos que sobravam (#52). O REC vira um ponto aceso; o
      equalizador vira barras paradas a meia altura — continua dizendo "tocando",
      so nao pulsa. */

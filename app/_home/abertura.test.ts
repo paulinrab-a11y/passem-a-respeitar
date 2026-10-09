@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fechaAbertura, prendeAbertura } from './abertura';
+import { fechaAbertura, nevoaDaLinha, prendeAbertura } from './abertura';
 
 /**
  * O estado "abertura fechada" (#238), que a intro do script legado e o
@@ -109,5 +109,89 @@ describe('fechaAbertura', () => {
 
     expect(() => fechaAbertura(document)).not.toThrow();
     expect(document.documentElement.classList.contains('locked')).toBe(false);
+  });
+});
+
+/**
+ * O desfoque da entrada do manifesto sem animar `filter` (#286): uma copia
+ * borrada, parada, embaixo da linha nitida. A timeline so troca a opacidade
+ * das duas; o que se confere aqui e a copia.
+ */
+describe('nevoaDaLinha', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="manifesto" aria-live="polite">
+        <span class="l" id="primeira"><span class="nitida">Não são seguidores.</span></span>
+        <span class="l fim" id="fim"><span class="nitida"><img src="/logo.png" alt="" id="logoDoFim"><span>Passem a respeitar</span></span></span>
+        <span class="l" id="crua">Sem camada.</span>
+      </div>`;
+  });
+
+  const linha = (id: string) => document.getElementById(id) as HTMLElement;
+
+  /** O texto da linha que sobra para o leitor de tela: sem o que e aria-hidden. */
+  const textoLido = (el: HTMLElement) => {
+    const copia = el.cloneNode(true) as HTMLElement;
+    for (const escondido of copia.querySelectorAll('[aria-hidden="true"]')) escondido.remove();
+    return copia.textContent;
+  };
+
+  it('monta a copia dentro da linha, depois da nitida e com o mesmo texto', () => {
+    const camadas = nevoaDaLinha(linha('primeira'));
+
+    expect(camadas?.nitida.className).toBe('nitida');
+    expect(camadas?.nevoa.className).toBe('nevoa');
+    expect(camadas?.nevoa.parentElement).toBe(linha('primeira'));
+    expect(camadas?.nevoa.previousElementSibling).toBe(camadas?.nitida);
+    expect(camadas?.nevoa.textContent).toBe('Não são seguidores.');
+  });
+
+  it('o leitor de tela continua lendo a linha uma vez so', () => {
+    nevoaDaLinha(linha('primeira'));
+    nevoaDaLinha(linha('fim'));
+
+    expect(textoLido(linha('primeira'))).toBe('Não são seguidores.');
+    expect(textoLido(linha('fim'))).toBe('Passem a respeitar');
+  });
+
+  it('a copia ja entra escondida do leitor: o manifesto e aria-live', async () => {
+    const registros: MutationRecord[] = [];
+    const observa = new MutationObserver((r) => registros.push(...r));
+    observa.observe(document.getElementById('manifesto') as HTMLElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+    });
+
+    const camadas = nevoaDaLinha(linha('primeira'));
+    await Promise.resolve();
+    registros.push(...observa.takeRecords());
+    observa.disconnect();
+
+    // Uma entrada so, com o aria-hidden ja posto: nenhum atributo mudou depois.
+    expect(registros.map((r) => r.type)).toEqual(['childList']);
+    expect([...registros[0].addedNodes]).toEqual([camadas?.nevoa]);
+    expect(camadas?.nevoa.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('a copia do fim leva o logo, sem repetir id', () => {
+    const camadas = nevoaDaLinha(linha('fim'));
+
+    expect(camadas?.nevoa.querySelector('img')?.getAttribute('src')).toBe('/logo.png');
+    expect(camadas?.nevoa.querySelector('[id]')).toBeNull();
+    expect(document.querySelectorAll('#logoDoFim')).toHaveLength(1);
+  });
+
+  it('chamar de novo devolve a mesma copia, sem montar outra', () => {
+    const antes = nevoaDaLinha(linha('primeira'));
+    const depois = nevoaDaLinha(linha('primeira'));
+
+    expect(depois?.nevoa).toBe(antes?.nevoa);
+    expect(linha('primeira').querySelectorAll('.nevoa')).toHaveLength(1);
+  });
+
+  it('linha sem a camada nitida fica como esta', () => {
+    expect(nevoaDaLinha(linha('crua'))).toBeNull();
+    expect(linha('crua').innerHTML).toBe('Sem camada.');
   });
 });
