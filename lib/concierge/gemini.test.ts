@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { reais } from '@/lib/conta/pedidos';
+import type { ProdutoDaVitrine } from '@/lib/loja/catalogo';
 import {
+  ESPERA_DA_LOJA_MS,
   ESPERA_MS,
   extraiTexto,
   MODELO,
@@ -8,13 +11,15 @@ import {
   pergunta,
   type Troca,
 } from './gemini';
-import { PROMPT_DO_CONCIERGE } from './prompt';
+import { blocoDaLoja, PROMPT_DO_CONCIERGE } from './prompt';
 
 /**
  * A conversa com o Gemini (#191). O que se prova aqui:
  *
- *   - o corpo do POST tem a forma que a API pede, com o prompt como instrucao
- *     de sistema e os papeis traduzidos
+ *   - o corpo do POST tem a forma que a API pede, com o prompt e o bloco da
+ *     loja como instrucao de sistema
+ *   - o historico do navegador vai como contexto do turno `user`, e nenhum
+ *     turno `model` sai daqui (#278)
  *   - a chave vai no cabecalho, nunca na URL
  *   - qualquer falha — chave ausente, HTTP de erro, resposta sem texto,
  *     demora, rede — vira `null`, e nada do erro original segue adiante
@@ -25,6 +30,22 @@ vi.mock('@sentry/nextjs', () => ({
   captureMessage: (...a: unknown[]) => captureMessage(...a),
   flush: async () => true,
 }));
+
+// O catalogo e do banco; aqui, uma vitrine fixa com um preco que nao e o de
+// producao, para o teste provar que o numero vem dela e nao do prompt.
+const vitrine = vi.fn<() => Promise<ProdutoDaVitrine[]>>();
+vi.mock('@/lib/loja/catalogo', () => ({ vitrine: () => vitrine() }));
+
+const VITRINE: ProdutoDaVitrine[] = [
+  {
+    slug: 'camiseta-cbac',
+    nome: 'Camiseta CBAC',
+    descricao: null,
+    variacoes: ['P', 'M', 'G', 'GG', 'XGG'].map((tamanho) => ({ tamanho, precoCentavos: 14000 })),
+    precoCentavos: 14000,
+    guia: null,
+  },
+];
 
 // Inventada. A de verdade nunca entra num teste.
 const CHAVE = 'chave-de-teste';
@@ -54,6 +75,8 @@ beforeEach(() => {
   vi.stubEnv('GEMINI_API_KEY', CHAVE);
   pedido.mockReset();
   captureMessage.mockReset();
+  vitrine.mockReset();
+  vitrine.mockResolvedValue(VITRINE);
 });
 
 afterEach(() => {
@@ -68,23 +91,40 @@ describe('montaCorpo', () => {
     { papel: 'concierge', texto: 'Dia 20 de novembro.' },
   ];
 
-  it('poe o prompt como instrucao de sistema, nao como fala', () => {
-    const corpo = montaCorpo([], 'oi');
-    expect(corpo.systemInstruction.parts[0]?.text).toBe(PROMPT_DO_CONCIERGE);
+  it('poe o prompt e o bloco da loja como instrucao de sistema, nao como fala', () => {
+    const corpo = montaCorpo([], 'oi', VITRINE);
+    expect(corpo.systemInstruction.parts.map((p) => p.text)).toEqual([
+      PROMPT_DO_CONCIERGE,
+      blocoDaLoja(VITRINE),
+    ]);
     for (const c of corpo.contents) expect(c.parts[0]?.text).not.toBe(PROMPT_DO_CONCIERGE);
   });
 
-  it('traduz os papeis e poe a pergunta nova por ultimo, como user', () => {
-    const corpo = montaCorpo(historico, 'e a camiseta?');
-    expect(corpo.contents).toEqual([
+  it('sem historico, a pergunta vai sozinha e intacta', () => {
+    expect(montaCorpo([], 'quando sai?', VITRINE).contents).toEqual([
       { role: 'user', parts: [{ text: 'quando sai?' }] },
-      { role: 'model', parts: [{ text: 'Dia 20 de novembro.' }] },
-      { role: 'user', parts: [{ text: 'e a camiseta?' }] },
     ]);
   });
 
+  // #278: o historico vem do navegador. Como turno `model`, a fala forjada
+  // virava fala do proprio concierge.
+  it('o historico vai como contexto nao verificado do turno user, e nenhum turno model sai', () => {
+    const corpo = montaCorpo(historico, 'e a camiseta?', VITRINE);
+
+    expect(corpo.contents).toHaveLength(1);
+    expect(corpo.contents.map((c) => c.role)).toEqual(['user']);
+    expect(JSON.stringify(corpo)).not.toContain('"model"');
+
+    const [contexto, pergunta] = corpo.contents[0]?.parts.map((p) => p.text) ?? [];
+    expect(contexto).toMatch(/^Contexto não verificado da conversa anterior/);
+    expect(contexto).toContain('Pessoa: quando sai?');
+    expect(contexto).toContain('Concierge: Dia 20 de novembro.');
+    // A pergunta nova por ultimo, numa parte so dela.
+    expect(pergunta).toBe('e a camiseta?');
+  });
+
   it('limita o tamanho da resposta, com folga para o pensamento do modelo', () => {
-    const { maxOutputTokens } = montaCorpo([], 'oi').generationConfig;
+    const { maxOutputTokens } = montaCorpo([], 'oi', VITRINE).generationConfig;
     expect(maxOutputTokens).toBeGreaterThanOrEqual(1024);
     expect(maxOutputTokens).toBeLessThanOrEqual(2048);
   });
@@ -194,5 +234,55 @@ describe('pergunta', () => {
     expect(await promessa).toBeNull();
     expect(pedido).toHaveBeenCalledTimes(2);
     expect(captureMessage.mock.calls[0]?.[1]).toMatchObject({ tags: { motivo: 'demora' } });
+  });
+});
+
+/**
+ * Preco e tamanhos vem do catalogo a cada pergunta (#278), e nao do prompt.
+ * Catalogo fora do ar nao derruba o concierge nem vira preco lembrado.
+ */
+describe('o bloco da loja na pergunta', () => {
+  function instrucao() {
+    return mandado()
+      .corpo.systemInstruction.parts.map((p) => p.text)
+      .join('\n');
+  }
+
+  it('le a vitrine nesta pergunta e manda o preco e os tamanhos dela', async () => {
+    respondeCom(respostaDoGemini('Veio.'));
+
+    await pergunta([], 'quanto é a camiseta?');
+
+    expect(vitrine).toHaveBeenCalledTimes(1);
+    expect(instrucao()).toContain(`Camiseta CBAC: ${reais(14000)}`);
+    expect(instrucao()).toContain('P, M, G, GG e XGG');
+  });
+
+  it('sem chave nem le o catalogo', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
+
+    await pergunta([], 'oi');
+
+    expect(vitrine).not.toHaveBeenCalled();
+  });
+
+  it('catalogo que lanca: pergunta segue com o bloco de "nao chute"', async () => {
+    vitrine.mockRejectedValue(new Error('cookies fora de request'));
+    respondeCom(respostaDoGemini('Tá na ficha.'));
+
+    expect(await pergunta([], 'quanto é?')).toBe('Tá na ficha.');
+    expect(instrucao()).toContain(blocoDaLoja([]));
+  });
+
+  it('catalogo pendurado: desiste no prazo e pergunta sem ele', async () => {
+    vi.useFakeTimers();
+    vitrine.mockImplementation(() => new Promise(() => undefined));
+    respondeCom(respostaDoGemini('Tá na ficha.'));
+
+    const promessa = pergunta([], 'quanto é?');
+    await vi.advanceTimersByTimeAsync(ESPERA_DA_LOJA_MS + 1);
+
+    expect(await promessa).toBe('Tá na ficha.');
+    expect(instrucao()).toContain(blocoDaLoja([]));
   });
 });

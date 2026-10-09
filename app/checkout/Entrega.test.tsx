@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fimDaAnimacao } from '@/app/_ui/fim-da-animacao';
+import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import type { RespostaDoFrete } from './acoes';
 import type { EstadoDoCheckout } from './estado';
 
@@ -376,11 +377,13 @@ describe('frete (#199)', () => {
     expect(reais(botao().textContent ?? '')).toContain('R$ 143,50');
   });
 
-  it('diz que o transporte vem depois dos 30 dias de producao', () => {
+  it('diz que o transporte vem depois do prazo de producao', () => {
     monta();
 
     expect(
-      screen.getByText(/O transporte começa depois da produção, de pelo menos 30 dias/)
+      screen.getByText(
+        `O transporte começa depois da produção, de pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias.`
+      )
     ).toBeTruthy();
   });
 });
