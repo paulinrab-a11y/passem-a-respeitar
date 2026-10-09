@@ -51,6 +51,9 @@ const POR_IP = { maximo: 5, janelaMs: 60 * 60 * 1000 };
 /** Por e-mail: nao mandar mais de tres codigos por hora para a mesma caixa. */
 const POR_EMAIL = { maximo: 3, janelaMs: 60 * 60 * 1000 };
 
+/** A mesma frase nos dois limites: nenhum deles diz algo sobre a conta. */
+const MUITAS_TENTATIVAS = 'Muitas tentativas. Tente de novo mais tarde.';
+
 const MENSAGENS: Record<string, string> = {
   email: 'Confira o e-mail.',
   senha: 'A senha precisa de pelo menos 8 caracteres.',
@@ -90,17 +93,23 @@ export async function criarConta(
 
   const cabecalhos = await headers();
   const ip = ipDoRequest(cabecalhos);
-  const cotaIp = await limita(`criar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
-  const cotaEmail = await limita(`criar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
-  if (!cotaIp.permitido || !cotaEmail.permitido) {
-    return erro(anterior, 'Muitas tentativas. Tente de novo mais tarde.');
-  }
 
-  // Depois do limite: a conferencia e uma chamada para fora. E antes da
-  // consulta de senha vazada, que e outra.
+  // O limite do IP vem antes do desafio: a conferencia e uma chamada para
+  // fora, e rajada de uma origem nao pode virar uma por request.
+  const cotaIp = await limita(`criar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
+  if (!cotaIp.permitido) return erro(anterior, MUITAS_TENTATIVAS);
+
+  // Antes da consulta de senha vazada, que e outra chamada para fora.
   if (!(await desafioConfere(desafio, 'criar-conta', ip))) {
     return erro(anterior, RECUSA);
   }
+
+  // O do e-mail so agora, com o token conferido (#285), como no reenvio do
+  // codigo: ver `cabeReenvioDoIp` em lib/conta/codigo.ts. Antes do desafio
+  // qualquer texto passa por token, e um script trocando de IP gastaria a
+  // cota de um e-mail alheio sem cadastrar nada.
+  const cotaEmail = await limita(`criar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
+  if (!cotaEmail.permitido) return erro(anterior, MUITAS_TENTATIVAS);
 
   if (await senhaVazada(senha)) {
     return erro(
