@@ -164,8 +164,80 @@ test('acessibilidade: home', async ({ page }) => {
 test('acessibilidade: home, com a intro na tela', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#skip')).toBeVisible();
+  // A analise e do estado modal de verdade, com o fundo ja inerte (#270).
+  await expect(page.locator('main')).toHaveAttribute('inert', '');
 
   expect((await laudo(page)).violacoes).toEqual([]);
+});
+
+/**
+ * O foco fica dentro de `seletor`? Depois do ultimo item, o Tab sai da pagina
+ * para a barra do navegador e o foco fica no <body>; o Tab seguinte volta ao
+ * primeiro item. Os dois contam como "dentro".
+ */
+const focoDentro = (page: Page, seletor: string) =>
+  page.evaluate((s) => {
+    const ativo = document.activeElement;
+    return ativo === document.body || Boolean(document.querySelector(s)?.contains(ativo));
+  }, seletor);
+
+/**
+ * A abertura prende o foco (#270). `#bar` vem antes de `#intro` no HTML, e o
+ * primeiro Tab da home caia nos links da barra, ainda invisiveis, e depois na
+ * pagina atras do preto. Ao pular, o foco sumia com a abertura.
+ */
+test('acessibilidade: home, o Tab fica na abertura e pular leva o foco ao som', async ({
+  page,
+}) => {
+  await page.goto('/');
+  // O fundo fica inerte quando a pagina hidrata, antes do script da intro.
+  await expect(page.locator('#bar')).toHaveAttribute('inert', '');
+  await expect(page.locator('main')).toHaveAttribute('inert', '');
+
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#ligar')).toBeFocused();
+  for (let i = 0; i < 5; i++) {
+    await page.keyboard.press('Tab');
+    expect(await focoDentro(page, '#intro')).toBe(true);
+  }
+
+  await page.locator('#skip').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  await expect(page.locator('#som')).toBeFocused();
+  await expect(page.locator('[inert]')).toHaveCount(0);
+});
+
+/**
+ * A loja prende o foco (#270): Tab a partir de Comprar saia do modal para o
+ * concierge e para a pagina escondida atras dele. Esc fecha e devolve o foco
+ * a quem abriu, com o fundo de volta.
+ */
+test('acessibilidade: home, o Tab fica na loja aberta e Esc devolve o foco', async ({ page }) => {
+  test.setTimeout(90_000);
+
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  const comprar = page.locator('#comprar');
+  await comprar.scrollIntoViewIfNeeded();
+  await comprar.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#loja')).toBeVisible();
+  await expect(page.locator('#fecharLoja')).toBeFocused();
+  await expect(page.locator('main')).toHaveAttribute('inert', '');
+
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press('Tab');
+    expect(await focoDentro(page, '#loja')).toBe(true);
+  }
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#loja')).toBeHidden();
+  await expect(comprar).toBeFocused();
+  await expect(page.locator('[inert]')).toHaveCount(0);
 });
 
 /**

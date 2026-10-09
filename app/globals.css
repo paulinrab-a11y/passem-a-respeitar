@@ -180,7 +180,10 @@ footer.assina a:hover{color:var(--vermelho)}
 footer.assina .assina-credito{flex-basis:100%;text-align:center;margin-top:-10px;font-size:11px;letter-spacing:.2em}
 footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;text-underline-offset:3px}
 
-#sala{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.94);display:none;place-items:center;padding:var(--gutter)}
+/* Acima do concierge (60), como a loja (70) ja estava (#270). Com os dois no
+   60, o painel do concierge, que vem depois no HTML, ficava por cima da sala;
+   com o fundo inerte, ficaria por cima e sem responder. */
+#sala{position:fixed;inset:0;z-index:65;background:rgba(0,0,0,.94);display:none;place-items:center;padding:var(--gutter)}
 #sala.on{display:grid}
 /* Entrada e saida dos dois modais da home (#49). Antes era `display` ligando
    e desligando: abriam e sumiam de uma vez. A saida e uma classe que dispara

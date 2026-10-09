@@ -3,7 +3,7 @@
 import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { levaAteAAncora } from '@/lib/ancora';
-import { fechaAbertura } from './abertura';
+import { fechaAbertura, prendeAbertura } from './abertura';
 import montaConcierge from './concierge';
 import { CONFIG } from './config';
 import { desafioDoConvite } from './desafio-do-convite';
@@ -16,6 +16,12 @@ export default function HomeRuntime() {
   useEffect(() => {
     let cancelado = false;
     let soltaAncora = () => {};
+
+    // O fundo fica inerte ja, e nao quando a intro do script comecar (#270):
+    // o chunk do three pode levar segundos, e e nesse intervalo que o Tab
+    // andava pela barra invisivel. Quem solta e o `fechaAbertura`, pelos dois
+    // caminhos que fecham a abertura.
+    prendeAbertura(document);
 
     // Quem clica em 'pular' antes de o chunk do three chegar nao clica a toa
     // (#238). O clique fica anotado e o script, ao chegar, pula a intro na

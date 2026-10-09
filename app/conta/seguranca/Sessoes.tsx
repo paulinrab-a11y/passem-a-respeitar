@@ -27,6 +27,10 @@ export default function Sessoes({
   // perde, e ela nao precisa procurar a linha de novo numa lista que pode ter
   // mudado de ordem enquanto o modal estava aberto.
   const tentado = useRef<string | null>(null);
+  // Para onde o foco volta quando o modal da senha sai (#270): o Encerrar da
+  // linha tentada, ou o titulo da secao quando a linha ja nao esta la.
+  const botoes = useRef(new Map<string, HTMLButtonElement>());
+  const titulo = useRef<HTMLHeadingElement>(null);
 
   const [modalFechado, setModalFechado] = useState(false);
   // Qual linha a pessoa clicou. `pendente` e da lista inteira; sem isto todos
@@ -37,9 +41,21 @@ export default function Sessoes({
 
   if (sessoes.length === 0) return null;
 
+  function devolverFoco() {
+    const id = tentado.current;
+    const botao = id ? botoes.current.get(id) : undefined;
+    // Encerrada, a linha esta saindo da lista e o foco sairia junto com ela.
+    if (botao && atual.encerrado !== id) return botao;
+    return titulo.current;
+  }
+
   return (
     <section className="sessoes">
-      <h2>Aparelhos conectados</h2>
+      {/* Focavel por script, nao pelo Tab: e o destino do foco quando a linha
+          que a pessoa encerrou ja saiu. */}
+      <h2 ref={titulo} tabIndex={-1}>
+        Aparelhos conectados
+      </h2>
       <p className="sessoes-nota">Se você não reconhece algum, encerre e troque a senha.</p>
 
       <ul>
@@ -74,6 +90,12 @@ export default function Sessoes({
               >
                 <input type="hidden" name="identificador" value={s.identificador} />
                 <button
+                  ref={(b) => {
+                    if (b) botoes.current.set(s.identificador, b);
+                    return () => {
+                      botoes.current.delete(s.identificador);
+                    };
+                  }}
                   type="submit"
                   className={`auth-link${pendente && clicada === s.identificador ? ' carregando' : ''}`}
                   disabled={pendente}
@@ -108,6 +130,7 @@ export default function Sessoes({
           pendente={pendenteComSenha}
           erro={reautenticado.precisaReautenticar ? (reautenticado.recado?.texto ?? null) : null}
           onCancelar={() => setModalFechado(true)}
+          devolverFoco={devolverFoco}
           onConfirmar={(senha) => {
             const dados = new FormData();
             dados.append('identificador', tentado.current ?? '');

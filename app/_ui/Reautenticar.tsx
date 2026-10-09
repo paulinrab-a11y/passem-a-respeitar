@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Rotulo from '@/app/_ui/Rotulo';
 import { useDesmonteAnimado } from './desmonte-animado';
+import { prendeFundo, soltaFundo } from './fundo-inerte';
 import Mensagem from './Mensagem';
+
+/** Quem segura o fundo inerte enquanto o modal esta na tela. */
+const DONO = 'reautenticar';
 
 /**
  * Modal de reautenticacao (Issue #40).
@@ -16,6 +20,9 @@ import Mensagem from './Mensagem';
  * O portal e pelo mesmo motivo do menu da barra: modal precisa ficar acima de
  * tudo, e dentro do fluxo da pagina ele herda `overflow`, `transform` e
  * empilhamento de quem esta em volta.
+ *
+ * Desde a #270 e modal tambem para o teclado: na tela, o resto da pagina e
+ * inerte; ao sair, o foco volta para onde a pessoa estava.
  */
 export default function Reautenticar({
   aberto,
@@ -24,6 +31,7 @@ export default function Reautenticar({
   erro,
   pendente,
   minutos,
+  devolverFoco,
 }: {
   aberto: boolean;
   onCancelar: () => void;
@@ -32,15 +40,46 @@ export default function Reautenticar({
   pendente: boolean;
   /** Por prop, e nao importada: a constante mora num modulo server-only. */
   minutos: number;
+  /**
+   * Para onde o foco vai quando o modal sai. Sem isto, volta para o que estava
+   * focado quando ele abriu — o que nem sempre existe: o botao que disparou a
+   * acao costuma ficar desabilitado enquanto ela roda, e o navegador tira o
+   * foco dele nesse instante.
+   */
+  devolverFoco?: () => HTMLElement | null;
 }) {
   const { montado, saindo, abrir, fechar, aoFimDaAnimacao } = useDesmonteAnimado(400);
   const [senha, setSenha] = useState('');
   const campo = useRef<HTMLInputElement>(null);
+  const modal = useRef<HTMLDivElement>(null);
+  // O destino e lido na saida, nao na entrada: a lista atras do modal pode ter
+  // mudado enquanto ele estava aberto (a linha encerrada sai dela).
+  const destino = useRef(devolverFoco);
+  useEffect(() => {
+    destino.current = devolverFoco;
+  });
 
   useEffect(() => {
     if (aberto) abrir();
     else fechar();
   }, [aberto, abrir, fechar]);
+
+  // Antes do efeito que foca o campo: o que estava focado e lido aqui, antes
+  // de o foco entrar no modal. Na saida, o fundo volta antes do foco — elemento
+  // inerte nao recebe foco.
+  useEffect(() => {
+    if (!montado) return;
+
+    const ativo = document.activeElement;
+    const antes = ativo instanceof HTMLElement && ativo !== document.body ? ativo : null;
+    if (modal.current) prendeFundo(modal.current, DONO);
+
+    return () => {
+      soltaFundo(document, DONO);
+      const alvo = destino.current?.() ?? antes;
+      if (alvo?.isConnected) alvo.focus();
+    };
+  }, [montado]);
 
   // Foco no campo assim que o modal monta: a pessoa foi interrompida no meio
   // de outra coisa, e o minimo e nao obrigar ela a procurar onde digitar.
@@ -62,6 +101,7 @@ export default function Reautenticar({
 
   return createPortal(
     <div
+      ref={modal}
       className={`modal${saindo ? ' saindo' : ''}`}
       onAnimationEnd={aoFimDaAnimacao}
       role="dialog"

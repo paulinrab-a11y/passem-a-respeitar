@@ -9,6 +9,8 @@ import { fechaAbertura } from './abertura';
 // E o navegador tem WebGL? A resposta decide se a cena que lancou e um
 // aparelho sem 3D (esperado) ou um bug que o Sentry precisa saber.
 import { temWebGL } from './webgl';
+// Loja e sala deixam o resto da pagina inerte enquanto estao na tela (#270).
+import { prendeFundo, soltaFundo } from '../_ui/fundo-inerte';
 
 let booted = false;
 
@@ -703,7 +705,10 @@ ScrollTrigger.create({
     ScrollTrigger.refresh();
   }
   $('#skip').addEventListener('click', ()=>{ tl.progress(1).kill(); GL.S.queda=1; fecha(); });
-  $('#ligar').addEventListener('click', ()=>{ Som.liga(); $('#ligar').style.opacity=0; $('#ligar').disabled=true; });
+  // Botao desabilitado perde o foco, e o foco ia para o <body>, fora da
+  // abertura (#270): passa para 'pular' antes. So quando estava nele — e o
+  // contorno so aparece se a pessoa veio pelo teclado.
+  $('#ligar').addEventListener('click', ()=>{ Som.liga(); if (document.activeElement === $('#ligar')) $('#skip').focus({preventScroll:true}); $('#ligar').style.opacity=0; $('#ligar').disabled=true; });
   // Quem clicou em 'pular' enquanto este script baixava (#238) nao clicou a
   // toa: o clique vale agora, que ha o que pular — pelo mesmo caminho do botao.
   if (pulouAntes) $('#skip').click();
@@ -715,12 +720,17 @@ ScrollTrigger.create({
 // que fecha sem animar.
 // O foco volta para quem abriu — sem isso, quem navega por teclado fecha o
 // modal e cai no topo da pagina.
+// Aberto, o resto da pagina e inerte (#270): `aria-modal` so avisa o leitor de
+// tela, e o Tab saia do modal para a barra e o conteudo escondidos atras. O
+// fundo so volta no fim da saida, antes do foco — elemento inerte nao recebe
+// foco.
 function modalAnimado(el, aoTerminar){
   let quemAbriu = null, prazo = null;
   const termina = ()=>{
     clearTimeout(prazo);
     if (!el.classList.contains('saindo')) return;
     el.classList.remove('on', 'saindo');
+    soltaFundo(document, el.id);
     aoTerminar && aoTerminar();
     if (quemAbriu && document.contains(quemAbriu)) quemAbriu.focus({ preventScroll:true });
     quemAbriu = null;
@@ -731,6 +741,7 @@ function modalAnimado(el, aoTerminar){
       clearTimeout(prazo);
       quemAbriu = quem || document.activeElement;
       el.classList.remove('saindo'); el.classList.add('on');
+      prendeFundo(el, el.id);
     },
     fecha(){
       if (!el.classList.contains('on') || el.classList.contains('saindo')) return;
@@ -908,6 +919,11 @@ const Loja = (()=>{
     mostra(0);
   }
   function abre(t, quem){
+    // Ja aberta (#270): o laco de render vive enquanto `aberto`, e outro
+    // loop() poria um segundo laco desenhando a mesma cena a cada quadro. Com
+    // o fundo inerte, Comprar nem e alcancavel com a loja na tela; isto segura
+    // quem chegar aqui por outro caminho.
+    if (aberto){ $('#fecharLoja').focus(); return; }
     if (querFotos()) init360(); else init();
     if (t){ tam = t; $$('#tamLoja button').forEach(x=>{ x.classList.toggle('on', x.dataset.t===t); x.setAttribute('aria-pressed', String(x.dataset.t===t)); }); link(); }
     modal.abre(quem); aberto = true; document.documentElement.classList.add('locked');

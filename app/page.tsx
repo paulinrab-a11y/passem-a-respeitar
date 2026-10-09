@@ -74,7 +74,9 @@ export default async function Home() {
           ordem do Tab: ver BarraConta. */}
       <LugarDoMenuConta />
 
-      <div id="intro" role="dialog" aria-label="Abertura">
+      {/* Modal de verdade (#270): enquanto ela cobre a tela, o resto e inerte
+          (ver abertura.ts), e o leitor de tela para de ler por baixo. */}
+      <div id="intro" role="dialog" aria-modal="true" aria-label="Abertura">
         <canvas id="vhs" width="192" height="108"></canvas>
         <div id="rec">
           <i></i>REC
