@@ -340,6 +340,32 @@ describe('sinal para o alerta (#8)', () => {
     expect(JSON.stringify(captureMessage.mock.calls)).not.toMatch(/203.0.113/);
   });
 
+  // Os dois limites moram em momentos diferentes da acao (#285): o do IP
+  // antes do desafio, o do e-mail depois. O aviso sai dos dois, cada um com
+  // a sua dimensao, e a frase para a pessoa e a mesma.
+  it('o limite por IP tambem avisa, com a dimensao dele', async () => {
+    signInWithPassword.mockResolvedValue({ error: CREDENCIAL_ERRADA });
+    // Um IP so deste caso: os outros IPs do arquivo ja gastaram tentativas.
+    cabecalhos = new Headers({ 'x-forwarded-for': '192.0.2.77' });
+
+    for (let i = 0; i < 20; i++) {
+      const r = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+      expect(r.erro).not.toMatch(/Muitas tentativas/);
+    }
+    expect(captureMessage).not.toHaveBeenCalled();
+
+    const r = await entrar(estadoInicial, formulario({ email: email(), senha: 'x' }));
+
+    expect(r).toEqual({
+      erro: 'Muitas tentativas. Tente de novo em 15 minutos.',
+      campo: null,
+      tentativa: 1,
+    });
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+    expect(captureMessage.mock.calls[0][1]).toMatchObject({ tags: { por: 'ip' } });
+    expect(flush).toHaveBeenCalledTimes(1);
+  });
+
   // Serverless congela ao responder; sem flush o evento morre na fila.
   it('faz flush depois de capturar, antes de responder', async () => {
     signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });

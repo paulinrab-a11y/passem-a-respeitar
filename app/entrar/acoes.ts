@@ -57,6 +57,37 @@ async function segura(inicio: number) {
   if (resto > 0) await new Promise((r) => setTimeout(r, resto));
 }
 
+/**
+ * Resposta de quem bateu num dos dois limites. Os dois moram em momentos
+ * diferentes da acao (#285), mas falam a mesma frase: ela nao diz nada sobre
+ * a conta existir, e esconder o motivo faria a pessoa achar que esqueceu a
+ * senha.
+ */
+async function limiteAtingido(
+  por: 'ip' | 'email',
+  esperarS: number,
+  tentativa: number
+): Promise<EstadoEntrar> {
+  // O sinal para o alerta de "pico de falha de login" (#8): bater no limite
+  // e forca bruta em andamento. Vai so a dimensao, nunca o IP nem o e-mail.
+  Sentry.captureMessage('login: limite de tentativas atingido', {
+    level: 'warning',
+    tags: { por },
+  });
+  // Server action em serverless: a funcao congela assim que responde, e o
+  // SDK envia em segundo plano — sem isto o evento nunca sai. Conferido ao
+  // vivo: zero eventos chegaram ate o flush entrar. Dois segundos de teto;
+  // e o caminho raro do limite, nao o login normal.
+  await Sentry.flush(2000);
+
+  const minutos = Math.ceil(esperarS / 60);
+  return {
+    erro: `Muitas tentativas. Tente de novo em ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`,
+    campo: null,
+    tentativa,
+  };
+}
+
 export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<EstadoEntrar> {
   const tentativa = anterior.tentativa + 1;
 
@@ -83,38 +114,23 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
 
   const cabecalhos = await headers();
   const ip = ipDoRequest(cabecalhos);
+
+  // O limite do IP vem antes do desafio da Cloudflare: a conferencia e uma
+  // chamada para fora, e rajada de uma origem nao pode virar uma por request.
   const cotaIp = await limita(`entrar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
-  const cotaEmail = await limita(`entrar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
+  if (!cotaIp.permitido) return limiteAtingido('ip', cotaIp.esperarS, tentativa);
 
-  if (!cotaIp.permitido || !cotaEmail.permitido) {
-    // O sinal para o alerta de "pico de falha de login" (#8): bater no
-    // limite e forca bruta em andamento. Vai so a dimensao — por IP ou por
-    // e-mail —, nunca o IP nem o e-mail.
-    Sentry.captureMessage('login: limite de tentativas atingido', {
-      level: 'warning',
-      tags: { por: cotaEmail.permitido ? 'ip' : 'email' },
-    });
-    // Server action em serverless: a funcao congela assim que responde, e o
-    // SDK envia em segundo plano — sem isto o evento nunca sai. Conferido ao
-    // vivo: zero eventos chegaram ate o flush entrar. Dois segundos de teto;
-    // e o caminho raro do limite, nao o login normal.
-    await Sentry.flush(2000);
-
-    const esperar = Math.max(cotaIp.esperarS, cotaEmail.esperarS);
-    const minutos = Math.ceil(esperar / 60);
-
-    // Este erro pode ser diferente: ele nao diz nada sobre a conta existir.
-    return {
-      erro: `Muitas tentativas. Tente de novo em ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`,
-      campo: null,
-      tentativa,
-    };
-  }
-
-  // Depois do limite: a conferencia e uma chamada para fora.
   if (!(await desafioConfere(desafio, 'entrar', ip))) {
     return { erro: RECUSA, campo: null, tentativa };
   }
+
+  // O do e-mail so agora, com o token conferido (#285), o mesmo desenho do
+  // reenvio do codigo (`cabeReenvioDoIp` em lib/conta/codigo.ts). Antes do
+  // desafio qualquer texto passa por token: um script trocando de IP gastaria
+  // as cinco tentativas de um e-mail alheio sem tentar senha nenhuma, e a
+  // dona ficaria quinze minutos sem entrar, em repeticao.
+  const cotaEmail = await limita(`entrar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
+  if (!cotaEmail.permitido) return limiteAtingido('email', cotaEmail.esperarS, tentativa);
 
   const inicio = Date.now();
   const supabase = await clienteDeAuth(lembrar);
