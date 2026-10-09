@@ -62,7 +62,9 @@ from (
 do $$
 declare
   quem uuid := '00000000-0000-0000-0000-00000000e57e';
+  outra uuid := '00000000-0000-0000-0000-00000000e57f';
   produto uuid;
+  reserva uuid;
   endereco jsonb := '{"entrega_nome":"Teste Estoque","entrega_cep":"01310100","entrega_logradouro":"Avenida Paulista","entrega_numero":"1578","entrega_bairro":"Bela Vista","entrega_cidade":"Sao Paulo","entrega_uf":"SP"}';
   frete jsonb := '{"centavos":2350,"servico":"sedex","prazo_dias":3}';
   pedido uuid;
@@ -77,9 +79,13 @@ begin
      confirmation_token, recovery_token, email_change_token_new,
      email_change_token_current, email_change, phone_change,
      phone_change_token, reauthentication_token)
-  values ('00000000-0000-0000-0000-000000000000', quem, 'authenticated', 'authenticated',
-    'estoque-teste@exemplo.invalid', 'sem-login-neste-teste', now(), now(), now(),
-    '{}', '{}', '', '', '', '', '', '', '', '');
+  values
+    ('00000000-0000-0000-0000-000000000000', quem, 'authenticated', 'authenticated',
+     'estoque-teste@exemplo.invalid', 'sem-login-neste-teste', now(), now(), now(),
+     '{}', '{}', '', '', '', '', '', '', '', ''),
+    ('00000000-0000-0000-0000-000000000000', outra, 'authenticated', 'authenticated',
+     'estoque-outra@exemplo.invalid', 'sem-login-neste-teste', now(), now(), now(),
+     '{}', '{}', '', '', '', '', '', '', '', '');
 
   insert into public.produtos (slug, nome) values ('teste-estoque', 'Teste de estoque')
   returning id into produto;
@@ -210,6 +216,96 @@ begin
 
   select estoque into e from public.produto_variacoes where produto_id = produto and tamanho = 'M';
   insert into r values ('pedido antigo nao devolve', '1', e::text, e = 1);
+
+  -- Uma reserva nao paga por pessoa e variacao contada. Produto proprio, para
+  -- os numeros acima nao se misturarem com estes.
+  insert into public.produtos (slug, nome) values ('teste-reserva', 'Teste de reserva')
+  returning id into produto;
+
+  insert into public.produto_variacoes (produto_id, tamanho, preco_centavos, estoque, ativo, ordem)
+  values
+    (produto, 'M', 12000, 3, true, 1),
+    (produto, 'G', 12000, null, true, 2),
+    (produto, 'GG', 12000, 1, true, 3);
+
+  select c.pedido_id into reserva from public.cria_pedido(quem, 14350, endereco,
+    '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
+    frete) as c;
+
+  -- O Pix expirou e a pessoa finaliza de novo: recusa, e nao segunda reserva.
+  begin
+    perform public.cria_pedido(quem, 14350, endereco,
+      '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
+      frete);
+    insert into r values ('segundo pedido nao pago na mesma variacao recusa', 'ES002', 'criou', false);
+  exception when sqlstate 'ES002' then
+    insert into r values ('segundo pedido nao pago na mesma variacao recusa', 'ES002', 'ES002', true);
+  end;
+
+  select estoque into e from public.produto_variacoes where produto_id = produto and tamanho = 'M';
+  insert into r values ('pedido em aberto nao baixa de novo', '2', e::text, e = 2);
+
+  -- O limite e por pessoa: quem nao tem pedido aberto compra normalmente.
+  perform public.cria_pedido(outra, 14350, endereco,
+    '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
+    frete);
+  select estoque into e from public.produto_variacoes where produto_id = produto and tamanho = 'M';
+  insert into r values ('outra pessoa compra a mesma variacao', '1', e::text, e = 1);
+
+  -- Variacao nao contada nao prende peca, entao nao entra no limite.
+  perform public.cria_pedido(quem, 14350, endereco,
+    '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"G","quantidade":1,"preco_unitario_centavos":12000}]',
+    frete);
+  begin
+    perform public.cria_pedido(quem, 14350, endereco,
+      '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"G","quantidade":1,"preco_unitario_centavos":12000}]',
+      frete);
+    insert into r values ('variacao nao contada nao limita', 'criou', 'criou', true);
+  exception when others then
+    insert into r values ('variacao nao contada nao limita', 'criou', sqlstate, false);
+  end;
+
+  -- O limite e por variacao: outro tamanho contado passa.
+  select c.pedido_id into pedido from public.cria_pedido(quem, 14350, endereco,
+    '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000}]',
+    frete) as c;
+  select estoque into e from public.produto_variacoes where produto_id = produto and tamanho = 'GG';
+  insert into r values ('outra variacao contada passa', '0', e::text, e = 0);
+
+  -- A ultima peca esta no pedido nao pago da propria pessoa: o recado e
+  -- "pague aquele", e nao "indisponivel".
+  begin
+    perform public.cria_pedido(quem, 14350, endereco,
+      '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000}]',
+      frete);
+    insert into r values ('pedido em aberto vem antes da falta', 'ES002', 'criou', false);
+  exception when sqlstate 'ES002' then
+    insert into r values ('pedido em aberto vem antes da falta', 'ES002', 'ES002', true);
+  when sqlstate 'ES001' then
+    insert into r values ('pedido em aberto vem antes da falta', 'ES002', 'ES001', false);
+  end;
+
+  -- Pago, a reserva deixa de ser reserva: a pessoa pode comprar outra.
+  update public.orders set status = 'pago' where id = reserva;
+  begin
+    perform public.cria_pedido(quem, 14350, endereco,
+      '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
+      frete);
+    insert into r values ('pago libera nova compra', 'criou', 'criou', true);
+  exception when others then
+    insert into r values ('pago libera nova compra', 'criou', sqlstate, false);
+  end;
+
+  -- Cancelado devolve a peca e solta o limite.
+  update public.orders set status = 'cancelado' where id = pedido;
+  begin
+    perform public.cria_pedido(quem, 14350, endereco,
+      '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000}]',
+      frete);
+    insert into r values ('cancelado libera nova compra', 'criou', 'criou', true);
+  exception when others then
+    insert into r values ('cancelado libera nova compra', 'criou', sqlstate, false);
+  end;
 end;
 $$;
 

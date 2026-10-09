@@ -16,6 +16,10 @@
 --
 --   3. Cancelar ou reembolsar antes do envio devolve a baixa. Sem isto, todo
 --      Pix abandonado que o dono cancela comeria uma peca para sempre.
+--
+-- Pedido em `aguardando_pagamento` segura a peca ate alguem cancela-lo, e
+-- nada cancela sozinho ainda (#298). Por isso `cria_pedido` tambem recusa um
+-- segundo pedido nao pago da mesma pessoa na mesma variacao contada.
 
 -- ---------------------------------------------------------------------------
 -- 1. A baixa de cada pedido
@@ -68,6 +72,7 @@ declare
   v_achadas integer := 0;
   v_variacoes uuid[] := '{}';
   v_quantidades integer[] := '{}';
+  v_falta boolean := false;
 begin
   if jsonb_array_length(p_itens) = 0 then
     raise exception 'pedido sem itens' using errcode = 'check_violation';
@@ -115,18 +120,43 @@ begin
     v_achadas := v_achadas + 1;
 
     if v_linha.estoque is not null then
-      if v_linha.estoque < v_linha.quantidade then
-        -- SQLSTATE proprio para lib/loja/pedido.ts traduzir sem ler texto.
-        -- Faltar uma peca e faltar a variacao inteira respondem igual, como
-        -- no `precifica`: dizer qual dos dois contaria o estoque a quem sonda.
-        raise exception 'produto indisponivel' using errcode = 'ES001';
-      end if;
+      -- A falta so e recusada depois do pedido em aberto, abaixo: quando a
+      -- ultima peca esta no pedido nao pago da propria pessoa, "pague aquele"
+      -- e a resposta que ela pode usar, e "indisponivel" nao.
+      v_falta := v_falta or v_linha.estoque < v_linha.quantidade;
       v_variacoes := v_variacoes || v_linha.id;
       v_quantidades := v_quantidades || v_linha.quantidade::integer;
     end if;
   end loop;
 
+  -- SQLSTATE proprio para lib/loja/pedido.ts traduzir sem ler texto. Faltar
+  -- uma peca e faltar a variacao inteira respondem igual, como no
+  -- `precifica`: dizer qual dos dois contaria o estoque a quem sonda.
   if v_achadas <> v_pedidas then
+    raise exception 'produto indisponivel' using errcode = 'ES001';
+  end if;
+
+  -- Uma reserva nao paga por pessoa e variacao contada. Sem isto, a mesma
+  -- conta prende ate 10 pecas por checkout, 10 checkouts por hora, e o Pix
+  -- que expirou vira uma segunda reserva quando a pessoa finaliza de novo em
+  -- vez de pagar o pedido que ja tem. Variacao nao contada nao baixa nada,
+  -- entao nao prende nada e fica de fora.
+  --
+  -- Depois das travas acima, e nao antes: uma segunda compra simultanea da
+  -- mesma pessoa espera a primeira terminar, e esta consulta (outro comando,
+  -- outra leitura) ja enxerga a baixa que ela gravou.
+  if exists (
+    select 1
+    from public.baixas_de_estoque b
+    join public.orders o on o.id = b.order_id
+    where o.user_id = p_user_id
+      and o.status = 'aguardando_pagamento'
+      and b.variacao_id = any (v_variacoes)
+  ) then
+    raise exception 'pedido em aberto' using errcode = 'ES002';
+  end if;
+
+  if v_falta then
     raise exception 'produto indisponivel' using errcode = 'ES001';
   end if;
 
@@ -248,4 +278,4 @@ revoke all on function public.devolve_estoque() from public, anon, authenticated
 -- ---------------------------------------------------------------------------
 
 comment on column public.produto_variacoes.estoque is
-  'Pecas que ainda podem ser vendidas. null = nao controlado. cria_pedido recusa quando falta e da a baixa ao criar o pedido; cancelar ou reembolsar antes do envio devolve (baixas_de_estoque). Para tirar um tamanho da vitrine, ativo = false: estoque zero recusa no fim do checkout, mas a vitrine continua mostrando o tamanho.';
+  'Pecas que ainda podem ser vendidas. null = nao controlado. cria_pedido recusa quando falta e da a baixa ao criar o pedido; cancelar ou reembolsar antes do envio devolve (baixas_de_estoque). Pedido aguardando pagamento segura a peca ate ser cancelado: nada cancela sozinho ainda (#298), e cada pessoa tem no maximo um pedido nao pago por variacao contada. Para tirar um tamanho da vitrine, ativo = false: estoque zero recusa no fim do checkout, mas a vitrine continua mostrando o tamanho.';

@@ -404,7 +404,21 @@ describe('estoque (#296)', () => {
     expect(gravado).not.toBeNull();
   });
 
+  // A peca esta no pedido nao pago da propria pessoa: o recado e outro,
+  // porque a saida e pagar aquele pedido, e nao desistir do produto.
+  it('pedido nao pago da mesma variacao vira pedido em aberto', async () => {
+    bancoComCatalogo([CATALOGO], { code: 'ES002', message: 'pedido em aberto' });
+
+    expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'pedido-em-aberto' });
+  });
+
   it('a traducao e pelo codigo, nao pelo texto da mensagem', async () => {
+    bancoComCatalogo([CATALOGO], { code: 'P0001', message: 'pedido em aberto' });
+
+    expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'nao-consegui-gravar' });
+  });
+
+  it('a traducao do estoque tambem e pelo codigo', async () => {
     bancoComCatalogo([CATALOGO], { code: 'P0001', message: 'produto indisponivel' });
 
     expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'nao-consegui-gravar' });
