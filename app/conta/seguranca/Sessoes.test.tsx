@@ -98,4 +98,22 @@ describe('Sessoes: foco na volta do modal da senha', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(titulo());
   });
+
+  it('o recado do resultado entra num fundo ja vivo, com o modal ainda saindo', async () => {
+    // `role="status"` que nasce dentro de um fundo inerte esta fora da arvore
+    // de acessibilidade, e o leitor de tela nao anuncia o "desconectado".
+    render(<Sessoes sessoes={SESSOES} janelaMinutos={5} />);
+    await pedeSenha();
+
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha-certa' } });
+    await act(async () => {
+      fireEvent.submit(screen.getByLabelText('Senha').closest('form') as HTMLFormElement);
+    });
+    const recado = await screen.findByText('Aparelho desconectado.');
+
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(recado.getAttribute('role')).toBe('status');
+    expect(recado.closest('[inert]')).toBeNull();
+    expect(document.activeElement).toBe(titulo());
+  });
 });

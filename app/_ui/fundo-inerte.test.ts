@@ -61,6 +61,42 @@ describe('prendeFundo', () => {
     expect(el('modal').hasAttribute('inert')).toBe(false);
   });
 
+  it('com dois modais na tela, o que abriu por ultimo fica vivo', () => {
+    // A loja aberta enquanto o convite era conferido; a sala abre depois,
+    // quando o servidor responde. A loja a tinha marcado como fundo.
+    prendeFundo(el('loja'), 'loja');
+    prendeFundo(el('sala'), 'sala');
+
+    expect(el('sala').hasAttribute('inert')).toBe(false);
+    expect(el('sala').hasAttribute('data-inerte-por')).toBe(false);
+    expect(el('loja').getAttribute('data-inerte-por')).toBe('sala');
+    expect(main().getAttribute('data-inerte-por')).toBe('loja sala');
+    expect(inertes()).toEqual(['bar', 'intro', 'main', 'loja']);
+  });
+
+  it('o caminho ate o modal fica vivo, ancestral marcado por outro modal inclusive', () => {
+    document.body.innerHTML = `
+      <div id="antigo"></div>
+      <div id="raiz"><div id="novo"></div></div>
+    `;
+
+    prendeFundo(el('antigo'), 'antigo');
+    expect(el('raiz').hasAttribute('inert')).toBe(true);
+
+    prendeFundo(el('novo'), 'novo');
+    expect(el('raiz').hasAttribute('inert')).toBe(false);
+    expect(el('novo').hasAttribute('inert')).toBe(false);
+    expect(el('antigo').getAttribute('data-inerte-por')).toBe('novo');
+  });
+
+  it('o caminho ate o modal nao perde o inerte de outra mao', () => {
+    el('sala').setAttribute('inert', '');
+
+    prendeFundo(el('sala'), 'sala');
+
+    expect(el('sala').hasAttribute('inert')).toBe(true);
+  });
+
   it('prender duas vezes pelo mesmo dono nao anota duas vezes', () => {
     prendeFundo(el('intro'), 'abertura');
     prendeFundo(el('intro'), 'abertura');
@@ -89,6 +125,18 @@ describe('soltaFundo', () => {
 
     soltaFundo(document, 'loja');
     expect(inertes()).toEqual([]);
+  });
+
+  it('fechado o de cima, o de baixo volta a responder e o fundo continua preso', () => {
+    prendeFundo(el('loja'), 'loja');
+    prendeFundo(el('sala'), 'sala');
+
+    soltaFundo(document, 'sala');
+
+    expect(el('loja').hasAttribute('inert')).toBe(false);
+    expect(main().getAttribute('data-inerte-por')).toBe('loja');
+    // A sala, fechada, sai da tela: nao precisa voltar a ser fundo da loja.
+    expect(inertes()).toEqual(['bar', 'intro', 'main']);
   });
 
   it('nao mexe no que ja era inerte por outra mao', () => {

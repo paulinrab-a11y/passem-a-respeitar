@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Rotulo from '@/app/_ui/Rotulo';
 import { useDesmonteAnimado } from './desmonte-animado';
@@ -53,9 +53,11 @@ export default function Reautenticar({
   const campo = useRef<HTMLInputElement>(null);
   const modal = useRef<HTMLDivElement>(null);
   // O destino e lido na saida, nao na entrada: a lista atras do modal pode ter
-  // mudado enquanto ele estava aberto (a linha encerrada sai dela).
+  // mudado enquanto ele estava aberto (a linha encerrada sai dela). Efeito de
+  // layout, declarado antes do que solta o fundo: os dois rodam no commit em
+  // que `aberto` cai, e o destino tem de ser o desse render.
   const destino = useRef(devolverFoco);
-  useEffect(() => {
+  useLayoutEffect(() => {
     destino.current = devolverFoco;
   });
 
@@ -64,28 +66,48 @@ export default function Reautenticar({
     else fechar();
   }, [aberto, abrir, fechar]);
 
-  // Antes do efeito que foca o campo: o que estava focado e lido aqui, antes
-  // de o foco entrar no modal. Na saida, o fundo volta antes do foco — elemento
-  // inerte nao recebe foco.
-  useEffect(() => {
-    if (!montado) return;
+  // O que estava focado quando o fundo foi preso; `null` com o fundo solto.
+  const preso = useRef<{ antes: HTMLElement | null } | null>(null);
 
-    const ativo = document.activeElement;
-    const antes = ativo instanceof HTMLElement && ativo !== document.body ? ativo : null;
-    if (modal.current) prendeFundo(modal.current, DONO);
+  // Prende quando o modal aparece e solta quando `aberto` cai: no inicio da
+  // saida, e nao no desmonte. Quem fecha o modal poe na pagina, no mesmo
+  // instante, o recado do resultado (`role="status"`), e recado que nasce num
+  // fundo inerte esta fora da arvore de acessibilidade: o leitor de tela nao
+  // o anuncia. Na saida, o fundo volta antes do foco — elemento inerte nao
+  // recebe foco.
+  useLayoutEffect(() => {
+    if (aberto && montado && !preso.current && modal.current) {
+      // Lido antes de o foco entrar no campo.
+      const ativo = document.activeElement;
+      preso.current = {
+        antes: ativo instanceof HTMLElement && ativo !== document.body ? ativo : null,
+      };
+      prendeFundo(modal.current, DONO);
+      // A pessoa foi interrompida no meio de outra coisa: o minimo e nao
+      // obrigar ela a procurar onde digitar. Aqui, e nao num efeito do
+      // `montado`, para valer tambem quando reabre no meio da saida.
+      campo.current?.focus();
+      return;
+    }
+    if (aberto || !preso.current) return;
 
-    return () => {
+    const { antes } = preso.current;
+    preso.current = null;
+    soltaFundo(document, DONO);
+    const alvo = destino.current?.() ?? antes;
+    if (alvo?.isConnected) alvo.focus();
+  }, [aberto, montado]);
+
+  // Desmontado com o fundo preso (a pessoa saiu da pagina com o modal na
+  // tela): o resto do site nao pode ficar inerte.
+  useLayoutEffect(
+    () => () => {
+      if (!preso.current) return;
+      preso.current = null;
       soltaFundo(document, DONO);
-      const alvo = destino.current?.() ?? antes;
-      if (alvo?.isConnected) alvo.focus();
-    };
-  }, [montado]);
-
-  // Foco no campo assim que o modal monta: a pessoa foi interrompida no meio
-  // de outra coisa, e o minimo e nao obrigar ela a procurar onde digitar.
-  useEffect(() => {
-    if (montado) campo.current?.focus();
-  }, [montado]);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!montado) return;

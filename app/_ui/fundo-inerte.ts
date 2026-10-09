@@ -17,6 +17,11 @@
  * precisa de estado guardado em modulo — a abertura e fechada por dois
  * caminhos (o script da home e o HomeRuntime) — e dois modais na tela ao
  * mesmo tempo nao soltam o fundo um do outro, feche quem fechar primeiro.
+ *
+ * Com dois na tela, o que abriu por ultimo fica vivo, como no `<dialog>`
+ * nativo: o modal mais antigo e irmao do novo, e o tinha marcado como fundo.
+ * Sem tirar essa marca, cada um deixava o outro inerte e nada na tela
+ * respondia.
  */
 
 const DONOS = 'data-inerte-por';
@@ -36,6 +41,13 @@ export function prendeFundo(modal: Element, dono: string): void {
   while (atual !== corpo) {
     const pai = atual.parentElement;
     if (!pai) return;
+
+    // O caminho ate o modal fica vivo, mesmo marcado por um modal aberto
+    // antes. O inerte de outra mao, sem anotacao, nao e nosso para tirar.
+    if (atual.hasAttribute(DONOS)) {
+      atual.removeAttribute(DONOS);
+      atual.removeAttribute('inert');
+    }
 
     for (const irmao of Array.from(pai.children)) {
       if (irmao === atual || SEM_CORPO.has(irmao.tagName)) continue;

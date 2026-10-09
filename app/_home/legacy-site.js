@@ -9,8 +9,8 @@ import { fechaAbertura } from './abertura';
 // E o navegador tem WebGL? A resposta decide se a cena que lancou e um
 // aparelho sem 3D (esperado) ou um bug que o Sentry precisa saber.
 import { temWebGL } from './webgl';
-// Loja e sala deixam o resto da pagina inerte enquanto estao na tela (#270).
-import { prendeFundo, soltaFundo } from '../_ui/fundo-inerte';
+// Loja e sala: saida animada (#49), fundo inerte e um modal por vez (#270).
+import { modalAnimado } from './modal-animado';
 
 let booted = false;
 
@@ -713,43 +713,6 @@ ScrollTrigger.create({
   // toa: o clique vale agora, que ha o que pular — pelo mesmo caminho do botao.
   if (pulouAntes) $('#skip').click();
 })();
-
-// Modal com saida animada (#49). `fecha` so poe a classe `saindo`; quem tira
-// o `on` e o fim da animacao. O prazo e rede de seguranca: aba em segundo
-// plano nao dispara `animationend`, e modal que nao fecha e pior que modal
-// que fecha sem animar.
-// O foco volta para quem abriu — sem isso, quem navega por teclado fecha o
-// modal e cai no topo da pagina.
-// Aberto, o resto da pagina e inerte (#270): `aria-modal` so avisa o leitor de
-// tela, e o Tab saia do modal para a barra e o conteudo escondidos atras. O
-// fundo so volta no fim da saida, antes do foco — elemento inerte nao recebe
-// foco.
-function modalAnimado(el, aoTerminar){
-  let quemAbriu = null, prazo = null;
-  const termina = ()=>{
-    clearTimeout(prazo);
-    if (!el.classList.contains('saindo')) return;
-    el.classList.remove('on', 'saindo');
-    soltaFundo(document, el.id);
-    aoTerminar && aoTerminar();
-    if (quemAbriu && document.contains(quemAbriu)) quemAbriu.focus({ preventScroll:true });
-    quemAbriu = null;
-  };
-  el.addEventListener('animationend', e=>{ if (e.target === el) termina(); });
-  return {
-    abre(quem){
-      clearTimeout(prazo);
-      quemAbriu = quem || document.activeElement;
-      el.classList.remove('saindo'); el.classList.add('on');
-      prendeFundo(el, el.id);
-    },
-    fecha(){
-      if (!el.classList.contains('on') || el.classList.contains('saindo')) return;
-      el.classList.add('saindo');
-      prazo = setTimeout(termina, 400);
-    },
-  };
-}
 
 const Loja = (()=>{
   const el = $('#loja'), vit = $('#vitrine'), canvas = $('#glLoja');

@@ -12,6 +12,8 @@ import { describe, expect, it } from 'vitest';
  */
 const CSS = readFileSync('app/globals.css', 'utf8');
 const SCRIPT = readFileSync('app/_home/legacy-site.js', 'utf8');
+// A saida dos modais da home mora fora do script desde a #270.
+const MODAL = readFileSync('app/_home/modal-animado.ts', 'utf8');
 
 function blocosDeMovimentoReduzido(css: string): string {
   const abertura = /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{/g;
@@ -177,40 +179,37 @@ describe('modais da home', () => {
     expect(CSS).toMatch(/#sala\.saindo,#loja\.saindo\{[^}]*pointer-events:none/);
   });
 
-  /** O corpo de uma funcao, contando chaves. */
+  /** O corpo de uma funcao de modal-animado.ts, contando chaves. */
   function corpo(assinatura: string): string {
-    const ini = SCRIPT.indexOf(assinatura);
+    const ini = MODAL.indexOf(assinatura);
     expect(ini, assinatura).toBeGreaterThan(-1);
-    let i = SCRIPT.indexOf('{', ini + assinatura.length - 1) + 1;
+    let i = MODAL.indexOf('{', ini + assinatura.length - 1) + 1;
     const comeco = i;
-    for (let fundo = 1; i < SCRIPT.length && fundo > 0; i++) {
-      if (SCRIPT[i] === '{') fundo++;
-      else if (SCRIPT[i] === '}') fundo--;
+    for (let fundo = 1; i < MODAL.length && fundo > 0; i++) {
+      if (MODAL[i] === '{') fundo++;
+      else if (MODAL[i] === '}') fundo--;
     }
-    return SCRIPT.slice(comeco, i - 1);
+    return MODAL.slice(comeco, i - 1);
   }
 
   it('fechar so poe `saindo`; quem tira o `on` e o fim da animacao', () => {
-    const helper = corpo('function modalAnimado(el, aoTerminar){');
+    const helper = corpo('export function modalAnimado(');
 
     expect(helper).toContain("el.classList.add('saindo')");
     expect(helper).toContain("el.addEventListener('animationend'");
     // `on` so sai dentro de `termina`.
     expect(helper.match(/classList\.remove\('on'/g)).toHaveLength(1);
-    expect(corpo('const termina = ()=>{')).toContain("el.classList.remove('on', 'saindo')");
+    expect(corpo('const termina = () => {')).toContain("el.classList.remove('on', 'saindo')");
   });
 
   it('ninguem fecha modal tirando a classe na mao', () => {
-    const fora = SCRIPT.replace(corpo('function modalAnimado(el, aoTerminar){'), '');
-
-    expect(fora).not.toMatch(/(?:sala|el)\.classList\.remove\('on'\)/);
-    expect(fora).not.toMatch(/(?:sala|el)\.classList\.add\('on'\)/);
+    // A classe so muda em modal-animado.ts; o script chama `abre` e `fecha`.
+    expect(SCRIPT).not.toMatch(/(?:sala|el)\.classList\.remove\('on'\)/);
+    expect(SCRIPT).not.toMatch(/(?:sala|el)\.classList\.add\('on'\)/);
   });
 
   it('ha prazo para o caso de a animacao nao terminar', () => {
-    expect(corpo('function modalAnimado(el, aoTerminar){')).toMatch(
-      /prazo = setTimeout\(termina, \d+\)/
-    );
+    expect(corpo('export function modalAnimado(')).toMatch(/prazo = setTimeout\(termina, \d+\)/);
   });
 
   it('Esc fecha pelo mesmo caminho do botao', () => {
@@ -224,11 +223,11 @@ describe('modais da home', () => {
   });
 
   it('o foco volta para quem abriu', () => {
-    const termina = corpo('const termina = ()=>{');
+    const termina = corpo('const termina = () => {');
 
-    expect(termina).toContain('quemAbriu.focus({ preventScroll:true })');
+    expect(termina).toContain('quemAbriu.focus({ preventScroll: true })');
     // Quem abriu pode ter saido da pagina enquanto o modal estava aberto.
-    expect(termina).toContain('document.contains(quemAbriu)');
+    expect(termina).toContain('doc.contains(quemAbriu)');
     // A loja recebe o botao que a abriu; a sala, o campo do codigo.
     expect(SCRIPT).toContain('Loja.abre(tam, e.currentTarget)');
     expect(SCRIPT).toContain('modal.abre(inp)');

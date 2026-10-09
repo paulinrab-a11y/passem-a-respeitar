@@ -79,6 +79,45 @@ describe('Reautenticar', () => {
     expect(document.activeElement).toBe(encerrar());
   });
 
+  it('solta o fundo e devolve o foco quando `aberto` cai, sem esperar a saida', () => {
+    // O recado do resultado entra na pagina junto com o fechamento: num fundo
+    // ainda inerte, o leitor de tela nao o anunciaria.
+    const { container, rerender } = render(<Tela aberto={false} />);
+    encerrar().focus();
+    rerender(<Tela aberto />);
+
+    rerender(<Tela aberto={false} />);
+
+    // Ainda na tela, saindo.
+    expect(screen.getByRole('dialog').classList.contains('saindo')).toBe(true);
+    expect(container.hasAttribute('inert')).toBe(false);
+    expect(document.activeElement).toBe(encerrar());
+  });
+
+  it('reaberto no meio da saida, prende de novo e o foco volta ao campo', () => {
+    const { container, rerender } = render(<Tela aberto={false} />);
+    rerender(<Tela aberto />);
+    rerender(<Tela aberto={false} />);
+
+    rerender(<Tela aberto />);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(container.hasAttribute('inert')).toBe(true);
+    expect(document.activeElement).toBe(campo());
+  });
+
+  it('desmontado com o modal na tela, nao deixa o fundo inerte', () => {
+    const { container, unmount } = render(<Tela aberto />);
+    expect(container.hasAttribute('inert')).toBe(true);
+
+    unmount();
+
+    expect(container.hasAttribute('inert')).toBe(false);
+  });
+
   it('com destino, o foco vai para ele, lido na hora da saida', () => {
     // O botao que disparou a acao ficou desabilitado e perdeu o foco: quando
     // o modal abre, o foco esta no <body>.
