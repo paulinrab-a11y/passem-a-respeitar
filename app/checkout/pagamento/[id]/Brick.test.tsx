@@ -231,6 +231,25 @@ describe('depois de enviar o pagamento', () => {
     expect(roteador.push).not.toHaveBeenCalled();
   });
 
+  // O `<Payment>` de verdade recria o formulario quando uma das tres funcoes
+  // muda de identidade (#274). Recriar depois de uma recusa apagava o cartao
+  // digitado; o e2e com o formulario falso pegou, e isto segura a causa.
+  it('montar e recusar nao trocam as funcoes que o formulario recebe', async () => {
+    servidorResponde({ erro: 'O pagamento não foi aprovado.' }, 402);
+    monta();
+    const antes = mp.props;
+
+    act(() => mp.props?.onReady?.());
+    await act(async () => {
+      await expect(envia()).rejects.toThrow('recusado');
+    });
+
+    expect(mp.props).not.toBe(antes);
+    expect(mp.props?.onReady).toBe(antes?.onReady);
+    expect(mp.props?.onError).toBe(antes?.onError);
+    expect(mp.props?.onSubmit).toBe(antes?.onSubmit);
+  });
+
   it('rede fora avisa e fica na tela', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new Error('sem rede')));
     const { container } = monta();

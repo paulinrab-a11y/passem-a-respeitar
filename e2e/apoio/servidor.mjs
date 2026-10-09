@@ -13,6 +13,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { ADMIN, ambienteLocal, SITE } from './ambiente.mjs';
 import { PORTA_DO_FRETE, sobeMelhorEnvioFalso, TOKEN_DO_FRETE } from './melhor-envio-falso.mjs';
+import { PORTA_DO_MP, sobeMercadoPagoFalso, TOKEN_DO_MP } from './mercadopago-falso.mjs';
 import { PORTA_DO_VIACEP, sobeViaCepFalso } from './viacep-falso.mjs';
 
 const local = ambienteLocal();
@@ -35,10 +36,11 @@ const DESLIGADAS = [
   'MELHOR_ENVIO_AMBIENTE',
   // A suite nao fala com o Gemini: o teste do concierge responde pela rota.
   'GEMINI_API_KEY',
-  'MERCADOPAGO_ACCESS_TOKEN',
+  // O pagamento fala com o Mercado Pago falso, definido logo abaixo (#274).
+  // Os segredos do webhook continuam vazios: sem assinatura, o site so aceita
+  // aviso de ordem de teste, e confirma pela consulta ao falso.
   'MERCADOPAGO_WEBHOOK_SECRET',
   'MERCADOPAGO_WEBHOOK_SECRET_ALT',
-  'NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY',
   'NEXT_PUBLIC_SENTRY_DSN',
   'SENTRY_AUTH_TOKEN',
   'SENTRY_ORG',
@@ -82,6 +84,22 @@ const FRETE_DA_SUITE = {
   VIACEP_URL: `http://127.0.0.1:${PORTA_DO_VIACEP}`,
 };
 
+/**
+ * Pagamento (#274): o Mercado Pago falso, que sobe junto com o site, nesta
+ * maquina. O Access Token e da suite, e o falso so responde a ele. Nenhuma
+ * chamada do servidor sai para o Mercado Pago de verdade.
+ *
+ * A chave publica so existe para a tela montar o formulario: no navegador da
+ * suite o SDK do Mercado Pago nunca carrega — os testes poem um formulario
+ * falso no lugar (apoio/brick-falso.ts) e o playwright.config.ts deixa os
+ * hosts do Mercado Pago sem endereco para o Chromium.
+ */
+const PAGAMENTO_DA_SUITE = {
+  MERCADOPAGO_ACCESS_TOKEN: TOKEN_DO_MP,
+  MERCADOPAGO_API_URL: `http://127.0.0.1:${PORTA_DO_MP}`,
+  NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: 'TEST-chave-publica-da-suite',
+};
+
 const env = { ...process.env };
 for (const nome of DESLIGADAS) env[nome] = '';
 // Quem decide e o Next: `production` no build e no start.
@@ -98,6 +116,7 @@ Object.assign(env, {
   NEXT_TELEMETRY_DISABLED: '1',
   ...DESAFIO_DE_TESTE,
   ...FRETE_DA_SUITE,
+  ...PAGAMENTO_DA_SUITE,
 });
 
 const build = spawnSync(process.execPath, [next, 'build'], { env, stdio: 'inherit' });
@@ -105,6 +124,7 @@ if (build.status !== 0) process.exit(build.status ?? 1);
 
 const frete = sobeMelhorEnvioFalso();
 const viacep = sobeViaCepFalso();
+const mercadoPago = sobeMercadoPagoFalso();
 
 const { hostname, port } = new URL(SITE);
 const site = spawn(process.execPath, [next, 'start', '-H', hostname, '-p', port], {
@@ -118,5 +138,6 @@ for (const sinal of ['SIGINT', 'SIGTERM']) {
 site.on('exit', (codigo) => {
   frete.close();
   viacep.close();
+  mercadoPago.close();
   process.exit(codigo ?? 0);
 });

@@ -2,7 +2,7 @@
 
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
 import Pix, { type DadosDoPix } from './Pix';
 
 /**
@@ -38,6 +38,8 @@ type DadosDoBrick = {
   installments?: number;
   payer?: { identification?: { type?: string; number?: string } };
 };
+
+type AoEnviar = ComponentProps<typeof Payment>['onSubmit'];
 
 /**
  * Quanto tempo o aviso de "em analise" fica na tela antes de ir ao pedido.
@@ -112,6 +114,69 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
 
   const inicializacao = useMemo(() => ({ amount: valor, payer: { email } }), [valor, email]);
 
+  // As tres funcoes do formulario tambem tem identidade estavel (#274). O
+  // `<Payment>` do sdk-react desmonta o Brick e monta outro sempre que
+  // `onReady`, `onError` ou `onSubmit` mudam — estao nas dependencias do
+  // efeito dele. Escritas inline, cada render desta tela trocava as tres: o
+  // `onReady` virando `montado` recriava o formulario logo depois de ele
+  // aparecer, e o aviso de uma recusa o recriava vazio, com o cartao que a
+  // pessoa tinha digitado apagado justamente na hora de tentar de novo.
+  const aoMontar = useCallback(() => setMontado(true), []);
+  const aoFalhar = useCallback(
+    () => setErro('Não consegui carregar o pagamento. Recarregue a página.'),
+    []
+  );
+  const aoEnviar = useCallback<AoEnviar>(
+    async ({ formData }) => {
+      setErro(null);
+      const d = (formData ?? {}) as DadosDoBrick;
+
+      // So escolha vai no corpo. Valor, total e moeda nao existem aqui —
+      // o servidor le de `orders.total_centavos`.
+      const r = await fetch('/api/checkout/pagamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pedido,
+          payment_method_id: d.payment_method_id,
+          token: d.token,
+          installments: d.installments,
+          payer: d.payer?.identification ? { identification: d.payer.identification } : undefined,
+        }),
+      }).catch(() => null);
+
+      if (!r) {
+        setErro('Não consegui falar com o pagamento. Tente de novo.');
+        throw new Error('rede');
+      }
+
+      const corpo = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        setErro(corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.');
+        // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
+        // de limpar o formulario e obrigar a redigitar o cartao.
+        throw new Error('recusado');
+      }
+
+      if (corpo.pix) {
+        setPix(corpo.pix);
+        return;
+      }
+
+      // Cartao em analise nao e cartao aprovado: a pessoa precisa
+      // ouvir isso aqui, nao deduzir do status do pedido. (#20)
+      if (corpo.estado === 'pendente') {
+        setAnalise(true);
+        return;
+      }
+
+      // Aprovado: o pedido e quem conta a historia.
+      router.push(`/conta/pedidos/${pedido}`);
+    },
+    [pedido, router]
+  );
+
   // O esqueleto cede o lugar quando o formulario avisa que montou — ou quando
   // ele falha: erro com esqueleto brilhando atras diria "ainda carregando".
   const pronto = montado || Boolean(erro);
@@ -171,59 +236,9 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
               <Payment
                 initialization={inicializacao}
                 customization={customizacao}
-                onReady={() => setMontado(true)}
-                onError={() => setErro('Não consegui carregar o pagamento. Recarregue a página.')}
-                onSubmit={async ({ formData }) => {
-                  setErro(null);
-                  const d = (formData ?? {}) as DadosDoBrick;
-
-                  // So escolha vai no corpo. Valor, total e moeda nao existem aqui —
-                  // o servidor le de `orders.total_centavos`.
-                  const r = await fetch('/api/checkout/pagamento', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      pedido,
-                      payment_method_id: d.payment_method_id,
-                      token: d.token,
-                      installments: d.installments,
-                      payer: d.payer?.identification
-                        ? { identification: d.payer.identification }
-                        : undefined,
-                    }),
-                  }).catch(() => null);
-
-                  if (!r) {
-                    setErro('Não consegui falar com o pagamento. Tente de novo.');
-                    throw new Error('rede');
-                  }
-
-                  const corpo = await r.json().catch(() => ({}));
-
-                  if (!r.ok) {
-                    setErro(
-                      corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.'
-                    );
-                    // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
-                    // de limpar o formulario e obrigar a redigitar o cartao.
-                    throw new Error('recusado');
-                  }
-
-                  if (corpo.pix) {
-                    setPix(corpo.pix);
-                    return;
-                  }
-
-                  // Cartao em analise nao e cartao aprovado: a pessoa precisa
-                  // ouvir isso aqui, nao deduzir do status do pedido. (#20)
-                  if (corpo.estado === 'pendente') {
-                    setAnalise(true);
-                    return;
-                  }
-
-                  // Aprovado: o pedido e quem conta a historia.
-                  router.push(`/conta/pedidos/${pedido}`);
-                }}
+                onReady={aoMontar}
+                onError={aoFalhar}
+                onSubmit={aoEnviar}
               />
             ) : null}
           </div>

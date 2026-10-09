@@ -260,3 +260,36 @@ export async function apagaUsuariosDaSuite() {
   }
   return apagados;
 }
+
+/**
+ * As tentativas de pagamento de um pedido, da primeira para a ultima, lidas
+ * do banco e nao da tela (#274). A chave de idempotencia vem junto: o teste
+ * confere que foi ELA que chegou ao Mercado Pago falso.
+ */
+export async function lePagamentos(pedido: string) {
+  const { data, error } = await admin()
+    .from('pagamentos')
+    .select(
+      'tentativa, metodo, estado, valor_centavos, idempotency_key, provedor_pagamento_id, provedor_status, provedor_status_detail'
+    )
+    .eq('order_id', pedido)
+    .order('tentativa', { ascending: true });
+  if (error) throw new Error(`nao li os pagamentos: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Faz as tentativas do pedido parecerem mais velhas do que sao.
+ *
+ * A conferencia da tela do Pix so pergunta ao provedor por tentativa com mais
+ * de 15 s (lib/loja/conciliacao.ts), e o relogio do servidor e o de verdade:
+ * o `page.clock` adianta so o navegador. Envelhecer a linha e o que deixa o
+ * teste chegar ali sem esperar 15 s parado.
+ */
+export async function envelhecePagamentos(pedido: string, ms: number) {
+  const { error } = await admin()
+    .from('pagamentos')
+    .update({ criado_em: new Date(Date.now() - ms).toISOString() })
+    .eq('order_id', pedido);
+  if (error) throw new Error(`nao envelheci os pagamentos: ${error.message}`);
+}
