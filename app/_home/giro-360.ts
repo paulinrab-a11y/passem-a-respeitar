@@ -39,7 +39,8 @@ export interface Giro {
 export function giro360(vit: HTMLElement, opcoes: OpcoesDoGiro): Giro {
   const { pinta, reduz, quadros = 4, passo = 80, intervalo = 1400 } = opcoes;
   let quadro = 0;
-  let arrastando = false;
+  // O `pointerId` do dedo (ou mouse) que esta girando; `null` fora do arraste.
+  let dedo: number | null = null;
   let x0 = 0;
   let acumulado = 0;
   let relogio: ReturnType<typeof setInterval> | null = null;
@@ -59,8 +60,16 @@ export function giro360(vit: HTMLElement, opcoes: OpcoesDoGiro): Giro {
     mostra(i);
   };
 
+  // Um dedo so. Na pinca, o segundo dedo chegava aqui ate o navegador cancelar
+  // os dois para ampliar, e o giro somava o X ora de um, ora do outro: a
+  // camiseta girava aos trancos e a rotacao parava. Dois dedos sao pinca, nao
+  // giro, e o arraste do primeiro tambem larga. O mouse e sempre o principal.
   vit.addEventListener('pointerdown', (e) => {
-    arrastando = true;
+    if (!e.isPrimary) {
+      dedo = null;
+      return;
+    }
+    dedo = e.pointerId;
     x0 = e.clientX;
     acumulado = 0;
     vit.setPointerCapture?.(e.pointerId);
@@ -68,7 +77,7 @@ export function giro360(vit: HTMLElement, opcoes: OpcoesDoGiro): Giro {
   // So o eixo X: o vertical e da rolagem do modal, que o `pan-y` deixa com o
   // navegador.
   vit.addEventListener('pointermove', (e) => {
-    if (!arrastando) return;
+    if (e.pointerId !== dedo) return;
     acumulado += e.clientX - x0;
     x0 = e.clientX;
     while (acumulado >= passo) {
@@ -80,10 +89,10 @@ export function giro360(vit: HTMLElement, opcoes: OpcoesDoGiro): Giro {
       acumulado += passo;
     }
   });
-  const solta = () => {
-    arrastando = false;
+  const solta = (e: PointerEvent) => {
+    if (e.pointerId === dedo) dedo = null;
   };
-  for (const tipo of ['pointerup', 'pointercancel', 'pointerleave']) {
+  for (const tipo of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
     vit.addEventListener(tipo, solta);
   }
 

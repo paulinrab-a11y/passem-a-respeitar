@@ -72,6 +72,29 @@ async function arrastaComDedo(page: Page, alvo: Locator, dx: number, dy: number)
   await cdp.detach();
 }
 
+/** Pinca no centro de `alvo`: dois dedos a 40 px se afastam ate 240 px. */
+async function pincaComDedos(page: Page, alvo: Locator) {
+  const caixa = await alvo.boundingBox();
+  if (!caixa) throw new Error('alvo fora da tela');
+  const x = caixa.x + caixa.width / 2;
+  const y = caixa.y + caixa.height / 2;
+  const cdp = await page.context().newCDPSession(page);
+  const dedos = (meio: number) => [
+    { x: x - meio, y, id: 0 },
+    { x: x + meio, y, id: 1 },
+  ];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: dedos(20) });
+  for (let i = 1; i <= 10; i++) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: dedos(20 + i * 10),
+    });
+  }
+  await page.waitForTimeout(200);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
 test('loja no celular: arrastar a foto gira a camiseta, e na vertical o modal rola', async ({
   page,
 }) => {
@@ -133,6 +156,23 @@ test('loja no celular: toque simples nao congela a rotacao, e reabrir a loja rel
   await page.locator('#comprar').tap();
   await expect(page.locator('#loja')).toBeVisible();
   await anda();
+
+  expect(erros).toEqual([]);
+});
+
+test('loja no celular: a pinca na foto amplia a pagina e nao gira a camiseta', async ({ page }) => {
+  const erros: string[] = [];
+  await abreLojaEmFotos(page, erros, true);
+  expect(await quadro(page)).toBe('0% 50%');
+
+  // So com `pan-y` a pinca na foto parava de ampliar, e os dois dedos se
+  // revezavam no giro: a camiseta trocava de quadro aos trancos.
+  await pincaComDedos(page, page.locator('#vitrine .giro'));
+  await expect
+    .poll(() => page.evaluate(() => window.visualViewport?.scale ?? 1))
+    .toBeGreaterThan(1);
+  expect(await quadro(page)).toBe('0% 50%');
+  await expect(page.locator('#vitrine')).not.toHaveClass(/\busada\b/);
 
   expect(erros).toEqual([]);
 });

@@ -26,8 +26,29 @@ function monta(reduz = false) {
 
 const ultimo = () => quadros[quadros.length - 1];
 
-function ponteiro(tipo: string, clientX: number) {
-  vit.dispatchEvent(new PointerEvent(tipo, { clientX, pointerId: 1, bubbles: true }));
+/**
+ * Um evento do dedo `pointerId`. O primeiro dedo na tela, e o mouse, sao o
+ * ponteiro principal; o jsdom, sem `isPrimary`, diria que nao.
+ */
+function ponteiro(tipo: string, clientX: number, pointerId = 1) {
+  vit.dispatchEvent(
+    new PointerEvent(tipo, { clientX, pointerId, isPrimary: pointerId === 1, bubbles: true })
+  );
+}
+
+/**
+ * A pinca: o dedo 1 encosta em 200 e o 2 em 260, e os dois se afastam 100 px,
+ * um evento de cada vez, como o navegador manda. Sai com `fim` nos dois.
+ */
+function pinca(fim: 'pointerup' | 'pointercancel') {
+  ponteiro('pointerdown', 200, 1);
+  ponteiro('pointerdown', 260, 2);
+  for (let d = 10; d <= 100; d += 10) {
+    ponteiro('pointermove', 200 - d, 1);
+    ponteiro('pointermove', 260 + d, 2);
+  }
+  ponteiro(fim, 100, 1);
+  ponteiro(fim, 360, 2);
 }
 
 /** Encosta em `de`, arrasta ate `ate` em passos de 10 px e solta com `fim`. */
@@ -109,6 +130,42 @@ describe('giro360', () => {
     expect(quadros).toEqual([0]);
   });
 
+  // A pinca e do zoom da pagina. Antes, os dois dedos se revezavam no X do
+  // giro: a camiseta trocava de quadro aos trancos e a rotacao parava.
+  it.each(['pointerup', 'pointercancel'] as const)(
+    'a pinca com dois dedos nao gira, nem para a rotacao (%s)',
+    (fim) => {
+      const giro = monta();
+      giro.giraSozinho();
+
+      pinca(fim);
+
+      expect(quadros).toEqual([0]);
+      expect(vit.classList.contains('usada')).toBe(false);
+      vi.advanceTimersByTime(INTERVALO);
+      expect(quadros).toEqual([0, 1]);
+    }
+  );
+
+  it('o segundo dedo no meio do arraste larga o giro, e um dedo so volta a girar', () => {
+    monta();
+
+    ponteiro('pointerdown', 100);
+    for (let x = 110; x <= 180; x += 10) ponteiro('pointermove', x);
+    expect(quadros).toEqual([0, 3]);
+
+    // Chega o segundo dedo: o primeiro continua andando, e nada mais gira.
+    ponteiro('pointerdown', 300, 2);
+    for (let x = 190; x <= 400; x += 10) ponteiro('pointermove', x);
+    ponteiro('pointerup', 300, 2);
+    for (let x = 410; x <= 600; x += 10) ponteiro('pointermove', x);
+    ponteiro('pointerup', 600);
+    expect(quadros).toEqual([0, 3]);
+
+    arrasta(100, 100 - PASSO);
+    expect(quadros).toEqual([0, 3, 0]);
+  });
+
   it('as setas giram pela pessoa e tambem param a rotacao', () => {
     const giro = monta();
     giro.giraSozinho();
@@ -167,8 +224,9 @@ describe('vitrine no CSS e no script legado', () => {
   const regra = (seletor: string) =>
     CSS.match(new RegExp(`(?:^|\\n)${seletor.replace(/[.#]/g, '\\$&')}\\{([^}]*)\\}`))?.[1] ?? '';
 
-  it('a vitrine deixa com o navegador so a rolagem vertical', () => {
-    expect(regra('#loja .vitrine')).toContain('touch-action:pan-y');
+  it('a vitrine deixa com o navegador a rolagem vertical e a pinca', () => {
+    // So `pan-y` tirava o zoom de pinca que a foto tinha antes.
+    expect(regra('#loja .vitrine')).toMatch(/(?:^|;)touch-action:pan-y pinch-zoom(?:;|$)/);
     // A `.giro` herda o limite da vitrine; um `touch-action` proprio nao amplia
     // o que o pai restringe, mas e sinal de quem esqueceu disto.
     expect(regra('#loja .giro')).not.toContain('touch-action');
