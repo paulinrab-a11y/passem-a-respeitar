@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { ehAdmin } from '@/lib/admin';
 import { iniciais, perfilDaSessao } from '@/lib/conta/perfil';
+import { formataDataPorExtenso } from '@/lib/datas';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPerfil } from './Esqueletos';
 import Foto from './Foto';
@@ -16,12 +17,6 @@ export const metadata: Metadata = {
   title: 'Conta — Passem a Respeitar',
   robots: { index: false, follow: false },
 };
-
-const dataLonga = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: 'long',
-  year: 'numeric',
-});
 
 /**
  * A moldura sai no primeiro byte; o perfil chega por streaming (#46).
@@ -78,9 +73,7 @@ async function Perfil() {
               {perfil.emailVerificado ? 'verificado' : 'não verificado'}
             </span>
           </p>
-          <p className="conta-desde">
-            Na lista desde {dataLonga.format(new Date(perfil.criadoEm))}
-          </p>
+          <p className="conta-desde">Na lista desde {formataDataPorExtenso(perfil.criadoEm)}</p>
         </div>
       </div>
 

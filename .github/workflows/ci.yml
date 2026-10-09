@@ -165,8 +165,45 @@ jobs:
       # aqui, e nao no dia em que for preciso recriar o banco.
       - name: Supabase local
         run: npm run e2e:banco
+      # Navegador em cache, chave pela versao exata do Playwright (#251). O
+      # binario e o que mais demora para baixar; as dependencias do sistema
+      # (apt) nao vao para o cache e sao instaladas sempre.
+      - name: Versao do Playwright
+        id: playwright
+        run: echo "versao=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Cache do Chromium
+        id: cache-chromium
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.versao }}
+      # Em 07/10/2026 este passo travou ate o teto de 25 min do job: o espelho
+      # do Ubuntu parou no meio de um download do apt. Tres defesas:
+      #   1. o proprio apt desiste de conexao parada em 30 s e tenta de novo
+      #      (Acquire::Retries), em vez de esperar para sempre;
+      #   2. cada tentativa inteira tem 5 min;
+      #   3. entre tentativas, apt preso e encerrado. O `timeout` mata o npx,
+      #      mas o apt-get roda via sudo em outro terminal (use_pty) e
+      #      sobrevivia segurando a trava do dpkg — as tentativas seguintes
+      #      morriam em "Could not get lock".
       - name: Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99-ci-rede > /dev/null
+          if [ "${{ steps.cache-chromium.outputs.cache-hit }}" = "true" ]; then
+            comando="npx playwright install-deps chromium"
+          else
+            comando="npx playwright install --with-deps chromium"
+          fi
+          for tentativa in 1 2 3; do
+            if timeout 300 $comando; then exit 0; fi
+            echo "::warning::Chromium: tentativa $tentativa falhou ou passou de 5 min"
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sleep 5
+            sudo dpkg --configure -a || true
+          done
+          exit 1
       - name: Testes de ponta a ponta
         run: npm run test:e2e
       - name: Guardar relatorio

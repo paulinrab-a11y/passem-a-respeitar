@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
+import { formataDiaHora } from '@/lib/datas';
 import { type Conferencia, conferePagamento } from './acoes';
 
 /**
@@ -47,13 +48,6 @@ const RECADOS: Record<Exclude<Conferencia, 'mudou'>, { tom: 'ok' | 'erro'; texto
   limite: { tom: 'erro', texto: 'Muitas conferências seguidas. Espere um minuto.' },
   falhou: { tom: 'erro', texto: 'Não consegui conferir agora. Tente de novo.' },
 };
-
-const quando = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 export default function Pix({
   dados,
@@ -187,9 +181,11 @@ export default function Pix({
         {copiado ? 'Código Pix copiado.' : ''}
       </p>
 
+      {/* O vencimento sai pelo helper de datas (#248): fuso fixo, entao o
+          servidor e o navegador escrevem o mesmo texto e a hidratacao bate. */}
       <p className="pix-espera">
         <span className="pedido-status atencao">Aguardando pagamento</span>
-        {dados.expiraEm ? ` · vence em ${quando.format(new Date(dados.expiraEm))}` : ''}
+        {dados.expiraEm ? ` · vence em ${formataDiaHora(dados.expiraEm)}` : ''}
       </p>
 
       {/* O que a tela faz, com os numeros do relogio de verdade. Antes dizia
