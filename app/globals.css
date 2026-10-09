@@ -549,7 +549,13 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .menu-conta.fechando .menu-conta-in{animation:menu-conta-sai .12s cubic-bezier(.4,0,1,1) forwards}
 
 .menu-conta-in a,.menu-conta-in button{display:block;width:100%;text-align:left;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata);text-decoration:none;padding:14px 18px;position:relative}
-.menu-conta-in a+a,.menu-conta-in>*+*{border-top:1px solid #16171a}
+.menu-conta-in ul{list-style:none}
+.menu-conta-in li+li{border-top:1px solid #16171a}
+/* O contorno de foco do site, para dentro do item (#262). Com o recuo padrao
+   de 4px ele vazava pela borda do painel e cobria o item vizinho. A cor nao
+   copia o :hover: texto preto no vermelho fica em 4,3 para 1, abaixo do que
+   texto deste tamanho pede. */
+.menu-conta-in a:focus-visible,.menu-conta-in button:focus-visible{outline-offset:-5px}
 .menu-conta-in a:hover,.menu-conta-in button:hover{color:#000;background:var(--vermelho)}
 .menu-conta-in form{margin:0}
 .menu-conta-in .sair{color:var(--prata-2)}

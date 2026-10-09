@@ -19,9 +19,26 @@ import { sair } from '@/app/conta/acoes';
  *
  * 2. Quem esta logado e perguntado depois da pintura, por fetch, em vez de vir
  *    pronto do servidor. Ver o comentario em /api/conta/resumo.
+ *
+ * E um disclosure, nao um `role="menu"` (#262): sao quatro destinos e um
+ * botao, e `menu` promete setas, Home e End que ninguem implementou — o leitor
+ * de tela anunciava um menu que o teclado nao conseguia usar.
  */
 
 type Resumo = { logado: true; nome: string | null; iniciais: string } | { logado: false };
+
+/**
+ * Onde o painel entra no DOM. O portal tira o painel de dentro de #bar, mas
+ * no fim do <body> ele ficaria depois da pagina inteira na ordem do Tab: quem
+ * abria por teclado passava por umas quinze paradas antes de chegar em
+ * "Conta" (#262). Logo depois do <header>, o Tab sai do botao para o painel e
+ * do painel para a pagina, que e a ordem que a pessoa ve.
+ */
+const LUGAR = 'lugar-do-menu-conta';
+
+export function LugarDoMenuConta() {
+  return <div id={LUGAR} />;
+}
 
 /**
  * As tres telas existem desde a #41. Ate ela, "Pedidos" era um item desligado
@@ -45,6 +62,7 @@ export default function BarraConta() {
     aoFimDaAnimacao,
   } = useDesmonteAnimado(300);
   const gatilho = useRef<HTMLButtonElement>(null);
+  const painel = useRef<HTMLDivElement>(null);
   const [saindo, comecarSaida] = useTransition();
   const painelId = useId();
 
@@ -76,26 +94,42 @@ export default function BarraConta() {
     [fecharPainel]
   );
 
+  // Abrir leva o foco para o primeiro destino: quem abriu por teclado ja esta
+  // dentro do painel, e o leitor de tela anuncia o que abriu. Reabrir durante
+  // a saida tambem conta, por isso `fechando` esta nas dependencias.
+  useEffect(() => {
+    if (aberto && !fechando) painel.current?.querySelector('a')?.focus();
+  }, [aberto, fechando]);
+
   useEffect(() => {
     if (!aberto) return;
+
+    const dentro = (alvo: EventTarget | null) =>
+      alvo instanceof Node &&
+      (gatilho.current?.contains(alvo) || painel.current?.contains(alvo) || false);
 
     function noTeclado(e: KeyboardEvent) {
       if (e.key === 'Escape') fecha();
     }
-    function foraDoPainel(e: MouseEvent) {
-      const alvo = e.target as Node;
-      if (!gatilho.current?.contains(alvo) && !document.getElementById(painelId)?.contains(alvo)) {
-        fecha(false);
-      }
+    function foraDoPainel(e: PointerEvent) {
+      if (!dentro(e.target)) fecha(false);
+    }
+    // Tab para fora do painel e do botao fecha sem puxar o foco de volta: a
+    // pessoa seguiu adiante, e o painel aberto ficaria por cima do que ela
+    // foi ver.
+    function focoFora(e: FocusEvent) {
+      if (!dentro(e.target)) fecha(false);
     }
 
     document.addEventListener('keydown', noTeclado);
     document.addEventListener('pointerdown', foraDoPainel);
+    document.addEventListener('focusin', focoFora);
     return () => {
       document.removeEventListener('keydown', noTeclado);
       document.removeEventListener('pointerdown', foraDoPainel);
+      document.removeEventListener('focusin', focoFora);
     };
-  }, [aberto, painelId, fecha]);
+  }, [aberto, fecha]);
 
   // Enquanto nao sabemos, nao mostramos nada: piscar "Entrar" e trocar por um
   // nome um instante depois e pior que esperar. A barra so aparece quando o
@@ -124,10 +158,11 @@ export default function BarraConta() {
       <button
         type="button"
         ref={gatilho}
-        aria-expanded={aberto}
+        // Saindo conta como fechado: Escape e Enter logo em seguida, com o
+        // foco ja de volta no botao, reabre em vez de nao fazer nada.
+        aria-expanded={aberto && !fechando}
         aria-controls={aberto ? painelId : undefined}
-        aria-haspopup="menu"
-        onClick={() => (aberto ? fecha(false) : abrir())}
+        onClick={() => (aberto && !fechando ? fecha(false) : abrir())}
       >
         {/* Nome no desktop, iniciais no telefone. A troca e por CSS e nao por
             JavaScript: media query em JS daria uma renderizacao diferente no
@@ -140,34 +175,42 @@ export default function BarraConta() {
         createPortal(
           <div
             id={painelId}
+            ref={painel}
             className={`menu-conta${fechando ? ' fechando' : ''}`}
             // O desmonte espera a animacao de saida terminar. Sem isso o painel
             // sumiria de um quadro para o outro e pareceria falha.
             onAnimationEnd={aoFimDaAnimacao}
+            // Saindo, ele ainda esta no DOM por um instante: sem `inert`, um
+            // Tab rapido depois do Escape caia num link que esta sumindo.
+            inert={fechando}
           >
-            <div className="menu-conta-in" role="menu" aria-label="Sua conta">
-              {ITENS.map((item) => (
-                <a key={item.href} href={item.href} role="menuitem">
-                  {item.texto}
-                </a>
-              ))}
-
-              {/* A acao do servidor, chamada direto. Link para uma tela que
-                  so tem um botao seria um passo a mais por nada — e sair e o
-                  item que a pessoa clica com pressa. */}
-              <form action={() => comecarSaida(() => void sair())}>
-                <button
-                  type="submit"
-                  role="menuitem"
-                  className={`sair${saindo ? ' carregando' : ''}`}
-                  disabled={saindo}
-                >
-                  <Rotulo parado="Sair" agindo="Saindo…" ativo={saindo} />
-                </button>
-              </form>
-            </div>
+            <nav className="menu-conta-in" aria-label="Sua conta">
+              <ul>
+                {ITENS.map((item) => (
+                  <li key={item.href}>
+                    <a href={item.href}>{item.texto}</a>
+                  </li>
+                ))}
+                <li>
+                  {/* A acao do servidor, chamada direto. Link para uma tela que
+                      so tem um botao seria um passo a mais por nada — e sair e o
+                      item que a pessoa clica com pressa. */}
+                  <form action={() => comecarSaida(() => void sair())}>
+                    <button
+                      type="submit"
+                      className={`sair${saindo ? ' carregando' : ''}`}
+                      disabled={saindo}
+                    >
+                      <Rotulo parado="Sair" agindo="Saindo…" ativo={saindo} />
+                    </button>
+                  </form>
+                </li>
+              </ul>
+            </nav>
           </div>,
-          document.body
+          // Fora da home (ou num teste que monta so a barra) nao ha o lugar:
+          // o fim do <body> perde a ordem do Tab, mas o painel abre.
+          document.getElementById(LUGAR) ?? document.body
         )}
     </>
   );
