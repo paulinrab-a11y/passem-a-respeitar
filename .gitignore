@@ -52,6 +52,13 @@ yarn-error.log*
 .agents/
 .claude/skills/
 
+# playwright-cli (#258): snapshots, capturas, videos e estado de sessao. O
+# `state-save` grava cookies e tokens em arquivo, e este repositorio e publico.
+.playwright-cli/
+auth*.json
+storage-state*.json
+*.webm
+
 # ambiente: o `vercel env pull` escreve `.env*` aqui sozinho. A excecao e
 # manual — o .env.example so tem NOMES de variavel e precisa ficar versionado,
 # senao ninguem sabe o que cadastrar.

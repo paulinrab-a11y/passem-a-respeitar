@@ -32,6 +32,7 @@ Hospedagem: Vercel (projeto `passem-a-respeitar`). Produção = branch `main`.
 - Biome (lint/format), Knip, Commitlint + Husky.
 - Vitest (unit/integração) e Playwright (e2e) para os fluxos de auth, conta e pedidos. Cobertura reportada.
 - CI (GitHub Actions) roda lint → typecheck → testes → build em todo PR.
+- Skills de teste no projeto (`skills-lock.json`; reinstalar com `npx skills experimental_install`): `antfu/skills@vitest` (referência do Vitest 5) e `microsoft/playwright-cli`. Regras da playwright-cli, porque o repositório é público: sempre `npx playwright cli` (o do lockfile), nunca instalar global; nunca `attach --cdp` nem `--extension` (conectaria no navegador real do dono, com as sessões dele); captura, vídeo e `state-save` só da suíte local com dado de teste, nunca de produção nem com CPF, e-mail ou endereço de cliente; os artefatos ficam fora do git (`.gitignore`).
 
 ## Motion e carregamento (obrigatório em toda UI)
 Skill de referência: `kylezantos/design-motion-principles` (instalar com `npx skills add kylezantos/design-motion-principles`). Lentes: Emil Kowalski como principal (contenção/velocidade), Jakub Krehel para polimento de loading, Jhey Tompkins só em momentos de marca da home.
