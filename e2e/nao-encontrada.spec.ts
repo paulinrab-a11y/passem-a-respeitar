@@ -40,9 +40,14 @@ test('nao encontrada: 404 em portugues, com caminho de volta e console limpo', a
   );
   await expect(page.locator('meta[name="robots"]').first()).toHaveAttribute('content', /noindex/);
 
-  // Tempo para os scripts da pagina subirem — ou serem barrados.
+  // Os scripts da pagina subiram — ou foram barrados — quando o React assume
+  // o link (#335). Barrados, ele nunca assume e o teste para aqui; com eles de
+  // pe, o que tivesse de dar erro ao subir ja deu.
   await page.waitForLoadState('load');
-  await page.waitForTimeout(1000);
+  const voltar = page.getByRole('link', { name: 'Voltar ao início' });
+  await expect
+    .poll(() => voltar.evaluate((el) => Object.keys(el).some((k) => k.startsWith('__react'))))
+    .toBe(true);
   expect(erros).toEqual([]);
 });
 

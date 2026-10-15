@@ -7,6 +7,9 @@
 --
 -- Este teste e o que justifica o aviso ficar sem acao. Roda como
 -- `authenticated`, com o JWT de um intruso, contra as sessoes de outro.
+--
+-- O cenario nasce aqui dentro (#335): o dono e uma sessao dele em
+-- `auth.sessions`, como o login cria. Termina em `rollback`.
 
 begin;
 
@@ -21,9 +24,18 @@ declare
   n int;
   ok boolean;
 begin
-  if not exists (select 1 from auth.sessions where user_id = dono) then
-    raise exception 'o usuario % nao tem sessao; logue antes de rodar este teste', dono;
-  end if;
+  insert into auth.users
+    (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+     created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
+     confirmation_token, recovery_token, email_change_token_new,
+     email_change_token_current, email_change, phone_change,
+     phone_change_token, reauthentication_token)
+  values ('00000000-0000-0000-0000-000000000000', dono, 'authenticated', 'authenticated',
+    'dono-sessao@teste.invalid', 'sem-login-neste-teste', now(), now(), now(), '{}', '{}',
+    '', '', '', '', '', '', '', '');
+
+  insert into auth.sessions (id, user_id, created_at, updated_at)
+  values (gen_random_uuid(), dono, now(), now());
 
   insert into auth.users
     (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -56,12 +68,10 @@ begin
 
   select count(*) into n from auth.sessions where user_id = dono;
   insert into r values ('sessoes do dono continuam vivas', '>0', n::text, n > 0);
-
-  delete from auth.users where id = intruso;
 end;
 $$;
 
 select case when passou then 'ok' else 'FALHA' end as res, caso, esperado, obtido from r;
 select count(*) filter (where passou) as passou, count(*) filter (where not passou) as falhou from r;
 
-commit;
+rollback;

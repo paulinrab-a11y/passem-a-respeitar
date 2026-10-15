@@ -101,12 +101,20 @@ export default function HomeRuntime() {
       // pos) a trava de rolagem, e e a trava que diz se ha o que esperar antes
       // de levar a pessoa ate a ancora com que ela chegou. (Issue #92.)
       soltaAncora = levaAteAAncora(window);
+
+      // Marcador de "o script terminou de subir" (#335): init, concierge e
+      // ancora feitos, com sucesso ou nao. Nao muda nada na tela; e o que o
+      // e2e espera antes de afirmar uma negativa ("nenhum erro", "nada
+      // barrado pela CSP"), em vez de um tempo fixo que numa maquina lenta
+      // termina antes de o script chegar.
+      document.documentElement.dataset.home = 'pronta';
     })();
 
     return () => {
       cancelado = true;
       anota.abort();
       soltaAncora();
+      delete document.documentElement.dataset.home;
     };
   }, []);
 

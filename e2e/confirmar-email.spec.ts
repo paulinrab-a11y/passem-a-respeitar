@@ -47,10 +47,16 @@ test('confirmar: sem a senha, conta pendente e e-mail desconhecido sao iguais', 
   expect(paraPendente).toContain('Esqueci minha senha');
   await expect(page.getByLabel(/Código de 8 dígitos/)).toHaveCount(0);
 
-  // Nenhum codigo saiu para a conta pendente: a acao ja respondeu, e o
-  // e-mail, se saisse, sairia antes da resposta. A folga cobre a entrega ao
-  // correio local.
-  await page.waitForTimeout(500);
+  // Nenhum codigo saiu para a conta pendente. Em vez de uma folga de tempo
+  // para a entrega ao correio local (#335), um e-mail sentinela: outra conta
+  // pendente entra com a senha certa, o que manda um codigo. O Supabase manda
+  // os e-mails na ordem dos pedidos; com o da sentinela entregue, um codigo
+  // para a pendente, pedido antes, ja estaria no correio.
+  const sentinela = await criaPendente('Sentinela');
+  await page.goto('/entrar');
+  await preencheLogin(page, sentinela.email, sentinela.senha);
+  await expect(page.getByText('Sua conta ainda não foi confirmada')).toBeVisible();
+  await expect.poll(() => quantosPara(sentinela.email, { desde })).toBe(1);
   expect(await quantosPara(pendente.email, { desde })).toBe(0);
   expect(await emailConfirmado(pendente.email)).toBe(false);
 });
