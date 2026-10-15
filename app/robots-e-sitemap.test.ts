@@ -37,6 +37,9 @@ describe('sitemap.xml (#322)', () => {
     expect(sitemap()).toEqual([
       { url: 'https://www.cbacoccupation.com.br/' },
       { url: 'https://www.cbacoccupation.com.br/privacidade' },
+      // Indexavel e com link no rodape: a politica de devolucao conta como
+      // sinal de confianca da loja.
+      { url: 'https://www.cbacoccupation.com.br/termos' },
     ]);
   });
 

@@ -14,8 +14,13 @@ import type { Metadata } from 'next';
  * Sem data de lancamento (#269): ela fica em sigilo ate o pre-save.
  */
 export const NOME_DO_SITE = 'CBAC - Passem a Respeitar';
-/** A descricao do `<meta name="description">` e do WebSite no JSON-LD. */
-export const DESCRICAO_DO_SITE = 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals.';
+/**
+ * A descricao do `<meta name="description">` e do WebSite no JSON-LD. Perto
+ * dos 155 caracteres que o Google mostra, com os nomes dos artistas e da
+ * camiseta, e sem data (#269).
+ */
+export const DESCRICAO_DO_SITE =
+  'Passem a Respeitar, o EP de Santxx e Ch3fe pela Whynot Visuals. Acompanhe o lançamento e garanta a Camiseta CBAC, feita sob encomenda com entrega para todo o Brasil.';
 const DESCRICAO_DO_CARTAO = 'O respeito vem antes dos números.';
 const IMAGEM = { url: '/logo.png', width: 1000, height: 624, alt: 'Passem a Respeitar' };
 
