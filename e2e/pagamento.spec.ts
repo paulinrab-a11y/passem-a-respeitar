@@ -352,6 +352,9 @@ test('pagamento: voltar a tela com um Pix aberto mostra o mesmo codigo', async (
   expect(await criacoes()).toEqual([]);
   expect(await lePagamentos(pedido.id)).toHaveLength(1);
 
+  // O relogio volta a andar: o sdk-react monta o formulario num setTimeout,
+  // e com o relogio parado (ver `geraPix`) ele nunca apareceria.
+  await pagina.clock.resume();
   await pagina.getByRole('button', { name: 'Pagar com cartão ou gerar outro Pix' }).click();
   await expect(pagina.getByRole('form', { name: 'Formulário do Mercado Pago' })).toBeVisible();
   await expect(pagina.getByLabel('Pix copia e cola')).toHaveCount(0);
