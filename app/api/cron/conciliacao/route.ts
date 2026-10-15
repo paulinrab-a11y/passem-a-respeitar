@@ -1,8 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 import { type NextRequest, NextResponse } from 'next/server';
 import { concilia } from '@/lib/loja/conciliacao';
 import { expiraVencidos } from '@/lib/loja/expiracao';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
+import { enviaDepois } from '@/lib/sentry/depois';
+import { MONITOR } from '@/lib/sentry/monitor-da-conciliacao';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,19 +61,52 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ erro: 'nao autorizado' }, { status: 401 });
   }
 
-  const balanco = await concilia();
+  // Check-in so depois da autorizacao: quem chuta o segredo nao mexe no
+  // monitor (#273).
+  const checkInId = Sentry.captureCheckIn(
+    { monitorSlug: MONITOR.slug, status: 'in_progress' },
+    MONITOR.config
+  );
+  const inicio = Date.now();
+  const fecha = (status: 'ok' | 'error') => {
+    Sentry.captureCheckIn(
+      {
+        monitorSlug: MONITOR.slug,
+        status,
+        checkInId,
+        duration: (Date.now() - inicio) / 1000,
+      },
+      MONITOR.config
+    );
+    // Depois da resposta (#281): a Vercel nao espera o envio.
+    enviaDepois();
+  };
 
-  // Resumido, e de proposito: contagens, nunca ids de pedido ou de pagamento.
-  console.info('[conciliacao]', JSON.stringify(balanco));
+  try {
+    const balanco = await concilia();
 
-  // Depois da conciliacao, e na mesma chamada (#298): o plano da Vercel roda
-  // um cron por dia, e um Pix pago que so a conciliacao descobriu precisa
-  // virar `pago` ANTES de alguem olhar o prazo do pedido dele. A expiracao
-  // ainda confere cada pedido no provedor; esta ordem so poupa a viagem.
-  const expiracao = await expiraVencidos();
-  console.info('[expiracao]', JSON.stringify(expiracao));
+    // Resumido, e de proposito: contagens, nunca ids de pedido ou de pagamento.
+    console.info('[conciliacao]', JSON.stringify(balanco));
 
-  // Falha em consultar nao e falha do cron: o proximo ciclo tenta de novo. 200
-  // sempre que a varredura rodou; o balanco diz o resto.
-  return NextResponse.json({ ok: true, ...balanco, expiracao });
+    // Depois da conciliacao, e na mesma chamada (#298): o plano da Vercel roda
+    // um cron por dia, e um Pix pago que so a conciliacao descobriu precisa
+    // virar `pago` ANTES de alguem olhar o prazo do pedido dele. A expiracao
+    // ainda confere cada pedido no provedor; esta ordem so poupa a viagem.
+    const expiracao = await expiraVencidos();
+    console.info('[expiracao]', JSON.stringify(expiracao));
+
+    // Falha em consultar o provedor nao derruba o cron: o proximo ciclo tenta
+    // de novo, e a resposta continua 200 com o balanco. Mas o check-in vai
+    // como `error` (#273): uma falha num dia e ruido, falha todo dia e token
+    // vencido ou provedor fora, e so o monitor enxerga a sequencia.
+    fecha(balanco.falhas > 0 ? 'error' : 'ok');
+
+    return NextResponse.json({ ok: true, ...balanco, expiracao });
+  } catch (erro) {
+    // Excecao (banco fora, por exemplo) segue para o Sentry pelo caminho de
+    // sempre e vira 500; o check-in fecha como `error` para o monitor nao
+    // ficar `in_progress` ate estourar o `maxRuntime`.
+    fecha('error');
+    throw erro;
+  }
 }
