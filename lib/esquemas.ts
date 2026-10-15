@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CODIGO_DIGITOS } from './conta/codigo-digitos';
 import { SENHA_MAX, SENHA_MIN } from './conta/senha';
 
 /**
@@ -134,14 +135,9 @@ export const esquemaConcierge = z.object({
     .default([]),
 });
 
-/**
- * Comprimento do codigo de confirmacao (#224). E uma configuracao do projeto
- * no Supabase (Authentication > Sign In / Providers > Email > "Email OTP
- * length"): producao esta em 8, e o config.toml local acompanha. Mudar la sem
- * mudar aqui faz o campo recusar o codigo que chegou — foi o que aconteceu em
- * 06/10/2026 com 6 aqui e 8 la.
- */
-export const CODIGO_DIGITOS = 8;
+// O comprimento mora em ./conta/codigo-digitos, sem zod, porque o campo do
+// codigo e componente de cliente (#353). Reexportado para quem ja o le daqui.
+export { CODIGO_DIGITOS };
 
 /**
  * Codigo de confirmacao do cadastro (#224): so digitos, no comprimento certo.
