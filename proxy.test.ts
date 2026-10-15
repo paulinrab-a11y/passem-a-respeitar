@@ -652,3 +652,85 @@ describe('host principal em producao (#141)', () => {
     expect((await chega('https://alias-do-time.exemplo/')).status).toBe(200);
   });
 });
+
+describe('relatorio de violacao para o Sentry (#316)', () => {
+  const DSN = 'https://chave-publica@o42.ingest.us.sentry.io/7';
+  const ENDPOINT = 'https://o42.ingest.us.sentry.io/api/7/security/';
+
+  const cabecalhos = async (caminho: string) => {
+    const r = await roda(caminho);
+    return {
+      csp: r.headers.get('Content-Security-Policy') ?? '',
+      endpoints: r.headers.get('Reporting-Endpoints'),
+    };
+  };
+
+  // Tira o nonce (muda a cada request) e as diretivas de relatorio: o resto
+  // tem que ser a mesma politica, com ou sem Sentry.
+  const semRelatorio = (csp: string) =>
+    csp
+      .replace(/'nonce-[^']+'/, "'nonce-x'")
+      .split('; ')
+      .filter((d) => !d.startsWith('report-uri ') && !d.startsWith('report-to '))
+      .join('; ');
+
+  it('com DSN a CSP ganha report-uri e report-to', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', DSN);
+    const { csp, endpoints } = await cabecalhos('/');
+
+    expect(csp).toContain(`report-uri ${ENDPOINT}?sentry_key=chave-publica&`);
+    expect(csp).toContain('report-to csp-endpoint');
+    expect(endpoints).toMatch(/^csp-endpoint="https:\/\/o42\.ingest\.us\.sentry\.io\/api\/7\//);
+  });
+
+  it('sem DSN nao ha diretiva nem cabecalho de relatorio', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', '');
+    const { csp, endpoints } = await cabecalhos('/');
+
+    expect(csp).not.toContain('report-uri');
+    expect(csp).not.toContain('report-to');
+    expect(endpoints).toBeNull();
+  });
+
+  it.each(['/', '/checkout/pagamento/pedido-1', '/conta'])(
+    'o resto da politica de %s fica identico',
+    async (caminho) => {
+      vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', '');
+      const antes = (await cabecalhos(caminho)).csp;
+      vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', DSN);
+      const depois = (await cabecalhos(caminho)).csp;
+
+      expect(depois).not.toBe(antes);
+      expect(semRelatorio(depois)).toBe(semRelatorio(antes));
+    }
+  );
+
+  it('a tela de pagamento, que e o motivo disto, reporta', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', DSN);
+    const { csp, endpoints } = await cabecalhos('/checkout/pagamento/pedido-1');
+
+    expect(csp).toContain('report-uri ');
+    expect(endpoints).not.toBeNull();
+  });
+
+  it('o redirecionamento para o login tambem leva o cabecalho', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', DSN);
+    const r = await roda('/conta');
+
+    expect(r.status).toBe(307);
+    expect(r.headers.get('Content-Security-Policy')).toContain('report-to csp-endpoint');
+    expect(r.headers.get('Reporting-Endpoints')).toContain(ENDPOINT);
+  });
+
+  // O navegador manda a URL inteira da pagina no relatorio, e a query pode
+  // carregar e-mail ou CPF (a busca do admin). Nessas paginas, sem relatorio.
+  it('pagina com query string nao reporta', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SENTRY_DSN', DSN);
+    const { csp, endpoints } = await cabecalhos('/?q=fulano@exemplo.test');
+
+    expect(csp).not.toContain('report-uri');
+    expect(csp).not.toContain('report-to');
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(endpoints).toBeNull();
+  });
+});
