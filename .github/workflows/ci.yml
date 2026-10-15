@@ -165,6 +165,16 @@ jobs:
       # aqui, e nao no dia em que for preciso recriar o banco.
       - name: Supabase local
         run: npm run e2e:banco
+      # lib/supabase/tipos.ts sai das migrations, nao da mao (#320). Regenera
+      # do banco que acabou de subir e falha se o arquivo commitado divergir:
+      # migration nova sem `npm run tipos:gerar` para aqui.
+      - name: Tipos do Supabase iguais ao schema
+        run: |
+          npm run tipos:gerar
+          if ! git diff --exit-code lib/supabase/tipos.ts; then
+            echo "::error file=lib/supabase/tipos.ts::Tipos desatualizados. Rode npm run e2e:banco e npm run tipos:gerar e commite o arquivo."
+            exit 1
+          fi
       # Navegador em cache, chave pela versao exata do Playwright (#251). O
       # binario e o que mais demora para baixar; as dependencias do sistema
       # (apt) nao vao para o cache e sao instaladas sempre.
