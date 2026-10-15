@@ -19,10 +19,12 @@ const cotar = (extra: Record<string, unknown> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(opcoesDeFrete).mockResolvedValue({
-    ok: true,
-    subtotalCentavos: 12000,
-    opcoes: [SEDEX],
+  // Como o de verdade: sem cache, a cota e descontada antes de consultar.
+  vi.mocked(opcoesDeFrete).mockImplementation(async (_itens, _cep, antesDeConsultar) => {
+    if (antesDeConsultar && !(await antesDeConsultar())) {
+      return { ok: false, motivo: 'frete-limite' };
+    }
+    return { ok: true, subtotalCentavos: 12000, opcoes: [SEDEX] };
   });
   // IP novo por caso: o limite guarda estado no modulo.
   n += 1;
@@ -38,7 +40,8 @@ describe('cotarFreteNaFicha', () => {
     expect(await cotar()).toEqual({ ok: true, opcoes: [SEDEX] });
     expect(opcoesDeFrete).toHaveBeenCalledWith(
       [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1 }],
-      '01310100'
+      '01310100',
+      expect.any(Function)
     );
   });
 
@@ -67,7 +70,52 @@ describe('cotarFreteNaFicha', () => {
       ok: false,
       texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.',
     });
-    expect(opcoesDeFrete).toHaveBeenCalledTimes(20);
+    expect(opcoesDeFrete).toHaveBeenCalledTimes(21);
+  });
+
+  it('resposta do cache nao gasta a cota do IP (#308)', async () => {
+    // Cache: a cotacao volta sem chamar `antesDeConsultar`.
+    vi.mocked(opcoesDeFrete).mockResolvedValue({
+      ok: true,
+      subtotalCentavos: 12000,
+      opcoes: [SEDEX],
+    });
+    for (let i = 0; i < 30; i++) await cotar();
+
+    // A cota segue inteira: vinte consultas de verdade ainda passam.
+    vi.mocked(opcoesDeFrete).mockImplementation(async (_itens, _cep, antesDeConsultar) =>
+      antesDeConsultar && !(await antesDeConsultar())
+        ? { ok: false, motivo: 'frete-limite' }
+        : { ok: true, subtotalCentavos: 12000, opcoes: [SEDEX] }
+    );
+    for (let i = 0; i < 20; i++) expect((await cotar()).ok).toBe(true);
+    expect((await cotar()).ok).toBe(false);
+  });
+
+  it('repetir o CEP do cache acaba barrado pelo teto geral do IP (#308)', async () => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({
+      ok: true,
+      subtotalCentavos: 12000,
+      opcoes: [SEDEX],
+    });
+    for (let i = 0; i < 120; i++) expect((await cotar()).ok).toBe(true);
+
+    expect(await cotar()).toEqual({
+      ok: false,
+      texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.',
+    });
+    // Barrado antes de ler catalogo e cache.
+    expect(opcoesDeFrete).toHaveBeenCalledTimes(120);
+  });
+
+  it('erro de catalogo tambem conta no teto geral (#308)', async () => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({ ok: false, motivo: 'frete-fora-do-ar' });
+    for (let i = 0; i < 120; i++) await cotar();
+    expect(await cotar()).toEqual({
+      ok: false,
+      texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.',
+    });
+    expect(opcoesDeFrete).toHaveBeenCalledTimes(120);
   });
 
   it('o limite de um IP nao atinge outro', async () => {
