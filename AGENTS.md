@@ -25,6 +25,7 @@ Hospedagem: Vercel (projeto `passem-a-respeitar`). Produção = branch `main`.
 - Cookies HttpOnly + Secure + SameSite. HTTPS forçado + HSTS. Security headers (CSP, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
 - Senhas só com hash (bcrypt/argon2id). Troca de senha exige senha atual e invalida outras sessões.
 - Uploads restritos por tipo, tamanho e nome. Conteúdo exclusivo só por URL assinada.
+- Migration em produção só pelo MCP `apply_migration`, depois do merge. Nunca `supabase db push` (as versões remotas não batem com os arquivos) nem `supabase config push`. Detalhes e tabela arquivo → versão em README, seção "Migrations em produção".
 - `npm audit` sem alta/crítica. Lockfile commitado. Revisar nome exato de pacote novo.
 
 ## Observabilidade, qualidade e testes
