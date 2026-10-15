@@ -119,4 +119,54 @@ describe('frete na ficha (#205)', () => {
     await act(async () => soltaVelho(COTADO));
     expect(limpo(screen.getByRole('list').textContent ?? '')).toContain('R$ 31,00');
   });
+
+  it('duas fichas e um CEP completo: uma consulta so, e as duas mostram o preco (#308)', async () => {
+    render(
+      <>
+        <FreteNaFicha slug="camiseta-cbac" tamanho="M" />
+        <FreteNaFicha slug="camiseta-cbac" tamanho="M" />
+      </>
+    );
+    const [a] = screen.getAllByLabelText('Frete para o seu CEP') as HTMLInputElement[];
+    await act(async () => {
+      fireEvent.change(a, { target: { value: '01310100' } });
+    });
+
+    expect(cotarFreteNaFicha).toHaveBeenCalledTimes(1);
+    const listas = screen.getAllByRole('list');
+    expect(listas).toHaveLength(2);
+    for (const l of listas) expect(limpo(l.textContent ?? '')).toContain('R$ 14,32');
+  });
+
+  it('a segunda ficha que monta com o CEP ja cotado nao consulta de novo (#308)', async () => {
+    monta();
+    await digita('01310100');
+    await act(async () => {
+      monta();
+    });
+
+    expect(cotarFreteNaFicha).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('list')).toHaveLength(2);
+  });
+
+  it('recusa nao fica guardada: apagar um digito e digitar de novo pergunta outra vez', async () => {
+    vi.mocked(cotarFreteNaFicha).mockResolvedValueOnce({ ok: false, texto: 'Tente de novo.' });
+    monta();
+    await digita('01310100');
+    expect(screen.getByRole('status').textContent).toBe('Tente de novo.');
+
+    await digita('0131010');
+    await digita('01310100');
+    expect(cotarFreteNaFicha).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('list')).toBeTruthy();
+  });
+
+  it('a action que falha na rede vira aviso, nao "Calculando" para sempre', async () => {
+    vi.mocked(cotarFreteNaFicha).mockRejectedValueOnce(new Error('rede'));
+    monta();
+    await digita('01310100');
+    expect(screen.getByRole('status').textContent).toBe(
+      'Não consegui calcular o frete agora. Tente de novo em instantes.'
+    );
+  });
 });

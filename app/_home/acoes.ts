@@ -15,7 +15,8 @@ import { ipDoRequest, limita } from '@/lib/rate-limit';
  * Nao exige sessao, porque o ponto e justamente mostrar o frete a quem ainda
  * nao entrou. Em troca, o limite e por IP, e mais apertado que o do checkout:
  * cada consulta usa o token do Melhor Envio, e um script varrendo CEPs para
- * nas vinte. O cache da cotacao (30 min por CEP) e a outra barreira.
+ * nas vinte. O cache da cotacao (30 min por CEP) e a outra barreira, e o
+ * que vem dele nao conta no limite (#308).
  *
  * O que volta e para MOSTRAR. Nada daqui entra em pedido: o checkout cota de
  * novo, com sessao, e a criacao do pedido cota uma terceira vez.
@@ -43,11 +44,14 @@ export async function cotarFreteNaFicha(bruto: {
   });
   if (!item.success) return { ok: false, texto: RECADOS_DO_FRETE['frete-fora-do-ar'] };
 
+  // A cota so e descontada quando a consulta vai mesmo ao Melhor Envio
+  // (#308): CEP que ja esta no cache, ou cuja cotacao ja esta no ar, nao gasta
+  // uma das vinte.
   const ip = ipDoRequest(await headers());
-  const cota = await limita(`frete-ficha:${ip}`, LIMITE.maximo, LIMITE.janelaMs);
-  if (!cota.permitido) return { ok: false, texto: RECADOS_DO_FRETE['frete-limite'] };
+  const descontaCota = async () =>
+    (await limita(`frete-ficha:${ip}`, LIMITE.maximo, LIMITE.janelaMs)).permitido;
 
-  const r = await opcoesDeFrete([item.data], cep);
+  const r = await opcoesDeFrete([item.data], cep, descontaCota);
   if (!r.ok) {
     return { ok: false, texto: RECADOS_DO_FRETE[r.motivo] ?? RECADOS_DO_FRETE['frete-fora-do-ar'] };
   }
