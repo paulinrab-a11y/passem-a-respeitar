@@ -78,6 +78,57 @@ describe('loops', () => {
   });
 });
 
+/**
+ * A entrada do manifesto animava `filter: blur(14px)` ate zero, com
+ * `will-change: filter` fixo no CSS (#286). Agora o borrado e uma copia
+ * parada, e a timeline so mexe em opacidade e transform.
+ */
+describe('abertura sem filter animado', () => {
+  const SCRIPT = readFileSync('app/_home/legacy-site.js', 'utf8');
+  const regra = (seletor: string) =>
+    CSS.match(new RegExp(`(?:^|\\n)${seletor.replace(/[.#]/g, '\\$&')}\\{([^}]*)\\}`))?.[1] ?? '';
+
+  it('nenhum will-change pede filter', () => {
+    const pedidos = [...CSS.matchAll(/will-change:([^;}]+)/g)].map((m) => m[1]);
+
+    expect(pedidos.length).toBeGreaterThan(0);
+    expect(pedidos.filter((p) => /filter/.test(p))).toEqual([]);
+  });
+
+  it('a linha do manifesto nasce sem filter, so com opacidade e deslocamento', () => {
+    const linha = regra('#manifesto .l');
+
+    expect(linha).toContain('opacity:0');
+    expect(linha).toContain('transform:translateY(6px) skewX(-2deg)');
+    expect(linha).not.toMatch(/filter/);
+  });
+
+  it('o borrado e da copia, parado: sem transicao nem animacao', () => {
+    const nevoa = regra('#manifesto .nevoa');
+
+    expect(nevoa).toContain('filter:blur(14px)');
+    expect(nevoa).not.toMatch(/transition|animation/);
+    expect(nevoa).toContain('position:absolute');
+  });
+
+  it('a timeline da intro nao tweena filter', () => {
+    expect(SCRIPT).not.toMatch(/\bfilter\s*:\s*['"`]/);
+    expect(SCRIPT).toContain(
+      "tl.to(camadas.nevoa, { opacity:0, duration: dur, ease: foco }, '<');"
+    );
+    expect(SCRIPT).toContain(
+      "tl.to(camadas.nitida, { opacity:1, duration: dur, ease: foco }, '<');"
+    );
+  });
+
+  it('a troca de camadas segue o quadrado da curva da linha', () => {
+    expect(SCRIPT).toContain(
+      "const curva = gsap.parseEase('power3.out'), foco = x => { const p = curva(x); return p*p; };"
+    );
+    expect(SCRIPT).toContain("const tl = gsap.timeline({ defaults:{ ease:'power3.out' } });");
+  });
+});
+
 describe('relatorio', () => {
   it('esta no repositorio, em HTML de um arquivo so', () => {
     const html = readFileSync('motion-audits/passem-a-respeitar-2026-09-28.html', 'utf8');

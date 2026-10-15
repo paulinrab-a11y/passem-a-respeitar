@@ -27,6 +27,42 @@ export type Database = {
   };
   public: {
     Tables: {
+      baixas_de_estoque: {
+        Row: {
+          criado_em: string;
+          order_id: string;
+          quantidade: number;
+          variacao_id: string;
+        };
+        Insert: {
+          criado_em?: string;
+          order_id: string;
+          quantidade: number;
+          variacao_id: string;
+        };
+        Update: {
+          criado_em?: string;
+          order_id?: string;
+          quantidade?: number;
+          variacao_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'baixas_de_estoque_order_id_fkey';
+            columns: ['order_id'];
+            isOneToOne: false;
+            referencedRelation: 'orders';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'baixas_de_estoque_variacao_id_fkey';
+            columns: ['variacao_id'];
+            isOneToOne: false;
+            referencedRelation: 'produto_variacoes';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       order_items: {
         Row: {
           criado_em: string;

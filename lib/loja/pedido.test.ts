@@ -76,7 +76,15 @@ function enderecoGravado(): Record<string, string | null> {
   return gravado.p_endereco as Record<string, string | null>;
 }
 
-function bancoComCatalogo(produtos: unknown[] = [CATALOGO], erroNaGravacao = false) {
+/** O erro como o PostgREST devolve: `code` e o SQLSTATE do Postgres. */
+type ErroDoBanco = { code: string; message: string };
+
+const CAIU: ErroDoBanco = { code: 'XX000', message: 'caiu' };
+
+function bancoComCatalogo(
+  produtos: unknown[] = [CATALOGO],
+  erroNaGravacao: ErroDoBanco | null = null
+) {
   const elo: Record<string, unknown> = {};
   elo.select = () => elo;
   elo.order = () => elo;
@@ -88,7 +96,7 @@ function bancoComCatalogo(produtos: unknown[] = [CATALOGO], erroNaGravacao = fal
       gravado = args;
       return Promise.resolve(
         erroNaGravacao
-          ? { data: null, error: { message: 'caiu' } }
+          ? { data: null, error: erroNaGravacao }
           : { data: [{ pedido_id: 'ped-1', pedido_numero: 42 }], error: null }
       );
     },
@@ -376,7 +384,49 @@ describe('recusa', () => {
   });
 
   it('falha na gravacao nao vira pedido pela metade', async () => {
-    bancoComCatalogo([CATALOGO], true);
+    bancoComCatalogo([CATALOGO], CAIU);
+
+    expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'nao-consegui-gravar' });
+  });
+});
+
+// O orcamento le a vitrine, que nao enxerga `estoque`. Quem confere e da a
+// baixa e `cria_pedido`, com a variacao travada; o comportamento do banco esta
+// em supabase/tests/cria-pedido.sql. Aqui, o que a recusa dele vira.
+describe('estoque (#296)', () => {
+  it('estoque que nao cobre o pedido vira produto indisponivel', async () => {
+    bancoComCatalogo([CATALOGO], { code: 'ES001', message: 'produto indisponivel' });
+
+    const r = await criaPedido(pedido());
+
+    expect(r).toEqual({ ok: false, motivo: 'produto-indisponivel' });
+    // Chegou a tentar gravar: a conferencia e do banco, nao daqui.
+    expect(gravado).not.toBeNull();
+  });
+
+  // A peca esta no pedido nao pago da propria pessoa: o recado e outro,
+  // porque a saida e pagar aquele pedido, e nao desistir do produto.
+  it('pedido nao pago da mesma variacao vira pedido em aberto', async () => {
+    bancoComCatalogo([CATALOGO], { code: 'ES002', message: 'pedido em aberto' });
+
+    expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'pedido-em-aberto' });
+  });
+
+  it('a traducao e pelo codigo, nao pelo texto da mensagem', async () => {
+    bancoComCatalogo([CATALOGO], { code: 'P0001', message: 'pedido em aberto' });
+
+    expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'nao-consegui-gravar' });
+  });
+
+  it('a traducao do estoque tambem e pelo codigo', async () => {
+    bancoComCatalogo([CATALOGO], { code: 'P0001', message: 'produto indisponivel' });
+
+    expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'nao-consegui-gravar' });
+  });
+
+  // `check_violation` e o de "pedido sem frete": bug nosso, nao estoque.
+  it('outra recusa do banco continua sendo falha de gravacao', async () => {
+    bancoComCatalogo([CATALOGO], { code: '23514', message: 'pedido sem frete' });
 
     expect(await criaPedido(pedido())).toEqual({ ok: false, motivo: 'nao-consegui-gravar' });
   });

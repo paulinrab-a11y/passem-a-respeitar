@@ -84,14 +84,31 @@ export default async function Home() {
         </div>
         <div id="tc">00:00:00:00</div>
         <div id="tape">SP · 2026 · WHYNOT VISUALS</div>
+        {/* `.nitida` e a camada que a intro acende por cima de uma copia
+            borrada, montada no cliente (#286, ver nevoaDaLinha em
+            abertura.ts). O texto fica uma vez so no HTML. */}
         <div id="manifesto" aria-live="polite">
-          <span className="l">Não são seguidores.</span>
-          <span className="l">Não são streams.</span>
-          <span className="l">Não é dinheiro.</span>
-          <span className="l">Não é status.</span>
-          <span className="l">Existe o que construímos quando ninguém estava olhando.</span>
-          <span className="l">O respeito vem antes dos números.</span>
-          <span className="l fim">Passem a respeitar.</span>
+          <span className="l">
+            <span className="nitida">Não são seguidores.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Não são streams.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Não é dinheiro.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Não é status.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">Existe o que construímos quando ninguém estava olhando.</span>
+          </span>
+          <span className="l">
+            <span className="nitida">O respeito vem antes dos números.</span>
+          </span>
+          <span className="l fim">
+            <span className="nitida">Passem a respeitar.</span>
+          </span>
         </div>
         <button type="button" id="ligar">
           ligar o som
@@ -215,8 +232,8 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-              <a className="btn cheio" id="comprar" href="#" target="_blank" rel="noopener">
+              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O clique so abre a loja (o script legado cancela a navegacao), e o href e o que o script escreve a partir do CONFIG. Sem `target`: destino interno, na mesma aba (#301). */}
+              <a className="btn cheio" id="comprar" href="#">
                 Comprar
               </a>
             </div>
@@ -334,8 +351,8 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-              <a className="btn cheio" id="comprarLoja" href="#" target="_blank" rel="noopener">
+              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado escreve o destino, /checkout com o produto e o tamanho escolhido (#106). Sem `target`: o checkout abre na mesma aba e a loja sai animada (#301). */}
+              <a className="btn cheio" id="comprarLoja" href="#">
                 Comprar
               </a>
             </div>

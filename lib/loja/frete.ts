@@ -65,7 +65,10 @@ export type OpcaoDeFrete = {
 };
 
 export type MotivoDoFrete =
-  /** Falta token, CEP de origem, ou o ambiente nao bate com producao. */
+  /**
+   * Falta token, CEP de origem, ou o ambiente nao bate com producao. Ou o
+   * Melhor Envio recusou um campo que nao e o CEP de destino (#290).
+   */
   | 'frete-sem-configuracao'
   /** Algum produto do carrinho ainda nao tem peso e medidas. */
   | 'frete-sem-medida'
@@ -74,7 +77,9 @@ export type MotivoDoFrete =
   /** Nenhum dos dois servicos atende este CEP. */
   | 'frete-sem-servico'
   /** Rede, demora, resposta torta ou erro do lado deles. */
-  | 'frete-fora-do-ar';
+  | 'frete-fora-do-ar'
+  /** Quem chamou recusou a consulta em `antesDeConsultar` (cota do IP, #308). */
+  | 'frete-limite';
 
 export type Cotacao = { ok: true; opcoes: OpcaoDeFrete[] } | { ok: false; motivo: MotivoDoFrete };
 
@@ -171,6 +176,49 @@ function opcoesDa(resposta: z.infer<typeof esquemaDaResposta>): OpcaoDeFrete[] {
   return opcoes;
 }
 
+/** A validacao deles e a do Laravel: `{ message, errors: { 'to.postal_code': [...] } }`. */
+const esquemaDaRecusa = z.object({ errors: z.record(z.string(), z.unknown()) });
+
+/** No aviso cabem tres campos: e o bastante para o dono saber onde mexer. */
+const CAMPOS_NO_AVISO = 3;
+
+/**
+ * O que um HTTP 422 recusou (#290).
+ *
+ * Antes, todo 422 virava "Confira o CEP", sem aviso. Mas a mesma validacao
+ * recusa o CEP de origem, as medidas e o seguro da camiseta — e ai TODO CEP
+ * levaria a mesma recusa, nenhum pedido sairia e o dono nao saberia. So o
+ * destino (`to.*`) e da pessoa. Qualquer outro campo, ou 422 sem dizer qual,
+ * e configuracao nossa e vai para o aviso.
+ *
+ * `campos` vira tag no Sentry: so o nome do campo, sem indice e sem digito
+ * (`products.0.weight` vira `products.weight`), para nao levar CEP nem a
+ * mensagem deles. Nome fora desse formato vira `outro`.
+ */
+async function camposRecusados(
+  resposta: Response
+): Promise<{ soDestino: true } | { soDestino: false; campos: string }> {
+  let chaves: string[] = [];
+  try {
+    const parse = esquemaDaRecusa.safeParse(await resposta.json());
+    if (parse.success) chaves = Object.keys(parse.data.errors);
+  } catch {
+    // Sem corpo JSON: nao da para dizer que foi o CEP.
+  }
+
+  const nomes = chaves.map((chave) => {
+    const nome = chave.toLowerCase().replace(/\.\d+(?=\.|$)/g, '');
+    return /^[a-z_]{1,30}(?:\.[a-z_]{1,30}){0,3}$/.test(nome) ? nome : 'outro';
+  });
+  const doDestino = (nome: string) => nome === 'to' || nome.startsWith('to.');
+
+  if (nomes.length > 0 && nomes.every(doDestino)) return { soDestino: true };
+
+  const nossos = [...new Set(nomes.filter((n) => !doDestino(n)))].sort();
+  const campos = nossos.length > 0 ? nossos.slice(0, CAMPOS_NO_AVISO).join(',') : 'sem-detalhe';
+  return { soDestino: false, campos };
+}
+
 // ---------------------------------------------------------------------------
 // Cache
 // ---------------------------------------------------------------------------
@@ -228,16 +276,34 @@ async function gravaCache(chave: string, opcoes: OpcaoDeFrete[]) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Cotacoes que ja sairam para o Melhor Envio e ainda nao voltaram (#308).
+ *
+ * A mesma pergunta feita de novo enquanto a primeira esta no ar (a tela e a
+ * criacao do pedido, ou as duas fichas da home) espera a mesma resposta, em
+ * vez de fazer outra consulta. Sai daqui assim que volta, deu certo ou nao: a
+ * partir dai quem responde e o cache, e falha nao fica guardada.
+ */
+const emVoo = new Map<string, Promise<Cotacao>>();
+
+/**
  * PAC e SEDEX para este carrinho, ate este CEP.
  *
  * `cep` chega so com digitos: quem chama ja passou pelo schema do endereco.
+ *
+ * `antesDeConsultar` roda so quando a resposta nao esta no cache nem no ar,
+ * imediatamente antes de perguntar ao Melhor Envio. E onde a ficha da home
+ * desconta a cota do IP (#308): quem repete um CEP ja cotado nao gasta
+ * consulta. Devolvendo `false`, nao se pergunta nada e a cotacao volta
+ * `frete-limite`.
  */
 export async function cotaFrete({
   cep,
   volumes,
+  antesDeConsultar,
 }: {
   cep: string;
   volumes: Volume[];
+  antesDeConsultar?: () => Promise<boolean>;
 }): Promise<Cotacao> {
   if (!/^\d{8}$/.test(cep)) return { ok: false, motivo: 'frete-cep-invalido' };
 
@@ -279,6 +345,23 @@ export async function cotaFrete({
   const guardado = await leCache(chave);
   if (guardado) return { ok: true, opcoes: guardado };
 
+  const noAr = emVoo.get(chave);
+  if (noAr) return noAr;
+
+  if (antesDeConsultar && !(await antesDeConsultar())) {
+    return { ok: false, motivo: 'frete-limite' };
+  }
+  // A cota e assincrona: outra chamada igual pode ter saido nesse meio tempo.
+  const saiuAntes = emVoo.get(chave);
+  if (saiuAntes) return saiuAntes;
+
+  const consulta = pergunta(config, corpo, chave).finally(() => emVoo.delete(chave));
+  emVoo.set(chave, consulta);
+  return consulta;
+}
+
+/** A consulta em si, ao Melhor Envio. Grava no cache quando da certo. */
+async function pergunta(config: Configuracao, corpo: unknown, chave: string): Promise<Cotacao> {
   let resposta: Response;
   try {
     resposta = await fetch(`${config.base}${CAMINHO}`, {
@@ -306,8 +389,13 @@ export async function cotaFrete({
     return { ok: false, motivo: 'frete-sem-configuracao' };
   }
 
-  // Validacao: o mais comum e CEP que nao existe.
-  if (resposta.status === 422) return { ok: false, motivo: 'frete-cep-invalido' };
+  // Validacao. So o CEP de destino e da pessoa; o resto e nosso (#290).
+  if (resposta.status === 422) {
+    const recusa = await camposRecusados(resposta);
+    if (recusa.soDestino) return { ok: false, motivo: 'frete-cep-invalido' };
+    avisa(`http-422-${recusa.campos}`);
+    return { ok: false, motivo: 'frete-sem-configuracao' };
+  }
 
   if (!resposta.ok) {
     avisa(`http-${resposta.status}`);

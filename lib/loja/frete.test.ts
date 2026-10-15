@@ -69,6 +69,14 @@ function responde(corpo: unknown, status = 200) {
   pedido.mockImplementation(async () => new Response(JSON.stringify(corpo), { status }));
 }
 
+/** O Melhor Envio de verdade demora: a resposta so vem depois de `ms`. */
+function demora(ms = 20) {
+  pedido.mockImplementation(async () => {
+    await new Promise((r) => setTimeout(r, ms));
+    return new Response(JSON.stringify(RESPOSTA), { status: 200 });
+  });
+}
+
 function enviado() {
   const [url, opcoes] = pedido.mock.calls[0];
   return {
@@ -277,11 +285,73 @@ describe('falhas', () => {
     expect(avisos()).toEqual([`http-${status}`]);
   });
 
-  it('HTTP 422 e CEP que nao existe: nao avisa, e a pessoa que confere', async () => {
-    responde({ message: 'The given data was invalid.' }, 422);
+  /** O 422 do Melhor Envio, no formato de validacao do Laravel. */
+  const recusa = (errors?: Record<string, string[]>) =>
+    responde({ message: 'The given data was invalid.', ...(errors && { errors }) }, 422);
+
+  it('HTTP 422 no CEP de destino: nao avisa, e a pessoa que confere', async () => {
+    recusa({ 'to.postal_code': ['O CEP de destino é inválido.'] });
 
     expect(await cota()).toEqual({ ok: false, motivo: 'frete-cep-invalido' });
     expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  // #290: antes, todo 422 virava "Confira o CEP" em silencio. Medida ou seguro
+  // recusado recusaria todo CEP, e nenhum pedido sairia sem o dono saber.
+  it.each([
+    ['no peso do produto', 'products.0.weight', 'http-422-products.weight'],
+    ['na altura do segundo produto', 'products.1.height', 'http-422-products.height'],
+    ['no seguro', 'products.0.insurance_value', 'http-422-products.insurance_value'],
+    ['no CEP de origem', 'from.postal_code', 'http-422-from.postal_code'],
+    ['nos servicos', 'services', 'http-422-services'],
+  ])('HTTP 422 %s: e configuracao nossa, e avisa qual campo', async (_, campo, aviso) => {
+    recusa({ [campo]: ['O campo é inválido.'] });
+
+    expect(await cota()).toEqual({ ok: false, motivo: 'frete-sem-configuracao' });
+    expect(avisos()).toEqual([aviso]);
+  });
+
+  it('HTTP 422 no destino e em outro campo: vale o outro, que recusaria todo CEP', async () => {
+    recusa({ 'to.postal_code': ['inválido'], 'products.0.weight': ['inválido'] });
+
+    expect(await cota()).toEqual({ ok: false, motivo: 'frete-sem-configuracao' });
+    expect(avisos()).toEqual(['http-422-products.weight']);
+  });
+
+  it('HTTP 422 em varios campos: o aviso leva cada um uma vez, ate tres', async () => {
+    recusa({
+      'products.1.weight': ['x'],
+      'products.0.weight': ['x'],
+      'products.0.height': ['x'],
+      'products.0.width': ['x'],
+      'products.0.length': ['x'],
+    });
+
+    await cota();
+    expect(avisos()).toEqual(['http-422-products.height,products.length,products.weight']);
+  });
+
+  it.each([
+    ['sem errors', () => recusa()],
+    ['com errors vazio', () => recusa({})],
+    ['com errors em lista', () => responde({ errors: ['to.postal_code'] }, 422)],
+    [
+      'sem corpo JSON',
+      () =>
+        pedido.mockImplementation(async () => new Response('<html>422</html>', { status: 422 })),
+    ],
+  ])('HTTP 422 %s: nao da para dizer que foi o CEP, e avisa', async (_, arma) => {
+    arma();
+
+    expect(await cota()).toEqual({ ok: false, motivo: 'frete-sem-configuracao' });
+    expect(avisos()).toEqual(['http-422-sem-detalhe']);
+  });
+
+  it('HTTP 422 com campo fora do formato: o aviso nao repete o nome', async () => {
+    recusa({ 'products[0]->peso <script>': ['x'] });
+
+    await cota();
+    expect(avisos()).toEqual(['http-422-outro']);
   });
 
   it.each([429, 500, 503])('HTTP %i: sem cotacao, e avisa', async (status) => {
@@ -300,14 +370,34 @@ describe('falhas', () => {
     expect(flush).not.toHaveBeenCalled();
   });
 
+  // CEP novo nos dois: o '04538133' do primeiro teste ja esta no cache, e sem
+  // consulta nao haveria aviso nenhum para conferir.
   it('nada que vai ao Sentry leva token, CEP ou corpo', async () => {
+    const destino = novoCep();
     pedido.mockRejectedValue(new Error(`falhou com ${TOKEN}`));
-    await cota([CAMISETA], '04538133');
+    await cota([CAMISETA], destino);
 
     const texto = JSON.stringify(captureMessage.mock.calls);
+    expect(captureMessage).toHaveBeenCalledTimes(1);
     expect(texto).not.toContain(TOKEN);
-    expect(texto).not.toContain('04538133');
+    expect(texto).not.toContain(destino);
     expect(texto).not.toContain(ORIGEM);
+  });
+
+  it('nem o 422: a mensagem deles e o CEP no nome do campo ficam de fora', async () => {
+    const destino = novoCep();
+    recusa({
+      'from.postal_code': [`O CEP ${ORIGEM} não existe.`],
+      [`to.${destino}`]: [`O CEP ${destino} não existe.`],
+      [`from.${ORIGEM}.numero`]: ['x'],
+    });
+    await cota([CAMISETA], destino);
+
+    const texto = JSON.stringify(captureMessage.mock.calls);
+    expect(avisos()).toEqual(['http-422-from.numero,from.postal_code']);
+    expect(texto).not.toContain(destino);
+    expect(texto).not.toContain(ORIGEM);
+    expect(texto).not.toContain('não existe');
   });
 });
 
@@ -407,6 +497,71 @@ describe('cache', () => {
     pedido.mockRejectedValueOnce(new Error('ECONNRESET'));
 
     expect((await cota([CAMISETA], destino)).ok).toBe(false);
+    expect((await cota([CAMISETA], destino)).ok).toBe(true);
+    expect(pedido).toHaveBeenCalledTimes(2);
+  });
+
+  it('duas perguntas iguais ao mesmo tempo, cache frio: uma consulta so (#308)', async () => {
+    const destino = novoCep();
+    demora();
+    const [a, b] = await Promise.all([cota([CAMISETA], destino), cota([CAMISETA], destino)]);
+
+    expect(pedido).toHaveBeenCalledTimes(1);
+    expect(b).toEqual(a);
+    expect(a.ok).toBe(true);
+  });
+
+  it('a pergunta que espera a outra no ar nao passa por antesDeConsultar (#308)', async () => {
+    const destino = novoCep();
+    demora();
+    const porta = vi.fn(async () => true);
+    await Promise.all([
+      cotaFrete({ cep: destino, volumes: [CAMISETA], antesDeConsultar: porta }),
+      cotaFrete({ cep: destino, volumes: [CAMISETA], antesDeConsultar: porta }),
+    ]);
+    expect(porta).toHaveBeenCalledTimes(1);
+    expect(pedido).toHaveBeenCalledTimes(1);
+  });
+
+  it('do cache, antesDeConsultar nem roda (#308)', async () => {
+    const destino = novoCep();
+    await cota([CAMISETA], destino);
+
+    const porta = vi.fn(async () => true);
+    const r = await cotaFrete({ cep: destino, volumes: [CAMISETA], antesDeConsultar: porta });
+    expect(r.ok).toBe(true);
+    expect(porta).not.toHaveBeenCalled();
+    expect(pedido).toHaveBeenCalledTimes(1);
+  });
+
+  it('antesDeConsultar recusando: nada sai, e volta frete-limite (#308)', async () => {
+    const r = await cotaFrete({
+      cep: novoCep(),
+      volumes: [CAMISETA],
+      antesDeConsultar: async () => false,
+    });
+    expect(r).toEqual({ ok: false, motivo: 'frete-limite' });
+    expect(pedido).not.toHaveBeenCalled();
+  });
+
+  it('falha no ar tambem sai da fila: a proxima pergunta consulta de novo', async () => {
+    const destino = novoCep();
+    // A rede cai so depois de as duas perguntas estarem no ar.
+    let derruba: (e: Error) => void = () => {};
+    pedido.mockReturnValueOnce(
+      new Promise<Response>((_, rejeita) => {
+        derruba = rejeita;
+      })
+    );
+    const duas = Promise.all([cota([CAMISETA], destino), cota([CAMISETA], destino)]);
+    await vi.waitFor(() => expect(pedido).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 10));
+    derruba(new Error('ECONNRESET'));
+    const [a, b] = await duas;
+    expect(a.ok).toBe(false);
+    expect(b.ok).toBe(false);
+    expect(pedido).toHaveBeenCalledTimes(1);
+
     expect((await cota([CAMISETA], destino)).ok).toBe(true);
     expect(pedido).toHaveBeenCalledTimes(2);
   });

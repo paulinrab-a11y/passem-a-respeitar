@@ -22,6 +22,11 @@ export const CEPS = {
   soPac: '69999999',
   /** Erro do lado deles. */
   foraDoAr: '00000001',
+  /**
+   * O Melhor Envio recusa a medida do produto (#290). De verdade, isso vale
+   * para todo CEP; aqui um CEP so, para o resto da suite cotar.
+   */
+  produtoRecusado: '00000003',
 };
 
 const PAC = {
@@ -85,6 +90,12 @@ export function sobeMelhorEnvioFalso() {
         return responde(res, 422, {
           message: 'The given data was invalid.',
           errors: { 'to.postal_code': ['invalido'] },
+        });
+      }
+      if (destino === CEPS.produtoRecusado) {
+        return responde(res, 422, {
+          message: 'The given data was invalid.',
+          errors: { 'products.0.weight': ['invalido'] },
         });
       }
       if (destino === CEPS.foraDoAr) return responde(res, 500, { message: 'Server Error' });

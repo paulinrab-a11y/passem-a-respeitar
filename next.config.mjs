@@ -40,6 +40,49 @@ const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
 ];
 
+/**
+ * Extensoes e pastas de public/ que o matcher do proxy.ts deixa de fora
+ * (#312). A lista e repetida la porque o Next exige string literal no
+ * matcher; app/cache-de-assets.test.ts confere que as duas batem.
+ */
+export const EXTENSOES_DE_ASSET = [
+  'png',
+  'svg',
+  'webp',
+  'jpg',
+  'jpeg',
+  'mp3',
+  'gltf',
+  'bin',
+  'ico',
+];
+const PASTAS_DE_ASSET = '(merch|beats|elementos)';
+const EXTENSOES = EXTENSOES_DE_ASSET.join('|');
+
+export const ASSETS_FORA_DO_PROXY = [
+  `/:pasta${PASTAS_DE_ASSET}/:caminho*`,
+  `/:caminho((?!_next/).*\\.(?:${EXTENSOES}))`,
+];
+
+export const ASSETS_COM_CACHE = [
+  `/:pasta${PASTAS_DE_ASSET}/:caminho*`,
+  '/:arquivo([^/]+\\.(?:png|svg))',
+];
+
+export const CACHE_DE_ASSET = 'public, max-age=86400, stale-while-revalidate=604800';
+
+export const CSP_DE_ASSET = [
+  "default-src 'none'",
+  "img-src 'self' data:",
+  "media-src 'self'",
+  // SVG e o 404 do Next usam estilo; script nenhum.
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -47,7 +90,26 @@ const nextConfig = {
   // de graca qual versao atacar.
   poweredByHeader: false,
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      // Os caminhos abaixo nao passam pelo proxy.ts (#312), entao nao ganham
+      // a CSP com nonce. Para um arquivo de verdade ela nao faria diferenca,
+      // mas um 404 HTML em /merch/qualquer-coisa sairia sem CSP nenhuma. Esta
+      // nega script e qualquer origem externa.
+      ...ASSETS_FORA_DO_PROXY.map((source) => ({
+        source,
+        headers: [{ key: 'Content-Security-Policy', value: CSP_DE_ASSET }],
+      })),
+      // Cache no navegador para o que vem de public/. Sem `immutable`: os
+      // nomes nao tem hash e ja houve troca de arquivo mantendo o nome (o
+      // modelo da camiseta, #217). Um dia de cache e uma semana servindo o
+      // velho enquanto revalida. `/_next/` fica de fora de proposito: o Next
+      // so poe o `immutable` dele quando ninguem pos Cache-Control antes.
+      ...ASSETS_COM_CACHE.map((source) => ({
+        source,
+        headers: [{ key: 'Cache-Control', value: CACHE_DE_ASSET }],
+      })),
+    ];
   },
 };
 

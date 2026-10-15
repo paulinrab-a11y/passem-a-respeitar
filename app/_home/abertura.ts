@@ -68,3 +68,35 @@ export function fechaAbertura(doc: Document): void {
   // pediu. Sem rolar, para a pagina abrir no topo como sempre abriu.
   if (focoNaAbertura) doc.getElementById('som')?.focus({ preventScroll: true });
 }
+
+/**
+ * O desfoque da entrada do manifesto sem animar `filter` (#286).
+ *
+ * Cada linha entrava com `filter: blur(14px)` indo a zero, e o CSS deixava
+ * `will-change: filter` fixo. A regra do projeto e animar so `transform` e
+ * `opacity`. O desfoque agora e uma copia da linha, ja borrada e parada, que
+ * some enquanto a linha nitida aparece por cima: as duas so mudam de
+ * opacidade, e o olho le o mesmo foco chegando.
+ *
+ * A camada nitida (`.nitida`) vem do servidor, com o texto; a copia e montada
+ * aqui, so para quem ve a animacao. No HTML o texto aparece uma vez, e a copia
+ * nasce `aria-hidden` antes de entrar na pagina: o manifesto e `aria-live`, e
+ * texto novo nele seria lido em voz alta.
+ *
+ * Devolve as duas camadas para a timeline, ou `null` quando a linha nao tem a
+ * camada nitida. Chamar de novo devolve a mesma copia.
+ */
+export function nevoaDaLinha(linha: Element): { nitida: HTMLElement; nevoa: HTMLElement } | null {
+  const nitida = linha.querySelector<HTMLElement>(':scope > .nitida');
+  if (!nitida) return null;
+  const pronta = linha.querySelector<HTMLElement>(':scope > .nevoa');
+  if (pronta) return { nitida, nevoa: pronta };
+
+  const nevoa = nitida.cloneNode(true) as HTMLElement;
+  nevoa.className = 'nevoa';
+  nevoa.setAttribute('aria-hidden', 'true');
+  // Id copiado seria id repetido na pagina.
+  for (const comId of nevoa.querySelectorAll('[id]')) comId.removeAttribute('id');
+  linha.appendChild(nevoa);
+  return { nitida, nevoa };
+}

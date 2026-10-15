@@ -110,7 +110,8 @@ describe('script da home: a intro e o runtime fecham pelo mesmo lugar', () => {
   const intro = corpo(SCRIPT, '(function intro(){');
 
   it('o script importa o fechamento compartilhado', () => {
-    expect(SCRIPT).toContain("import { fechaAbertura } from './abertura';");
+    // Junto com o desfoque do manifesto (#286), que mora no mesmo modulo.
+    expect(SCRIPT).toMatch(/import \{[^}]*\bfechaAbertura\b[^}]*\} from '\.\/abertura';/);
   });
 
   it('fecha() delega o DOM e nao mexe mais na trava nem na barra por conta propria', () => {

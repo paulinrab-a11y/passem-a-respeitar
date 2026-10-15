@@ -53,24 +53,37 @@ export default defineConfig({
     timezoneId: 'America/Sao_Paulo',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // A suite tem chave publica do Mercado Pago (#274), entao toda tela de
+    // pagamento tenta carregar o SDK deles — e o SDK, com uma chave que nao
+    // existe, chamaria api.mercadopago.com. Para o navegador da suite esses
+    // hosts nao tem endereco: nada sai daqui para o Mercado Pago, em nenhum
+    // arquivo de teste e em nenhum projeto (desktop ou celular). Quem precisa
+    // do formulario poe um falso no lugar (apoio/brick-falso.ts), antes de a
+    // rede ser consultada.
+    launchOptions: { args: [`--host-resolver-rules=${SEM_MERCADO_PAGO}`] },
   },
 
   // So Chromium. O cookie de sessao e `Secure`, e em http so o Chromium e o
   // Firefox aceitam cookie `Secure` vindo de localhost; o WebKit recusa, e o
   // login local nunca funcionaria nele.
+  //
+  // O celular (#294) so na loja: o toque passa pelo `touch-action`, que o
+  // mouse do desktop nunca exercita. O Pixel 5 e Chromium, o mesmo navegador
+  // que o CI ja instala; a suite inteira nele dobraria o tempo sem medir nada
+  // novo.
+  //
+  // O bloqueio do Mercado Pago fica no `use` de cima, e nenhum projeto pode
+  // trocar `launchOptions`: o `use` do projeto substitui a chave inteira.
   projects: [
     {
       name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        // A suite tem chave publica do Mercado Pago (#274), entao toda tela de
-        // pagamento tenta carregar o SDK deles — e o SDK, com uma chave que
-        // nao existe, chamaria api.mercadopago.com. Para o Chromium da suite
-        // esses hosts nao tem endereco: nada sai daqui para o Mercado Pago, em
-        // nenhum arquivo de teste. Quem precisa do formulario poe um falso no
-        // lugar (apoio/brick-falso.ts), antes de a rede ser consultada.
-        launchOptions: { args: [`--host-resolver-rules=${SEM_MERCADO_PAGO}`] },
-      },
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /celular\.spec\.ts$/,
+    },
+    {
+      name: 'celular',
+      use: { ...devices['Pixel 5'] },
+      testMatch: /celular\.spec\.ts$/,
     },
   ],
 

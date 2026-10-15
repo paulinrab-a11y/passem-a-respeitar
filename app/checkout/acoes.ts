@@ -33,6 +33,9 @@ const RECADOS: Record<string, string> = {
   'email-nao-verificado':
     'Confirme seu e-mail antes de comprar. O código está na sua caixa de entrada, ou reenvie em Conta.',
   'produto-indisponivel': 'Esse produto não está disponível agora.',
+  // O pedido anterior segura a peca (#296): o caminho e paga-lo, nao refazer.
+  'pedido-em-aberto':
+    'Você já tem um pedido deste item esperando pagamento. Pague por ele em Conta, em Meus pedidos.',
   'quantidade-invalida': 'Quantidade inválida.',
   'carrinho-vazio': 'Escolha um produto antes de finalizar.',
   'carrinho-grande-demais': 'Pedido grande demais.',
