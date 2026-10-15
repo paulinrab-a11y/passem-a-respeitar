@@ -113,7 +113,7 @@ export async function concilia({
   const admin = clienteAdmin();
   const corte = new Date(agoraMs - idadeMinMs).toISOString();
 
-  const { data: pendentes } = await admin
+  const { data: pendentes, error } = await admin
     .from('pagamentos')
     .select('id, order_id, estado, provedor_pagamento_id, criado_em')
     .eq('provedor', 'mercadopago')
@@ -122,6 +122,12 @@ export async function concilia({
     .or(comIdOuRecente(agoraMs))
     .order('criado_em', { ascending: true })
     .limit(limite);
+
+  // O supabase-js nao lanca quando o banco falha: devolve `{ error }`. Sem
+  // isto, banco fora virava "nada pendente", balanco zerado e check-in `ok`
+  // no monitor todo dia (#273). Lancado, o cron fecha o check-in como
+  // `error` e o Sentry recebe a excecao.
+  if (error) throw new Error('conciliacao: a varredura nao leu o banco', { cause: error });
 
   const balanco: Balanco = { olhados: 0, mudados: 0, semAvanco: 0, repetidos: 0, falhas: 0 };
 
