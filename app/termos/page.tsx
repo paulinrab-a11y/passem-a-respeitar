@@ -58,7 +58,7 @@ export default function Termos() {
       <div className="auth-scan" aria-hidden="true" />
       <div className="auth-vinheta" aria-hidden="true" />
 
-      <section className="auth-caixa conta-caixa">
+      <section className="auth-caixa conta-caixa leitura">
         <a href="/" className="auth-voltar">
           ← Passem a Respeitar
         </a>

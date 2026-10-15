@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { FILTROS_ADMIN } from '@/lib/conta/painel';
+import { forcaDaSenha } from '@/lib/conta/senha';
 
 /**
  * Esqueletos da area de conta (Issue #46).
@@ -328,8 +329,11 @@ export function EsqueletoSeguranca() {
         <Campo />
         <div className="senha-forca">
           <div className="senha-barra" />
-          {/* Vazio como o de verdade: sem senha digitada nao ha rotulo. */}
-          <span />
+          {/* O de verdade ja nasce com o rotulo do minimo (#376): uma linha
+              do comprimento dele, para a altura nao mudar quando a tela chega. */}
+          <span>
+            <Linha ch={forcaDaSenha('').rotulo.length} />
+          </span>
         </div>
         <Campo />
         <Botao ch={14} />

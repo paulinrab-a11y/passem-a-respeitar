@@ -13,7 +13,6 @@ export type SiteConfig = {
   fase: number;
   links: {
     preSave: string;
-    merch: string;
     igSantxx: string;
     igChefe: string;
     igLabel: string;
@@ -43,7 +42,6 @@ export const CONFIG: SiteConfig = {
   fase: 4,
   links: {
     preSave: '#',
-    merch: '#',
     igSantxx: 'https://instagram.com/ogsantxx',
     igChefe: 'https://instagram.com/ch3fe3k',
     igLabel: 'https://instagram.com/whynotvisuals_',

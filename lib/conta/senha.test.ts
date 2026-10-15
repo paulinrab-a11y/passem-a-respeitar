@@ -4,13 +4,13 @@ import { forcaDaSenha, SENHA_MIN } from './senha';
 const nivel = (s: string) => forcaDaSenha(s).nivel;
 
 describe('forcaDaSenha', () => {
-  it('nao diz nada com o campo vazio', () => {
-    expect(forcaDaSenha('')).toEqual({ nivel: 0, rotulo: '' });
+  it('com o campo vazio, diz o minimo antes de qualquer erro (#376)', () => {
+    expect(forcaDaSenha('')).toEqual({ nivel: 0, rotulo: `mínimo ${SENHA_MIN} caracteres` });
   });
 
-  it('avisa quando falta comprimento', () => {
-    expect(forcaDaSenha('abc')).toEqual({ nivel: 0, rotulo: 'curta demais' });
-    expect(forcaDaSenha('a'.repeat(SENHA_MIN - 1)).rotulo).toBe('curta demais');
+  it('enquanto falta comprimento, diz quanto falta', () => {
+    expect(forcaDaSenha('abc')).toEqual({ nivel: 0, rotulo: `faltam ${SENHA_MIN - 3}` });
+    expect(forcaDaSenha('a'.repeat(SENHA_MIN - 1)).rotulo).toBe('faltam 1');
   });
 
   // O que de fato move a agulha e comprimento, e o medidor precisa dizer isso
