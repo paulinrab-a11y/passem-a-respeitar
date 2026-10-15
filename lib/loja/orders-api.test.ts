@@ -175,7 +175,12 @@ describe('criaOrdem', () => {
     expect(r).toEqual({
       ok: true,
       provedorId: 'ORD-1',
-      resumo: { estado: 'pendente', status: 'action_required', statusDetail: 'waiting_transfer' },
+      resumo: {
+        estado: 'pendente',
+        status: 'action_required',
+        statusDetail: 'waiting_transfer',
+        valor: { totalCentavos: null, pagoCentavos: null, moeda: null },
+      },
       // A resposta nao traz data: vale agora + a duracao pedida (#337).
       pix: {
         copiaECola: '00020126...',
@@ -393,10 +398,23 @@ const ORDEM = {
   created_date: '2026-10-07T12:00:02.000Z',
   status: 'processed',
   status_detail: 'accredited',
-  transactions: { payments: [{ status: 'processed', status_detail: 'accredited' }] },
+  total_amount: '129.90',
+  currency: 'BRL',
+  transactions: {
+    payments: [{ status: 'processed', status_detail: 'accredited', paid_amount: '129.90' }],
+  },
 };
 
-const RESUMO_APROVADO = { estado: 'aprovado', status: 'processed', statusDetail: 'accredited' };
+const RESUMO_APROVADO = {
+  estado: 'aprovado',
+  status: 'processed',
+  statusDetail: 'accredited',
+  // O valor sai em centavos, lido do texto decimal sem float (#350).
+  valor: { totalCentavos: 12990, pagoCentavos: 12990, moeda: 'BRL' },
+};
+
+/** Resposta sem nenhum campo de valor: tudo nulo, e nada confere. */
+const SEM_VALOR = { totalCentavos: null, pagoCentavos: null, moeda: null };
 
 /**
  * A consulta inteira: id, referencia, data e estado. E o que o webhook usa
@@ -448,7 +466,7 @@ describe('localizaOrdem', () => {
         provedorId: 'ORD-2',
         referencia: null,
         criadaEmMs: null,
-        resumo: { estado: 'pendente', status: 'created', statusDetail: null },
+        resumo: { estado: 'pendente', status: 'created', statusDetail: null, valor: SEM_VALOR },
       },
     });
   });
@@ -566,7 +584,12 @@ describe('buscaOrdensPorReferencia', () => {
           provedorId: 'ORD-2',
           referencia: 'ped-1',
           criadaEmMs: Date.parse('2026-10-07T12:03:00.000Z'),
-          resumo: { estado: 'recusado', status: 'failed', statusDetail: 'cc_rejected' },
+          resumo: {
+            estado: 'recusado',
+            status: 'failed',
+            statusDetail: 'cc_rejected',
+            valor: { totalCentavos: 12990, pagoCentavos: null, moeda: 'BRL' },
+          },
         },
       ],
     });

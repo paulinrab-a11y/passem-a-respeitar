@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { marcaDeRecuperacaoConfere } from '@/lib/conta/recuperacao';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import { esquemaRedefinirSenha } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
@@ -39,10 +40,14 @@ export async function redefinirSenha(
   const tentativa = anterior.tentativa + 1;
 
   const jar = await cookies();
-  if (!jar.get(COOKIE_RECUPERACAO)) return { ...SEM_SESSAO, tentativa };
+  const marca = jar.get(COOKIE_RECUPERACAO)?.value;
+  if (!marca) return { ...SEM_SESSAO, tentativa };
 
   const usuario = await usuarioDaSessao();
   if (!usuario) return { ...SEM_SESSAO, tentativa };
+  // Assinada pelo servidor e da conta desta sessao (#348). Marca de outra
+  // conta, deixada no navegador por quem saiu, nao troca senha nenhuma.
+  if (!marcaDeRecuperacaoConfere(marca, usuario.id)) return { ...SEM_SESSAO, tentativa };
 
   const cota = await limita(`redefinir:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {

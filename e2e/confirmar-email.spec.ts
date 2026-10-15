@@ -131,6 +131,9 @@ test('confirmar: o link de "Esqueci minha senha" confirma a conta pendente', asy
   await expect(page.getByText('Confira seu e-mail')).toBeVisible();
 
   await page.goto(await linkDoEmail(pendente.email, pedidoEm));
+  // O link so vira sessao no clique em "Continuar" (#348).
+  await page.waitForURL('**/auth/continuar?**');
+  await (await vivo(page.getByRole('button', { name: 'Continuar' }))).click();
   await page.waitForURL('**/redefinir-senha');
   const salvar = await vivo(page.getByRole('button', { name: 'Salvar nova senha' }));
   await page.getByLabel('Nova senha', { exact: true }).fill(nova);

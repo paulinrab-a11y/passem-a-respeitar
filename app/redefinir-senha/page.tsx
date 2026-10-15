@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { marcaDeRecuperacaoConfere } from '@/lib/conta/recuperacao';
 import { COOKIE_RECUPERACAO } from '@/lib/supabase/cookies';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import Formulario from './Formulario';
@@ -26,7 +27,10 @@ export const metadata: Metadata = {
  */
 export default async function RedefinirSenha() {
   const usuario = await usuarioDaSessao();
-  const pelaRecuperacao = Boolean((await cookies()).get(COOKIE_RECUPERACAO));
+  // A marca precisa ser DESTA conta (#348): a de outra sessao, deixada no
+  // mesmo navegador, nao abre o formulario.
+  const marca = (await cookies()).get(COOKIE_RECUPERACAO)?.value;
+  const pelaRecuperacao = Boolean(usuario && marcaDeRecuperacaoConfere(marca, usuario.id));
 
   return (
     <main className="auth">

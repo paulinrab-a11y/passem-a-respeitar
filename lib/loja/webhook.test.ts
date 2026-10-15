@@ -42,7 +42,15 @@ const T0 = Date.parse('2026-10-07T12:00:00Z');
 const seg = (n: number) => n * 1000;
 const em = (ms: number) => new Date(ms).toISOString();
 
-const APROVADO = { estado: 'aprovado' as const, status: 'processed', statusDetail: 'accredited' };
+/** O valor que o provedor confirma e o que a tentativa guarda, em centavos (#350). */
+const VALOR_DA_TENTATIVA = 12900;
+const VALOR_OK = { totalCentavos: 12900, pagoCentavos: 12900, moeda: 'BRL' };
+const APROVADO = {
+  estado: 'aprovado' as const,
+  status: 'processed',
+  statusDetail: 'accredited',
+  valor: VALOR_OK,
+};
 const RECUSADO = { estado: 'recusado' as const, status: 'failed', statusDetail: 'cc_rejected' };
 const CANCELADO = { estado: 'cancelado' as const, status: 'expired', statusDetail: null };
 const CANCELADA = { ok: true as const, status: 'canceled', statusDetail: null };
@@ -103,6 +111,8 @@ function banco({
   pedidoPendente = true,
   /** O status do pedido na releitura, quando o `update` nao alcancou nada. */
   statusDoPedido = 'pago' as string | null,
+  /** O `valor_centavos` da tentativa; `null` = a leitura falhou (#350). */
+  valorDaTentativa = VALOR_DA_TENTATIVA as number | null,
 }) {
   vi.mocked(clienteAdmin).mockReturnValue({
     from(tabela: string) {
@@ -137,12 +147,21 @@ function banco({
         ops.push(['select', ...args]);
         return elo;
       };
-      elo.maybeSingle = () =>
-        Promise.resolve({
+      elo.maybeSingle = () => {
+        // A conferencia do valor (#350) le so `valor_centavos` da tentativa.
+        if (ops.some((o) => o[0] === 'select' && o[1] === 'valor_centavos')) {
+          return Promise.resolve(
+            valorDaTentativa === null
+              ? { data: null, error: { code: 'XX000' } }
+              : { data: { valor_centavos: valorDaTentativa }, error: null }
+          );
+        }
+        return Promise.resolve({
           data:
             tabela === 'orders' ? (statusDoPedido ? { status: statusDoPedido } : null) : pagamento,
           error: null,
         });
+      };
       elo.insert = (dados: Record<string, unknown>) => {
         inseridos.push({ tabela, dados });
         return Promise.resolve(
@@ -360,6 +379,84 @@ describe('fora de ordem', () => {
     expect(atualizados.find((a) => a.tabela === 'pagamento_eventos')?.dados.provedor_status).toBe(
       'action_required'
     );
+  });
+});
+
+/**
+ * Aprovado so paga o pedido com o valor que foi cobrado (#350). O status e
+ * do provedor; o valor tambem, e precisa bater com o que a tentativa guarda.
+ */
+describe('valor confirmado pelo provedor', () => {
+  const pedidoMudou = () => atualizados.some((a) => a.tabela === 'orders');
+  const tentativaMudou = () => atualizados.some((a) => a.tabela === 'pagamentos');
+
+  it.each([
+    ['total menor', { ...VALOR_OK, totalCentavos: 100 }],
+    ['pagamento parcial', { ...VALOR_OK, pagoCentavos: 100 }],
+    ['outra moeda', { ...VALOR_OK, moeda: 'USD' }],
+    ['sem total', { ...VALOR_OK, totalCentavos: null }],
+  ])('%s: nao vira pago e avisa o dono', async (_caso, valor) => {
+    vi.mocked(consultaOrdem).mockResolvedValue({ ...APROVADO, valor });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'ignorado', motivo: 'valor-divergente' });
+    expect(pedidoMudou()).toBe(false);
+    expect(tentativaMudou()).toBe(false);
+    expect(avisos()).toEqual(['pagamento aprovado com valor divergente']);
+  });
+
+  it('resumo sem valor nenhum nao vira pago', async () => {
+    const { valor: _semValor, ...semValor } = APROVADO;
+    vi.mocked(consultaOrdem).mockResolvedValue(semValor);
+
+    expect(await assinado(notificacao(), RECURSO)).toEqual({
+      tipo: 'ignorado',
+      motivo: 'valor-divergente',
+    });
+    expect(pedidoMudou()).toBe(false);
+  });
+
+  it('o aviso leva so o id do pedido', async () => {
+    vi.mocked(consultaOrdem).mockResolvedValue({
+      ...APROVADO,
+      valor: { ...VALOR_OK, totalCentavos: 1 },
+    });
+
+    await assinado(notificacao({ payer: { email: 'quem@exemplo.test' } }), RECURSO);
+
+    expect(captureMessage.mock.calls[0][1]).toEqual({
+      level: 'error',
+      tags: { order_id: 'ped-1' },
+    });
+  });
+
+  it('sem conseguir ler o valor da tentativa, pede reenvio', async () => {
+    banco({ valorDaTentativa: null });
+
+    const r = await assinado(notificacao(), RECURSO);
+
+    expect(r).toEqual({ tipo: 'tente-de-novo', motivo: 'valor-sem-leitura' });
+    expect(pedidoMudou()).toBe(false);
+  });
+
+  it('valor igual paga normalmente', async () => {
+    expect(await assinado(notificacao(), RECURSO)).toEqual({
+      tipo: 'aplicado',
+      estado: 'aprovado',
+    });
+    expect(pedidoMudou()).toBe(true);
+  });
+
+  // So o aprovado e conferido: recusa e estorno nao pagam nada.
+  it('recusado nao consulta o valor', async () => {
+    vi.mocked(consultaOrdem).mockResolvedValue(RECUSADO);
+    await assinado(notificacao(), RECURSO);
+
+    const pediuValor = consultas.some((c) =>
+      c.ops.some((o) => o[0] === 'select' && o[1] === 'valor_centavos')
+    );
+    expect(pediuValor).toBe(false);
   });
 });
 

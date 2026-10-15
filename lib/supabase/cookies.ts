@@ -15,15 +15,22 @@
 export const COOKIE_LEMBRAR = 'par_lembrar';
 
 /**
- * Marca de "esta sessao nasceu do link de recuperacao" (#234). O callback
- * grava; /redefinir-senha so troca a senha com ela presente. Sem isso, uma
- * sessao de login comum — computador emprestado, aba esquecida — trocaria a
- * senha sem saber a atual, o que a troca normal em /conta/seguranca exige.
+ * Marca de "esta sessao nasceu do link de recuperacao" (#234). O link grava;
+ * /redefinir-senha so troca a senha com ela presente. Sem isso, uma sessao
+ * de login comum — computador emprestado, aba esquecida — trocaria a senha
+ * sem saber a atual, o que a troca normal em /conta/seguranca exige.
+ *
+ * O valor e assinado e preso a conta (#348): ver lib/conta/recuperacao.ts.
+ * Sair, entrar e confirmar por codigo apagam a marca.
  */
 export const COOKIE_RECUPERACAO = 'par_recuperacao';
 
-/** Meia hora para escolher a senha nova depois de clicar no link. */
-const RECUPERACAO_SEGUNDOS = 30 * 60;
+/**
+ * Meia hora para escolher a senha nova depois de clicar no link. Vale para o
+ * cookie e para o vencimento escrito dentro da marca assinada
+ * (lib/conta/recuperacao.ts), que nao confia no navegador para expirar.
+ */
+export const RECUPERACAO_SEGUNDOS = 30 * 60;
 
 /** Quanto o verificador PKCE sobrevive: o mesmo que o link do e-mail vale. */
 const VERIFICADOR_SEGUNDOS = 60 * 60;

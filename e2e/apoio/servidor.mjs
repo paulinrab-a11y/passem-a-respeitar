@@ -29,7 +29,6 @@ const next = createRequire(import.meta.url).resolve('next/dist/bin/next');
  */
 const DESLIGADAS = [
   'CONVITE_CODIGOS_HASH',
-  'CONVITE_COOKIE_SECRET',
   'CONVITE_TEASER_EMBED',
   'CRON_SECRET',
   // O frete fala com o Melhor Envio falso, definido logo abaixo (#199).
@@ -110,6 +109,10 @@ Object.assign(env, {
   NEXT_PUBLIC_SUPABASE_URL: local.supabase,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local.chavePublica,
   SUPABASE_SECRET_KEY: local.chaveSecreta,
+  // Assina a marca da recuperacao de senha (#348) e o cookie do convite. Um
+  // valor da suite, e nao o de quem desenvolve: sem codigo de convite
+  // configurado, o convite continua fechado.
+  CONVITE_COOKIE_SECRET: 'segredo-da-suite-de-ponta-a-ponta',
   // Definida, e nao herdada: o administrador de verdade, que esta no
   // `.env.local` de quem desenvolve, nao administra o banco de teste.
   ADMIN_EMAILS: ADMIN,

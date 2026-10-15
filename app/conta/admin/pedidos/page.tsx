@@ -10,8 +10,11 @@ import {
   leBuscaAdmin,
   linhasDaEntrega,
   montaContagem,
+  resumoDosItens,
   statusDoFiltro,
+  urlDaExportacao,
   urlDoPainel,
+  urlDoPedidoAdmin,
 } from '@/lib/conta/painel';
 import { leEntrega, leFrete, leStatus, POR_PAGINA, reais } from '@/lib/conta/pedidos';
 import { formataDiaHora } from '@/lib/datas';
@@ -75,9 +78,11 @@ export default async function PedidosAdmin({ searchParams }: { searchParams: Bus
  * Colunas nomeadas, nunca `select *` (#20). O que nao esta aqui — `user_id`,
  * `pagamento_id`, `pagamento_provedor`, `anonimizado_em` — nao sai do banco.
  * O endereco inteiro entrou na #242: e o que o dono precisa para a etiqueta.
+ * Os itens entraram na #345 — nome, tamanho e quantidade, e so: e o que o
+ * dono separa da prateleira. Vem embutidos na mesma ida, sem N+1.
  */
 const COLUNAS =
-  'id, numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf';
+  'id, numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, order_items(nome, tamanho, quantidade)';
 
 /**
  * Quem chega aqui ja passou pela conferencia de papel: so `PedidosAdmin`
@@ -146,6 +151,15 @@ async function Painel({ searchParams }: { searchParams: Busca }) {
         Cada mudança fica registrada com quem fez, quando e por quê.
       </p>
 
+      {/* O filtro aberto, inteiro, em planilha (#345). `download`: o arquivo
+          vem com Content-Disposition, e o atributo so evita que um navegador
+          teimoso abra o CSV como texto na aba. */}
+      <p className="admin-exportar">
+        <a href={urlDaExportacao(filtro)} className="auth-link" download>
+          Exportar CSV
+        </a>
+      </p>
+
       {pedidos.length === 0 ? (
         <div className="pedidos-vazio">
           <p className="pedidos-vazio-titulo">
@@ -164,7 +178,10 @@ async function Painel({ searchParams }: { searchParams: Busca }) {
                 <article className={tom}>
                   <div className="pedido-topo">
                     <h2>
-                      <a href={`/conta/pedidos/${p.id}`}>Pedido #{p.numero}</a>
+                      {/* Para o detalhe do dono (#345). O do cliente filtra por
+                          `user_id`, e dava 404 em todo pedido que nao era
+                          dele. */}
+                      <a href={urlDoPedidoAdmin(p.id)}>Pedido #{p.numero}</a>
                     </h2>
                     <Selo rotulo={rotulo} tom={tom} />
                   </div>
@@ -174,6 +191,11 @@ async function Painel({ searchParams }: { searchParams: Busca }) {
                     {p.entrega_nome ? ` · ${p.entrega_nome}` : ''}
                     {p.entrega_cidade ? ` · ${p.entrega_cidade}/${p.entrega_uf ?? ''}` : ''}
                   </p>
+
+                  {/* O que separar da prateleira (#345). */}
+                  {p.order_items.length > 0 ? (
+                    <p className="admin-itens">{resumoDosItens(p.order_items)}</p>
+                  ) : null}
 
                   {/* O servico e a postagem que se compra para este
                       pedido (#199): PAC para quem escolheu PAC. */}
