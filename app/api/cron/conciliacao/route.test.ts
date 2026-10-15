@@ -176,10 +176,21 @@ describe('monitor do Sentry (#273)', () => {
     expect(statusDosCheckIns()).toEqual(['in_progress', 'error']);
   });
 
-  it('excecao no meio: check-in error e a excecao segue (vira 500)', async () => {
-    expiraVencidos.mockRejectedValueOnce(new Error('banco fora'));
+  // Banco fora: o supabase-js devolve `{ error }`, e e `concilia` (provado em
+  // conciliacao.test.ts) que transforma isso nesta excecao.
+  it('banco fora na conciliacao: check-in error, nao expira, e a excecao segue (vira 500)', async () => {
+    concilia.mockRejectedValueOnce(new Error('conciliacao: a varredura nao leu o banco'));
 
-    await expect(GET(pede(`Bearer ${SEGREDO}`))).rejects.toThrow('banco fora');
+    await expect(GET(pede(`Bearer ${SEGREDO}`))).rejects.toThrow('a varredura nao leu o banco');
+    expect(expiraVencidos).not.toHaveBeenCalled();
+    expect(statusDosCheckIns()).toEqual(['in_progress', 'error']);
+    expect(enviaDepois).toHaveBeenCalledTimes(1);
+  });
+
+  it('banco fora na expiracao: check-in error e a excecao segue (vira 500)', async () => {
+    expiraVencidos.mockRejectedValueOnce(new Error('expiracao: a varredura nao leu o banco'));
+
+    await expect(GET(pede(`Bearer ${SEGREDO}`))).rejects.toThrow('a varredura nao leu o banco');
     expect(statusDosCheckIns()).toEqual(['in_progress', 'error']);
     expect(enviaDepois).toHaveBeenCalledTimes(1);
   });

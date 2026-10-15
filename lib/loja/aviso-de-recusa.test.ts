@@ -48,6 +48,25 @@ describe('avisaRecusa', () => {
     expect(enviaDepois).toHaveBeenCalledTimes(ORCAMENTO_DE_AVISOS.maximo);
   });
 
+  // Com uma cota so, o robo sem assinatura gastava a janela e o segredo
+  // trocado no painel (`nao-confere`) nunca chegava ao Sentry.
+  it('rajada de robo sem assinatura nao esconde o primeiro nao-confere', async () => {
+    const { avisaRecusa, ORCAMENTO_DE_AVISOS } = await import('./aviso-de-recusa');
+
+    for (let i = 0; i < ORCAMENTO_DE_AVISOS.maximo + 20; i += 1) {
+      await avisaRecusa({ motivo: 'nao-assinado-fora-do-sandbox', assinatura: 'sem-assinatura' });
+    }
+    captureMessage.mockClear();
+
+    await avisaRecusa({ motivo: 'nao-assinado-fora-do-sandbox', assinatura: 'nao-confere' });
+
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+    expect(captureMessage).toHaveBeenCalledWith('webhook do mercado pago recusado', {
+      level: 'warning',
+      tags: { motivo: 'nao-assinado-fora-do-sandbox', assinatura: 'nao-confere' },
+    });
+  });
+
   it('o orcamento e pequeno: poucos por hora', async () => {
     const { ORCAMENTO_DE_AVISOS } = await import('./aviso-de-recusa');
 

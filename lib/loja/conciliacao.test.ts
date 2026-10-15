@@ -43,6 +43,8 @@ let repetidos = new Set<string>();
 let pedidoPendente = true;
 /** O status do pedido na releitura, quando o `update` nao alcancou nada. */
 let statusDoPedido: string | null = 'pago';
+/** Erro que o banco devolve na varredura (o supabase-js devolve, nao lanca). */
+let erroNaVarredura: Record<string, unknown> | null = null;
 
 function banco() {
   vi.mocked(clienteAdmin).mockReturnValue({
@@ -87,6 +89,7 @@ function banco() {
       elo.order = () => elo;
       elo.limit = (n: number) => {
         registra('limit', n);
+        if (erroNaVarredura) return Promise.resolve({ data: null, error: erroNaVarredura });
         return Promise.resolve({ data: selecionadas().slice(0, n), error: null });
       };
       elo.insert = (dados: Record<string, unknown>) => {
@@ -142,6 +145,7 @@ beforeEach(() => {
   repetidos = new Set();
   pedidoPendente = true;
   statusDoPedido = 'pago';
+  erroNaVarredura = null;
   vi.mocked(consultaOrdem).mockResolvedValue(APROVADO);
   vi.mocked(buscaOrdensPorReferencia).mockResolvedValue({ ok: true, ordens: [] });
   vi.mocked(cancelaOrdem).mockResolvedValue({ ok: true, status: 'canceled', statusDetail: null });
@@ -213,6 +217,17 @@ describe('quem a varredura olha', () => {
     const b = await concilia({ agoraMs: AGORA });
 
     expect(b).toEqual({ olhados: 2, mudados: 1, semAvanco: 0, repetidos: 0, falhas: 1 });
+  });
+});
+
+// Banco fora nao pode virar "nada pendente": o cron fecharia o check-in como
+// `ok` todo dia (#273).
+describe('banco fora', () => {
+  it('erro do banco na varredura lanca, e nao vira balanco zerado', async () => {
+    erroNaVarredura = { code: 'PGRST000', message: 'banco fora' };
+
+    await expect(concilia({ agoraMs: AGORA })).rejects.toThrow('a varredura nao leu o banco');
+    expect(consultaOrdem).not.toHaveBeenCalled();
   });
 });
 

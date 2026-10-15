@@ -103,9 +103,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ ok: true, ...balanco, expiracao });
   } catch (erro) {
-    // Excecao (banco fora, por exemplo) segue para o Sentry pelo caminho de
-    // sempre e vira 500; o check-in fecha como `error` para o monitor nao
-    // ficar `in_progress` ate estourar o `maxRuntime`.
+    // Excecao segue para o Sentry pelo caminho de sempre e vira 500; o
+    // check-in fecha como `error` para o monitor nao ficar `in_progress` ate
+    // estourar o `maxRuntime`. Banco fora chega aqui porque `concilia` e
+    // `expiraVencidos` transformam o `{ error }` da varredura em excecao: o
+    // supabase-js, sozinho, nao lanca.
     fecha('error');
     throw erro;
   }
