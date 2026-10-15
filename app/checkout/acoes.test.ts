@@ -182,6 +182,8 @@ describe('recusa', () => {
   // Nenhuma mensagem conta o que o catalogo tem ou deixa de ter.
   it.each([
     ['produto-indisponivel', /não está disponível/i],
+    // Aponta o pedido que ja existe: e la que a pessoa paga (#296).
+    ['pedido-em-aberto', /esperando pagamento.*meus pedidos/i],
     ['catalogo-indisponivel', /catálogo/i],
     ['nao-consegui-gravar', /não consegui criar/i],
   ])('traduz %s para a pessoa', async (motivo, padrao) => {
@@ -283,14 +285,16 @@ describe('escolha do frete (#199)', () => {
     expect(JSON.stringify(r)).not.toContain(motivo);
   });
 
-  it.each(['produto-indisponivel', 'catalogo-indisponivel', 'nao-consegui-gravar'] as const)(
-    '%s nao mexe no frete da tela',
-    async (motivo) => {
-      vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo });
+  it.each([
+    'produto-indisponivel',
+    'pedido-em-aberto',
+    'catalogo-indisponivel',
+    'nao-consegui-gravar',
+  ] as const)('%s nao mexe no frete da tela', async (motivo) => {
+    vi.mocked(criaPedido).mockResolvedValue({ ok: false, motivo });
 
-      expect((await enviar()).recotarFrete).toBe(false);
-    }
-  );
+    expect((await enviar()).recotarFrete).toBe(false);
+  });
 
   it('a escolha que faltou nao recota: o que falta e a pessoa marcar', async () => {
     const r = await enviar({ servico: '' });

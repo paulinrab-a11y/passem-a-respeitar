@@ -16,8 +16,8 @@ import 'server-only';
  * O client aqui e o publishable, igual ao do navegador. Nao e descuido: o
  * catalogo e publico, e a RLS ja limita as linhas as ativas e o GRANT ja limita
  * as colunas. `estoque` nao esta concedido para este papel e por isso nao e
- * lido aqui — quem vai precisar do numero e a criacao do pedido da #100, com a
- * chave secreta.
+ * lido aqui — quem confere e baixa o numero e `cria_pedido`, no banco, na
+ * mesma transacao que grava o pedido (#296).
  */
 
 import {
