@@ -8,6 +8,7 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
+import { cache } from 'react';
 import { COOKIE_LEMBRAR, opcoesDoCookie } from './cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from './env';
 import type { Database } from './tipos';
@@ -134,10 +135,17 @@ export async function clienteServidor() {
  *
  * Cookie chega do navegador, e o que chega do navegador e afirmacao, nao fato.
  * `getSession()` no servidor aceita um token forjado; `getUser()` nao.
+ *
+ * Uma ida ao Supabase Auth por renderizacao (#374): `cache()` do React guarda
+ * a resposta enquanto a pagina renderiza, e as chamadas seguintes da mesma
+ * pagina (o `meuPedido` e a tela de pagamento, por exemplo) reaproveitam.
+ * Fora de renderizacao — Server Action, Route Handler — o `cache()` nao
+ * guarda nada e cada chamada confere de novo, que e o certo para quem acabou
+ * de entrar ou sair.
  */
-export async function usuarioDaSessao() {
+export const usuarioDaSessao = cache(async () => {
   const supabase = await clienteServidor();
   const { data, error } = await supabase.auth.getUser();
   if (error) return null;
   return data.user;
-}
+});

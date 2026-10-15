@@ -101,6 +101,7 @@ function criaOrdem(corpo) {
     processing_mode: corpo.processing_mode,
     external_reference: corpo.external_reference,
     total_amount: corpo.total_amount,
+    currency: 'BRL',
     created_date: new Date().toISOString(),
     status: 'created',
     status_detail: 'created',
