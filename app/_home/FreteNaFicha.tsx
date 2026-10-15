@@ -2,8 +2,8 @@
 
 import { useEffect, useId } from 'react';
 import Mensagem from '@/app/_ui/Mensagem';
-import { reais } from '@/lib/conta/pedidos';
-import { cepLegivel } from '@/lib/loja/endereco';
+import { reais } from '@/lib/dinheiro';
+import { cepLegivel } from '@/lib/loja/cep';
 import { cotarFreteNaFicha } from './acoes';
 import {
   chaveDoFrete,

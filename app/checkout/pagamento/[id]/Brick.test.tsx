@@ -250,6 +250,28 @@ describe('depois de enviar o pagamento', () => {
     expect(mp.props?.onSubmit).toBe(antes?.onSubmit);
   });
 
+  // A recusa entrava acima do formulario sem lugar reservado e o empurrava
+  // para baixo, com o cartao digitado (#346). O lugar existe antes do erro, e
+  // o erro entra dentro dele, antes do formulario.
+  it('o erro entra num lugar ja reservado, acima do formulario', async () => {
+    servidorResponde({ erro: 'O pagamento não foi aprovado.' }, 402);
+    const { container } = monta();
+    const vaga = container.querySelector('.brick > .erro-vaga');
+
+    expect(vaga).not.toBeNull();
+    expect(vaga?.textContent).toBe('');
+    expect(vaga?.nextElementSibling?.classList.contains('brick-pilha')).toBe(true);
+
+    await act(async () => {
+      await expect(envia()).rejects.toThrow('recusado');
+    });
+
+    expect(container.querySelector('.brick > .erro-vaga')).toBe(vaga);
+    expect(vaga?.querySelector('.conta-recado.erro[role="alert"]')?.textContent).toBe(
+      'O pagamento não foi aprovado.'
+    );
+  });
+
   it('rede fora avisa e fica na tela', async () => {
     vi.stubGlobal('fetch', () => Promise.reject(new Error('sem rede')));
     const { container } = monta();
@@ -313,6 +335,26 @@ describe('Pix pendente de volta', () => {
 
 describe('estilo do lugar reservado', () => {
   const css = readFileSync('app/globals.css', 'utf8');
+
+  // #346: o esqueleto sai com fade, e a visibilidade so vira no fim dele.
+  it('o esqueleto some no fim do fade, nao no primeiro quadro', () => {
+    expect(css).toMatch(
+      /\.esq-brick\{[^}]*transition:opacity \.15s cubic-bezier\(\.4,0,1,1\),visibility 0s linear \.15s\}/
+    );
+  });
+
+  // #346: o Pix trocava seco o formulario. Entra como as telas de conta; com
+  // movimento reduzido, so o fade.
+  it('o Pix entra com auth-entra, e so com fade quando o movimento e reduzido', () => {
+    expect(css).toMatch(
+      /\.pix\{[^}]*animation:auth-entra \.24s cubic-bezier\(\.22,1,\.36,1\) backwards\}/
+    );
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion:reduce\)\{\s*\.pix\{animation-name:so-fade\}/
+    );
+    expect(css).toContain('@keyframes auth-entra{');
+    expect(css).toContain('@keyframes so-fade{');
+  });
 
   it('a altura reservada e a do formulario medido: 359px', () => {
     expect(css).toContain('.brick-pilha{display:grid;min-height:359px}');

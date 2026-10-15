@@ -2,7 +2,7 @@
 
 import CodigoDeConfirmacao from '@/app/_ui/CodigoDeConfirmacao';
 import type { EstadoCodigo } from '@/app/_ui/estado-do-codigo';
-import { CODIGO_DIGITOS } from '@/lib/esquemas';
+import { CODIGO_DIGITOS } from '@/lib/conta/codigo-digitos';
 import { confirmarCadastro, reenviarCodigo } from './acoes';
 
 /**
