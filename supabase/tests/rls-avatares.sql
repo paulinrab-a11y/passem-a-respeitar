@@ -1,8 +1,8 @@
 -- Issues #35 e #26 — teste de RLS do bucket de avatares.
 --
--- Pressupoe que existe um perfil com foto. Rode depois de subir uma foto pela
--- tela de conta, trocando o uuid do `dono` abaixo, ou adapte para criar a
--- linha em storage.objects direto.
+-- O cenario nasce aqui dentro (#335): um dono com foto no bucket e um intruso.
+-- Tudo termina em `rollback`, entao nada sobra no banco. Roda no CI por
+-- `npm run banco:testes`, e continua podendo ser colado no SQL Editor.
 --
 -- Como sempre: todo assert acontece depois de `set local role authenticated`.
 -- Rodando como postgres a RLS e ignorada e o teste passaria com o bucket
@@ -20,10 +20,22 @@ declare
   caminho text;
   n int;
 begin
-  select foto_caminho into caminho from public.profiles where id = dono;
-  if caminho is null then
-    raise exception 'o usuario % nao tem foto; suba uma antes de rodar este teste', dono;
-  end if;
+  -- ---------------------------------------------------------------------
+  -- Cenario, como postgres: o dono e a foto dele, como a rota de upload faz
+  -- ---------------------------------------------------------------------
+  insert into auth.users
+    (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+     created_at, updated_at, raw_app_meta_data, raw_user_meta_data,
+     confirmation_token, recovery_token, email_change_token_new,
+     email_change_token_current, email_change, phone_change,
+     phone_change_token, reauthentication_token)
+  values ('00000000-0000-0000-0000-000000000000', dono, 'authenticated', 'authenticated',
+    'dono-avatar@teste.invalid', 'sem-login-neste-teste', now(), now(), now(), '{}', '{}',
+    '', '', '', '', '', '', '', '');
+
+  caminho := dono::text || '/' || gen_random_uuid()::text || '.webp';
+  insert into storage.objects (bucket_id, name, owner) values ('avatares', caminho, dono);
+  update public.profiles set foto_caminho = caminho where id = dono;
 
   insert into auth.users
     (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -71,7 +83,6 @@ begin
 
   reset role;
   perform set_config('request.jwt.claims', null, true);
-  delete from auth.users where id = intruso;
 end;
 $$;
 
@@ -79,4 +90,6 @@ select case when passou then 'ok' else 'FALHA' end as res, caso, esperado, obtid
 
 select count(*) filter (where passou) as passou, count(*) filter (where not passou) as falhou from r;
 
-commit;
+-- Rollback, e nao commit: o cenario inteiro (usuarios, foto, objeto no
+-- bucket) e deste teste e vai embora com ele.
+rollback;

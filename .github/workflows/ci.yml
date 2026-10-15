@@ -176,6 +176,12 @@ jobs:
             echo "::error file=lib/supabase/tipos.ts::Tipos desatualizados. Rode npm run e2e:banco e npm run tipos:gerar e commite o arquivo."
             exit 1
           fi
+      # Os testes de RLS e das travas de EXECUTE (supabase/tests/*.sql), no
+      # banco que acabou de nascer das migrations (#335). Antes so rodavam
+      # colados na mao no SQL Editor. Cada arquivo cria o proprio cenario e
+      # desfaz o que criou; `FALHA`, consulta sem linha ou erro de SQL reprova.
+      - name: Testes SQL do banco
+        run: npm run banco:testes
       # Navegador em cache, chave pela versao exata do Playwright (#251). O
       # binario e o que mais demora para baixar; as dependencias do sistema
       # (apt) nao vao para o cache e sao instaladas sempre.

@@ -39,6 +39,8 @@ export default defineConfig({
       'app/**/*.test.{ts,tsx}',
       'proxy.test.ts',
       'playwright.config.test.ts',
+      // A leitura da saida do psql dos testes SQL (#335).
+      'supabase/**/*.test.ts',
     ],
     coverage: {
       provider: 'v8',

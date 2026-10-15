@@ -34,6 +34,7 @@ const ARQUIVOS = [
   'pagamento',
   'loja-no-celular',
   'pre-sequestro',
+  'conta',
 ] as const;
 
 export function visitante(arquivo: (typeof ARQUIVOS)[number]) {

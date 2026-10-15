@@ -5,6 +5,15 @@ import { visitante } from './apoio/visitante';
 test.use({ extraHTTPHeaders: visitante('home') });
 
 /**
+ * O script da home terminou de subir: o HomeRuntime marca o `<html>` depois
+ * do init, do concierge e da ancora, com sucesso ou nao (#335). O chunk do
+ * three por software no CI leva segundos.
+ */
+async function esperaHomePronta(page: Page) {
+  await expect(page.locator('html')).toHaveAttribute('data-home', 'pronta', { timeout: 30_000 });
+}
+
+/**
  * A home, no build de producao.
  *
  * Nao e teste de animacao: nenhum teste automatico pega regressao de
@@ -26,9 +35,10 @@ test('home: abre sem erro de script e sem violar a politica de seguranca', async
   expect(resposta?.status()).toBe(200);
   await expect(page).toHaveTitle(/Passem a Respeitar/i);
 
-  // Tempo para o script da home subir e pedir o que pede.
-  await page.waitForLoadState('load');
-  await page.waitForTimeout(1500);
+  // O script da home marca quando terminou de subir (#335): init, concierge e
+  // ancora feitos. So depois disso "nenhum erro" e "nada barrado" afirmam
+  // alguma coisa; um tempo fixo terminava antes do script numa maquina lenta.
+  await esperaHomePronta(page);
 
   expect(barrados).toEqual([]);
   expect(erros).toEqual([]);
@@ -53,10 +63,19 @@ test('home: os cabecalhos de seguranca saem no build de producao', async ({ requ
 });
 
 test('assets de public: cache no navegador e headers de seguranca (#312)', async ({ request }) => {
-  for (const caminho of ['/merch/camiseta.gltf', '/brasao.png']) {
+  // O modelo 3D inteiro: o .gltf aponta para o .bin e para as duas texturas,
+  // e qualquer um que falte deixa a vitrine na silhueta (#335).
+  for (const [caminho, tipo] of [
+    ['/merch/camiseta.gltf', /gltf|json/],
+    ['/merch/camiseta.bin', /octet-stream/],
+    ['/merch/camiseta-cor.webp', /image\/webp/],
+    ['/merch/camiseta-normal.webp', /image\/webp/],
+    ['/brasao.png', /image\/png/],
+  ] as const) {
     const resposta = await request.get(caminho);
     expect(resposta.status(), caminho).toBe(200);
     const cabecalhos = resposta.headers();
+    expect(cabecalhos['content-type'], caminho).toMatch(tipo);
     expect(cabecalhos['cache-control'], caminho).toBe(
       'public, max-age=86400, stale-while-revalidate=604800'
     );
@@ -146,17 +165,14 @@ test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({
   // Cada elemento baixa quando o elo dele chega perto (#47): e preciso passar
   // por eles.
   // Os cinco elementos moram nos cinco primeiros elos.
+  // Espera o pedido de cada um, e nao um tempo fixo entre as rolagens (#335).
   for (let i = 1; i <= 5; i++) {
     await page.locator(`#elo-${i}`).scrollIntoViewIfNeeded();
-    await page.waitForTimeout(250);
+    await expect.poll(() => pedidos.length).toBeGreaterThanOrEqual(i);
   }
 
-  await expect.poll(() => pedidos.length).toBeGreaterThanOrEqual(5);
-  // Folga para um PNG de reserva aparecer, se fosse aparecer: ele so e pedido
-  // quando o navegador nao consegue abrir o WebP.
-  await page.waitForTimeout(1000);
-
-  expect(pedidos.map((p) => p.caminho).sort()).toEqual([
+  const caminhos = pedidos.map((p) => p.caminho);
+  expect([...caminhos].sort()).toEqual([
     '/elementos/corrente.webp',
     '/elementos/mao.webp',
     '/elementos/p.webp',
@@ -167,6 +183,23 @@ test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({
     expect(pedido.status, pedido.caminho).toBe(200);
     expect(pedido.tipo, pedido.caminho).toBe('image/webp');
   }
+
+  // Um PNG de reserva so seria pedido se o navegador nao abrisse o WebP. Em
+  // vez de esperar um tempo para ver se ele aparece, prova-se a causa: os
+  // cinco WebP decodificam neste navegador.
+  const decodificados = await page.evaluate(
+    (urls) =>
+      Promise.all(
+        urls.map(async (url) => {
+          const img = new Image();
+          img.src = url;
+          await img.decode();
+          return img.naturalWidth > 0;
+        })
+      ),
+    caminhos
+  );
+  expect(decodificados).toEqual([true, true, true, true, true]);
 });
 
 /**

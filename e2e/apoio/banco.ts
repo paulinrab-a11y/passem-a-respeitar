@@ -240,6 +240,33 @@ export async function emailDoUsuario(id: string) {
   return data.user.email ?? '';
 }
 
+/** A conta ainda existe no Auth? Lido do banco, nao da tela (#335). */
+export async function usuarioExiste(id: string) {
+  const { data, error } = await admin().auth.admin.getUserById(id);
+  if (error && error.status !== 404) throw new Error(`nao li o usuario: ${error.message}`);
+  return Boolean(data?.user);
+}
+
+/** De quem e o pedido e se foi anonimizado, lido do banco (#335). */
+export async function leDonoDoPedido(id: string) {
+  const { data, error } = await admin()
+    .from('orders')
+    .select('user_id, anonimizado_em, total_centavos')
+    .eq('id', id)
+    .single();
+  if (error || !data) throw new Error(`nao li o pedido: ${error?.message}`);
+  return data;
+}
+
+/**
+ * Apaga um pedido pelo id. O pedido de quem excluiu a conta fica sem dono, e
+ * `apagaUsuariosDaSuite` acha pedido pelo dono: este so sai por aqui.
+ */
+export async function apagaPedido(id: string) {
+  const { error } = await admin().from('orders').delete().eq('id', id);
+  if (error) throw new Error(`nao apaguei o pedido: ${error.message}`);
+}
+
 /** O usuario com este e-mail confirmou o endereco? Lido do banco, nao da tela. */
 export async function emailConfirmado(email: string) {
   const { data, error } = await admin().auth.admin.listUsers({ perPage: 200 });
@@ -263,7 +290,8 @@ export async function apagaUsuariosDaSuite() {
   for (const u of data.users) {
     if (!u.email?.endsWith(`@${DOMINIO}`)) continue;
 
-    // `orders.user_id` e `on delete restrict`: pedido primeiro.
+    // `orders.user_id` e `on delete set null` (#39): apagar so o usuario
+    // deixaria os pedidos de teste no banco, sem dono. Pedido primeiro.
     await banco.from('orders').delete().eq('user_id', u.id);
     const { error: e } = await banco.auth.admin.deleteUser(u.id);
     if (e) throw new Error(`nao apaguei ${u.id}: ${e.message}`);

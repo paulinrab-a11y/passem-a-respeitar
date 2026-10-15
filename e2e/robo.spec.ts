@@ -317,7 +317,10 @@ test('convite: a home so carrega a Cloudflare quando a pessoa chega no campo', a
   await page.goto('/');
   await page.locator('#skip').click();
   await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
-  await page.waitForTimeout(1500);
+  // O script da home inteiro ja subiu (#335): convite, concierge e ancora
+  // ligados. Se algum deles pedisse a Cloudflare sem a pessoa chegar no
+  // campo, o pedido ja teria saido; um tempo fixo podia acabar antes.
+  await expect(page.locator('html')).toHaveAttribute('data-home', 'pronta', { timeout: 30_000 });
   expect(pedidos).toEqual([]);
 
   const campo = page.locator('#cod');

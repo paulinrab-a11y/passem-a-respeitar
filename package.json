@@ -21,6 +21,7 @@
     "test:e2e": "playwright test",
     "e2e:banco": "supabase start",
     "e2e:banco:parar": "supabase stop",
+    "banco:testes": "node supabase/tests/rodar.mjs",
     "tipos:gerar": "node supabase/tipos-gerar.mjs",
     "emails:gera": "node supabase/templates/gera.mjs"
   },
