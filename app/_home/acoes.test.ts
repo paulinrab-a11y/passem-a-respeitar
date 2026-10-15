@@ -92,6 +92,32 @@ describe('cotarFreteNaFicha', () => {
     expect((await cotar()).ok).toBe(false);
   });
 
+  it('repetir o CEP do cache acaba barrado pelo teto geral do IP (#308)', async () => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({
+      ok: true,
+      subtotalCentavos: 12000,
+      opcoes: [SEDEX],
+    });
+    for (let i = 0; i < 120; i++) expect((await cotar()).ok).toBe(true);
+
+    expect(await cotar()).toEqual({
+      ok: false,
+      texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.',
+    });
+    // Barrado antes de ler catalogo e cache.
+    expect(opcoesDeFrete).toHaveBeenCalledTimes(120);
+  });
+
+  it('erro de catalogo tambem conta no teto geral (#308)', async () => {
+    vi.mocked(opcoesDeFrete).mockResolvedValue({ ok: false, motivo: 'frete-fora-do-ar' });
+    for (let i = 0; i < 120; i++) await cotar();
+    expect(await cotar()).toEqual({
+      ok: false,
+      texto: 'Muitas consultas de frete. Tente de novo em alguns minutos.',
+    });
+    expect(opcoesDeFrete).toHaveBeenCalledTimes(120);
+  });
+
   it('o limite de um IP nao atinge outro', async () => {
     for (let i = 0; i < 21; i++) await cotar();
     cabecalhos = new Headers({ 'x-forwarded-for': '198.51.100.250' });

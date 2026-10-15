@@ -25,6 +25,14 @@ import { ipDoRequest, limita } from '@/lib/rate-limit';
 /** Vinte por IP a cada dez minutos. Quem digita o CEP errado duas vezes nem chega perto. */
 const LIMITE = { maximo: 20, janelaMs: 10 * 60 * 1000 };
 
+/**
+ * Teto de qualquer chamada, venha do cache ou nao: o cache poupa o Melhor
+ * Envio, mas cada chamada ainda le o catalogo no Supabase e o cache no
+ * Upstash. Folgado para duas fichas na home e um CEP digitado de novo varias
+ * vezes; apertado o bastante para um script repetindo o mesmo CEP parar.
+ */
+const LIMITE_TOTAL = { maximo: 120, janelaMs: 10 * 60 * 1000 };
+
 export type FreteNaFicha = { ok: true; opcoes: OpcaoDeFrete[] } | { ok: false; texto: string };
 
 export async function cotarFreteNaFicha(bruto: {
@@ -44,10 +52,13 @@ export async function cotarFreteNaFicha(bruto: {
   });
   if (!item.success) return { ok: false, texto: RECADOS_DO_FRETE['frete-fora-do-ar'] };
 
-  // A cota so e descontada quando a consulta vai mesmo ao Melhor Envio
-  // (#308): CEP que ja esta no cache, ou cuja cotacao ja esta no ar, nao gasta
-  // uma das vinte.
   const ip = ipDoRequest(await headers());
+  const total = await limita(`frete-ficha-total:${ip}`, LIMITE_TOTAL.maximo, LIMITE_TOTAL.janelaMs);
+  if (!total.permitido) return { ok: false, texto: RECADOS_DO_FRETE['frete-limite'] };
+
+  // A cota apertada so e descontada quando a consulta vai mesmo ao Melhor
+  // Envio (#308): CEP que ja esta no cache, ou cuja cotacao ja esta no ar, nao
+  // gasta uma das vinte.
   const descontaCota = async () =>
     (await limita(`frete-ficha:${ip}`, LIMITE.maximo, LIMITE.janelaMs)).permitido;
 
