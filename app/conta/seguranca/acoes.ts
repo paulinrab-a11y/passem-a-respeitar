@@ -159,6 +159,12 @@ export async function encerrarSessao(
     p_identificador: identificador,
   });
 
+  // O banco tambem confere a janela (#349). Se ela venceu entre a conferencia
+  // acima e esta chamada, a resposta e pedir a senha, nao "deu erro".
+  if (error?.code === '42501') {
+    return { recado: null, encerrado: null, precisaReautenticar: true };
+  }
+
   if (error) {
     return { recado: { tom: 'erro', texto: 'Não consegui encerrar agora.' }, encerrado: null };
   }
