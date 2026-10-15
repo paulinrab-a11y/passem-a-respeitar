@@ -16,10 +16,14 @@ vi.mock('@/lib/conta/reautenticacao', () => ({
 
 let fotoCaminho: string | null = null;
 const remove = vi.fn(async (_: string[]) => ({ error: null }));
+const signOut = vi.fn(async (_: { scope: string }) => ({
+  error: null as { message: string } | null,
+}));
 
 vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
   clienteServidor: async () => ({
+    auth: { signOut },
     storage: { from: () => ({ remove }) },
     from: () => ({
       select: () => ({
@@ -75,6 +79,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   confere.mockResolvedValue('certa');
   deleteUser.mockResolvedValue({ error: null });
+  signOut.mockResolvedValue({ error: null });
   fotoCaminho = null;
   // Usuario novo a cada caso: o rate limit guarda estado no modulo.
   usuario = { id: `1111-${n++}`, email: EMAIL };
@@ -196,6 +201,44 @@ describe('o que some e o que fica', () => {
   });
 });
 
+describe('sessoes encerradas antes de apagar (#309)', () => {
+  it('encerra todas as sessoes, de todos os aparelhos', async () => {
+    await expect(excluirConta(exclusaoInicial, certo())).rejects.toThrow('redirect:');
+    expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
+  it('encerra ANTES de apagar o usuario', async () => {
+    await expect(excluirConta(exclusaoInicial, certo())).rejects.toThrow();
+    expect(signOut.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteUser.mock.invocationCallOrder[0]
+    );
+  });
+
+  // A foto sai com a sessao viva: a policy do storage reconhece o dono pelo
+  // JWT, e depois do signOut ele nao valeria mais.
+  it('encerra DEPOIS de apagar a foto', async () => {
+    fotoCaminho = `${usuario?.id}/abc.webp`;
+    await expect(excluirConta(exclusaoInicial, certo())).rejects.toThrow();
+    expect(remove.mock.invocationCallOrder[0]).toBeLessThan(signOut.mock.invocationCallOrder[0]);
+  });
+
+  it('se nao deu para encerrar, nada e apagado', async () => {
+    signOut.mockResolvedValue({ error: { message: 'gotrue fora do ar' } });
+    const r = await excluirConta(exclusaoInicial, certo());
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).not.toMatch(/gotrue/);
+    expect(deleteUser).not.toHaveBeenCalled();
+    expect(jarDelete).not.toHaveBeenCalled();
+  });
+
+  it('nao encerra nada com a senha errada', async () => {
+    confere.mockResolvedValue('errada');
+    await excluirConta(exclusaoInicial, certo());
+    expect(signOut).not.toHaveBeenCalled();
+  });
+});
+
 describe('quando o Supabase recusa', () => {
   it('avisa sem repassar a mensagem dele', async () => {
     deleteUser.mockResolvedValue({ error: { message: 'user_not_found or db error' } });
@@ -203,6 +246,8 @@ describe('quando o Supabase recusa', () => {
 
     expect(r.recado?.tom).toBe('erro');
     expect(r.recado?.texto).not.toMatch(/user_not_found/);
+    // A sessao ja foi encerrada: o recado diz para entrar de novo.
+    expect(r.recado?.texto).toMatch(/Entre de novo/);
   });
 
   it('nao limpa cookie se a exclusao falhou', async () => {

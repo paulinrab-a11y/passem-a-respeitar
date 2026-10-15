@@ -9,7 +9,7 @@ import { baseDoSite } from '@/lib/base-do-site';
  * Sem `lastModified`: nao ha data honesta para pagina dinamica, e inventar uma
  * faz o Google desconfiar do campo no site inteiro.
  */
-export const PAGINAS_PUBLICAS = ['/', '/privacidade'];
+export const PAGINAS_PUBLICAS = ['/', '/privacidade', '/termos'];
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL);

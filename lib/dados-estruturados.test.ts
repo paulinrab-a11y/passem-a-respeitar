@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { grafoDoSite, serializaJsonLd } from './dados-estruturados';
+import { ARREPENDIMENTO_DIAS } from './loja/termos';
 
 const BASE = new URL('https://www.cbacoccupation.com.br');
 const camiseta = {
@@ -43,6 +44,9 @@ describe('grafoDoSite (#322)', () => {
       name: 'Whynot Visuals',
       sameAs: ['https://instagram.com/whynotvisuals_'],
     });
+    // Este site e do EP, nao do selo.
+    expect(doTipo(g, 'Organization')).not.toHaveProperty('url');
+    expect(doTipo(g, 'WebSite')).toMatchObject({ alternateName: 'Passem a Respeitar' });
     expect(doTipo(g, 'WebSite')).toMatchObject({
       inLanguage: 'pt-BR',
       publisher: { '@id': 'https://www.cbacoccupation.com.br/#organizacao' },
@@ -60,6 +64,23 @@ describe('grafoDoSite (#322)', () => {
         price: '120.00',
         priceCurrency: 'BRL',
         availability: 'https://schema.org/MadeToOrder',
+      },
+    });
+  });
+
+  // A devolucao que o /termos promete, no formato do Google Merchant.
+  it('oferta nova, com a politica de devolucao dos termos', () => {
+    const oferta = doTipo(grafoDoSite(entrada), 'Product')?.offers;
+    expect(oferta).toMatchObject({
+      itemCondition: 'https://schema.org/NewCondition',
+      hasMerchantReturnPolicy: {
+        '@type': 'MerchantReturnPolicy',
+        applicableCountry: 'BR',
+        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+        merchantReturnDays: ARREPENDIMENTO_DIAS,
+        returnFees: 'https://schema.org/FreeReturn',
+        refundType: 'https://schema.org/FullRefund',
+        merchantReturnLink: 'https://www.cbacoccupation.com.br/termos#arrependimento',
       },
     });
   });

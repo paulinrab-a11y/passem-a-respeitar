@@ -83,7 +83,9 @@ describe('matcher do proxy', () => {
 
 describe('headers dos assets', () => {
   it.each(ASSETS)('%s ganha cache no navegador, sem immutable', async (caminho) => {
-    // favicon.ico nao existe em public/ (fica com a #42); o resto e cacheado.
+    // favicon.ico vem de app/favicon.ico (#318): rota de metadata do Next, que
+    // poe o proprio Cache-Control (max-age=0, must-revalidate). O resto e
+    // cacheado.
     if (caminho === '/favicon.ico') return;
     const h = await cabecalhosDe(caminho);
     expect(h['cache-control']).toBe(CACHE_DE_ASSET);
