@@ -192,14 +192,20 @@ export default function Termos() {
         <section className="detalhe-bloco" id="como-pedir">
           <h2>Como pedir</h2>
           <p className="detalhe-nota">
-            Para cancelar, desistir, avisar de defeito ou trocar, escreva para{' '}
-            <a href={`mailto:${CONTATO}`}>{CONTATO}</a> com o número do pedido — ele está em{' '}
-            <a href="/conta/pedidos">Meus pedidos</a>. Se for defeito, mande uma foto.
+            Pelo site: em <a href="/conta/pedidos">Meus pedidos</a>, abra o pedido e use o botão do
+            que você precisa — “Pedir cancelamento” antes do envio; “Quero desistir da compra”,
+            “Trocar o tamanho” ou “Avisar de defeito” depois da entrega. A tela confirma na hora que
+            recebemos e mostra o número de protocolo, que fica guardado no pedido.
           </p>
           <p className="detalhe-nota">
-            Assim que o seu e-mail chega, respondemos confirmando o recebimento. A solução vem em
-            até {RESPOSTA_DIAS_UTEIS} dias úteis. O site não manda e-mail sozinho sobre pedidos: o
-            que vale é a conversa por esse endereço.
+            Se preferir, escreva para <a href={`mailto:${CONTATO}`}>{CONTATO}</a> com o número do
+            pedido. Se for defeito, mande uma foto. Assim que o seu e-mail chega, respondemos
+            confirmando o recebimento.
+          </p>
+          <p className="detalhe-nota">
+            A solução vem em até {RESPOSTA_DIAS_UTEIS} dias úteis. O site não manda e-mail sozinho
+            sobre pedidos: a confirmação é a da tela, com o protocolo, ou a nossa resposta ao seu
+            e-mail.
           </p>
         </section>
 

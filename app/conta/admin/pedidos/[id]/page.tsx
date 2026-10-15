@@ -9,6 +9,7 @@ import {
   quemLer,
 } from '@/lib/conta/pedido-admin';
 import { pareceUuid } from '@/lib/conta/pedidos';
+import { mapeiaSolicitacoes, NOME_DO_TIPO } from '@/lib/conta/pos-venda';
 import { formataDataHora } from '@/lib/datas';
 import { ehStatusPedido } from '@/lib/loja/status-do-pedido';
 import { ENTRAR } from '@/lib/rotas';
@@ -17,6 +18,7 @@ import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import Rastreio from '../../../Rastreio';
 import CopiarEndereco from '../CopiarEndereco';
 import MudarStatus from '../MudarStatus';
+import ResolverSolicitacao from '../ResolverSolicitacao';
 import Selo from '../Selo';
 
 export const dynamic = 'force-dynamic';
@@ -79,6 +81,14 @@ export default async function PedidoAdmin({ params }: { params: Promise<{ id: st
   // O e-mail do comprador e de quem aparece na trilha. Um uuid por chamada,
   // em paralelo; sao dois ou tres. Falha de leitura vira "sem e-mail", nunca
   // tela quebrada: o resto do pedido continua valendo.
+  // As solicitacoes de pos-venda (#379) numa consulta a parte, e nao
+  // embutidas no pedido: sem a tabela (migration ainda nao aplicada), o resto
+  // do pedido continua de pe e so este bloco some.
+  const pedindo = admin
+    .from('solicitacoes_pos_venda')
+    .select('id, tipo, protocolo, criado_em, resolvida_em, mensagem')
+    .eq('order_id', id);
+
   const lidos = await Promise.all(
     quemLer(linha).map(async (uid) => {
       const { data: conta } = await admin.auth.admin.getUserById(uid).catch(() => ({
@@ -89,6 +99,10 @@ export default async function PedidoAdmin({ params }: { params: Promise<{ id: st
     })
   );
   const emails = new Map(lidos.filter((l) => l !== null));
+
+  const { data: pedidas, error: erroDasPedidas } = await pedindo;
+  if (erroDasPedidas) console.warn('[admin] solicitacoes indisponiveis:', erroDasPedidas.code);
+  const solicitacoes = erroDasPedidas ? null : mapeiaSolicitacoes(pedidas ?? []);
 
   const pedido = mapeiaPedidoDoPainel(linha, emails);
   const linhas = pedido.entrega ? linhasDaEntrega(pedido.entrega) : [];
@@ -187,6 +201,40 @@ export default async function PedidoAdmin({ params }: { params: Promise<{ id: st
         {/* O codigo que o cliente esta vendo (#378): e o que o dono confere
             quando a pessoa pergunta onde esta o pacote. */}
         {pedido.rastreio ? <Rastreio rastreio={pedido.rastreio} /> : null}
+
+        {/* O que o cliente pediu pelo site (#379), antes do status: e o que
+            decide o proximo clique. Reembolsar ou cancelar encerra as abertas
+            sozinho; o resto o dono marca aqui. */}
+        {solicitacoes && solicitacoes.length > 0 ? (
+          <section className="detalhe-bloco" aria-labelledby="solicitacoes">
+            <h2 id="solicitacoes">Pedidos do cliente</h2>
+            <ul className="pos-venda-lista">
+              {solicitacoes.map((s) => (
+                <li key={s.protocolo}>
+                  <span className="pos-venda-lista-nome">
+                    {NOME_DO_TIPO[s.tipo]} · protocolo{' '}
+                    <strong className="pos-venda-protocolo">{s.protocolo}</strong>
+                    {s.resolvidaEm ? null : <span className="admin-aberta"> · aberta</span>}
+                  </span>
+                  <span className="pos-venda-lista-quando">
+                    Pedido em <time dateTime={s.criadoEm}>{formataDataHora(s.criadoEm)}</time>
+                    {s.resolvidaEm ? (
+                      <>
+                        {' '}
+                        · encerrado em{' '}
+                        <time dateTime={s.resolvidaEm}>{formataDataHora(s.resolvidaEm)}</time>
+                      </>
+                    ) : null}
+                  </span>
+                  {s.mensagem ? <q className="pos-venda-mensagem">{s.mensagem}</q> : null}
+                  {!s.resolvidaEm && s.id ? (
+                    <ResolverSolicitacao pedido={id} solicitacao={s.id} protocolo={s.protocolo} />
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <section className="detalhe-bloco">
           <h2>Status</h2>

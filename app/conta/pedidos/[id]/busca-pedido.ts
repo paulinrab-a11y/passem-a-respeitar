@@ -44,9 +44,10 @@ export async function meuPedido(id: string): Promise<Resultado> {
     // entrou na #242: e a unica tela em que a pessoa confere para onde a
     // camiseta vai, e e dela — o filtro por `user_id` logo abaixo vale para as
     // oito colunas como para o resto. O rastreio entrou na #378: e o codigo
-    // do pacote dela.
+    // do pacote dela. As solicitacoes (#379) sao as dela: a RLS da tabela
+    // filtra por `user_id`, alem do filtro do pedido.
     .select(
-      'id, numero, criado_em, status, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, rastreio_codigo, rastreio_url, order_items(id, produto_slug, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(para, criado_em)'
+      'id, numero, criado_em, status, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, rastreio_codigo, rastreio_url, order_items(id, produto_slug, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(para, criado_em), solicitacoes_pos_venda(tipo, protocolo, criado_em, resolvida_em, mensagem)'
     )
     .eq('id', id)
     .eq('user_id', usuario.id)

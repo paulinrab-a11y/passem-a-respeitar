@@ -42,8 +42,8 @@ const { clienteAdmin } = await import('@/lib/supabase/admin');
 const { cancelaOrdem, consultaOrdem, localizaOrdem, reembolsaOrdem } = await import(
   '@/lib/loja/orders-api'
 );
-const { mudarStatus, reautenticarEMudar } = await import('./acoes');
-const { adminInicial } = await import('./estado');
+const { mudarStatus, reautenticarEMudar, resolverSolicitacao } = await import('./acoes');
+const { adminInicial, resolverInicial } = await import('./estado');
 
 const ADMIN = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -79,6 +79,7 @@ function banco() {
       elo.neq = anota('neq');
       elo.in = anota('in');
       elo.not = anota('not');
+      elo.is = anota('is');
       let pedeValor = false;
       elo.select = (colunas?: unknown) => {
         if (colunas === 'valor_centavos') pedeValor = true;
@@ -690,5 +691,43 @@ describe('login recente para reembolsar e cancelar (#351)', () => {
 
     expect(r.recado?.texto).toBe('Pedido não encontrado.');
     expect(reautenticar).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Marcar solicitacao de pos-venda como resolvida (#379). Mesma porta do
+ * status: so administrador, e so `resolvida_em`.
+ */
+describe('resolver solicitacao', () => {
+  const SOLICITACAO = '66666666-6666-4666-8666-666666666666';
+  const resolve = (campos: Record<string, string> = {}) =>
+    resolverSolicitacao(
+      resolverInicial,
+      formulario({ pedido: PEDIDO, solicitacao: SOLICITACAO, ...campos })
+    );
+
+  it('administrador marca so a data de resolvida', async () => {
+    const r = await resolve();
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(atualizados).toHaveLength(1);
+    expect(atualizados[0].tabela).toBe('solicitacoes_pos_venda');
+    expect(Object.keys(atualizados[0].dados)).toEqual(['resolvida_em']);
+  });
+
+  it('cliente comum recebe "nao encontrada" e nao toca no banco', async () => {
+    vi.mocked(usuarioDaSessao).mockResolvedValue(CLIENTE as never);
+
+    const r = await resolve();
+
+    expect(r.recado?.texto).toBe('Solicitação não encontrada.');
+    expect(clienteAdmin).not.toHaveBeenCalled();
+  });
+
+  it('id torto nem chega ao banco', async () => {
+    const r = await resolve({ solicitacao: 'x' });
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(atualizados).toHaveLength(0);
   });
 });
