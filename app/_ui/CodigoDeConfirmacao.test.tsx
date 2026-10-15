@@ -35,6 +35,7 @@ const errado = (anterior: EstadoCodigo) => ({
 const campo = () => screen.getByLabelText(/Código de 8 dígitos/) as HTMLInputElement;
 const botao = (nome: string | RegExp) =>
   screen.getByRole('button', { name: nome }) as HTMLButtonElement;
+const contando = (s: number) => botao(`Reenviar código (${s} s)`);
 
 function tela(props: Partial<Parameters<typeof CodigoDeConfirmacao>[0]> = {}) {
   return render(
@@ -72,7 +73,8 @@ describe('o campo', () => {
     expect(c.getAttribute('inputmode')).toBe('numeric');
     expect(c.getAttribute('autocomplete')).toBe('one-time-code');
     expect(c.getAttribute('pattern')).toBe('[0-9]{8}');
-    expect(c.maxLength).toBe(8);
+    // Sem limite no campo (#340): o navegador cortaria o colar com texto em volta.
+    expect(c.hasAttribute('maxlength')).toBe(false);
     expect(botao('Confirmar').disabled).toBe(true);
   });
 
@@ -92,6 +94,15 @@ describe('o campo', () => {
     await screen.findByRole('alert');
 
     expect(recebidos.map((f) => f.get('codigo'))).toEqual(['12345678']);
+  });
+
+  it('colar texto longo com o codigo no fim ainda pega os oito digitos', async () => {
+    tela();
+
+    await digita('Seu código de confirmação do Passem a Respeitar é 87654321');
+    await screen.findByRole('alert');
+
+    expect(recebidos.map((f) => f.get('codigo'))).toEqual(['87654321']);
   });
 
   it('com sete digitos nao envia; o botao fica desabilitado', async () => {
@@ -206,6 +217,41 @@ describe('reenviar', () => {
         vi.advanceTimersByTime(2000);
       });
       expect(botao('Reenviar código').disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('60 s liberam o reenvio; o reenvio volta a contagem cheia, sem passar de zero', async () => {
+    vi.useFakeTimers();
+    try {
+      tela({ desafio: false });
+      expect(contando(ESPERA_REENVIO_S).disabled).toBe(true);
+
+      act(() => {
+        vi.advanceTimersByTime((ESPERA_REENVIO_S - 1) * 1000);
+      });
+      expect(contando(1).disabled).toBe(true);
+
+      // Tempo de sobra depois do zero: a contagem para em zero.
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      const livre = botao('Reenviar código');
+      expect(livre.disabled).toBe(false);
+      expect(livre.textContent).not.toMatch(/-\d/);
+
+      await act(async () => {
+        fireEvent.click(livre);
+      });
+
+      expect(reenviar).toHaveBeenCalledTimes(1);
+      expect(contando(ESPERA_REENVIO_S).disabled).toBe(true);
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(contando(ESPERA_REENVIO_S - 1).disabled).toBe(true);
     } finally {
       vi.useRealTimers();
     }
