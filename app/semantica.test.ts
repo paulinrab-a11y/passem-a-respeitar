@@ -327,7 +327,13 @@ describe('home renderizada', () => {
     for (const linha of linhas) {
       expect([...linha.children].map((filho) => filho.className)).toEqual(['nitida']);
     }
-    expect(linhas.at(-1)?.textContent).toBe('Passem a respeitar.');
+    // O logo do fim sai do servidor com medida, como o do hero (#344): sem
+    // ela, a linha mudava de tamanho quando a imagem chegava.
+    const logo = linhas.at(-1)?.querySelector('.nitida > img');
+    expect(logo?.getAttribute('width')).toBe('1000');
+    expect(logo?.getAttribute('height')).toBe('624');
+    expect(logo?.getAttribute('alt')).toBe('');
+    expect(linhas.at(-1)?.textContent).toBe('Passem a respeitar');
   });
 
   // #322: o JSON-LD sai no HTML do servidor, com o preco do catalogo e sem data.

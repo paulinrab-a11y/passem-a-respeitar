@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from 'vitest';
-import { fechaAbertura, nevoaDaLinha, prendeAbertura } from './abertura';
+import { readFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  comoAbre,
+  fechaAbertura,
+  marcaAberturaVista,
+  nevoaDaLinha,
+  prendeAbertura,
+} from './abertura';
 
 /**
  * O estado "abertura fechada" (#238), que a intro do script legado e o
@@ -193,5 +200,90 @@ describe('nevoaDaLinha', () => {
   it('linha sem a camada nitida fica como esta', () => {
     expect(nevoaDaLinha(linha('crua'))).toBeNull();
     expect(linha('crua').innerHTML).toBe('Sem camada.');
+  });
+});
+
+/**
+ * A abertura inteira so na primeira vez da aba (#344). A intro leva uns 15 s,
+ * e rodava em toda carga: na volta do checkout, no recarregar, na chegada por
+ * ancora.
+ */
+describe('comoAbre', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<main><section id="merch"></section></main>';
+    sessionStorage.clear();
+    history.replaceState(null, '', '/');
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    history.replaceState(null, '', '/');
+  });
+
+  it('primeira vez na aba: abertura completa', () => {
+    expect(comoAbre(window)).toBe('completa');
+  });
+
+  it('depois de fechar uma vez: reprise curta', () => {
+    marcaAberturaVista(window);
+
+    expect(sessionStorage.getItem('par:intro')).toBe('1');
+    expect(comoAbre(window)).toBe('reprise');
+  });
+
+  it('com ancora que existe na pagina: nenhuma, mesmo na primeira vez', () => {
+    history.replaceState(null, '', '/#merch');
+
+    expect(comoAbre(window)).toBe('nenhuma');
+  });
+
+  it('ancora que nao existe, ou so `#`, nao conta', () => {
+    history.replaceState(null, '', '/#nada-aqui');
+    expect(comoAbre(window)).toBe('completa');
+
+    history.replaceState(null, '', '/#');
+    expect(comoAbre(window)).toBe('completa');
+  });
+
+  it('storage bloqueado: abertura completa, e anotar nao lanca', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('bloqueado', 'SecurityError');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('bloqueado', 'SecurityError');
+    });
+
+    expect(() => marcaAberturaVista(window)).not.toThrow();
+    expect(comoAbre(window)).toBe('completa');
+  });
+});
+
+describe('intro do script legado (#344)', () => {
+  const SCRIPT = readFileSync('app/_home/legacy-site.js', 'utf8');
+  const intro = SCRIPT.slice(SCRIPT.indexOf('(function intro(){'), SCRIPT.indexOf('const Loja'));
+
+  it('anota a abertura vista no mesmo fecha() das tres saidas', () => {
+    const inicio = intro.indexOf('function fecha(){');
+    const fecha = intro.slice(inicio, intro.indexOf('\n  }\n', inicio));
+
+    expect(fecha).toContain('fechaAbertura(document);');
+    expect(fecha).toContain('marcaAberturaVista(window);');
+  });
+
+  it('por ancora nao trava nem rola ao topo; reprise e um fade curto', () => {
+    const nenhuma = intro.indexOf("if (modo === 'nenhuma')");
+    expect(nenhuma).toBeGreaterThan(-1);
+    expect(nenhuma).toBeLessThan(intro.indexOf("html.classList.add('locked')"));
+    expect(intro).toMatch(
+      /modo === 'reprise'\)\{[\s\S]*?tl\.to\(el, \{ opacity:0, duration:\.4, ease:'power2\.out', onComplete: fecha \}\)/
+    );
+  });
+
+  it('o prazo de 19 s fecha com fade de 300 ms e uma rede para aba parada', () => {
+    const prazo = intro.slice(intro.indexOf('setTimeout(()=>{'), intro.indexOf('}, 19000);'));
+
+    expect(prazo).toContain(
+      "gsap.to(el, { opacity:0, duration:.3, ease:'power2.out', onComplete: fecha });"
+    );
+    expect(prazo).toContain('setTimeout(fecha, 400);');
   });
 });

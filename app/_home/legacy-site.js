@@ -6,7 +6,8 @@
 // Fechar a abertura e um contrato com o HomeRuntime (#238): ele fecha quando
 // este script nao chega, a intro fecha quando chega. Os dois pelo mesmo lugar.
 // E o desfoque da entrada do manifesto, sem animar `filter` (#286).
-import { fechaAbertura, nevoaDaLinha } from './abertura';
+// E como ela entra: completa, reprise curta ou nenhuma (#344).
+import { comoAbre, fechaAbertura, marcaAberturaVista, nevoaDaLinha } from './abertura';
 // O que a cena faz sozinha no tempo, e quando ela vai para a GPU, com e sem
 // "reduzir movimento" (#286).
 import { giroDaCorrente, paralaxe, pulsoDaLuz, relogio, vigiaDeQuadro } from './cena';
@@ -92,12 +93,8 @@ const $$ = s => Array.from(document.querySelectorAll(s));
 })();
 // Os links do Instagram saem prontos do servidor desde a #275.
 
-if (CONFIG.logoUrl){
-  const logo = `<img src="${CONFIG.logoUrl}" alt="" draggable="false"><span>Passem a respeitar</span>`;
-  // O logo do hero ja vem do servidor, como next/image com priority (#47).
-  // Na camada nitida: a copia borrada da intro sai dela (#286).
-  $('#manifesto .fim .nitida').innerHTML = logo;
-}
+// O logo do hero (#47) e o do fim do manifesto (#344) ja vem do servidor, como
+// next/image com largura e altura.
 const driveAudio = id => /^(https?:|\/)/.test(id) ? [id] : [
   `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`,
   `https://drive.google.com/uc?export=download&id=${id}`,
@@ -688,15 +685,32 @@ ScrollTrigger.create({
 
 (function intro(){
   const el = $('#intro'), html = document.documentElement;
+  // A intro inteira so na primeira vez da aba (#344). Quem volta do checkout
+  // ou recarrega ve uma reprise curta; quem chega por ancora, nenhuma.
+  const modo = comoAbre(window);
+  let fechou = false, tcOn = true, vhsOn = true;
+  function fecha(){
+    if (fechou) return; fechou = true;
+    // O DOM (`#intro` fora, trava solta, barra visivel) e o mesmo que o
+    // HomeRuntime deixa quando este script falha (#238): um lugar so.
+    fechaAbertura(document);
+    marcaAberturaVista(window);
+    vhsOn=false; tcOn=false;
+    ScrollTrigger.refresh();
+  }
+  // Chegou por ancora: sem trava, sem rolar ao topo. O levaAteAAncora ve a
+  // trava solta e leva a pessoa direto a secao que ela pediu.
+  if (modo === 'nenhuma'){ GL.S.queda = 1; fecha(); return; }
+
   html.classList.add('locked');
   scrollTo(0,0);
 
-  const tc = $('#tc'); let fr = 0, tcOn = true;
+  const tc = $('#tc'); let fr = 0;
   (function tcLoop(){ if(!tcOn) return; requestAnimationFrame(tcLoop);
     fr++; const f=fr%30, s=Math.floor(fr/30)%60, m=Math.floor(fr/1800)%60;
     tc.textContent = `00:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`; })();
 
-  const c=$('#vhs'), x=c.getContext('2d'), img=x.createImageData(c.width,c.height); let vhsOn=true;
+  const c=$('#vhs'), x=c.getContext('2d'), img=x.createImageData(c.width,c.height);
   (function vhs(){ if(!vhsOn) return; requestAnimationFrame(vhs);
     const d=img.data; for(let i=0;i<d.length;i+=4){ const v=Math.random()*255|0; d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; }
     x.putImageData(img,0,0);
@@ -706,7 +720,12 @@ ScrollTrigger.create({
   const linhas = gsap.utils.toArray('#manifesto .l');
   const tl = gsap.timeline({ defaults:{ ease:'power3.out' } });
 
-  if (reduzMotion){
+  if (modo === 'reprise'){
+    // Ja viu nesta aba: o preto da fita sai num fade curto, sem manifesto e
+    // sem a corrente caindo de novo. Saida, entao curva de saida rapida.
+    tl.to(el, { opacity:0, duration:.4, ease:'power2.out', onComplete: fecha });
+    GL.S.queda = 1;
+  } else if (reduzMotion){
     tl.to(el, { opacity:0, duration:.3, onComplete: fecha });
     GL.S.queda = 1;
   } else {
@@ -734,16 +753,15 @@ ScrollTrigger.create({
     tl.to(el, { opacity:0, duration:.9, onComplete: fecha }, '<+.1');
   }
 
-  let fechou = false;
-  setTimeout(()=>{ if (!fechou){ tl.kill(); GL.S.queda = 1; fecha(); } }, 19000);
-  function fecha(){
-    if (fechou) return; fechou = true;
-    // O DOM (`#intro` fora, trava solta, barra visivel) e o mesmo que o
-    // HomeRuntime deixa quando este script falha (#238): um lugar so.
-    fechaAbertura(document);
-    vhsOn=false; tcOn=false;
-    ScrollTrigger.refresh();
-  }
+  // Prazo de seguranca: fecha com fade de 300 ms, e nao com corte seco
+  // (#344). Aba em segundo plano nao roda o ticker do gsap, e o fade ficaria
+  // parado: o segundo prazo fecha de qualquer jeito.
+  setTimeout(()=>{
+    if (fechou) return;
+    tl.kill(); GL.S.queda = 1;
+    gsap.to(el, { opacity:0, duration:.3, ease:'power2.out', onComplete: fecha });
+    setTimeout(fecha, 400);
+  }, 19000);
   $('#skip').addEventListener('click', ()=>{ tl.progress(1).kill(); GL.S.queda=1; fecha(); });
   // Botao desabilitado perde o foco, e o foco ia para o <body>, fora da
   // abertura (#270): passa para 'pular' antes. So quando estava nele — e o
