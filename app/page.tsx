@@ -135,8 +135,28 @@ export default async function Home() {
           <span className="l">
             <span className="nitida">O respeito vem antes dos números.</span>
           </span>
+          {/* O logo do fim sai do servidor com largura e altura, como o do
+              hero (#344). O script o injetava sem medida, e a linha mudava de
+              tamanho quando a imagem chegava. Sem `priority`: so aparece no
+              fim da abertura. */}
           <span className="l fim">
-            <span className="nitida">Passem a respeitar.</span>
+            <span className="nitida">
+              {CONFIG.logoUrl ? (
+                <>
+                  <Image
+                    src={CONFIG.logoUrl}
+                    alt=""
+                    width={1000}
+                    height={624}
+                    sizes="(max-width: 767px) 70vw, 520px"
+                    draggable={false}
+                  />
+                  <span>Passem a respeitar</span>
+                </>
+              ) : (
+                'Passem a respeitar.'
+              )}
+            </span>
           </span>
         </div>
         <button type="button" id="ligar">

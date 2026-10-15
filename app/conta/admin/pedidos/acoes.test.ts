@@ -79,8 +79,16 @@ function banco() {
       elo.neq = anota('neq');
       elo.in = anota('in');
       elo.not = anota('not');
-      elo.select = () => (emUpdate ? Promise.resolve({ data: [{ id: 'x' }], error: null }) : elo);
-      elo.maybeSingle = async () => ({ data: statusNoBanco ? { status: statusNoBanco } : null });
+      let pedeValor = false;
+      elo.select = (colunas?: unknown) => {
+        if (colunas === 'valor_centavos') pedeValor = true;
+        return emUpdate ? Promise.resolve({ data: [{ id: 'x' }], error: null }) : elo;
+      };
+      // A conferencia do valor (#350) le o `valor_centavos` da tentativa.
+      elo.maybeSingle = async () =>
+        pedeValor
+          ? { data: { valor_centavos: 12900 } }
+          : { data: statusNoBanco ? { status: statusNoBanco } : null };
       elo.update = (dados: Record<string, unknown>) => {
         atualizados.push({ tabela, dados });
         emUpdate = true;
@@ -333,6 +341,7 @@ describe('cancelar pedido que espera pagamento', () => {
       estado: 'aprovado',
       status: 'processed',
       statusDetail: 'accredited',
+      valor: { totalCentavos: 12900, pagoCentavos: 12900, moeda: 'BRL' },
     });
 
     const r = await cancelar();

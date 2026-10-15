@@ -199,6 +199,7 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
 
   revalidatePath('/conta/admin/pedidos');
   revalidatePath(`/conta/pedidos/${pedido}`);
+  revalidatePath(`/conta/admin/pedidos/${pedido}`);
 
   return {
     recado: {
