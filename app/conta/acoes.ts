@@ -14,7 +14,7 @@ import { esquemaCodigo, esquemaNome } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { CAMPO_DA_ISCA, iscaPreenchida, RECUSA } from '@/lib/robo';
 import { CONTA } from '@/lib/rotas';
-import { COOKIE_LEMBRAR } from '@/lib/supabase/cookies';
+import { COOKIE_LEMBRAR, COOKIE_RECUPERACAO } from '@/lib/supabase/cookies';
 import { clienteDeAuth, clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoNome } from './estado';
 
@@ -180,7 +180,11 @@ async function encerra(escopo: 'local' | 'global') {
 
   // O Supabase apaga os cookies dele; o par_lembrar e nosso. Deixar para tras
   // faria a proxima sessao herdar a escolha de quem usou o navegador antes.
-  (await cookies()).delete(COOKIE_LEMBRAR);
+  // A marca da recuperacao (#348) tambem: sem sessao ela nao serve, e nao
+  // deve sobrar para quem usar o navegador depois.
+  const jar = await cookies();
+  jar.delete(COOKIE_LEMBRAR);
+  jar.delete(COOKIE_RECUPERACAO);
 
   // Fora de try/catch: `redirect` funciona lancando.
   redirect('/');
