@@ -19,6 +19,8 @@ export type SiteConfig = {
     igLabel: string;
   };
   logoUrl: string;
+  /** Paragrafo "quem sao" (#275). Vazio: a secao nao aparece. */
+  quemSao: string;
   clipe: { blick: string };
   merchFotos: string[];
   elementos: ElementoCromado[];
@@ -47,6 +49,9 @@ export const CONFIG: SiteConfig = {
     igLabel: 'https://instagram.com/whynotvisuals_',
   },
   logoUrl: '/logo.png',
+  // Vazio ate o dono e os artistas aprovarem o texto (#275). A proposta esta
+  // na descricao do PR; nada sobre eles vai ao ar sem esse aceite.
+  quemSao: '',
   // Vazio de proposito ate o clipe subir no YouTube (#75). Com string vazia
   // o script nao monta iframe nenhum e a secao mostra "clipe em breve".
   //

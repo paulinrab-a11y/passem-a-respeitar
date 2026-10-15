@@ -110,9 +110,18 @@ test('home: JSON-LD com a camiseta do catalogo e sem data (#322)', async ({ page
   await page.goto('/');
   const bloco = await page.locator('script[type="application/ld+json"]').textContent();
   const grafo = JSON.parse(bloco ?? '{}')['@graph'] as { '@type': string; name?: string }[];
-  expect(grafo.map((n) => n['@type'])).toEqual(['Organization', 'WebSite', 'Product']);
-  expect(grafo[2]?.name).toBe('Camiseta CBAC');
-  expect(bloco).not.toMatch(/date|rating|review/i);
+  expect(grafo.map((n) => n['@type'])).toEqual([
+    'Organization',
+    'WebSite',
+    'MusicGroup',
+    'MusicGroup',
+    'MusicAlbum',
+    'MusicRelease',
+    'Product',
+  ]);
+  expect(grafo.at(-1)?.name).toBe('Camiseta CBAC');
+  expect(grafo.find((n) => n['@type'] === 'MusicAlbum')?.name).toBe('Passem a Respeitar');
+  expect(bloco).not.toMatch(/date|year|rating|review/i);
 });
 
 test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({ page }) => {
@@ -163,8 +172,8 @@ test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({
 /**
  * Os nomes (#187): o selo e Whynot Visuals, e a camiseta e so da CBAC.
  *
- * O nome e a descricao da camiseta vem do banco, e o link do selo e escrito
- * pelo script da home: os dois so existem com o site de pe.
+ * O nome e a descricao da camiseta vem do banco: so existem com o site de pe.
+ * Os links do Instagram saem do servidor desde a #275.
  */
 test('home: o selo e Whynot Visuals, e a camiseta e so da CBAC', async ({ page }) => {
   await page.goto('/');
