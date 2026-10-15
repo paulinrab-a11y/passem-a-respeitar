@@ -5,7 +5,7 @@ não escreva dia, mês nem ano dela em código, textos ou documentos deste
 repositório, que é público.
 Produção: https://www.cbacoccupation.com.br
 
-Next.js 15 (App Router) + TypeScript, hospedado na Vercel. A home é a página
+Next.js 16 (App Router) + TypeScript, hospedado na Vercel. A home é a página
 original do site portada para JSX sem alteração visual: intro VHS, manifesto,
 hero, os 7 elos com elementos cromados em three.js, seção do clipe, merch com
 loja 3D e a sala do convite.
@@ -111,6 +111,49 @@ São três barreiras, e cada uma sozinha já barraria:
 
 A separação importa: policy nunca restringe coluna. Quem impede mass assignment
 em `profiles` é o `grant update (nome, telefone)`, não a policy.
+
+### Migrations em produção
+
+Produção recebe migration pelo MCP do Supabase (`apply_migration`), não pelo
+`supabase db push`. O MCP grava em `supabase_migrations.schema_migrations` a
+versão com o **horário em que a migration foi aplicada**, não o prefixo do
+arquivo. Por isso nenhuma versão remota bate com o nome de arquivo, e o banco
+tem uma linha a mais: `identificador_da_sessao_atual` (a função
+`minha_sessao_atual`) foi aplicada à parte e mora dentro de
+`20260923210000_autenticacao_recente.sql`.
+
+| Arquivo em `supabase/migrations/` | Versão em produção |
+|---|---|
+| `20260923120000_modelo_de_dados_e_rls.sql` | `20260923112239` |
+| `20260923123000_tranca_execute_das_funcoes.sql` | `20260923112534` |
+| `20260923124500_indice_do_autor_no_historico.sql` | `20260923112729` |
+| `20260923180000_foto_de_perfil.sql` | `20260923131756` |
+| `20260923190000_sessoes_ativas.sql` | `20260923165428` |
+| `20260923200000_anonimizacao_de_pedidos.sql` | `20260923172407` |
+| `20260923210000_autenticacao_recente.sql` | `20260923174843` e `20260923180018` |
+| `20260924100000_catalogo_de_produtos.sql` | `20260924113642` |
+| `20260924140000_pagamento_e_endereco.sql` | `20260924121448` |
+| `20260924170000_cria_pedido.sql` | `20260924123904` |
+| `20260925120000_muda_status_pedido.sql` | `20260925121238` |
+| `20260925150000_termos_aceitos_em.sql` | `20260925144004` |
+| `20260928140000_cancela_troca_de_email.sql` | `20260928133200` |
+| `20260929190000_camiseta_so_cbac.sql` | `20260929184813` |
+| `20261002120000_frete.sql` | `20261002194021` |
+| `20261002130000_medidas_da_camiseta.sql` | `20261002194024` |
+| `20261006120000_guia_de_tamanhos.sql` | `20261006165847` |
+| `20261007120000_conta_pedidos_por_status.sql` | `20261007165322` |
+| `20261009143000_baixa_de_estoque.sql` | `20261015135210` |
+
+**Não rode `supabase db push` contra produção.** Com as versões desencontradas
+ele acha que nenhum arquivo foi aplicado e tenta reaplicar tudo. Se um dia o
+fluxo mudar para o CLI, antes vem `supabase migration repair` para alinhar o
+histórico remoto aos arquivos, conferido com `supabase migration list`.
+
+Migration nova: o arquivo entra no PR, o banco local da suíte de ponta a ponta
+a aplica do zero, e só depois do merge ela vai para produção pelo
+`apply_migration`, com o mesmo SQL do arquivo. A linha nova desta tabela entra
+no mesmo PR; `lib/documentacao.test.ts` falha se faltar. A versão remota só
+existe depois de aplicada: até lá a célula fica `pendente`.
 
 ### Exclusão de conta e LGPD
 
@@ -414,8 +457,8 @@ motion e carregamento.
 
 Esperando decisão ou conta do dono:
 
-- Domínio final (#54). Na troca: Site URL e Redirect URLs do Supabase,
-  `NEXT_PUBLIC_SITE_URL` e os registros de e-mail do domínio
+- E-mail no domínio (#54, #55): o domínio já está no ar e é o host
+  canônico; falta a caixa de e-mail nele e os registros SPF, DKIM e DMARC
 - E-mail transacional: registros do domínio e teste de entrega em Gmail,
   Outlook e Apple Mail (#55). Os modelos em português estão prontos (#183)
 - Hospedagem do clipe; até lá a home mostra "clipe em breve" (#75)

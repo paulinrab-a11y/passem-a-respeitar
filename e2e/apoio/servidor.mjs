@@ -45,11 +45,6 @@ const DESLIGADAS = [
   'SENTRY_AUTH_TOKEN',
   'SENTRY_ORG',
   'SENTRY_PROJECT',
-  'SMTP_FROM',
-  'SMTP_HOST',
-  'SMTP_PASSWORD',
-  'SMTP_PORT',
-  'SMTP_USER',
   'UPSTASH_REDIS_REST_TOKEN',
   'UPSTASH_REDIS_REST_URL',
   // Na Vercel estas duas redirecionam para o host de producao (#141).
