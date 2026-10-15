@@ -18,6 +18,10 @@
  */
 
 import { z } from 'zod';
+import { cepLegivel, soDigitos } from './cep';
+
+// CEP mora em ./cep, sem zod, porque o navegador tambem o formata (#353).
+export { cepLegivel, soDigitos };
 
 /** As 26 unidades federativas mais o Distrito Federal. */
 const UFS = [
@@ -53,19 +57,6 @@ const UFS = [
 /** "SP" e estado, "XX" nao e. Quem pergunta e a busca pelo CEP (#204). */
 export function ehUf(valor: string): valor is (typeof UFS)[number] {
   return (UFS as readonly string[]).includes(valor);
-}
-
-/**
- * `01310-100`, `01310 100` e `01310100` sao o mesmo CEP. O banco guarda so
- * digitos para nao precisar decidir isso de novo em cada consulta.
- */
-export function soDigitos(bruto: string): string {
-  return bruto.replace(/\D/g, '');
-}
-
-/** `01310100` vira `01310-100`, para a tela. */
-export function cepLegivel(cep: string): string {
-  return /^\d{8}$/.test(cep) ? `${cep.slice(0, 5)}-${cep.slice(5)}` : cep;
 }
 
 /**
