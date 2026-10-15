@@ -191,7 +191,9 @@ export default function CodigoDeConfirmacao({
             inputMode="numeric"
             autoComplete="one-time-code"
             pattern={`[0-9]{${DIGITOS}}`}
-            maxLength={DIGITOS}
+            // Sem maxLength (#340): o navegador cortaria o colar antes do
+            // onChange, e "Seu código: 1234 5678" viraria "Seu códi". O limite
+            // e o `.slice` de aoDigitar, e o servidor confere de novo.
             required
             // biome-ignore lint/a11y/noAutofocus: so quando a tela existe para este campo; o foco e o que a pessoa espera
             autoFocus={foco}
