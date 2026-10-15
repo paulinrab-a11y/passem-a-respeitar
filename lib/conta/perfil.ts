@@ -73,12 +73,42 @@ export async function perfilDaSessao(): Promise<Perfil | null> {
   return mapeia(usuario, data, fotoUrl);
 }
 
-/** Iniciais para o lugar da foto. Duas letras no maximo. */
+/**
+ * Sufixos de geracao que nao sao sobrenome. "Christopher Souza III" vira CS,
+ * nao CI; "Joao Pereira Filho" vira JP. So sai do fim, e so de nome com tres
+ * partes ou mais: em "Ana Neto", Neto e sobrenome.
+ */
+const SUFIXOS = new Set(['jr', 'junior', 'júnior', 'filho', 'neto', 'sobrinho', 'ii', 'iii', 'iv']);
+
+// Grafema, nao unidade UTF-16: `'👩‍🚀'[0]` e meio emoji (surrogate solto), e o
+// avatar mostra um losango quebrado. O Segmenter devolve o desenho inteiro,
+// e tambem segura letra com acento combinante junto da letra.
+const grafemas = new Intl.Segmenter('pt-BR', { granularity: 'grapheme' });
+
+function primeiros(texto: string, quantos: number) {
+  let saida = '';
+  let n = 0;
+  for (const { segment } of grafemas.segment(texto)) {
+    if (n === quantos) break;
+    saida += segment;
+    n += 1;
+  }
+  return saida;
+}
+
+/** Iniciais para o lugar da foto. Dois grafemas no maximo. */
 export function iniciais(nome: string | null, email: string) {
-  const base = nome?.trim() || email;
+  const base = (nome?.trim() || email).normalize('NFC');
   const partes = base.split(/[\s@._-]+/).filter(Boolean);
 
+  while (partes.length > 2 && SUFIXOS.has(partes[partes.length - 1].toLocaleLowerCase('pt-BR'))) {
+    partes.pop();
+  }
+
   if (partes.length === 0) return '?';
-  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
-  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+  const letras =
+    partes.length === 1
+      ? primeiros(partes[0], 2)
+      : primeiros(partes[0], 1) + primeiros(partes[partes.length - 1], 1);
+  return letras.toLocaleUpperCase('pt-BR');
 }

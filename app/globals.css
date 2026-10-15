@@ -495,8 +495,12 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .conta-progresso i{display:block;height:100%;background:var(--vermelho);transform-origin:left;transform:scaleX(0);transition:transform .18s linear}
 
 .conta-identidade{min-width:0}
-.conta-nome{font-family:var(--display);text-transform:uppercase;font-size:26px;line-height:1.1;color:#fff}
-.conta-email{margin-top:6px;font-size:14px;letter-spacing:.04em;color:var(--prata-2);word-break:break-all}
+/* Nome e e-mail vem do usuario e nao tem tamanho garantido: 80 caracteres,
+   palavra sem espaco, e-mail comprido. `anywhere` (e nao `break-word`) entra no
+   min-content, entao a palavra comprida quebra em vez de alargar a caixa e
+   empurrar a pagina para o lado no telefone de 320px. */
+.conta-nome{font-family:var(--display);text-transform:uppercase;font-size:26px;line-height:1.1;color:#fff;overflow-wrap:anywhere}
+.conta-email{margin-top:6px;font-size:14px;letter-spacing:.04em;color:var(--prata-2);overflow-wrap:anywhere}
 .conta-selo{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--vermelho);border:1px solid var(--vermelho);padding:2px 7px;white-space:nowrap;vertical-align:middle}
 .conta-selo.ok{color:var(--prata-2);border-color:var(--prata-3)}
 .conta-desde{margin-top:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
@@ -811,7 +815,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 
 .pedido-itens{list-style:none;margin-top:16px;display:flex;flex-direction:column;gap:8px}
 .pedido-itens li{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
-.pedido-item-nome{font-size:14px;letter-spacing:.02em;color:var(--prata);min-width:0}
+.pedido-item-nome{font-size:14px;letter-spacing:.02em;color:var(--prata);min-width:0;overflow-wrap:anywhere}
 .pedido-item-detalhe{font-size:12px;letter-spacing:.06em;color:var(--prata-2);white-space:nowrap}
 
 /* O frete do pedido (#199), entre os itens e o total. */
@@ -872,8 +876,8 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
    paragrafo antes do "como pedir" que vem embaixo. */
 .pos-venda-prazos{margin-bottom:18px}
 /* Para onde vai (#242): destinatario em branco, endereco numa linha so. */
-.entrega-nome{font-size:14px;letter-spacing:.02em;color:#fff}
-.entrega-endereco{margin-top:6px;font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2)}
+.entrega-nome{font-size:14px;letter-spacing:.02em;color:#fff;overflow-wrap:anywhere}
+.entrega-endereco{margin-top:6px;font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);overflow-wrap:anywhere}
 
 /* A fila. `border-left` no <li> desenha o fio que liga as etapas, e o ::before
    do primeiro/ultimo apara as pontas — sem elemento extra so para a linha. */
@@ -1166,7 +1170,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .admin-entrega[open] .admin-entrega-resumo::before{transform:rotate(45deg)}
 .admin-entrega-resumo:hover{color:var(--prata)}
 .admin-entrega-corpo{margin-top:10px;display:grid;gap:12px;justify-items:start;animation:admin-etapa-entra .2s cubic-bezier(.22,1,.36,1) backwards}
-.admin-entrega-corpo p{margin:0;font-size:14px;letter-spacing:.02em;line-height:1.55;color:var(--prata)}
+.admin-entrega-corpo p{margin:0;font-size:14px;letter-spacing:.02em;line-height:1.55;color:var(--prata);overflow-wrap:anywhere}
 .admin-entrega-corpo p strong{font-weight:400;color:#fff}
 .admin-entrega-corpo .btn{font-size:12px;padding:10px 16px}
 .admin-copiar-falhou{margin:0;font-size:13px;line-height:1.45;letter-spacing:.02em;color:var(--vermelho)}
