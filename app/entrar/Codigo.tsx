@@ -2,7 +2,7 @@
 
 import CodigoDeConfirmacao from '@/app/_ui/CodigoDeConfirmacao';
 import { confirmarCodigo, reenviarCodigo } from '@/app/criar-conta/acoes';
-import { CODIGO_DIGITOS } from '@/lib/esquemas';
+import { CODIGO_DIGITOS } from '@/lib/conta/codigo-digitos';
 
 /**
  * O caminho de volta de quem saiu da tela do codigo do cadastro (#260).
