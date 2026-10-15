@@ -14,10 +14,16 @@
   --gutter:clamp(20px, 5vw, 72px);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{background:var(--preto);color:var(--prata);scroll-behavior:auto;scrollbar-gutter:stable}
-/* A trava tira a barra de rolagem; o `scrollbar-gutter` acima guarda o lugar
-   dela, e a pagina nao anda de lado quando a intro, a loja ou a sala travam e
-   soltam a rolagem (#344, era o maior pedaco do CLS da home). */
+html{background:var(--preto);color:var(--prata);scroll-behavior:auto}
+/* A trava tira a barra de rolagem; o `scrollbar-gutter` guarda o lugar dela,
+   e a pagina nao anda de lado quando a intro, a loja ou a sala travam e
+   soltam a rolagem (#344, era o maior pedaco do CLS da home). So onde a
+   barra ocupa lugar: no telefone ela flutua por cima e nao empurra nada, e
+   guardar 15 px numa tela de 320 apertava o layout estreito que ja foi
+   medido nessas larguras (a fita da intro, o widget da Cloudflare). */
+@media (hover:hover) and (pointer:fine) and (min-width:768px){
+  html{scrollbar-gutter:stable}
+}
 html.locked{overflow:hidden}
 
 /* Troca de rota (#49). O site navega por documento inteiro — cada tela da

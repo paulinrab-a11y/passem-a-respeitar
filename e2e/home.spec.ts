@@ -731,6 +731,6 @@ test('home: a abertura inteira so na primeira vez; depois reprise curta, e por a
   const aba = await page.context().newPage();
   await aba.goto('/#merch');
   await expect(aba.locator('#intro')).toBeHidden({ timeout: 5_000 });
-  await expect(aba.locator('#merch h2')).toBeInViewport();
+  await expect(aba.getByRole('heading', { name: 'Merch', exact: true })).toBeInViewport();
   await aba.close();
 });
