@@ -72,6 +72,12 @@ export type PedidoDoPainel = {
   email: string | null;
   /** Quando aceitou os termos (#276). Nulo nos pedidos de antes. */
   termosAceitosEm: string | null;
+  /**
+   * Qual texto dos termos foi aceito (#380): o `TERMOS_ATUALIZADOS_EM` da
+   * hora da compra. Nulo nos pedidos de antes, e nos criados pelo codigo
+   * antigo entre a migration e o deploy.
+   */
+  termosVersao: string | null;
   /** O codigo dos Correios gravado ao marcar enviado (#378). */
   rastreio: RastreioDoPedido | null;
 };
@@ -86,6 +92,7 @@ export type LinhaDoPainel = LinhaComEntrega & {
   frete_prazo_dias: number | null;
   user_id: string | null;
   termos_aceitos_em: string | null;
+  termos_versao: string | null;
   rastreio_codigo: string | null;
   rastreio_url: string | null;
   order_items: {
@@ -193,6 +200,7 @@ export function mapeiaPedidoDoPainel(
       })),
     email: linha.user_id ? (emails.get(linha.user_id) ?? null) : null,
     termosAceitosEm: linha.termos_aceitos_em,
+    termosVersao: linha.termos_versao,
     rastreio: leRastreio(linha.rastreio_codigo, linha.rastreio_url),
   };
 }

@@ -24,6 +24,7 @@ const { usuarioDaSessao, clienteServidor } = await import('@/lib/supabase/servid
 const { clienteAdmin } = await import('@/lib/supabase/admin');
 const { cotaFrete } = await import('./frete');
 const { criaPedido } = await import('./pedido');
+const { TERMOS_ATUALIZADOS_EM } = await import('./termos');
 
 const PAC = { servico: 'pac', nome: 'PAC', precoCentavos: 2350, prazoDias: 8 } as const;
 const SEDEX = { servico: 'sedex', nome: 'SEDEX', precoCentavos: 4590, prazoDias: 3 } as const;
@@ -172,6 +173,8 @@ describe('o corpo do request nao define dinheiro', () => {
       'p_itens',
       // Entrou na #276: a hora do aceite, carimbada aqui.
       'p_termos_aceitos_em',
+      // Entrou na #380: a versao do texto aceito.
+      'p_termos_versao',
       'p_total_centavos',
       'p_user_id',
     ]);
@@ -464,6 +467,12 @@ describe('aceite dos termos de compra (#276)', () => {
     const aceito = Date.parse(String(gravado?.p_termos_aceitos_em));
     expect(aceito).toBeGreaterThanOrEqual(antes);
     expect(aceito).toBeLessThanOrEqual(depois);
+  });
+
+  it('a versao dos termos e a constante do servidor, nunca a do corpo (#380)', async () => {
+    await criaPedido(pedido({ termos_versao: '1999', p_termos_versao: '1999' }));
+
+    expect(gravado?.p_termos_versao).toBe(TERMOS_ATUALIZADOS_EM);
   });
 
   // O corpo pode trazer a hora que quiser, com o nome que quiser: o schema so

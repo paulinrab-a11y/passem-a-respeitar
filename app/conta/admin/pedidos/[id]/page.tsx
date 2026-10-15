@@ -10,7 +10,7 @@ import {
 } from '@/lib/conta/pedido-admin';
 import { pareceUuid } from '@/lib/conta/pedidos';
 import { mapeiaSolicitacoes, NOME_DO_TIPO } from '@/lib/conta/pos-venda';
-import { formataDataHora } from '@/lib/datas';
+import { formataData, formataDataHora } from '@/lib/datas';
 import { ehStatusPedido } from '@/lib/loja/status-do-pedido';
 import { ENTRAR } from '@/lib/rotas';
 import { clienteAdmin } from '@/lib/supabase/admin';
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
  * ficam no banco.
  */
 const COLUNAS =
-  'numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, user_id, termos_aceitos_em, rastreio_codigo, rastreio_url, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(id, para, autor, motivo, criado_em), pagamentos(tentativa, metodo, estado, provedor_status_detail, valor_centavos, criado_em)';
+  'numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, user_id, termos_aceitos_em, termos_versao, rastreio_codigo, rastreio_url, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(id, para, autor, motivo, criado_em), pagamentos(tentativa, metodo, estado, provedor_status_detail, valor_centavos, criado_em)';
 
 /**
  * O pedido visto pelo dono (Issue #345).
@@ -141,6 +141,13 @@ export default async function PedidoAdmin({ params }: { params: Promise<{ id: st
               <time dateTime={pedido.termosAceitosEm}>
                 {formataDataHora(pedido.termosAceitosEm)}
               </time>
+              {/* A versao e a data que /termos mostrava na compra (#380). */}
+              {pedido.termosVersao && !Number.isNaN(Date.parse(pedido.termosVersao)) ? (
+                <>
+                  , na versão de{' '}
+                  <time dateTime={pedido.termosVersao}>{formataData(pedido.termosVersao)}</time>
+                </>
+              ) : null}
               .
             </p>
           ) : null}

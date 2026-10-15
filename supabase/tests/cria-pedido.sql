@@ -31,23 +31,35 @@ where n.nspname = 'public' and p.proname = 'cria_pedido';
 --   service_role_executa   true
 --   veredito               OK
 
--- Issue #276 — uma funcao so, a com o aceite dos termos. A assinatura mudou
--- duas vezes (#199, #276); uma versao antiga esquecida ao lado da nova seria
--- um caminho que cria pedido sem frete ou sem aceite.
+-- Issue #276 — nenhuma versao antiga sem o aceite ao lado da nova. A
+-- assinatura mudou duas vezes (#199, #276); uma versao esquecida seria um
+-- caminho que cria pedido sem frete ou sem aceite.
+--
+-- Issue #380 — por enquanto sao DUAS, de proposito: a de 6 parametros, que o
+-- codigo em producao chama, e a de 7, com a versao dos termos, que o codigo
+-- novo chama (ver a migration 20261015200000). As duas exigem o aceite.
+-- Quando a de 6 sair, numa migration depois do deploy, este teste volta a
+-- exigir uma so.
 
 select
   pg_get_function_identity_arguments(p.oid) as parametros,
   case
-    when count(*) over () <> 1 then 'FALHOU'
-    when pg_get_function_identity_arguments(p.oid) not like '%p_termos_aceitos_em timestamp with time zone' then 'FALHOU'
+    when count(*) over () > 2 then 'FALHOU'
+    when pg_get_function_identity_arguments(p.oid) not like '%p_termos_aceitos_em timestamp with time zone%' then 'FALHOU'
+    when not exists (
+      select 1 from pg_proc q
+      join pg_namespace m on m.oid = q.pronamespace
+      where m.nspname = 'public' and q.proname = 'cria_pedido'
+        and pg_get_function_identity_arguments(q.oid) like '%p_termos_aceitos_em timestamp with time zone, p_termos_versao text'
+    ) then 'FALHOU'
     else 'OK'
   end as veredito
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public' and p.proname = 'cria_pedido';
 
--- Esperado: uma linha, terminando em `p_termos_aceitos_em timestamp with time
--- zone`, veredito OK.
+-- Esperado: duas linhas, as duas com `p_termos_aceitos_em`, uma terminando em
+-- `p_termos_versao text`, veredito OK nas duas.
 
 -- ---------------------------------------------------------------------------
 -- Issue #296 — estoque.
