@@ -10,6 +10,12 @@ import {
   RECADO_INDISPONIVEL,
   reautenticar,
 } from '@/lib/conta/reautenticacao';
+import {
+  normalizaRastreio,
+  rastreioValido,
+  URL_DE_RASTREIO_MAX,
+  urlDeRastreioValida,
+} from '@/lib/loja/rastreio';
 import { ehStatusPedido, STATUS_PEDIDO, transicaoPermitida } from '@/lib/loja/status-do-pedido';
 import { type Estorno, encerraAbertas, estornaAprovadas } from '@/lib/loja/webhook';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
@@ -28,6 +34,8 @@ import type { EstadoAdmin } from './estado';
  *   3. limite        60 por hora por administrador
  *   4. entrada       zod: id, destino do enum, motivo curto
  *   5. transicao     validada aqui, para a mensagem ser boa...
+ *   5a. rastreio     marcar enviado exige o codigo dos Correios (#378). O
+ *                    cliente le "Enviado" e precisa ter o que acompanhar.
  *   5b. login recente reembolsar e cancelar exigem a janela da #40 (#351):
  *                    sao as duas mudancas que mexem em dinheiro ou encerram
  *                    o pedido, e uma sessao de admin esquecida aberta nao
@@ -77,7 +85,31 @@ const esquema = z.object({
   pedido: z.string().uuid(),
   para: z.enum(STATUS_PEDIDO),
   motivo: z.string().trim().max(300).optional().or(z.literal('')),
+  // So vale para `enviado` (#378). O formato e conferido depois, com mensagem
+  // propria; aqui so o teto, para texto colado gigante nao chegar a regex.
+  rastreio: z.string().max(40).optional().or(z.literal('')),
+  rastreioUrl: z.string().trim().max(URL_DE_RASTREIO_MAX).optional().or(z.literal('')),
 });
+
+/** O que marcar enviado leva junto (#378). */
+type Envio = { codigo: string; url: string | undefined };
+
+/**
+ * O rastreio do formulario, normalizado, ou o recado de por que nao serve.
+ * O banco confere a mesma forma numa check constraint; aqui e para a
+ * mensagem dizer o que corrigir.
+ */
+function leEnvio(rastreio: string | undefined, url: string | undefined): Envio | string {
+  const codigo = normalizaRastreio(rastreio ?? '');
+  if (!rastreioValido(codigo)) {
+    return 'Para marcar enviado, informe o código de rastreio dos Correios (ex.: AB123456789BR).';
+  }
+  const link = url?.trim() || undefined;
+  if (link && !urlDeRastreioValida(link)) {
+    return 'O link de rastreio precisa começar com https://. Ou deixe em branco.';
+  }
+  return { codigo, url: link };
+}
 
 const NAO_ENCONTRADO: EstadoAdmin = {
   recado: { tom: 'erro', texto: 'Pedido não encontrado.' },
@@ -104,6 +136,8 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
     pedido: form.get('pedido'),
     para: form.get('para'),
     motivo: form.get('motivo') ?? '',
+    rastreio: form.get('rastreio') ?? '',
+    rastreioUrl: form.get('rastreioUrl') ?? '',
   });
   if (!dados.success) {
     return { recado: { tom: 'erro', texto: 'Confira os dados.' }, pedido: null };
@@ -129,6 +163,14 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
       recado: { tom: 'erro', texto: `Não dá para ir de "${atual.status}" para "${para}".` },
       pedido,
     };
+  }
+
+  // Enviado sem codigo nao sai daqui (#378): nem chega ao banco.
+  let envio: Envio | null = null;
+  if (para === 'enviado') {
+    const lido = leEnvio(dados.data.rastreio, dados.data.rastreioUrl);
+    if (typeof lido === 'string') return { recado: { tom: 'erro', texto: lido }, pedido };
+    envio = lido;
   }
 
   // Antes do provedor: sem a janela, nada e cancelado nem estornado. A
@@ -174,13 +216,32 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
   }
 
   // O autor e o id da sessao, lido no servidor. O banco valida a transicao
-  // de novo e grava autor e motivo na trilha.
-  const { error } = await admin.rpc('muda_status_pedido', {
-    p_order_id: pedido,
-    p_para: para,
-    p_autor: usuario.id,
-    p_motivo: motivo,
-  });
+  // de novo e grava autor e motivo na trilha. Enviado vai por
+  // `envia_pedido`: status e codigo no mesmo UPDATE (#378).
+  const { error } = envio
+    ? await admin.rpc('envia_pedido', {
+        p_order_id: pedido,
+        p_autor: usuario.id,
+        p_rastreio_codigo: envio.codigo,
+        p_rastreio_url: envio.url,
+        p_motivo: motivo,
+      })
+    : await admin.rpc('muda_status_pedido', {
+        p_order_id: pedido,
+        p_para: para,
+        p_autor: usuario.id,
+        p_motivo: motivo,
+      });
+
+  if (error?.code === '23514') {
+    // A constraint do banco recusou o codigo ou o link. A conferencia acima
+    // usa a mesma regra; chegar aqui e as duas terem divergido.
+    console.warn('[admin] rastreio recusado:', pedido);
+    return {
+      recado: { tom: 'erro', texto: 'O banco recusou o código ou o link de rastreio. Confira.' },
+      pedido,
+    };
+  }
 
   if (error) {
     // Transicao recusada pelo banco (P0001) e a unica esperada aqui: outra

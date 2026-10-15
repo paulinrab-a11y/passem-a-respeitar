@@ -24,6 +24,13 @@ import { adminInicial } from './estado';
  * Reembolsar e cancelar podem responder "precisa da senha" (#351). O modal
  * da #40 pede a senha e a acao refaz a MESMA mudanca — botao e motivo
  * guardados aqui —, sem a pessoa clicar de novo.
+ *
+ * Marcar enviado leva o codigo de rastreio (#378). Os campos so existem na
+ * etapa em que "Marcar enviado" e um dos botoes, e ficam DEPOIS dos botoes,
+ * dentro do bloco que entra com a etapa: em cima, empurrariam os botoes para
+ * baixo no instante da troca — e o criterio da #157 e que eles nao saiam do
+ * lugar. O `required` do codigo vale so para esse botao: os outros levam
+ * `formNoValidate`, e cancelar nao pede codigo nenhum.
  */
 export default function MudarStatus({ pedido, status }: { pedido: string; status: StatusPedido }) {
   const [estadoDoBotao, acao, pendenteDoBotao] = useActionState(mudarStatus, adminInicial);
@@ -45,7 +52,7 @@ export default function MudarStatus({ pedido, status }: { pedido: string; status
   const [clicado, setClicado] = useState<string | null>(null);
   // Controlado: o React 19 apagaria o motivo quando a acao respondesse com
   // erro (#130). No sucesso ele sai, para nao valer para a proxima etapa.
-  const { campo, limpar } = useCampos({ motivo: '' });
+  const { campo, limpar } = useCampos({ motivo: '', rastreio: '', rastreioUrl: '' });
   const motivoAtual = campo('motivo').value;
   // Para onde o foco volta quando o modal sai: o botao que pediu a senha.
   const botoes = useRef(new Map<string, HTMLButtonElement>());
@@ -113,11 +120,42 @@ export default function MudarStatus({ pedido, status }: { pedido: string; status
               value={para}
               disabled={pendente}
               onClick={() => setClicado(para)}
+              formNoValidate={para !== 'enviado'}
               className={`btn${para === 'cancelado' || para === 'reembolsado' ? '' : ' cheio'}${pendente && clicado === para ? ' carregando' : ''}`}
             >
               {VERBO[para]}
             </button>
           ))}
+
+          {destinos.includes('enviado') ? (
+            <div className="admin-rastreio">
+              <label className="auth-campo">
+                <span>Código de rastreio (para marcar enviado)</span>
+                <input
+                  {...campo('rastreio')}
+                  type="text"
+                  required
+                  maxLength={40}
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  placeholder="AB123456789BR"
+                  disabled={pendente}
+                />
+              </label>
+              <label className="auth-campo">
+                <span>Link de rastreio (opcional)</span>
+                <input
+                  {...campo('rastreioUrl')}
+                  type="url"
+                  maxLength={500}
+                  autoComplete="off"
+                  placeholder="https://"
+                  disabled={pendente}
+                />
+              </label>
+            </div>
+          ) : null}
         </div>
 
         {/* O que cada botao faz com o dinheiro (#22): reembolsar estorna no

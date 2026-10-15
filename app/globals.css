@@ -1497,3 +1497,14 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .admin-itens{margin-top:10px;font-size:14px;letter-spacing:.02em;color:var(--prata);overflow-wrap:anywhere}
 .admin-exportar{margin-top:10px}
 .admin-trilha-quem{display:block;margin-top:2px;font-size:12px;letter-spacing:.04em;color:var(--prata-2);overflow-wrap:anywhere}
+/* Codigo de rastreio (#378). O codigo em fonte de largura fixa, para
+   comparar letra a letra com a etiqueta; copiar e o link dos Correios lado a
+   lado, e um embaixo do outro no celular. No painel, os dois campos ocupam a
+   linha inteira, depois dos botoes da etapa. */
+.rastreio-codigo{margin:0 0 12px}
+.rastreio-codigo code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:18px;letter-spacing:.12em;color:var(--prata);user-select:all;overflow-wrap:anywhere}
+.rastreio-acoes{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.rastreio-acoes .btn{font-size:12px;padding:10px 16px}
+.rastreio-acoes .admin-copiar-falhou{flex-basis:100%}
+.admin-rastreio{flex-basis:100%;display:grid;gap:10px;margin-top:4px}
+@media (max-width:560px){.rastreio-acoes .btn{flex:1 1 100%;justify-content:center;min-height:48px}}

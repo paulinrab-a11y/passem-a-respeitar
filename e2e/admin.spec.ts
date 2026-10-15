@@ -7,6 +7,7 @@ import {
   type Endereco,
   type Item,
   lePedido,
+  leRastreioDoPedido,
   type Usuario,
 } from './apoio/banco';
 import { entra, vivo } from './apoio/telas';
@@ -382,4 +383,65 @@ test('admin: exportar baixa a planilha do filtro aberto', async ({ administrando
   expect(texto).toContain(`"${pedido.numero}"`);
   expect(texto).toContain('Rua Que So O Admin Ve, 77, fundos');
   expect(texto).toContain('"Em produção"');
+});
+
+/**
+ * Marcar enviado exige o codigo dos Correios (#378). Por ultimo de proposito:
+ * os testes de cima contam com o pedido da suite em producao, dentro do
+ * filtro padrao.
+ */
+test('admin: marcar enviado pede o codigo de rastreio e grava junto com o status', async ({
+  administrando,
+}) => {
+  await administrando.goto(`/conta/admin/pedidos/${pedido.id}`);
+
+  const enviar = await vivo(administrando.getByRole('button', { name: 'Marcar enviado' }));
+  const codigo = administrando.getByLabel('Código de rastreio (para marcar enviado)');
+
+  // Sem o codigo, o navegador segura o envio: nada muda no banco.
+  await enviar.click();
+  await expect(codigo).toBeFocused();
+  expect((await lePedido(pedido.id)).status).toBe('em_producao');
+
+  // Minusculo e com espaco, como se digita: o servidor normaliza.
+  await codigo.fill('ab 123456789 br');
+  await enviar.click();
+
+  await expect(administrando.locator('.detalhe-topo .pedido-status')).toHaveText('Enviado');
+  await expect(
+    administrando.getByRole('alert').filter({ hasText: 'Status atualizado' })
+  ).toBeVisible();
+  // O detalhe do dono mostra o codigo que o cliente vai ver.
+  await expect(administrando.locator('.rastreio-codigo')).toHaveText('AB123456789BR');
+
+  expect(await leRastreioDoPedido(pedido.id)).toEqual({
+    rastreio_codigo: 'AB123456789BR',
+    rastreio_url: null,
+  });
+  const gravado = await lePedido(pedido.id);
+  expect(gravado.status).toBe('enviado');
+  expect(gravado.trilha.at(-1)).toMatchObject({
+    de: 'em_producao',
+    para: 'enviado',
+    autor: admin.id,
+  });
+});
+
+test('admin: o cliente ve o codigo de rastreio, com copiar e o link dos Correios', async ({
+  page,
+}) => {
+  await entra(page, cliente.email, cliente.senha);
+  await page.goto(`/conta/pedidos/${pedido.id}`);
+
+  const bloco = page.getByRole('region', { name: 'Rastreio' });
+  await expect(bloco.locator('code')).toHaveText('AB123456789BR');
+  await expect(bloco.getByRole('link', { name: /Rastrear nos Correios/ })).toHaveAttribute(
+    'href',
+    'https://rastreamento.correios.com.br/app/index.php'
+  );
+
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await (await vivo(bloco.getByRole('button', { name: 'Copiar código' }))).click();
+  await expect(bloco.getByRole('status')).toHaveText('Código copiado.');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('AB123456789BR');
 });

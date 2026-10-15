@@ -154,6 +154,17 @@ export async function leAceiteDoPedido(id: string) {
   return data.termos_aceitos_em as string | null;
 }
 
+/** O codigo de rastreio gravado no pedido (#378), lido do banco e nao da tela. */
+export async function leRastreioDoPedido(id: string) {
+  const { data, error } = await admin()
+    .from('orders')
+    .select('rastreio_codigo, rastreio_url')
+    .eq('id', id)
+    .single();
+  if (error || !data) throw new Error(`nao li o pedido: ${error?.message}`);
+  return data;
+}
+
 /** Quantos pedidos esta pessoa tem. Recusa de verdade nao deixa pedido. */
 export async function pedidosDe(dono: Usuario) {
   const { count, error } = await admin()

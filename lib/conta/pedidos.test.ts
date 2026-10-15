@@ -298,6 +298,8 @@ describe('mapeiaDetalhe', () => {
       'pagavel',
       // Entrou na #276: o que cabe pedir agora (cancelar, desistir, trocar).
       'posVenda',
+      // Entrou na #378: o codigo dos Correios, depois que o pedido sai.
+      'rastreio',
       // Entrou na #356: o checkout com a mesma escolha, no vencido e no cancelado.
       'refazer',
       'rotulo',
@@ -348,6 +350,17 @@ describe('mapeiaDetalhe', () => {
         arrependimentoAberto: true,
       },
     });
+  });
+
+  it('rastreio (#378): enviado e entregue mostram; antes e depois do caminho, nao', () => {
+    const comCodigo = { ...linha, rastreio_codigo: 'AB123456789BR', rastreio_url: null };
+
+    expect(mapeiaDetalhe(comCodigo).rastreio).toEqual({ codigo: 'AB123456789BR', url: null });
+    expect(mapeiaDetalhe({ ...comCodigo, status: 'entregue' }).rastreio).not.toBeNull();
+    expect(mapeiaDetalhe({ ...comCodigo, status: 'em_producao' }).rastreio).toBeNull();
+    expect(mapeiaDetalhe({ ...comCodigo, status: 'reembolsado' }).rastreio).toBeNull();
+    // Pedido enviado antes da #378 nao tem codigo: sem bloco.
+    expect(mapeiaDetalhe(linha).rastreio).toBeNull();
   });
 
   it('cancelado: sem o bloco de cancelar, desistir ou trocar', () => {
