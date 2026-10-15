@@ -1446,3 +1446,9 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
   .concierge-bolha{animation:none}
   .concierge-digitando.on .eq i{animation:none;transform:scaleY(.5)}
 }
+
+/* Painel do dono (#345): o que separar da prateleira, a exportacao e o
+   detalhe do pedido com a trilha e as tentativas de pagamento. */
+.admin-itens{margin-top:10px;font-size:14px;letter-spacing:.02em;color:var(--prata);overflow-wrap:anywhere}
+.admin-exportar{margin-top:10px}
+.admin-trilha-quem{display:block;margin-top:2px;font-size:12px;letter-spacing:.04em;color:var(--prata-2);overflow-wrap:anywhere}

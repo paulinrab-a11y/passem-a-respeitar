@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { type BrowserContext, test as base, expect, type Page } from '@playwright/test';
 import {
   criaAdmin,
@@ -322,4 +323,63 @@ test('admin: filtro e pagina invalidos caem no padrao; pagina vazia volta para a
     'aria-current',
     'page'
   );
+});
+
+/**
+ * O detalhe do dono e a planilha (#345). O card levava a /conta/pedidos/{id},
+ * a tela do cliente, que filtra por `user_id` e dava 404 para o dono.
+ */
+test('admin: o card diz o que separar e leva ao detalhe do dono', async ({ administrando }) => {
+  await administrando.goto('/conta/admin/pedidos');
+
+  await expect(card(administrando).locator('.admin-itens')).toHaveText(
+    `1× ${ITEM.nome} · ${ITEM.tamanho}`
+  );
+
+  await card(administrando)
+    .getByRole('link', { name: `Pedido #${pedido.numero}`, exact: true })
+    .click();
+  await administrando.waitForURL(`**/conta/admin/pedidos/${pedido.id}`);
+
+  await expect(administrando.getByRole('heading', { level: 1 })).toHaveText(
+    `Pedido #${pedido.numero}`
+  );
+  // O e-mail de quem comprou, que o card nao mostra.
+  await expect(
+    administrando.getByRole('link', { name: new RegExp(`^${cliente.email}$`, 'i') })
+  ).toBeVisible();
+  // A trilha com quem mudou e o motivo — nota interna que o cliente nao ve.
+  await expect(
+    administrando.getByText(new RegExp(`por ${admin.email} · ${MOTIVO}`, 'i'))
+  ).toBeVisible();
+  await expect(administrando.getByText('Rua Que So O Admin Ve, 77, fundos')).toBeVisible();
+  await expect(administrando.getByText('Nenhuma tentativa ainda.')).toBeVisible();
+});
+
+test('admin: o detalhe do dono e a planilha sao 404 para o cliente, ate do pedido dele', async ({
+  page,
+}) => {
+  await entra(page, cliente.email, cliente.senha);
+
+  const detalhe = await page.goto(`/conta/admin/pedidos/${pedido.id}`);
+  expect(detalhe?.status()).toBe(404);
+  expect(await detalhe?.text()).not.toContain(MOTIVO);
+
+  const planilha = await page.request.get('/api/admin/pedidos');
+  expect(planilha.status()).toBe(404);
+});
+
+test('admin: exportar baixa a planilha do filtro aberto', async ({ administrando }) => {
+  await administrando.goto('/conta/admin/pedidos');
+
+  const [arquivo] = await Promise.all([
+    administrando.waitForEvent('download'),
+    administrando.getByRole('link', { name: 'Exportar CSV' }).click(),
+  ]);
+
+  expect(arquivo.suggestedFilename()).toMatch(/^pedidos-\d{4}-\d{2}-\d{2}\.csv$/);
+  const texto = readFileSync(await arquivo.path(), 'utf8');
+  expect(texto).toContain(`"${pedido.numero}"`);
+  expect(texto).toContain('Rua Que So O Admin Ve, 77, fundos');
+  expect(texto).toContain('"Em produção"');
 });

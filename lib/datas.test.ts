@@ -8,6 +8,7 @@ import {
   formataDataPorExtenso,
   formataDiaHora,
   formataMesAbreviadoHora,
+  formataParaPlanilha,
 } from './datas';
 
 /**
@@ -44,6 +45,7 @@ describe('datas em horario de Brasilia (#248)', () => {
     expect(formataDiaHora(NOITE)).toBe('05/10, 21:30');
     expect(formataDataPorExtenso(NOITE)).toBe('05 de outubro de 2026');
     expect(formataMesAbreviadoHora(NOITE)).toBe('05 de out., 21:30');
+    expect(formataParaPlanilha(NOITE)).toBe('2026-10-05 21:30');
   });
 
   it.each([
