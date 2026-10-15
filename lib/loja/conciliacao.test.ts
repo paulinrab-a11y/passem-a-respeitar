@@ -270,14 +270,12 @@ describe('o que a varredura faz', () => {
   // Uma falha nao para a fila: o proximo pode estar pago.
   it('provedor fora do ar num item nao impede os outros', async () => {
     linhas = [pendente('a'), pendente('b'), pendente('c')];
-    vi.mocked(consultaOrdem)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValue({
-        estado: 'aprovado',
-        status: 'processed',
-        statusDetail: null,
-        valor: VALOR_OK,
-      });
+    vi.mocked(consultaOrdem).mockResolvedValueOnce(null).mockResolvedValue({
+      estado: 'aprovado',
+      status: 'processed',
+      statusDetail: null,
+      valor: VALOR_OK,
+    });
 
     const b = await concilia({ agoraMs: AGORA });
 
