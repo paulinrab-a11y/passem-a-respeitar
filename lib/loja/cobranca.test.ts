@@ -78,7 +78,12 @@ function filtra(linhas: Record<string, unknown>[], ops: unknown[][]) {
 }
 
 function banco({
-  pedido = { id: PEDIDO, total_centavos: 12000, status: 'aguardando_pagamento' },
+  pedido = {
+    id: PEDIDO,
+    total_centavos: 12000,
+    status: 'aguardando_pagamento',
+    criado_em: new Date().toISOString(),
+  },
   ultimaTentativa = null as number | null,
   falhaAoInserir = false,
   /** Tentativas do pedido abertas no provedor, ou ja aprovadas. */
@@ -640,6 +645,38 @@ describe('prazo do pedido', () => {
     expect(criaOrdem).not.toHaveBeenCalled();
   });
 
+  it('Pix aberto perto do fim vence junto com o pedido', async () => {
+    banco({ pedido: pedidoDe(47 * HORA + 30 * 1000) });
+
+    await pedirPix();
+
+    const metodo = vi.mocked(criaOrdem).mock.calls[0][0].metodo;
+    // Faltam 59,5 minutos: arredondado para baixo, nunca passa do prazo.
+    expect(metodo).toEqual({ tipo: 'pix', validade: 'PT59M' });
+  });
+
+  it('com menos de 30 minutos, recusa Pix sem gravar tentativa', async () => {
+    banco({ pedido: pedidoDe(48 * HORA - 20 * 60 * 1000) });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pix-fora-do-prazo' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+    expect(gravado).toEqual([]);
+  });
+
+  it('com menos de 30 minutos, cartao ainda cobra', async () => {
+    banco({ pedido: pedidoDe(48 * HORA - 20 * 60 * 1000) });
+
+    const r = await cobra({
+      pedido: PEDIDO,
+      payment_method_id: 'master',
+      token: 'tok12345678',
+      installments: 1,
+    });
+
+    expect(r).toMatchObject({ ok: true });
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
   it('cancelado depois do prazo responde expirado, e nao ja pago', async () => {
     banco({ pedido: pedidoDe(49 * HORA, 'cancelado') });
 
@@ -673,7 +710,9 @@ describe('autorizacao', () => {
   it.each(['pago', 'em_producao', 'enviado', 'entregue', 'cancelado'])(
     'pedido em %s nao e cobrado de novo',
     async (status) => {
-      banco({ pedido: { id: PEDIDO, total_centavos: 12000, status } });
+      banco({
+        pedido: { id: PEDIDO, total_centavos: 12000, status, criado_em: new Date().toISOString() },
+      });
 
       expect(await pedirPix()).toEqual({ ok: false, motivo: 'pedido-ja-pago' });
       expect(criaOrdem).not.toHaveBeenCalled();

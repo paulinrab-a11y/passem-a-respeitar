@@ -37,3 +37,36 @@ export function expirou(criadoEm: string, agoraMs = Date.now()): boolean {
 
   return Number.isFinite(nascido) && agoraMs - nascido >= VALIDADE_DO_PEDIDO_MS;
 }
+
+/** O Mercado Pago nao aceita Pix com vencimento abaixo de 30 minutos. */
+export const VALIDADE_MINIMA_DO_PIX_MS = 30 * 60 * 1000;
+
+/** O vencimento padrao do Pix no provedor. Mais que isso nao se pede. */
+const VALIDADE_MAXIMA_DO_PIX_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Por quanto tempo o Pix novo fica pagavel, em duracao ISO 8601 (`PT5H12M`),
+ * que e o formato do `expiration_time` da Orders API.
+ *
+ * Sem isto o provedor dava 24 horas a qualquer Pix: um aberto perto do fim do
+ * prazo continuava pagavel um dia depois de o pedido vencer, pelo preco e o
+ * frete antigos, e a tela mostrava dois horarios que nao batiam. Aqui o Pix
+ * vence junto com o pedido (ou antes, com o teto de 24 h), arredondado para
+ * baixo no minuto.
+ *
+ * `null` quando falta menos que o minimo do provedor: um Pix desses so
+ * existiria vencendo depois do pedido, entao nao se abre.
+ */
+export function validadeDoPix(criadoEm: string, agoraMs = Date.now()): string | null {
+  const nascido = Date.parse(criadoEm);
+  if (!Number.isFinite(nascido)) return null;
+
+  const restante = Math.min(nascido + VALIDADE_DO_PEDIDO_MS - agoraMs, VALIDADE_MAXIMA_DO_PIX_MS);
+  if (restante < VALIDADE_MINIMA_DO_PIX_MS) return null;
+
+  const minutos = Math.floor(restante / 60_000);
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+
+  return `PT${horas ? `${horas}H` : ''}${resto ? `${resto}M` : ''}`;
+}

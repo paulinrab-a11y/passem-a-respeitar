@@ -36,8 +36,14 @@ let atualizacoes: { dados: Record<string, unknown>; ops: unknown[][] }[] = [];
 /** Ordem das chamadas, para provar que o provedor vem antes do pedido. */
 let passos: string[] = [];
 
+/** Um vencido, com a idade em minutos alem do corte (para a ordem da fila). */
+const vencido = (id: string, minuto = 0) => ({
+  id,
+  criado_em: new Date(AGORA - 3 * VALIDADE_DO_PEDIDO_MS + minuto * 60_000).toISOString(),
+});
+
 function banco({
-  vencidos = [{ id: PEDIDO }] as { id: string }[],
+  vencidos = [vencido(PEDIDO)] as { id: string; criado_em: string }[],
   /** O `update` condicionado alcancou o pedido? */
   alcancou = true,
   erroNoUpdate = false,
@@ -59,6 +65,7 @@ function banco({
         };
       elo.eq = anota('eq');
       elo.lt = anota('lt');
+      elo.gt = anota('gt');
       elo.order = anota('order');
       elo.update = (dados: Record<string, unknown>) => {
         dadosDoUpdate = dados;
@@ -77,7 +84,14 @@ function banco({
         ops.push(['select', ...args]);
         return elo;
       };
-      elo.limit = (n: number) => Promise.resolve({ data: vencidos.slice(0, n), error: null });
+      // O `gt` em `criado_em` e a pagina seguinte: aplica como o banco faria.
+      elo.limit = (n: number) => {
+        const depois = ops.find((o) => o[0] === 'gt' && o[1] === 'criado_em')?.[2] as
+          | string
+          | undefined;
+        const fila = depois ? vencidos.filter((v) => v.criado_em > depois) : vencidos;
+        return Promise.resolve({ data: fila.slice(0, n), error: null });
+      };
       elo.maybeSingle = () => Promise.resolve({ data: vencidos[0] ?? null, error: null });
       return elo;
     },
@@ -113,12 +127,57 @@ describe('expiraVencidos: quem entra na varredura', () => {
   });
 
   it('do mais velho para o mais novo, com teto', async () => {
-    banco({ vencidos: [{ id: PEDIDO }, { id: OUTRO }] });
+    banco({ vencidos: [vencido(PEDIDO), vencido(OUTRO, 1)] });
 
     const balanco = await expiraVencidos({ agoraMs: AGORA, limite: 1 });
 
     expect(consultas[0]).toContainEqual(['order', 'criado_em', { ascending: true }]);
     expect(balanco.olhados).toBe(1);
+    // Parou no teto com vencido na fila: o log precisa dizer.
+    expect(balanco.sobraram).toBe(true);
+  });
+
+  // Adiado continua aguardando e voltaria no topo todo dia. Com a fila presa
+  // nele, um lote inteiro de adiados travava a expiracao de todo o resto.
+  it('um lote inteiro de adiados nao trava os mais novos', async () => {
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    banco({ vencidos: ids.map((id, i) => vencido(id, i)) });
+    vi.mocked(encerraAbertas)
+      .mockResolvedValueOnce({ encerradas: 0, aprovadas: 0, presas: 1 })
+      .mockResolvedValueOnce({ encerradas: 0, aprovadas: 0, presas: 1 })
+      .mockResolvedValue(SEM_ABERTAS);
+
+    const balanco = await expiraVencidos({ agoraMs: AGORA, lote: 2 });
+
+    expect(balanco).toEqual({ olhados: 5, expirados: 3, pagos: 0, adiados: 2, sobraram: false });
+    // A segunda pagina comeca depois do ultimo olhado, e nao no topo de novo.
+    const segunda = consultas.filter((ops) => ops.some((o) => o[0] === 'order'))[1];
+    expect(segunda).toContainEqual(['gt', 'criado_em', vencido('b', 1).criado_em]);
+  });
+
+  it('fila que acaba no fim de um lote nao conta como sobra', async () => {
+    banco({ vencidos: [vencido(PEDIDO), vencido(OUTRO, 1)] });
+
+    const balanco = await expiraVencidos({ agoraMs: AGORA, lote: 2 });
+
+    expect(balanco.olhados).toBe(2);
+    expect(balanco.sobraram).toBe(false);
+  });
+
+  it('para no teto mesmo no meio de um lote', async () => {
+    banco({ vencidos: ['a', 'b', 'c', 'd', 'e'].map((id, i) => vencido(id, i)) });
+
+    const balanco = await expiraVencidos({ agoraMs: AGORA, lote: 2, limite: 3 });
+
+    expect(balanco.olhados).toBe(3);
+    expect(balanco.sobraram).toBe(true);
+  });
+
+  it('sem tempo, para e deixa o resto para o proximo cron', async () => {
+    const balanco = await expiraVencidos({ agoraMs: AGORA, orcamentoMs: 0 });
+
+    expect(balanco).toMatchObject({ olhados: 0, sobraram: true });
+    expect(encerraAbertas).not.toHaveBeenCalled();
   });
 
   it('sem nada vencido, nao fala com o provedor', async () => {
@@ -129,6 +188,7 @@ describe('expiraVencidos: quem entra na varredura', () => {
       expirados: 0,
       pagos: 0,
       adiados: 0,
+      sobraram: false,
     });
     expect(encerraAbertas).not.toHaveBeenCalled();
   });
@@ -138,7 +198,7 @@ describe('expiraVencidos: o que acontece com cada pedido', () => {
   it('sem cobranca aberta, vira cancelado', async () => {
     const balanco = await expiraVencidos({ agoraMs: AGORA });
 
-    expect(balanco).toEqual({ olhados: 1, expirados: 1, pagos: 0, adiados: 0 });
+    expect(balanco).toEqual({ olhados: 1, expirados: 1, pagos: 0, adiados: 0, sobraram: false });
     expect(atualizacoes).toHaveLength(1);
     expect(atualizacoes[0].dados).toEqual({ status: 'cancelado' });
   });
@@ -164,7 +224,7 @@ describe('expiraVencidos: o que acontece com cada pedido', () => {
 
     const balanco = await expiraVencidos({ agoraMs: AGORA });
 
-    expect(balanco).toEqual({ olhados: 1, expirados: 0, pagos: 1, adiados: 0 });
+    expect(balanco).toEqual({ olhados: 1, expirados: 0, pagos: 1, adiados: 0, sobraram: false });
     expect(atualizacoes).toEqual([]);
   });
 
@@ -173,19 +233,19 @@ describe('expiraVencidos: o que acontece com cada pedido', () => {
 
     const balanco = await expiraVencidos({ agoraMs: AGORA });
 
-    expect(balanco).toEqual({ olhados: 1, expirados: 0, pagos: 0, adiados: 1 });
+    expect(balanco).toEqual({ olhados: 1, expirados: 0, pagos: 0, adiados: 1, sobraram: false });
     expect(atualizacoes).toEqual([]);
   });
 
   it('um adiado nao para a fila', async () => {
-    banco({ vencidos: [{ id: PEDIDO }, { id: OUTRO }] });
+    banco({ vencidos: [vencido(PEDIDO), vencido(OUTRO, 1)] });
     vi.mocked(encerraAbertas)
       .mockResolvedValueOnce({ encerradas: 0, aprovadas: 0, presas: 1 })
       .mockResolvedValueOnce(SEM_ABERTAS);
 
     const balanco = await expiraVencidos({ agoraMs: AGORA });
 
-    expect(balanco).toEqual({ olhados: 2, expirados: 1, pagos: 0, adiados: 1 });
+    expect(balanco).toEqual({ olhados: 2, expirados: 1, pagos: 0, adiados: 1, sobraram: false });
   });
 
   it('pedido que saiu da espera no meio (pago, cancelado pelo dono) nao conta como expirado', async () => {
@@ -196,6 +256,7 @@ describe('expiraVencidos: o que acontece com cada pedido', () => {
       expirados: 0,
       pagos: 0,
       adiados: 0,
+      sobraram: false,
     });
   });
 

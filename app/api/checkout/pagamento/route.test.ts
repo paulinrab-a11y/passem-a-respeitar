@@ -111,6 +111,7 @@ describe('POST /api/checkout/pagamento', () => {
     ['pagamento-em-processamento', 409],
     ['pagamento-pendente', 409],
     ['pedido-expirado', 410],
+    ['pix-fora-do-prazo', 409],
   ] as const)('%s vira HTTP %i', async (motivo, status) => {
     cobra.mockResolvedValue({ ok: false, motivo });
 

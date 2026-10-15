@@ -41,6 +41,11 @@ export type BalancoDaExpiracao = {
   pagos: number;
   /** O provedor nao deixou concluir. Continuam aguardando; o proximo cron tenta. */
   adiados: number;
+  /**
+   * A varredura parou no teto ou no tempo com vencidos ainda na fila. No log,
+   * e o sinal de que um dia so nao esta dando conta.
+   */
+  sobraram: boolean;
 };
 
 type Desfecho = 'expirado' | 'pago' | 'adiado' | 'saiu';
@@ -56,8 +61,18 @@ type Admin = ReturnType<typeof clienteAdmin>;
  */
 const FOLGA_MS = 15 * 60 * 1000;
 
+/** Quantos pedidos se buscam por vez no banco. */
+const LOTE = 25;
+
 /** Teto por execucao: cada pedido pode custar algumas idas ao provedor. */
-const LIMITE = 25;
+const LIMITE = 100;
+
+/**
+ * Tempo da varredura, contado do inicio dela. O cron roda uma vez por dia e
+ * divide a funcao com a conciliacao: passado isto, para e o resto fica para
+ * amanha, com `sobraram` no balanco.
+ */
+const ORCAMENTO_MS = 20 * 1000;
 
 function corte(agoraMs: number): string {
   return new Date(agoraMs - VALIDADE_DO_PEDIDO_MS - FOLGA_MS).toISOString();
@@ -96,38 +111,74 @@ async function expira(admin: Admin, orderId: string, agoraMs: number): Promise<D
 /**
  * Varredura do cron: pedidos em `aguardando_pagamento` alem do prazo e da
  * folga, do mais velho para o mais novo.
+ *
+ * Em lotes, andando pela fila por `criado_em`, e nao "os 25 mais velhos": um
+ * pedido adiado (o provedor nao deixou cancelar o Pix, a orfa nao responde)
+ * continua aguardando e voltaria no topo todo dia. Com a fila parada nele, 25
+ * adiados bastavam para nenhum pedido mais novo expirar nunca. Aqui o lote
+ * seguinte comeca depois do ultimo olhado, e o adiado so custa a sua vez.
  */
 export async function expiraVencidos({
   limite = LIMITE,
+  lote = LOTE,
+  orcamentoMs = ORCAMENTO_MS,
   agoraMs = Date.now(),
 }: {
   limite?: number;
+  lote?: number;
+  orcamentoMs?: number;
   agoraMs?: number;
 } = {}): Promise<BalancoDaExpiracao> {
   const admin = clienteAdmin();
+  const inicio = Date.now();
+  const ate = corte(agoraMs);
 
-  const { data: vencidos } = await admin
-    .from('orders')
-    .select('id')
-    .eq('status', 'aguardando_pagamento')
-    .lt('criado_em', corte(agoraMs))
-    .order('criado_em', { ascending: true })
-    .limit(limite);
+  const balanco: BalancoDaExpiracao = {
+    olhados: 0,
+    expirados: 0,
+    pagos: 0,
+    adiados: 0,
+    sobraram: false,
+  };
 
-  const balanco: BalancoDaExpiracao = { olhados: 0, expirados: 0, pagos: 0, adiados: 0 };
+  let depoisDe: string | null = null;
 
-  // Um por vez, como a conciliacao: rajada no provedor e o que o limite deles
-  // pune. E um adiado nao para a fila: o proximo pode cancelar.
-  for (const { id } of vencidos ?? []) {
-    balanco.olhados += 1;
+  for (;;) {
+    let busca = admin
+      .from('orders')
+      .select('id, criado_em')
+      .eq('status', 'aguardando_pagamento')
+      .lt('criado_em', ate);
+    if (depoisDe) busca = busca.gt('criado_em', depoisDe);
 
-    const desfecho = await expira(admin, id, agoraMs);
-    if (desfecho === 'expirado') balanco.expirados += 1;
-    else if (desfecho === 'pago') balanco.pagos += 1;
-    else if (desfecho === 'adiado') balanco.adiados += 1;
+    const pedidos = Math.min(lote, limite - balanco.olhados);
+    const { data: vencidos } = await busca.order('criado_em', { ascending: true }).limit(pedidos);
+
+    // Um por vez, como a conciliacao: rajada no provedor e o que o limite
+    // deles pune. E um adiado nao para a fila: o proximo pode cancelar.
+    for (const { id, criado_em } of vencidos ?? []) {
+      if (Date.now() - inicio >= orcamentoMs) {
+        balanco.sobraram = true;
+        return balanco;
+      }
+
+      balanco.olhados += 1;
+      depoisDe = criado_em;
+
+      const desfecho = await expira(admin, id, agoraMs);
+      if (desfecho === 'expirado') balanco.expirados += 1;
+      else if (desfecho === 'pago') balanco.pagos += 1;
+      else if (desfecho === 'adiado') balanco.adiados += 1;
+    }
+
+    // Lote incompleto: a fila acabou.
+    if ((vencidos?.length ?? 0) < pedidos) return balanco;
+
+    if (balanco.olhados >= limite) {
+      balanco.sobraram = true;
+      return balanco;
+    }
   }
-
-  return balanco;
 }
 
 /**

@@ -79,7 +79,7 @@ describe('criaOrdem', () => {
     totalCentavos: 12990,
     email: 'quem@exemplo.test',
     documento: null,
-    metodo: { tipo: 'pix' } as const,
+    metodo: { tipo: 'pix', validade: 'PT5H12M' } as const,
     idempotencia: 'chave-1',
   };
 
@@ -129,6 +129,12 @@ describe('criaOrdem', () => {
     await criaOrdem(DADOS);
 
     expect(cabecalho('X-Idempotency-Key')).toBe('chave-1');
+  });
+
+  it('Pix vai com o vencimento pedido, e nao com o padrao do provedor (#298)', async () => {
+    await criaOrdem(DADOS);
+
+    expect(corpoEnviado().transactions.payments[0].expiration_time).toBe('PT5H12M');
   });
 
   it('Pix vai como bank_transfer', async () => {

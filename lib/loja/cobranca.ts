@@ -27,7 +27,7 @@ import { z } from 'zod';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
-import { expirou } from './validade-do-pedido';
+import { expirou, validadeDoPix } from './validade-do-pedido';
 import { casaOrfa, encerraAbertas, marcaPago, orfasDoPedido } from './webhook';
 
 /**
@@ -83,7 +83,12 @@ export type MotivoDaCobranca =
   /** Ha uma cobranca aberta no provedor que nao deu para cancelar antes de abrir outra. */
   | 'pagamento-pendente'
   /** Passou do prazo para pagar (#298): preco e frete sao de outro dia. */
-  | 'pedido-expirado';
+  | 'pedido-expirado'
+  /**
+   * Falta menos que o vencimento minimo de um Pix no provedor (#298): ele
+   * so existiria vencendo depois do pedido. Cartao ainda cabe.
+   */
+  | 'pix-fora-do-prazo';
 
 export type ResultadoDaCobranca =
   | {
@@ -198,8 +203,15 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   if (tentativa > MAX_TENTATIVAS) return { ok: false, motivo: 'tentativas-demais' };
 
   const ehPix = entrada.data.payment_method_id === 'pix';
+
+  // O Pix vence junto com o pedido (#298). Sem isto o provedor da 24 h a
+  // qualquer Pix, e um aberto na ultima hora seguia pagavel no dia seguinte
+  // pelo preco antigo. Antes da linha nova: recusar aqui nao deixa tentativa.
+  const validade = ehPix ? validadeDoPix(pedido.criado_em) : null;
+  if (ehPix && !validade) return { ok: false, motivo: 'pix-fora-do-prazo' };
+
   const metodo: MetodoDePagamento = ehPix
-    ? { tipo: 'pix' }
+    ? { tipo: 'pix', validade: validade ?? '' }
     : {
         tipo: 'cartao',
         bandeira: entrada.data.payment_method_id,
