@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { meuPedido } from '@/app/conta/pedidos/[id]/busca-pedido';
 import { pareceUuid } from '@/lib/conta/pedidos';
+import { formataDataHora } from '@/lib/datas';
 import { chavePublica, emReais } from '@/lib/loja/mercadopago';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
@@ -35,8 +36,10 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
 
   // Pedido pago, cancelado ou ja em andamento nao tem o que pagar. `cobra()`
   // ja recusaria (`pedido-ja-pago`), mas mostrar o Brick para depois recusar
-  // e convidar para uma porta fechada. (#113)
-  if (!pedido.aguardandoPagamento) redirect(`/conta/pedidos/${id}`);
+  // e convidar para uma porta fechada. (#113) O mesmo vale para o pedido que
+  // passou do prazo (#298): o detalhe diz o que fazer, e e la que a expiracao
+  // o cancela.
+  if (!pedido.pagavel) redirect(`/conta/pedidos/${id}`);
 
   const usuario = await usuarioDaSessao();
   const chave = chavePublica();
@@ -56,6 +59,13 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
           <span className={`pedido-status ${pedido.tom}`}>{pedido.rotulo}</span>
           <strong className="pagamento-valor">{pedido.total}</strong>
         </p>
+
+        {pedido.pagarAte ? (
+          <p className="detalhe-nota">
+            Este pedido aceita pagamento até{' '}
+            <time dateTime={pedido.pagarAte}>{formataDataHora(pedido.pagarAte)}</time>.
+          </p>
+        ) : null}
 
         <section className="detalhe-bloco">
           <h2>Como você prefere pagar</h2>

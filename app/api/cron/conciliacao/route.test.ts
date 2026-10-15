@@ -15,6 +15,10 @@ const concilia = vi.fn(async () => ({
 
 vi.mock('@/lib/loja/conciliacao', () => ({ concilia: () => concilia() }));
 
+const expiraVencidos = vi.fn(async () => ({ olhados: 2, expirados: 1, pagos: 0, adiados: 1 }));
+
+vi.mock('@/lib/loja/expiracao', () => ({ expiraVencidos: () => expiraVencidos() }));
+
 const { GET } = await import('./route');
 
 const SEGREDO = 'segredo-do-cron-de-teste-com-tamanho-razoavel';
@@ -56,8 +60,28 @@ describe('autorizacao', () => {
       semAvanco: 2,
       repetidos: 0,
       falhas: 0,
+      expiracao: { olhados: 2, expirados: 1, pagos: 0, adiados: 1 },
     });
     expect(concilia).toHaveBeenCalledTimes(1);
+    expect(expiraVencidos).toHaveBeenCalledTimes(1);
+  });
+
+  // Pix pago que so a conciliacao descobriu vira `pago` antes de a expiracao
+  // olhar o prazo do pedido (#298).
+  it('expira depois de conciliar, nunca antes', async () => {
+    const ordem: string[] = [];
+    concilia.mockImplementationOnce(async () => {
+      ordem.push('concilia');
+      return { olhados: 0, mudados: 0, semAvanco: 0, repetidos: 0, falhas: 0 };
+    });
+    expiraVencidos.mockImplementationOnce(async () => {
+      ordem.push('expira');
+      return { olhados: 0, expirados: 0, pagos: 0, adiados: 0 };
+    });
+
+    await GET(pede(`Bearer ${SEGREDO}`));
+
+    expect(ordem).toEqual(['concilia', 'expira']);
   });
 
   it.each([
@@ -70,6 +94,7 @@ describe('autorizacao', () => {
 
     expect(r.status).toBe(401);
     expect(concilia).not.toHaveBeenCalled();
+    expect(expiraVencidos).not.toHaveBeenCalled();
   });
 
   // O timingSafeEqual compara bytes e lanca com tamanhos diferentes. Contar
