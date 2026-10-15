@@ -31,6 +31,7 @@ const ARQUIVOS = [
   'concierge',
   'frete',
   'confirmar-email',
+  'pagamento',
   'loja-no-celular',
   'pre-sequestro',
 ] as const;
