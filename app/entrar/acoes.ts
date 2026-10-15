@@ -8,7 +8,7 @@ import { esquemaEntrar } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { CAMPO_DA_ISCA, CAMPO_DO_DESAFIO, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
 import { destinoSeguro } from '@/lib/rotas';
-import { COOKIE_LEMBRAR, opcoesDoLembrar } from '@/lib/supabase/cookies';
+import { COOKIE_LEMBRAR, COOKIE_RECUPERACAO, opcoesDoLembrar } from '@/lib/supabase/cookies';
 import { clienteDeAuth } from '@/lib/supabase/servidor';
 import type { EstadoEntrar } from './estado';
 
@@ -172,6 +172,9 @@ export async function entrar(anterior: EstadoEntrar, form: FormData): Promise<Es
   // token que vierem, se aquela sessao era para durar.
   const jar = await cookies();
   jar.set(COOKIE_LEMBRAR, lembrar ? '1' : '0', opcoesDoLembrar(lembrar));
+  // Login por senha nao e recuperacao (#348): uma marca que sobrou de um link
+  // anterior nao vale para esta sessao.
+  jar.delete(COOKIE_RECUPERACAO);
 
   // Fora do try: `redirect` funciona lancando uma excecao, e um catch acima
   // dele engoliria o redirecionamento.

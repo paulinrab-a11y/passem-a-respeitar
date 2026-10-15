@@ -33,10 +33,11 @@ vi.mock('@/lib/supabase/servidor', () => ({
 }));
 
 const jarSet = vi.fn();
+const jarDelete = vi.fn();
 let cabecalhos = new Headers();
 
 vi.mock('next/headers', () => ({
-  cookies: async () => ({ set: jarSet }),
+  cookies: async () => ({ set: jarSet, delete: jarDelete }),
   headers: async () => cabecalhos,
 }));
 
@@ -118,6 +119,8 @@ describe('login com sucesso', () => {
 
     expect(clienteDeAuth).toHaveBeenCalledWith(false);
     expect(jarSet).toHaveBeenCalledWith('par_lembrar', '0', expect.anything());
+    // Login por senha nao herda a marca de um link de recuperacao (#348).
+    expect(jarDelete).toHaveBeenCalledWith('par_recuperacao');
   });
 
   it('manda o e-mail normalizado ao Supabase', async () => {
