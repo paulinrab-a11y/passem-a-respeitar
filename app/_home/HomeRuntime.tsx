@@ -6,6 +6,7 @@ import { levaAteAAncora } from '@/lib/ancora';
 import { fechaAbertura, prendeAbertura } from './abertura';
 import montaConcierge from './concierge';
 import { CONFIG } from './config';
+import { depoisDaPintura } from './depois-da-pintura';
 import { desafioDoConvite } from './desafio-do-convite';
 
 // three.js, GLTFLoader, GSAP e ScrollTrigger entram por dynamic import: ficam
@@ -42,12 +43,19 @@ export default function HomeRuntime() {
 
     (async () => {
       try {
-        const [THREE, gltf, gsapMod, stMod, legacy] = await Promise.all([
-          import('three'),
-          import('three/examples/jsm/loaders/GLTFLoader.js'),
-          import('gsap'),
-          import('gsap/ScrollTrigger'),
-          import('./legacy-site'),
+        // Os chunks baixam ja; o init espera a pagina pintar (#377). O
+        // `#intro` e o `prendeAbertura` acima ja seguram a abertura desde o
+        // HTML, entao esperar aqui nao mostra nada que nao devia — so deixa a
+        // primeira pintura sair antes da tarefa longa da cena.
+        const [[THREE, gltf, gsapMod, stMod, legacy]] = await Promise.all([
+          Promise.all([
+            import('three'),
+            import('three/examples/jsm/loaders/GLTFLoader.js'),
+            import('gsap'),
+            import('gsap/ScrollTrigger'),
+            import('./legacy-site'),
+          ]),
+          depoisDaPintura(window),
         ]);
 
         if (cancelado) return;
