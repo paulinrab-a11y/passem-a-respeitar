@@ -13,7 +13,10 @@ const limita = vi.fn<() => Promise<{ permitido: boolean; esperarS: number }>>();
 const usuarioDaSessao = vi.fn<() => Promise<{ id: string; email: string } | null>>();
 
 vi.mock('@/lib/loja/cobranca', () => ({ cobra: (b: unknown) => cobra(b) }));
-vi.mock('@/lib/rate-limit', () => ({ limita: () => limita() }));
+vi.mock('@/lib/rate-limit', async (original) => ({
+  ...(await original<typeof import('@/lib/rate-limit')>()),
+  limita: () => limita(),
+}));
 vi.mock('@/lib/supabase/servidor', () => ({ usuarioDaSessao: () => usuarioDaSessao() }));
 
 const { POST } = await import('./route');
@@ -83,6 +86,21 @@ describe('POST /api/checkout/pagamento', () => {
     expect(cobra).not.toHaveBeenCalled();
   });
 
+  // Quanto esperar, e nao "mais tarde" (#365).
+  it.each([
+    [120, 2],
+    [61, 2],
+    [59, 1],
+    [1, 1],
+    [3600, 60],
+  ])('fora da cota com %i s diz "em %i min"', async (esperarS, minutos) => {
+    limita.mockResolvedValue({ permitido: false, esperarS });
+
+    const corpo = await (await pede()).json();
+
+    expect(corpo).toEqual({ erro: `Muitas tentativas. Tente de novo em ${minutos} min.` });
+  });
+
   // Cartao recusado e 402 e "nao aprovado": cabe outro cartao.
   it('recusado e 402 com "nao aprovado"', async () => {
     cobra.mockResolvedValue({ ok: false, motivo: 'recusado' });
@@ -91,6 +109,38 @@ describe('POST /api/checkout/pagamento', () => {
 
     expect(r.status).toBe(402);
     expect((await r.json()).erro).toMatch(/não foi aprovado/);
+  });
+
+  // O motivo do banco escolhe a frase (#365), e so a frase sai.
+  it('cartao recusado por CVV diz para conferir o codigo e oferece Pix', async () => {
+    cobra.mockResolvedValue({
+      ok: false,
+      motivo: 'recusado',
+      detalhe: 'cc_rejected_bad_filled_security_code',
+    });
+
+    const r = await pede();
+    const corpo = await r.json();
+
+    expect(r.status).toBe(402);
+    expect(corpo.erro).toContain('código de segurança');
+    expect(corpo.erro).toContain('Pix');
+    expect(JSON.stringify(corpo)).not.toContain('cc_rejected');
+  });
+
+  it('codigo desconhecido do provedor nao vira texto na tela', async () => {
+    cobra.mockResolvedValue({ ok: false, motivo: 'recusado', detalhe: '<b>texto do provedor</b>' });
+
+    const corpo = await (await pede()).json();
+
+    expect(corpo.erro).not.toContain('texto do provedor');
+    expect(corpo.erro).toContain('Pix');
+  });
+
+  it('cartao recusado sem motivo do provedor ainda oferece Pix', async () => {
+    cobra.mockResolvedValue({ ok: false, motivo: 'recusado', detalhe: null });
+
+    expect((await (await pede()).json()).erro).toContain('Pix');
   });
 
   // Credencial recusada pelo provedor e problema nosso: a pessoa le que o

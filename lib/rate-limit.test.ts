@@ -48,7 +48,7 @@ vi.mock('@upstash/ratelimit', () => {
   return { Ratelimit };
 });
 
-const { ipDoRequest, limita } = await import('./rate-limit');
+const { ipDoRequest, limita, minutosDeEspera } = await import('./rate-limit');
 
 // O modulo guarda as janelas num Map de escopo de modulo, que sobrevive entre
 // testes. Cada teste usa a propria chave para nao herdar contagem do vizinho.
@@ -220,5 +220,21 @@ describe('ipDoRequest', () => {
 
   it('usa um balde unico quando nao ha cabecalho', () => {
     expect(ipDoRequest(new Headers())).toBe('desconhecido');
+  });
+});
+
+describe('minutosDeEspera (#365)', () => {
+  it.each([
+    [1, 1],
+    [59, 1],
+    [60, 1],
+    [61, 2],
+    [3600, 60],
+  ])('%i s viram %i min', (segundos, minutos) => {
+    expect(minutosDeEspera(segundos)).toBe(minutos);
+  });
+
+  it('nunca zero: "em 0 min" mandaria tentar agora', () => {
+    expect(minutosDeEspera(0)).toBe(1);
   });
 });
