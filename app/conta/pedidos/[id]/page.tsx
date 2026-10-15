@@ -8,6 +8,7 @@ import { expiraPedido } from '@/lib/loja/expiracao';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPedido } from '../../Esqueletos';
 import { meuPedido } from './busca-pedido';
+import PosVenda from './PosVenda';
 
 export const dynamic = 'force-dynamic';
 
@@ -231,6 +232,11 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
           ) : null}
         </ol>
       </section>
+
+      {/* Cancelar, desistir ou trocar (#276): por ultimo, depois do
+          andamento, que e de onde saem os prazos. Pedido cancelado ou
+          reembolsado nao tem o bloco — nao ha o que pedir. */}
+      {pedido.posVenda ? <PosVenda situacao={pedido.posVenda} numero={pedido.numero} /> : null}
     </>
   );
 }

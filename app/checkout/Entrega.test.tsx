@@ -115,13 +115,17 @@ describe('erro do servidor (#47)', () => {
   it('o lugar do recado existe vazio desde o primeiro quadro, entre o total e o botao', () => {
     const { container } = monta();
     const filhos = [...(container.querySelector('form') as HTMLFormElement).children];
+    const aceite = container.querySelector('input[name="aceite"]')?.closest('label') as Element;
 
     expect(vaga()).toBeTruthy();
     expect(vaga().children).toHaveLength(0);
     expect(filhos.indexOf(vaga())).toBe(filhos.indexOf(botao()) - 1);
-    expect(filhos.indexOf(vaga())).toBe(
+    // Entre o total e o recado, so a caixinha dos termos (#276): o erro dela
+    // aparece logo embaixo dela, e logo acima do botao.
+    expect(filhos.indexOf(aceite)).toBe(
       filhos.indexOf(container.querySelector('.resumo') as Element) + 1
     );
+    expect(filhos.indexOf(vaga())).toBe(filhos.indexOf(aceite) + 1);
   });
 
   it('sem erro, nenhum campo se diz invalido nem aponta para o recado', () => {
@@ -204,6 +208,57 @@ describe('erro do servidor (#47)', () => {
       expect(input.closest('label')?.querySelector('span')?.textContent?.trim()).toBeTruthy();
       expect(input.hasAttribute('placeholder')).toBe(false);
     }
+  });
+});
+
+describe('aceite dos termos de compra (#276)', () => {
+  const caixinha = () =>
+    screen.getByRole('checkbox', { name: 'Li e aceito os termos de compra' }) as HTMLInputElement;
+
+  it('nasce desmarcada, com o link para os termos em outra aba', () => {
+    monta();
+
+    expect(caixinha().checked).toBe(false);
+    expect(caixinha().name).toBe('aceite');
+    const link = screen.getByRole('link', { name: 'termos de compra' });
+    expect(link.getAttribute('href')).toBe('/termos');
+    // Outra aba: voltar do texto nao pode custar o endereco digitado.
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('marcada, vai no envio, e continua marcada quando a acao responde com erro', async () => {
+    const { container } = monta();
+    await act(async () => {
+      fireEvent.click(caixinha());
+    });
+
+    await act(async () => {
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    });
+    await screen.findByText('Confira o CEP.');
+
+    const enviado = vi.mocked(finalizarCompra).mock.calls[0][1] as FormData;
+    expect(enviado.get('aceite')).toBe('on');
+    // O reset do React 19 desmarcaria a caixinha controlada; esta sobrevive (#130).
+    expect(caixinha().checked).toBe(true);
+  });
+
+  it('recusa por falta de aceite: a caixinha aponta para o recado e recebe o foco', async () => {
+    vi.mocked(finalizarCompra).mockResolvedValueOnce({
+      recado: { tom: 'erro', texto: 'Para finalizar, é preciso aceitar os termos de compra.' },
+      campo: 'aceite',
+    });
+    const { container } = monta();
+    await act(async () => {
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    });
+    await screen.findByText('Para finalizar, é preciso aceitar os termos de compra.');
+
+    expect(caixinha().getAttribute('aria-invalid')).toBe('true');
+    expect(caixinha().getAttribute('aria-describedby')).toBe('erro-entrega');
+    expect(document.activeElement).toBe(caixinha());
+    expect(campo('CEP').hasAttribute('aria-invalid')).toBe(false);
   });
 });
 

@@ -111,6 +111,7 @@ const SEM_SESSAO = [
   ['recuperar senha', '/recuperar-senha'],
   ['nova senha, sem link', '/redefinir-senha'],
   ['privacidade', '/privacidade'],
+  ['termos de compra', '/termos'],
   ['nao encontrada', '/um-endereco-que-nao-existe'],
 ] as const;
 

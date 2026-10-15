@@ -180,3 +180,52 @@ test('pedidos: sem sessao, nem a lista nem o detalhe respondem', async ({ page }
   await expect(page).toHaveURL(/\/entrar/);
   expect(await page.content()).not.toContain(DA_ANA.nome);
 });
+
+/**
+ * Cancelar, desistir ou trocar (#276): o caminho do arrependimento mora no
+ * pedido. Com a entrega registrada, os prazos saem dela; o "Entregue" e
+ * gravado agora pelo gatilho da trilha, entao o prazo de desistir vai ate
+ * sete dias depois de hoje, no calendario de Brasilia.
+ */
+test('pedidos: o detalhe diz como cancelar, desistir ou trocar, com os prazos', async ({
+  comoAna,
+}) => {
+  const entregue = await criaPedido(
+    ana,
+    [DA_ANA],
+    ['pago', 'em_producao', 'enviado', 'entregue'],
+    CASA_DA_ANA
+  );
+  const dia = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  const seteDias = dia.format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+
+  await comoAna.goto(`/conta/pedidos/${entregue.id}`);
+  const bloco = comoAna.getByRole('region', { name: 'Precisa cancelar, desistir ou trocar?' });
+  await expect(bloco).toBeVisible();
+  await expect(bloco.locator('.resumo > div', { hasText: 'Desistir da compra' })).toContainText(
+    `até ${seteDias}`
+  );
+  await expect(bloco.getByRole('link', { name: 'termos de compra' })).toHaveAttribute(
+    'href',
+    '/termos'
+  );
+  await expect(bloco).toContainText(`#${entregue.numero}`);
+
+  // O pedido pago e ainda nao enviado: cancelar, com tudo de volta.
+  await comoAna.goto(`/conta/pedidos/${daAna.id}`);
+  await expect(
+    comoAna.getByRole('region', { name: 'Precisa cancelar, desistir ou trocar?' })
+  ).toContainText('Até o envio, você pode cancelar');
+
+  // E a conta leva direto ao "como pedir" dos termos.
+  await comoAna.goto('/conta');
+  await expect(comoAna.getByRole('link', { name: 'Cancelar, desistir ou trocar' })).toHaveAttribute(
+    'href',
+    '/termos#como-pedir'
+  );
+});

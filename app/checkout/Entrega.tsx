@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useCepLembrado } from '@/app/_home/cep-lembrado';
-import { comErro, useCampos } from '@/app/_ui/campos';
+import { comErro, useCaixinha, useCampos } from '@/app/_ui/campos';
 import Mensagem from '@/app/_ui/Mensagem';
 import Rotulo from '@/app/_ui/Rotulo';
 import { reais } from '@/lib/conta/pedidos';
@@ -10,6 +10,7 @@ import { cepLegivel } from '@/lib/loja/endereco';
 import type { OpcaoDeFrete, Servico } from '@/lib/loja/frete';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
+import { TERMOS } from '@/lib/loja/termos';
 import { buscarEndereco, cotarFrete, finalizarCompra, type RespostaDoFrete } from './acoes';
 import { checkoutInicial } from './estado';
 
@@ -97,6 +98,9 @@ export default function Entrega({
   const pendente = emVoo || Boolean(estado.irPara);
   const form = useRef<HTMLFormElement>(null);
   const { campo: controle, valores, preencher } = useCampos(VAZIOS);
+  // O aceite dos termos (#276) sobrevive ao reset do formulario: errar o CEP
+  // nao pode desmarcar a caixinha (#130).
+  const { caixinha } = useCaixinha();
 
   // O CEP que a pessoa digitou na ficha da camiseta (#205) ja vem preenchido,
   // e com ele vem o frete e o endereco. Uma vez so, na chegada: depois o
@@ -298,6 +302,25 @@ export default function Entrega({
           <dd>{reais(total ?? subtotalCentavos)}</dd>
         </div>
       </dl>
+
+      {/* Os termos (#276), antes de pagar: desmarcada por padrao, e o
+          servidor recusa sem ela. O link abre em outra aba, como o da
+          politica no cadastro, para nao perder o endereco digitado. */}
+      <label className="auth-caixinha">
+        <input
+          type="checkbox"
+          name="aceite"
+          {...caixinha}
+          disabled={pendente}
+          {...comErro(estado.campo === 'aceite', ID_DO_ERRO)}
+        />
+        <span>
+          Li e aceito os{' '}
+          <a href={TERMOS} target="_blank" rel="noopener">
+            termos de compra
+          </a>
+        </span>
+      </label>
 
       {/* Lugar reservado (#47), como nos formularios da conta (#51). Antes o
           recado so existia com erro: entrava entre o total e o botao e
