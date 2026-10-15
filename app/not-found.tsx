@@ -4,6 +4,9 @@ import { headers } from 'next/headers';
 export const metadata: Metadata = {
   title: 'Página não encontrada — Passem a Respeitar',
   robots: { index: false, follow: false },
+  // O layout declara canonical por rota; uma URL que nao existe nao tem
+  // canonical nenhum.
+  alternates: { canonical: null },
 };
 
 /**

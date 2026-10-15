@@ -8,6 +8,10 @@ const TITULO = 'Privacidade — Passem a Respeitar';
 
 export const metadata: Metadata = {
   title: TITULO,
+  // Descricao propria: com a do layout, a home e esta pagina diziam o mesmo
+  // ao Google.
+  description:
+    'Quais dados o site do EP Passem a Respeitar coleta, para quê, com quem compartilha e como pedir para apagar.',
   // Card proprio (#322): o link desta pagina mostra "Privacidade", e o
   // `og:url` e o canonical terminam em /privacidade.
   ...cartaoDoLink(TITULO),
