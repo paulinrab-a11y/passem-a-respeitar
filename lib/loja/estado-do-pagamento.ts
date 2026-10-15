@@ -1,3 +1,5 @@
+import type { ValorDoProvedor } from './valor-do-provedor';
+
 /**
  * Traducao do status do provedor para o nosso (Issue #110).
  *
@@ -28,6 +30,11 @@ export type ResumoDoProvedor = {
   /** Como veio, sem traducao. E isto que vai para a coluna `provedor_status`. */
   status: string | null;
   statusDetail: string | null;
+  /**
+   * Quanto a ordem vale la (#350). So o resumo lido da ordem traz; o webhook
+   * e a conciliacao exigem que confira antes de marcar o pedido pago.
+   */
+  valor?: ValorDoProvedor;
 };
 
 /**

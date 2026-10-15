@@ -90,6 +90,7 @@ import {
   reembolsaOrdem,
 } from './orders-api';
 import { origensDe } from './status-do-pedido';
+import { valorConfere } from './valor-do-provedor';
 
 export type ResultadoDoWebhook =
   /** Processado agora. */
@@ -156,7 +157,8 @@ type AvisoDePagamento =
   | 'pagamento aprovado em pedido nao pendente'
   | 'pagamento duplicado a estornar'
   | 'pagamento duplicado estornado: pedido segue pago'
-  | 'pagamento estornado no provedor: pedido reembolsado';
+  | 'pagamento estornado no provedor: pedido reembolsado'
+  | 'pagamento aprovado com valor divergente';
 
 /** Tentativa que ficou sem id do provedor: a resposta se perdeu no caminho. */
 export type PagamentoOrfao = PagamentoEmAberto & { criado_em: string };
@@ -516,6 +518,22 @@ async function aplica(
     return { tipo: 'ignorado', motivo: 'sem-avanco' };
   }
 
+  // Aprovado so vale com o valor que cobramos (#350). Divergiu, a tentativa
+  // fica como esta — nem aprovada, nem recusada — e o dono e avisado: e
+  // dinheiro que alguem precisa olhar, nao pedido para produzir. Nao saber o
+  // valor esperado (banco fora) e "tente de novo", nunca "pago".
+  if (resumo.estado === 'aprovado') {
+    const conferencia = await confereValor(admin, pagamento.id, resumo);
+    if (conferencia === 'sem-leitura') {
+      return { tipo: 'tente-de-novo', motivo: 'valor-sem-leitura' };
+    }
+    if (conferencia === 'divergente') {
+      await admin.from('pagamento_eventos').update(evento).eq('evento_id', eventoId);
+      avisaPagamento('pagamento aprovado com valor divergente', pagamento.order_id);
+      return { tipo: 'ignorado', motivo: 'valor-divergente' };
+    }
+  }
+
   await admin
     .from('pagamentos')
     .update({
@@ -550,6 +568,31 @@ async function aplica(
   }
 
   return { tipo: 'aplicado', estado: resumo.estado };
+}
+
+/**
+ * O valor da tentativa, lido do banco, contra o que o provedor confirmou
+ * (#350). A tentativa guarda `valor_centavos` desde que nasce, com o total do
+ * pedido; e esse o numero, e nao o total do pedido de agora.
+ *
+ * O aviso leva so o id do pedido, como os outros: nada de valor, e-mail ou
+ * documento no Sentry.
+ */
+async function confereValor(
+  admin: Admin,
+  pagamentoId: string,
+  resumo: Resumo
+): Promise<'confere' | 'divergente' | 'sem-leitura'> {
+  const { data, error } = await admin
+    .from('pagamentos')
+    .select('valor_centavos')
+    .eq('id', pagamentoId)
+    .maybeSingle();
+
+  const esperado = (data as { valor_centavos?: unknown } | null)?.valor_centavos;
+  if (error || typeof esperado !== 'number') return 'sem-leitura';
+
+  return valorConfere(resumo.valor, esperado) ? 'confere' : 'divergente';
 }
 
 /**
