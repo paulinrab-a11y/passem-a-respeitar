@@ -1,8 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { Solicitacao } from '@/lib/conta/pos-venda';
 import { CONTATO } from '@/lib/contato';
 import { ARREPENDIMENTO_DIAS, GARANTIA_DIAS, posVendaDoPedido } from '@/lib/loja/termos';
 import PosVenda from './PosVenda';
+
+// A acao de servidor nao roda aqui: o que se prova e o que o bloco oferece.
+vi.mock('./acoes', () => ({ pedirPosVenda: vi.fn() }));
 
 /**
  * "Precisa cancelar, desistir ou trocar?" (#276). O caminho do arrependimento
@@ -92,5 +96,59 @@ describe('PosVenda', () => {
 
   it('sem o dia da entrega, a regra do defeito oculto tambem aparece', () => {
     expect(bloco('enviado')).toMatch(/o que só aparece com o uso conta a partir de quando aparece/);
+  });
+});
+
+/** Pedir pelo site (#379): o botao do que cabe, e o que ja foi pedido no lugar dele. */
+describe('PosVenda com os botoes', () => {
+  const PEDIDO = '44444444-4444-4444-8444-444444444444';
+  const html = (status: string, solicitacoes: Solicitacao[] = []) =>
+    renderToStaticMarkup(
+      <PosVenda
+        situacao={posVendaDoPedido(status, null)}
+        numero={42}
+        pedido={PEDIDO}
+        solicitacoes={solicitacoes}
+      />
+    ).replace(/\s+/g, ' ');
+
+  const ABERTA: Solicitacao = {
+    tipo: 'cancelamento',
+    protocolo: 'PV-0000ABCD',
+    criadoEm: '2026-10-15T22:00:00Z',
+    resolvidaEm: null,
+    mensagem: null,
+  };
+
+  it('pago: o botao de cancelar, e o e-mail como alternativa', () => {
+    const h = html('pago');
+    expect(h).toContain('>Pedir cancelamento</button>');
+    expect(h).toMatch(/Se preferir, escreva para/);
+  });
+
+  it('enviado: nenhum botao, so o e-mail', () => {
+    const h = html('enviado');
+    expect(h).not.toContain('</button>');
+    expect(h).toMatch(/Escreva para/);
+  });
+
+  it('com o cancelamento aberto: o protocolo no lugar do botao', () => {
+    const h = html('pago', [ABERTA]);
+    expect(h).not.toContain('>Pedir cancelamento</button>');
+    expect(h).toContain('PV-0000ABCD');
+    expect(h).toContain('aguardando a loja');
+  });
+
+  it('pedido reembolsado: so a lista, com a data em que encerrou', () => {
+    const h = renderToStaticMarkup(
+      <PosVenda
+        situacao={null}
+        numero={42}
+        pedido={PEDIDO}
+        solicitacoes={[{ ...ABERTA, resolvidaEm: '2026-10-16T12:00:00Z' }]}
+      />
+    );
+    expect(h).toContain('encerrado em');
+    expect(h).not.toContain('</button>');
   });
 });

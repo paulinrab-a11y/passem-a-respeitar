@@ -17,6 +17,7 @@ import {
   urlDoPedidoAdmin,
 } from '@/lib/conta/painel';
 import { leEntrega, leFrete, leStatus, POR_PAGINA, reais } from '@/lib/conta/pedidos';
+import { ehTipoPosVenda, NOME_DO_TIPO } from '@/lib/conta/pos-venda';
 import { formataDiaHora } from '@/lib/datas';
 import { ehStatusPedido } from '@/lib/loja/status-do-pedido';
 import { ENTRAR } from '@/lib/rotas';
@@ -35,6 +36,9 @@ export const metadata: Metadata = {
 };
 
 type Busca = Promise<Record<string, string | string[] | undefined>>;
+
+/** Quantas solicitacoes abertas o topo do painel lista (#379). */
+const SOLICITACOES_NO_TOPO = 10;
 
 /**
  * Tela administrativa de pedidos (Issue #43; filtro, paginas e endereco na #242).
@@ -85,6 +89,21 @@ const COLUNAS =
   'id, numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, order_items(nome, tamanho, quantidade)';
 
 /**
+ * As solicitacoes de pos-venda abertas (#379), as mais antigas primeiro: sao
+ * as que esperam ha mais tempo. O total vem do `count` — numa tabela pequena,
+ * pelo indice parcial das abertas, e nao na de pedidos —, e a lista mostra
+ * ate dez.
+ */
+function solicitacoesAbertas(admin: ReturnType<typeof clienteAdmin>) {
+  return admin
+    .from('solicitacoes_pos_venda')
+    .select('id, tipo, protocolo, criado_em, order_id, orders(numero)', { count: 'exact' })
+    .is('resolvida_em', null)
+    .order('criado_em', { ascending: true })
+    .limit(SOLICITACOES_NO_TOPO);
+}
+
+/**
  * Quem chega aqui ja passou pela conferencia de papel: so `PedidosAdmin`
  * monta este componente, e so depois de `ehAdmin`.
  *
@@ -103,8 +122,9 @@ async function Painel({ searchParams }: { searchParams: Busca }) {
   let consulta = admin.from('orders').select(COLUNAS);
   if (alvo) consulta = consulta.in('status', alvo);
 
-  // As duas idas ao banco em paralelo: a pagina e os contadores.
-  const [lista, contados] = await Promise.all([
+  // As tres idas ao banco em paralelo: a pagina, os contadores e as
+  // solicitacoes de pos-venda abertas (#379).
+  const [lista, contados, abertas] = await Promise.all([
     consulta
       .order('criado_em', { ascending: false })
       // Desempate, como na lista do cliente: sem ele um pedido na fronteira
@@ -113,6 +133,7 @@ async function Painel({ searchParams }: { searchParams: Busca }) {
       // Uma linha a mais do que cabe: se ela voltar, existe proxima pagina.
       .range(inicio, inicio + POR_PAGINA),
     admin.rpc('conta_pedidos_por_status'),
+    solicitacoesAbertas(admin),
   ]);
 
   if (lista.error) console.warn('[admin] lista indisponivel:', lista.error.code);
@@ -125,11 +146,45 @@ async function Painel({ searchParams }: { searchParams: Busca }) {
   if (contados.error) console.warn('[admin] contagem indisponivel:', contados.error.code);
   else contagem = montaContagem(contados.data ?? []);
 
+  // Sem a tabela (migration ainda nao aplicada) ou com o banco fora, o bloco
+  // some e o resto do painel continua, como a contagem acima.
+  if (abertas.error) console.warn('[admin] solicitacoes indisponiveis:', abertas.error.code);
+  const solicitacoes = abertas.error ? null : (abertas.data ?? []);
+  const totalAbertas = abertas.count ?? solicitacoes?.length ?? 0;
+
   // Link velho ou digitado na mao. A pagina 1 de cada filtro sempre existe.
   if (pedidos.length === 0 && pagina > 1) redirect(urlDoPainel(filtro));
 
   return (
     <>
+      {/* O que os clientes pediram pelo site e ainda espera a loja (#379):
+          cancelar, desistir, trocar, defeito. Em cima de tudo, porque e
+          prazo correndo. Zero tambem aparece: e a resposta de "tem alguma
+          coisa para eu ver?". */}
+      {solicitacoes ? (
+        <section className="admin-solicitacoes" aria-labelledby="admin-solicitacoes">
+          <h2 id="admin-solicitacoes">
+            Pedidos de clientes abertos <span className="admin-filtro-n">{totalAbertas}</span>
+          </h2>
+          {solicitacoes.length > 0 ? (
+            <ul>
+              {solicitacoes.map((s) => (
+                <li key={s.id}>
+                  <a href={urlDoPedidoAdmin(s.order_id)}>
+                    Pedido #{s.orders?.numero ?? '?'} ·{' '}
+                    {ehTipoPosVenda(s.tipo) ? NOME_DO_TIPO[s.tipo] : s.tipo} · {s.protocolo}
+                  </a>{' '}
+                  <time dateTime={s.criado_em}>{formataDiaHora(s.criado_em)}</time>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {totalAbertas > solicitacoes.length ? (
+            <p className="detalhe-nota">Mostrando as {solicitacoes.length} mais antigas.</p>
+          ) : null}
+        </section>
+      ) : null}
+
       <nav className="admin-filtros" aria-label="Filtrar por status">
         {FILTROS_ADMIN.map((f) => (
           <a

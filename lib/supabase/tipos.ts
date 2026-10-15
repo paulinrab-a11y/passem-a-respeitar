@@ -449,6 +449,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      solicitacoes_pos_venda: {
+        Row: {
+          criado_em: string;
+          id: string;
+          mensagem: string | null;
+          order_id: string;
+          protocolo: string;
+          resolvida_em: string | null;
+          tipo: Database['public']['Enums']['tipo_pos_venda'];
+          user_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          criado_em?: string;
+          id?: string;
+          mensagem?: string | null;
+          order_id: string;
+          protocolo?: string;
+          resolvida_em?: string | null;
+          tipo: Database['public']['Enums']['tipo_pos_venda'];
+          user_id?: string | null;
+        };
+        Update: {
+          criado_em?: string;
+          id?: string;
+          mensagem?: string | null;
+          order_id?: string;
+          protocolo?: string;
+          resolvida_em?: string | null;
+          tipo?: Database['public']['Enums']['tipo_pos_venda'];
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'solicitacoes_pos_venda_order_id_fkey';
+            columns: ['order_id'];
+            isOneToOne: false;
+            referencedRelation: 'orders';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -516,6 +558,10 @@ export type Database = {
         }[];
       };
       pedido_e_meu: { Args: { p_order_id: string }; Returns: boolean };
+      pos_venda_cabe: {
+        Args: { p_order_id: string; p_tipo: Database['public']['Enums']['tipo_pos_venda'] };
+        Returns: boolean;
+      };
     };
     Enums: {
       estado_pagamento: 'criado' | 'pendente' | 'aprovado' | 'recusado' | 'cancelado' | 'estornado';
@@ -527,6 +573,7 @@ export type Database = {
         | 'entregue'
         | 'cancelado'
         | 'reembolsado';
+      tipo_pos_venda: 'cancelamento' | 'arrependimento' | 'troca' | 'defeito';
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -652,6 +699,7 @@ export const Constants = {
         'cancelado',
         'reembolsado',
       ],
+      tipo_pos_venda: ['cancelamento', 'arrependimento', 'troca', 'defeito'],
     },
   },
 } as const;

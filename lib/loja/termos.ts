@@ -20,7 +20,7 @@ export const TERMOS = '/termos';
  * Quando o texto mudou pela ultima vez. Muda junto com o texto: e a versao
  * que vale para o pedido aceito depois desta data.
  */
-export const TERMOS_ATUALIZADOS_EM = '2026-10-15T12:00:00-03:00';
+export const TERMOS_ATUALIZADOS_EM = '2026-10-15T20:00:00-03:00';
 
 /** CDC, art. 49: compra fora da loja fisica, desistencia sem motivo. */
 export const ARREPENDIMENTO_DIAS = 7;

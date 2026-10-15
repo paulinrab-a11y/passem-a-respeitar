@@ -1508,3 +1508,36 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .rastreio-acoes .admin-copiar-falhou{flex-basis:100%}
 .admin-rastreio{flex-basis:100%;display:grid;gap:10px;margin-top:4px}
 @media (max-width:560px){.rastreio-acoes .btn{flex:1 1 100%;justify-content:center;min-height:48px}}
+/* Pedir pelo site (#379): cancelar, desistir, trocar, defeito. Os botoes,
+   a confirmacao em dois passos e o recibo com o protocolo. Confirmacao e
+   recibo entram com fade e 6 px de deslocamento, 200 ms, ease-out; com
+   movimento reduzido, so o fade. Nada sai animado: os dois somem no mesmo
+   quadro em que o proximo passo entra, e uma saida aqui atrasaria o foco. */
+.pos-venda-pedir{display:grid;gap:14px;margin:14px 0}
+.pos-venda-pedir:empty{display:none}
+.pos-venda-botoes{display:flex;flex-wrap:wrap;gap:10px}
+.pos-venda-botoes .btn{font-size:12px;padding:10px 16px}
+.pos-venda-confirmar,.pos-venda-recibo{display:grid;gap:10px;padding:16px;border:1px solid var(--prata-3);animation:pos-venda-entra .2s cubic-bezier(.22,1,.36,1) backwards}
+.pos-venda-recibo{border-color:var(--prata-2)}
+.pos-venda-recibo:focus-visible{outline:2px solid var(--vermelho);outline-offset:2px}
+.pos-venda-recibo p,.pos-venda-confirmar p{margin:0}
+.pos-venda-recibo-titulo,.pos-venda-confirmar-titulo{font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata)}
+.pos-venda-protocolo{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;color:var(--prata);user-select:all}
+.pos-venda-confirmar textarea{font:inherit;font-size:16px;letter-spacing:.02em;background:transparent;color:var(--prata);border:1px solid var(--prata-3);padding:12px 14px;width:100%;resize:vertical;min-height:88px}
+.pos-venda-confirmar textarea:hover{border-color:var(--prata-2)}
+.pos-venda-confirmar textarea:disabled{opacity:.45}
+.pos-venda-lista{list-style:none;margin:12px 0;padding:0;display:grid;gap:10px}
+.pos-venda-lista li{display:grid;gap:2px;padding-bottom:10px;border-bottom:1px solid var(--prata-3)}
+.pos-venda-lista-nome{font-size:14px;color:var(--prata);overflow-wrap:anywhere}
+.pos-venda-lista-quando{font-size:12px;letter-spacing:.04em;color:var(--prata-2)}
+.pos-venda-mensagem{font-size:13px;color:var(--prata-2);overflow-wrap:anywhere}
+.admin-aberta{color:var(--vermelho)}
+.admin-resolver{display:grid;gap:6px;justify-items:start;margin-top:6px}
+.admin-resolver .btn{font-size:12px;padding:10px 16px}
+.admin-solicitacoes{margin:6px 0 14px}
+.admin-solicitacoes h2{font-size:14px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px}
+.admin-solicitacoes ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px}
+.admin-solicitacoes time{font-size:12px;color:var(--prata-2)}
+@keyframes pos-venda-entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.pos-venda-confirmar,.pos-venda-recibo{animation-name:so-fade}}
+@media (max-width:560px){.pos-venda-botoes .btn{flex:1 1 100%;justify-content:center;min-height:48px}}

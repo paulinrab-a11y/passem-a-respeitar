@@ -146,7 +146,15 @@ describe('/termos', () => {
     expect(pagina).toMatch(/O pedido continua salvo, aguardando\s+pagamento/);
   });
 
-  it('o caminho para pedir e o e-mail de contato, com o numero do pedido', () => {
+  // #379: o botao no pedido e o caminho principal (Decreto 7.962/2013, art.
+  // 5º, § 1º); o e-mail continua como alternativa.
+  it('o caminho para pedir e o botao no pedido, com protocolo na hora', () => {
+    expect(pagina).toMatch(/Pedir cancelamento/);
+    expect(pagina).toMatch(/Quero desistir da compra/);
+    expect(pagina).toMatch(/confirma na hora\s+que recebemos e mostra o número de protocolo/);
+  });
+
+  it('o e-mail de contato continua, com o numero do pedido', () => {
     expect(pagina).toContain(`href="mailto:${CONTATO}"`);
     expect(pagina).toContain('href="/conta/pedidos"');
     expect(pagina).toMatch(/com o número do pedido/);
