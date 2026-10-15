@@ -57,6 +57,7 @@ beforeEach(() => {
       itens: [],
       linhaDoTempo: { etapas: [], ramo: null, semRegistro: true },
       posVenda: { etapa: 'sem-pagamento' },
+      refazer: null,
     },
   });
   vi.stubEnv('NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY', 'TEST-chave-publica-de-teste');
