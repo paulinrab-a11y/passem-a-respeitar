@@ -10,8 +10,9 @@ test.use({ extraHTTPHeaders: visitante('cadastro') });
 /**
  * Cadastro (#30), de ponta a ponta: formulario, e-mail, codigo, conta.
  *
- * E o unico teste que cria conta pela tela. O limite de cadastro e de cinco
- * por hora por IP, e a suite inteira e um IP so.
+ * Cria conta pela tela. O limite de cadastro e de cinco por hora por IP, e
+ * cada arquivo e um IP (apoio/visitante.ts): o cadastro repetido da #284 tem
+ * arquivo proprio, pre-sequestro.spec.ts, para nao gastar a cota deste.
  */
 test('cadastro: quem saiu da tela do codigo confirma pelo login (#260)', async ({ page }) => {
   const email = emailNovo('cadastro');
@@ -19,8 +20,8 @@ test('cadastro: quem saiu da tela do codigo confirma pelo login (#260)', async (
 
   await page.goto('/criar-conta');
   const criar = await vivo(page.getByRole('button', { name: 'Criar conta' }));
-  // O caminho de volta ja esta escrito antes do cadastro: cadastrar de novo
-  // descartaria a senha nova.
+  // O caminho de volta ja esta escrito antes do cadastro: o login com a
+  // senha, o mais curto.
   await expect(page.getByText('Criou a conta e não confirmou o e-mail?')).toBeVisible();
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(senha);
