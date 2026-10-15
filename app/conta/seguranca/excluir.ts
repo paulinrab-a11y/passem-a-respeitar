@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { RECADO_INDISPONIVEL, senhaConfere } from '@/lib/conta/reautenticacao';
 import { limita } from '@/lib/rate-limit';
 import { clienteAdmin } from '@/lib/supabase/admin';
-import { COOKIE_LEMBRAR } from '@/lib/supabase/cookies';
+import { COOKIE_LEMBRAR, COOKIE_RECUPERACAO } from '@/lib/supabase/cookies';
 import { clienteServidor, usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoExclusao } from './estado-exclusao';
 
@@ -100,6 +100,7 @@ export async function excluirConta(
     if (cookie.name.startsWith('sb-')) jar.delete(cookie.name);
   }
   jar.delete(COOKIE_LEMBRAR);
+  jar.delete(COOKIE_RECUPERACAO);
 
   redirect('/?conta=excluida');
 }

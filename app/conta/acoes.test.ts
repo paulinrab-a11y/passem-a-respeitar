@@ -322,6 +322,12 @@ describe('sair', () => {
     expect(cookieDelete).toHaveBeenCalledWith('par_lembrar');
   });
 
+  // A marca da recuperacao (#348) nao sobra para quem usar o navegador depois.
+  it('apaga a marca da recuperacao', async () => {
+    await expect(sair()).rejects.toThrow();
+    expect(cookieDelete).toHaveBeenCalledWith('par_recuperacao');
+  });
+
   it('revoga antes de redirecionar', async () => {
     await expect(sair()).rejects.toThrow();
     expect(signOut).toHaveBeenCalled();

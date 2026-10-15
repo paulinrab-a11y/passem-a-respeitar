@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * prova: link bom vira sessao e vai para o destino; link ruim nao vira nada
  * e volta com aviso; e `next` nunca leva para fora do site.
  */
+const CONTA = '11111111-1111-4111-8111-111111111111';
+const HASH = 'pkce_0123456789abcdef0123456789abcdef0123456789abcdef01234567';
+
 const exchangeCodeForSession = vi.fn(async (_c: string) => ({
+  data: { user: { id: CONTA } as { id: string } | null },
   error: null as { message: string } | null,
 }));
 const verifyOtp = vi.fn(async (_o: unknown) => ({ error: null as { message: string } | null }));
@@ -32,8 +36,9 @@ function destino(r: Response) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_de_teste');
   logado = null;
-  exchangeCodeForSession.mockResolvedValue({ error: null });
+  exchangeCodeForSession.mockResolvedValue({ data: { user: { id: CONTA } }, error: null });
   verifyOtp.mockResolvedValue({ error: null });
 });
 
@@ -51,7 +56,10 @@ describe('fluxo PKCE (?code=)', () => {
   });
 
   it('codigo invalido volta ao login com aviso, sem sessao', async () => {
-    exchangeCodeForSession.mockResolvedValue({ error: { message: 'invalid' } });
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'invalid' },
+    });
     const d = destino(await chega('?code=ruim'));
 
     expect(d.pathname).toBe('/entrar');
@@ -59,30 +67,52 @@ describe('fluxo PKCE (?code=)', () => {
   });
 });
 
+/**
+ * O `token_hash` nao vira sessao no GET (#348): o callback so leva para a
+ * tela do botao, e quem verifica e o POST de app/auth/continuar.
+ */
 describe('fluxo token_hash', () => {
-  it('confere o hash com o tipo e vai para o next', async () => {
-    const r = await chega('?token_hash=h1&type=recovery&next=%2Fredefinir-senha');
+  it('nao verifica nada: leva hash e tipo para /auth/continuar', async () => {
+    const r = await chega(`?token_hash=${HASH}&type=recovery&next=%2Fredefinir-senha`);
+    const d = destino(r);
 
-    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'h1', type: 'recovery' });
-    expect(destino(r).pathname).toBe('/redefinir-senha');
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(r.status).toBe(303);
+    expect(d.pathname).toBe('/auth/continuar');
+    expect(d.searchParams.get('token_hash')).toBe(HASH);
+    expect(d.searchParams.get('type')).toBe('recovery');
+    expect(r.headers.getSetCookie()).toEqual([]);
   });
 
-  // Uso unico e expiracao sao do Supabase; aqui so se garante que a recusa
-  // dele nao vira sessao.
-  it('hash usado ou vencido, na recuperacao, volta ao pedido com aviso', async () => {
-    verifyOtp.mockResolvedValue({ error: { message: 'expired' } });
-    const d = destino(await chega('?token_hash=velho&type=recovery'));
+  it('recuperacao nao carrega o next, venha ele qual for', async () => {
+    const d = destino(await chega(`?token_hash=${HASH}&type=recovery&next=%2Fcheckout`));
+    expect(d.searchParams.has('next')).toBe(false);
+  });
 
-    expect(d.pathname).toBe('/recuperar-senha');
-    expect(d.searchParams.get('erro')).toBe('link');
+  it('outros tipos levam o next ja validado', async () => {
+    const bom = destino(await chega(`?token_hash=${HASH}&type=signup&next=%2Fconta%2Fpedidos`));
+    expect(bom.searchParams.get('next')).toBe('/conta/pedidos');
+
+    const fora = destino(
+      await chega(`?token_hash=${HASH}&type=signup&next=https%3A%2F%2Fmau.test`)
+    );
+    expect(fora.searchParams.get('next')).toBe('/conta');
   });
 
   it('tipo desconhecido nao chama nada e volta ao login', async () => {
-    const d = destino(await chega('?token_hash=h1&type=coisa'));
+    const d = destino(await chega(`?token_hash=${HASH}&type=coisa`));
 
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(exchangeCodeForSession).not.toHaveBeenCalled();
     expect(d.pathname).toBe('/entrar');
+  });
+
+  it('hash fora do formato, na recuperacao, volta ao pedido com aviso', async () => {
+    const d = destino(await chega('?token_hash=%3Cscript%3E&type=recovery'));
+
+    expect(d.pathname).toBe('/recuperar-senha');
+    expect(d.searchParams.get('erro')).toBe('link');
   });
 });
 
@@ -98,28 +128,32 @@ describe('recuperacao (#234)', () => {
       .map((c) => c.split(';').map((p) => p.trim()))
       .find((partes) => partes[0].startsWith('par_recuperacao='));
 
-  it('token_hash de recuperacao grava a marca, httpOnly e curta', async () => {
-    const r = await chega('?token_hash=h1&type=recovery&next=%2Fredefinir-senha');
-    const partes = marca(r);
+  it('codigo PKCE com next da redefinicao grava a marca assinada, httpOnly e curta', async () => {
+    const partes = marca(await chega('?code=abc&next=%2Fredefinir-senha'));
 
-    expect(partes?.[0]).toBe('par_recuperacao=1');
+    expect(partes?.[0]).toMatch(
+      /^par_recuperacao=v1\.11111111-1111-4111-8111-111111111111\.\d+\.[0-9a-f]{64}$/
+    );
     expect(partes).toContainEqual(expect.stringMatching(/^Max-Age=1800$/));
     expect(partes).toContainEqual('HttpOnly');
     expect(partes).toContainEqual('SameSite=lax');
   });
 
-  it('codigo PKCE com next da redefinicao tambem grava a marca', async () => {
-    const r = await chega('?code=abc&next=%2Fredefinir-senha');
-    expect(marca(r)?.[0]).toBe('par_recuperacao=1');
+  // A marca que estivesse no navegador era de outra sessao (#348).
+  it('sessao que nao e de recuperacao apaga a marca que houvesse', async () => {
+    expect(marca(await chega('?code=abc'))?.[0]).toBe('par_recuperacao=');
   });
 
-  it('sessao de cadastro ou login nao recebe a marca', async () => {
-    expect(marca(await chega('?code=abc'))).toBeUndefined();
-    expect(marca(await chega('?token_hash=h1&type=signup&next=%2Fconta'))).toBeUndefined();
+  it('sem o segredo do servidor a marca nao nasce', async () => {
+    vi.stubEnv('SUPABASE_SECRET_KEY', '');
+    expect(marca(await chega('?code=abc&next=%2Fredefinir-senha'))?.[0]).toBe('par_recuperacao=');
   });
 
   it('troca do codigo falhando com next da redefinicao volta ao pedido, nao ao login', async () => {
-    exchangeCodeForSession.mockResolvedValue({ error: { message: 'code verifier' } });
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'code verifier' },
+    });
     const r = await chega('?code=abc&next=%2Fredefinir-senha');
     const d = destino(r);
 
@@ -176,7 +210,10 @@ describe('troca de e-mail', () => {
 
   it('segunda confirmacao em outro navegador, com sessao aqui: segue para o destino', async () => {
     logado = { id: 'u1' };
-    exchangeCodeForSession.mockResolvedValue({ error: { message: 'code verifier' } });
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'code verifier' },
+    });
     const d = destino(await chega('?code=abc&next=%2Fconta%2Fseguranca'));
 
     expect(d.pathname).toBe('/conta/seguranca');
@@ -230,7 +267,10 @@ describe('registro da falha', () => {
   });
 
   it('nunca escreve o valor do codigo de autorizacao', async () => {
-    exchangeCodeForSession.mockResolvedValue({ error: { message: 'invalid' } });
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'invalid' },
+    });
     await chega('?code=segredo-de-uso-unico');
 
     expect(linha()).toContain('etapa=troca_do_codigo');
@@ -239,11 +279,10 @@ describe('registro da falha', () => {
   });
 
   it('nunca escreve o valor do token_hash', async () => {
-    verifyOtp.mockResolvedValue({ error: { message: 'expired' } });
-    await chega('?token_hash=hash-secreto&type=recovery');
+    await chega('?token_hash=hash-secreto-de-uso-unico&type=coisa');
 
     expect(linha()).toContain('etapa=token_hash');
-    expect(linha()).not.toContain('hash-secreto');
+    expect(linha()).not.toContain('hash-secreto-de-uso-unico');
   });
 
   it('error_code fora do formato nao e copiado para o log', async () => {
@@ -285,7 +324,10 @@ describe('host do redirecionamento (#168)', () => {
   });
 
   it('link ruim tambem: o aviso aparece no mesmo host', async () => {
-    exchangeCodeForSession.mockResolvedValue({ error: { message: 'invalid' } });
+    exchangeCodeForSession.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'invalid' },
+    });
     const r = await chegaPor('127.0.0.1:3000', '?code=ruim');
 
     expect(r.headers.get('location')).toBe('http://127.0.0.1:3000/entrar?erro=link');

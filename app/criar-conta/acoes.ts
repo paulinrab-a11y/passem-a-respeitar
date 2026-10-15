@@ -30,7 +30,7 @@ import {
 } from '@/lib/robo';
 import { CONTA, destinoSeguro } from '@/lib/rotas';
 import { urlDeRetorno } from '@/lib/site-url';
-import { COOKIE_LEMBRAR, opcoesDoLembrar } from '@/lib/supabase/cookies';
+import { COOKIE_LEMBRAR, COOKIE_RECUPERACAO, opcoesDoLembrar } from '@/lib/supabase/cookies';
 import { clienteDeAuth } from '@/lib/supabase/servidor';
 import type { EstadoCriarConta } from './estado';
 
@@ -204,7 +204,10 @@ export async function confirmarCodigo(
   // Como no login: o middleware le esta escolha a cada renovacao do token.
   // Sem ela, a sessao de quem marcou "manter conectado" morreria ao fechar o
   // navegador.
-  (await cookies()).set(COOKIE_LEMBRAR, lembrar ? '1' : '0', opcoesDoLembrar(lembrar));
+  const jar = await cookies();
+  jar.set(COOKIE_LEMBRAR, lembrar ? '1' : '0', opcoesDoLembrar(lembrar));
+  // Sessao nova por codigo nao e recuperacao (#348).
+  jar.delete(COOKIE_RECUPERACAO);
 
   redirect(destinoSeguro(form.get('next')?.toString()));
 }
@@ -279,7 +282,9 @@ export async function confirmarCadastro(
   if (error) return { erro: null, tentativa, desfecho: 'entrar' };
 
   // Como no login: o middleware le esta escolha a cada renovacao do token.
-  (await cookies()).set(COOKIE_LEMBRAR, '0', opcoesDoLembrar(false));
+  const jar = await cookies();
+  jar.set(COOKIE_LEMBRAR, '0', opcoesDoLembrar(false));
+  jar.delete(COOKIE_RECUPERACAO);
 
   redirect(CONTA);
 }

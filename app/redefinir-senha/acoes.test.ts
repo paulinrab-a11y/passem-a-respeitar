@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const { redefinirSenha } = await import('./acoes');
+const { criaMarcaDeRecuperacao } = await import('@/lib/conta/recuperacao');
 const { redefinirInicial } = await import('./estado');
 
 let n = 0;
@@ -53,7 +54,8 @@ beforeEach(() => {
   // Usuario novo por teste: o limite por conta guarda estado no modulo.
   usuario = { id: `11111111-1111-4111-8111-${String(n++).padStart(12, '0')}` };
   jar.clear();
-  jar.set('par_recuperacao', '1');
+  vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_de_teste');
+  jar.set('par_recuperacao', criaMarcaDeRecuperacao(usuario.id) ?? '');
 });
 
 describe('com a sessao do link', () => {
@@ -96,6 +98,7 @@ describe('com a sessao do link', () => {
 
   it('para depois de cinco tentativas na conta', async () => {
     usuario = { id: '11111111-1111-4111-8111-999999999999' };
+    jar.set('par_recuperacao', criaMarcaDeRecuperacao(usuario.id) ?? '');
     updateUser.mockResolvedValue({ error: { message: 'x' } });
     for (let i = 0; i < 5; i++) await envia();
     const r = await envia();
@@ -111,6 +114,27 @@ describe('sessao comum, sem a marca da recuperacao (#234)', () => {
     expect(r.erro).toMatch(/não vale mais/i);
     expect(updateUser).not.toHaveBeenCalled();
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  // #348: a marca e presa a conta. A que sobrou de outra sessao no mesmo
+  // navegador, ou o valor antigo `1`, nao troca a senha desta.
+  it('marca de outra conta nao troca nada', async () => {
+    jar.set(
+      'par_recuperacao',
+      criaMarcaDeRecuperacao('22222222-2222-4222-8222-222222222222') ?? ''
+    );
+    const r = await envia();
+
+    expect(r.erro).toMatch(/não vale mais/i);
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it('a marca antiga, sem assinatura, nao troca nada', async () => {
+    jar.set('par_recuperacao', '1');
+    const r = await envia();
+
+    expect(r.erro).toMatch(/não vale mais/i);
+    expect(updateUser).not.toHaveBeenCalled();
   });
 });
 
