@@ -14,6 +14,7 @@ import { ehStatusPedido } from '@/lib/loja/status-do-pedido';
 import { ENTRAR } from '@/lib/rotas';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
+import Rastreio from '../../../Rastreio';
 import CopiarEndereco from '../CopiarEndereco';
 import MudarStatus from '../MudarStatus';
 import Selo from '../Selo';
@@ -32,7 +33,7 @@ export const metadata: Metadata = {
  * ficam no banco.
  */
 const COLUNAS =
-  'numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, user_id, termos_aceitos_em, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(id, para, autor, motivo, criado_em), pagamentos(tentativa, metodo, estado, provedor_status_detail, valor_centavos, criado_em)';
+  'numero, status, criado_em, total_centavos, frete_centavos, frete_servico, frete_prazo_dias, user_id, termos_aceitos_em, rastreio_codigo, rastreio_url, entrega_nome, entrega_cep, entrega_logradouro, entrega_numero, entrega_complemento, entrega_bairro, entrega_cidade, entrega_uf, order_items(id, nome, tamanho, quantidade, preco_unitario_centavos), order_status_history(id, para, autor, motivo, criado_em), pagamentos(tentativa, metodo, estado, provedor_status_detail, valor_centavos, criado_em)';
 
 /**
  * O pedido visto pelo dono (Issue #345).
@@ -182,6 +183,10 @@ export default async function PedidoAdmin({ params }: { params: Promise<{ id: st
             <p className="detalhe-nota">Sem endereço: pedido antigo ou de conta excluída.</p>
           )}
         </section>
+
+        {/* O codigo que o cliente esta vendo (#378): e o que o dono confere
+            quando a pessoa pergunta onde esta o pacote. */}
+        {pedido.rastreio ? <Rastreio rastreio={pedido.rastreio} /> : null}
 
         <section className="detalhe-bloco">
           <h2>Status</h2>

@@ -7,6 +7,7 @@ import { conciliaPedido } from '@/lib/loja/conciliacao';
 import { expiraPedido } from '@/lib/loja/expiracao';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPedido } from '../../Esqueletos';
+import Rastreio from '../../Rastreio';
 import { meuPedido } from './busca-pedido';
 import PosVenda from './PosVenda';
 
@@ -202,6 +203,10 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
           <p className="entrega-endereco">{pedido.entrega.linha}</p>
         </section>
       ) : null}
+
+      {/* O codigo dos Correios (#378), logo depois do endereco: e a pergunta
+          seguinte de quem leu "Enviado". */}
+      {pedido.rastreio ? <Rastreio rastreio={pedido.rastreio} /> : null}
 
       <section className="detalhe-bloco">
         <h2>Andamento</h2>

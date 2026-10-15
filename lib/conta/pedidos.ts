@@ -10,6 +10,7 @@
 import { reais } from '@/lib/dinheiro';
 import { cepLegivel } from '@/lib/loja/cep';
 import { type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
+import { leRastreio, type RastreioDoPedido } from '@/lib/loja/rastreio';
 import type { StatusPedido } from '@/lib/loja/status-do-pedido';
 import { type PosVenda, posVendaDoPedido } from '@/lib/loja/termos';
 import { MAX_NO_CHECKOUT, urlDoCheckout } from '@/lib/loja/url-do-checkout';
@@ -352,6 +353,13 @@ export type PedidoDetalhado = {
    * nunca copiados daqui.
    */
   refazer: string | null;
+  /**
+   * O codigo dos Correios (#378). So depois que o pedido sai: um codigo
+   * gravado num pedido que voltou a outro estado nao e o que a pessoa vai
+   * acompanhar. Cancelado ou reembolsado depois de enviado tambem nao — o
+   * pacote volta, e o rastreio ali so confunde.
+   */
+  rastreio: RastreioDoPedido | null;
 };
 
 type LinhaDetalhe = LinhaPedido &
@@ -360,7 +368,13 @@ type LinhaDetalhe = LinhaPedido &
     frete_centavos: number;
     frete_servico: string | null;
     frete_prazo_dias: number | null;
+    /** Opcionais: so o detalhe le, e so depois da migration 20261015180000. */
+    rastreio_codigo?: string | null;
+    rastreio_url?: string | null;
   };
+
+/** Etapas em que o rastreio aparece (#378). */
+const COM_RASTREIO = new Set(['enviado', 'entregue']);
 
 /**
  * Mapper do detalhe (#20).
@@ -399,6 +413,9 @@ export function mapeiaDetalhe(linha: LinhaDetalhe, agoraMs = Date.now()): Pedido
     linhaDoTempo: montaLinhaDoTempo(linha.status, linha.order_status_history),
     posVenda: posVendaDoPedido(linha.status, entregueEm, new Date(agoraMs)),
     refazer: refazer(linha, pagavel),
+    rastreio: COM_RASTREIO.has(linha.status)
+      ? leRastreio(linha.rastreio_codigo, linha.rastreio_url)
+      : null,
   };
 }
 
