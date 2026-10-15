@@ -159,6 +159,7 @@ export type Database = {
           pagamento_id: string | null;
           pagamento_provedor: string | null;
           status: Database['public']['Enums']['status_pedido'];
+          termos_aceitos_em: string | null;
           total_centavos: number;
           user_id: string | null;
         };
@@ -183,6 +184,7 @@ export type Database = {
           pagamento_id?: string | null;
           pagamento_provedor?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
+          termos_aceitos_em?: string | null;
           total_centavos?: number;
           user_id?: string | null;
         };
@@ -207,6 +209,7 @@ export type Database = {
           pagamento_id?: string | null;
           pagamento_provedor?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
+          termos_aceitos_em?: string | null;
           total_centavos?: number;
           user_id?: string | null;
         };
@@ -450,6 +453,7 @@ export type Database = {
           p_endereco: Json;
           p_frete: Json;
           p_itens: Json;
+          p_termos_aceitos_em: string;
           p_total_centavos: number;
           p_user_id: string;
         };

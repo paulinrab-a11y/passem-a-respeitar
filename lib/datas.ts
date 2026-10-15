@@ -74,3 +74,30 @@ export function formataDataPorExtenso(iso: string): string {
 export function formataMesAbreviadoHora(iso: string): string {
   return MES_ABREVIADO_E_HORA.format(new Date(iso));
 }
+
+/** Um dia do calendario de Brasilia: para `<time dateTime>` e para a tela. */
+export type Dia = {
+  /** `2026-10-12`. Compara por texto: a ordem do texto e a dos dias. */
+  iso: string;
+  /** `12/10/2026`. */
+  texto: string;
+};
+
+/**
+ * O dia de Brasilia em que `iso` cai, mais `dias` dias corridos (#276).
+ *
+ * E a conta dos prazos do consumidor: entregue no dia 5, os sete dias do
+ * arrependimento vao ate o dia 12 — o dia do recebimento nao conta, o ultimo
+ * conta inteiro (Codigo Civil, art. 132). Somar 7 x 24 h ao instante da
+ * entrega daria o dia certo so com o processo no fuso de Brasilia; na Vercel,
+ * em UTC, uma entrega as 22 h ja comecaria a contar no dia seguinte.
+ *
+ * O dia sai do formatador de Brasilia, e a soma e feita no calendario, nao no
+ * relogio. Meio-dia UTC e 09:00 em Brasilia: formatar esse instante devolve o
+ * mesmo dia, sem escorregar para o vizinho.
+ */
+export function diaMaisDias(iso: string, dias: number): Dia {
+  const [dia, mes, ano] = DIA.format(new Date(iso)).split('/').map(Number);
+  const alvo = new Date(Date.UTC(ano, mes - 1, dia + dias, 12));
+  return { iso: alvo.toISOString().slice(0, 10), texto: DIA.format(alvo) };
+}
