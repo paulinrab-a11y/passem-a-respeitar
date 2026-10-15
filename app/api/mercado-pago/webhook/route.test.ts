@@ -30,6 +30,12 @@ vi.mock('@/lib/loja/assinatura-webhook', () => ({
   conferaAssinatura: (e: EntradaDaAssinatura) => conferaAssinatura(e),
 }));
 
+type Recusa = { motivo: string; assinatura: string };
+const avisaRecusa = vi.fn(async (_recusa: Recusa) => {});
+vi.mock('@/lib/loja/aviso-de-recusa', () => ({
+  avisaRecusa: (recusa: Recusa) => avisaRecusa(recusa),
+}));
+
 const { GET, POST } = await import('./route');
 
 // IP proprio por caso: o limite guarda estado no modulo, e nenhum caso pode
@@ -192,5 +198,52 @@ describe('GET /api/mercado-pago/webhook', () => {
 
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ ok: true });
+  });
+});
+
+/**
+ * O que a rota acrescenta ao `processa`: o aviso ao Sentry quando recusa
+ * (#273). O orcamento contra rajada e testado em lib/loja/aviso-de-recusa.
+ */
+describe('POST /api/mercado-pago/webhook: recusa avisa o Sentry (#273)', () => {
+  it('sem segredo configurado: aviso com o motivo da assinatura', async () => {
+    conferaAssinatura.mockReturnValue({ valida: false, motivo: 'sem-segredo' });
+    processa.mockResolvedValue({ tipo: 'recusado', motivo: 'nao-assinado-fora-do-sandbox' });
+
+    const r = await notifica();
+
+    expect(r.status).toBe(401);
+    expect(avisaRecusa).toHaveBeenCalledWith({
+      motivo: 'nao-assinado-fora-do-sandbox',
+      assinatura: 'sem-segredo',
+    });
+  });
+
+  it('assinatura que nao confere: aviso diz nao-confere, e nada do corpo vai junto', async () => {
+    vi.stubEnv('MERCADOPAGO_WEBHOOK_SECRET', 'segredo-de-teste');
+    conferaAssinatura.mockReturnValue({ valida: false, motivo: 'nao-confere' });
+    processa.mockResolvedValue({ tipo: 'recusado', motivo: 'nao-assinado-fora-do-sandbox' });
+
+    const r = await notifica({ busca: '?data.id=ORD123' });
+
+    expect(r.status).toBe(401);
+    expect(avisaRecusa).toHaveBeenCalledTimes(1);
+    const [recusa] = avisaRecusa.mock.calls[0] ?? [];
+    expect(recusa).toEqual({ motivo: 'nao-assinado-fora-do-sandbox', assinatura: 'nao-confere' });
+    expect(JSON.stringify(recusa)).not.toContain('ORD123');
+    expect(JSON.stringify(recusa)).not.toContain('segredo-de-teste');
+  });
+
+  it.each([
+    [{ tipo: 'aplicado', estado: 'aprovado' }, 200],
+    [{ tipo: 'ignorado', motivo: 'ja-processado' }, 200],
+    [{ tipo: 'tente-de-novo', motivo: 'nao-consegui-confirmar' }, 500],
+  ] as const)('%o nao avisa de recusa', async (resultado, status) => {
+    processa.mockResolvedValue(resultado as ResultadoDoWebhook);
+
+    const r = await notifica();
+
+    expect(r.status).toBe(status);
+    expect(avisaRecusa).not.toHaveBeenCalled();
   });
 });

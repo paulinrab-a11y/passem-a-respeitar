@@ -47,6 +47,8 @@ function banco({
   /** O `update` condicionado alcancou o pedido? */
   alcancou = true,
   erroNoUpdate = false,
+  /** Erro devolvido na busca dos vencidos (o supabase-js devolve, nao lanca). */
+  erroNaBusca = false,
 } = {}) {
   vi.mocked(clienteAdmin).mockReturnValue({
     from(tabela: string) {
@@ -89,6 +91,12 @@ function banco({
         const depois = ops.find((o) => o[0] === 'gt' && o[1] === 'criado_em')?.[2] as
           | string
           | undefined;
+        if (erroNaBusca) {
+          return Promise.resolve({
+            data: null,
+            error: { code: 'PGRST000', message: 'banco fora' },
+          });
+        }
         const fila = depois ? vencidos.filter((v) => v.criado_em > depois) : vencidos;
         return Promise.resolve({ data: fila.slice(0, n), error: null });
       };
@@ -177,6 +185,14 @@ describe('expiraVencidos: quem entra na varredura', () => {
     const balanco = await expiraVencidos({ agoraMs: AGORA, orcamentoMs: 0 });
 
     expect(balanco).toMatchObject({ olhados: 0, sobraram: true });
+    expect(encerraAbertas).not.toHaveBeenCalled();
+  });
+
+  // Banco fora lido como fila vazia fechava o check-in do cron como `ok` (#273).
+  it('erro do banco na busca lanca, e nao vira fila vazia', async () => {
+    banco({ erroNaBusca: true });
+
+    await expect(expiraVencidos({ agoraMs: AGORA })).rejects.toThrow('a varredura nao leu o banco');
     expect(encerraAbertas).not.toHaveBeenCalled();
   });
 
