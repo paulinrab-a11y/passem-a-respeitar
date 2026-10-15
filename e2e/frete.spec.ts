@@ -4,6 +4,7 @@ import {
   criaUsuario,
   leAceiteDoPedido,
   leFreteDoPedido,
+  leVersaoDosTermos,
   pedidosDe,
   type Usuario,
 } from './apoio/banco';
@@ -137,6 +138,8 @@ test('frete: CEP mostra PAC e SEDEX, e o pedido grava o que o servidor cotou', a
   const aceitoEm = Date.parse((await leAceiteDoPedido(id)) ?? '');
   expect(aceitoEm).toBeGreaterThanOrEqual(antesDoAceite - 60_000);
   expect(aceitoEm).toBeLessThanOrEqual(Date.now() + 60_000);
+  // E qual texto foi aceito (#380): a versao que /termos mostra, uma data ISO.
+  expect(await leVersaoDosTermos(id)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-03:00$/);
 
   // O que chegou no Melhor Envio: o token, a origem, o destino e as medidas.
   const [primeira] = await recebidos();

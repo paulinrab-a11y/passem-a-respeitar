@@ -165,6 +165,7 @@ export type Database = {
           rastreio_url: string | null;
           status: Database['public']['Enums']['status_pedido'];
           termos_aceitos_em: string | null;
+          termos_versao: string | null;
           total_centavos: number;
           user_id: string | null;
         };
@@ -193,6 +194,7 @@ export type Database = {
           rastreio_url?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
           termos_aceitos_em?: string | null;
+          termos_versao?: string | null;
           total_centavos?: number;
           user_id?: string | null;
         };
@@ -220,6 +222,7 @@ export type Database = {
           rastreio_url?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
           termos_aceitos_em?: string | null;
+          termos_versao?: string | null;
           total_centavos?: number;
           user_id?: string | null;
         };
@@ -505,20 +508,36 @@ export type Database = {
           total: number;
         }[];
       };
-      cria_pedido: {
-        Args: {
-          p_endereco: Json;
-          p_frete: Json;
-          p_itens: Json;
-          p_termos_aceitos_em: string;
-          p_total_centavos: number;
-          p_user_id: string;
-        };
-        Returns: {
-          pedido_id: string;
-          pedido_numero: number;
-        }[];
-      };
+      cria_pedido:
+        | {
+            Args: {
+              p_endereco: Json;
+              p_frete: Json;
+              p_itens: Json;
+              p_termos_aceitos_em: string;
+              p_total_centavos: number;
+              p_user_id: string;
+            };
+            Returns: {
+              pedido_id: string;
+              pedido_numero: number;
+            }[];
+          }
+        | {
+            Args: {
+              p_endereco: Json;
+              p_frete: Json;
+              p_itens: Json;
+              p_termos_aceitos_em: string;
+              p_termos_versao: string;
+              p_total_centavos: number;
+              p_user_id: string;
+            };
+            Returns: {
+              pedido_id: string;
+              pedido_numero: number;
+            }[];
+          };
       encerra_sessao: { Args: { p_identificador: string }; Returns: boolean };
       envia_pedido: {
         Args: {

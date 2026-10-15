@@ -25,6 +25,7 @@ import { orcamento } from './catalogo';
 import { esquemaEndereco, paraColunas } from './endereco';
 import { esquemaServico, type MotivoDoFrete } from './frete';
 import { esquemaCarrinho, type MotivoDaRecusa } from './precos';
+import { TERMOS_ATUALIZADOS_EM } from './termos';
 
 /**
  * O aceite dos termos de compra (#276). `literal(true)`, e nao `boolean`: a
@@ -133,6 +134,10 @@ export async function criaPedido(bruto: unknown): Promise<CriacaoDePedido> {
     // O corpo nao tem como trazer outra: o schema so conhece `aceite: true`,
     // e um `termos_aceitos_em` mandado pelo navegador foi descartado no parse.
     p_termos_aceitos_em: new Date().toISOString(),
+    // QUAL texto foi aceito (#380): a versao que /termos mostra agora. Com
+    // este argumento, o PostgREST chama a `cria_pedido` de 7 parametros; a de
+    // 6 fica para o codigo antigo ate o deploy (migration 20261015200000).
+    p_termos_versao: TERMOS_ATUALIZADOS_EM,
   });
 
   // O estoque e conferido no banco, com a variacao travada, e nao no

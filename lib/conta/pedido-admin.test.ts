@@ -20,6 +20,7 @@ const LINHA: LinhaDoPainel = {
   frete_prazo_dias: 3,
   user_id: COMPRADOR,
   termos_aceitos_em: '2026-10-14T12:00:00.000Z',
+  termos_versao: '2026-10-15T20:00:00-03:00',
   rastreio_codigo: null,
   rastreio_url: null,
   entrega_nome: 'Fulana',
@@ -120,6 +121,11 @@ describe('mapeiaPedidoDoPainel', () => {
         EMAILS
       ).rastreio
     ).toEqual({ codigo: 'AB123456789BR', url: null });
+  });
+
+  it('a versao dos termos aceita vai para a tela (#380)', () => {
+    expect(mapeiaPedidoDoPainel(LINHA, EMAILS).termosVersao).toBe('2026-10-15T20:00:00-03:00');
+    expect(mapeiaPedidoDoPainel({ ...LINHA, termos_versao: null }, EMAILS).termosVersao).toBeNull();
   });
 
   it('nada de user_id na saida', () => {
