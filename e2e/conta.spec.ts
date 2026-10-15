@@ -43,13 +43,18 @@ test('conta: excluir com e-mail e senha apaga a conta e deixa o pedido sem dono'
 
     await (await vivo(page.getByRole('button', { name: 'Quero excluir minha conta' }))).click();
     const excluir = await vivo(page.getByRole('button', { name: 'Excluir minha conta' }));
-    const email = page.getByLabel(`Digite ${u.email} para confirmar`);
-    const senha = page.getByLabel('Sua senha');
+    // Busca presa ao formulario de exclusao e com nome exato: a mesma tela tem
+    // o "Sua senha, para confirmar" da troca de e-mail, e a busca solta do
+    // Playwright casa os dois (strict mode).
+    const form = page.locator('form.excluir-form');
+    const email = form.getByLabel(`Digite ${u.email} para confirmar`, { exact: true });
+    const senha = form.getByLabel('Sua senha', { exact: true });
+    const aceite = form.getByLabel('Entendi que não dá para desfazer', { exact: true });
 
     // Senha errada: nada acontece com a conta.
     await email.fill(u.email);
     await senha.fill(senhaNova());
-    await page.getByLabel('Entendi que não dá para desfazer').check();
+    await aceite.check();
     await excluir.click();
     await expect(
       page.getByRole('alert').filter({ hasText: 'A senha está incorreta.' })
@@ -60,7 +65,7 @@ test('conta: excluir com e-mail e senha apaga a conta e deixa o pedido sem dono'
     // O aceite de novo: o React pode zerar o formulario quando a acao
     // responde com erro (#130), e a caixa e a ultima trava antes do clique.
     await senha.fill(u.senha);
-    await page.getByLabel('Entendi que não dá para desfazer').check();
+    await aceite.check();
     await excluir.click();
     await page.waitForURL(
       (url) => url.pathname === '/' && url.searchParams.get('conta') === 'excluida'
