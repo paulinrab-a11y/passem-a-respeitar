@@ -14,7 +14,10 @@
   --gutter:clamp(20px, 5vw, 72px);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{background:var(--preto);color:var(--prata);scroll-behavior:auto}
+html{background:var(--preto);color:var(--prata);scroll-behavior:auto;scrollbar-gutter:stable}
+/* A trava tira a barra de rolagem; o `scrollbar-gutter` acima guarda o lugar
+   dela, e a pagina nao anda de lado quando a intro, a loja ou a sala travam e
+   soltam a rolagem (#344, era o maior pedaco do CLS da home). */
 html.locked{overflow:hidden}
 
 /* Troca de rota (#49). O site navega por documento inteiro — cada tela da
