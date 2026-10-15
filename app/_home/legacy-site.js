@@ -412,8 +412,13 @@ const GL = (()=>{ try {
     t.encoding=THREE.sRGBEncoding;
     return t;
   }
+  // O reflexo dos elos, em tres tarefas: cada shader do PMREM compila na sua
+  // (o desfoque, no construtor; o equiretangular, a parte), e so entao o mapa
+  // e gerado. Num so bloco, com o tradutor do ANGLE, passava de um segundo.
+  let pmrem = null;
+  function fundoDesfoque(){ pmrem = new THREE.PMREMGenerator(renderer); }
+  function fundoShader(){ pmrem.compileEquirectangularShader(); }
   function fundo(){
-    const pmrem = new THREE.PMREMGenerator(renderer);
     const env = pmrem.fromEquirectangular(envTexture()).texture;
     scene.environment = env;
   }
@@ -726,7 +731,7 @@ const GL = (()=>{ try {
     renderer.render(scene, camera);
   }
   function ease(x){ return x<0.5 ? 2*x*x : 1-Math.pow(-2*x+2,2)/2; }
-  etapas = [fundo, montaCorrente, montaSombras, particulas, ligaQuadro, frasesComAFonte, elementos];
+  etapas = [fundoDesfoque, fundoShader, fundo, montaCorrente, montaSombras, particulas, ligaQuadro, frasesComAFonte, elementos];
   setTimeout(proximaEtapa, 0);
 
   addEventListener('resize', ()=>{

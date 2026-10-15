@@ -21,7 +21,7 @@ describe('cena da home', () => {
 
   it('a cena monta por etapas, na ordem: fundo, corrente, particulas, frases, elementos', () => {
     expect(SCRIPT).toContain(
-      'etapas = [fundo, montaCorrente, montaSombras, particulas, ligaQuadro, frasesComAFonte, elementos];'
+      'etapas = [fundoDesfoque, fundoShader, fundo, montaCorrente, montaSombras, particulas, ligaQuadro, frasesComAFonte, elementos];'
     );
     // Uma tarefa por etapa, e a primeira ja fora do init.
     expect(SCRIPT).toMatch(/function proximaEtapa\(\)\{[\s\S]*?setTimeout\(proximaEtapa, 0\);/);
