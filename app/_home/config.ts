@@ -70,14 +70,11 @@ export const CONFIG: SiteConfig = {
     '/merch/camiseta-08.jpg',
     '/merch/camiseta-09.jpg',
   ],
-  // WebP sem perda (#145): metade do peso, os mesmos pixels. "Os mesmos" e
-  // literal — a impressao digital dos pixels dos PNGs originais esta no teste,
-  // e inclui a cor dos pixels transparentes, que o shader le na borda.
-  //
-  // Os PNGs sairam do repositorio na #166, depois de a textura e a saida do
-  // shader serem comparadas dentro do navegador: zero pixel diferente. Quem
-  // precisar deles de volta os tem no historico do git, ou decodificando o
-  // WebP, que devolve os mesmos bytes.
+  // WebP em 1024 px com perda leve (#366), gerados por
+  // lib/marca/gera-elementos.mjs a partir dos originais sem perda da #145
+  // (1600 e 2000 px, os mesmos pixels dos PNGs), que ficam no historico do
+  // git. O alpha vai sem perda e os transparentes continuam pretos, porque o
+  // shader le a cor deles na borda; app/elementos-em-webp.test.ts confere.
   elementos: [
     { nome: 'corrente', url: '/elementos/corrente.webp', elo: 0, escala: 1.7, lado: -1 },
     { nome: 'mao', url: '/elementos/mao.webp', elo: 1, escala: 1.2, lado: 1 },

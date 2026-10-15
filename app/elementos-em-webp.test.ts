@@ -1,66 +1,69 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
+import { LADO, NOMES, reexporta } from '@/lib/marca/elementos.mjs';
 import { CONFIG } from './_home/config';
 
 /**
- * Elementos cromados em WebP (#145, #166).
+ * Elementos cromados em WebP (#145, #166, #366).
  *
  * O shader da home tira o branco pela cor do pixel e le a textura com filtro
  * linear: na borda do objeto, a cor de um pixel TRANSPARENTE entra na conta
- * do vizinho. Compressao com perda mexe justamente ali, e um conversor que
- * zere a cor dos transparentes tambem — a borda ganharia um halo.
+ * do vizinho. Nos originais essa cor e preta. Um conversor que a trocasse por
+ * branco (ou por qualquer cor clara que comprima melhor) poria um halo na
+ * borda.
  *
- * Por isso a conversao foi sem perda e preservando a cor dos transparentes.
- * Enquanto os PNGs estavam no repositorio, este teste comparava os dois
- * arquivos byte a byte. Os PNGs sairam na #166, depois de a igualdade ser
- * conferida tambem dentro do navegador, e o que ficou aqui e a impressao
- * digital dos pixels DELES: se alguem trocar um WebP por uma versao com
- * perda, ou recomprimida por outra ferramenta, a impressao nao bate.
+ * Ate a #366 os arquivos eram os originais sem perda, em 1600 e 2000 px, e o
+ * teste guardava a impressao digital dos pixels deles. Agora sao 1024 px com
+ * perda leve, gerados por lib/marca/gera-elementos.mjs a partir desses
+ * originais (que ficam no historico do git). O que se confere:
+ *
+ *   - lado, alpha e a cor dos transparentes, que o shader exige;
+ *   - a impressao digital do ARQUIVO: trocar um WebP sem passar pelo script
+ *     (recomprimir em outra ferramenta, por exemplo) quebra o teste, e quem
+ *     roda o script atualiza a tabela de proposito;
+ *   - o peso.
  */
 
-/** Tamanho, SHA-256 dos pixels decodificados (RGBA) e peso do PNG original. */
-const ORIGINAIS: Record<string, { lado: number; pixels: string; pngBytes: number }> = {
-  corrente: {
-    lado: 1600,
-    pixels: '809b8bf53cd9ad7d8cca7932897a4c63867d0681385eb670b993ae4625c8efca',
-    pngBytes: 1_041_105,
-  },
-  mao: {
-    lado: 1600,
-    pixels: 'efec64755c7db921be7e85537270c47b77c463f8c793c175f1b6b99267106d19',
-    pngBytes: 561_205,
-  },
-  saturno: {
-    lado: 1600,
-    pixels: 'c16479efb03ed896035d4fb9316f3199531e90c93a6920618085f806c51cb877',
-    pngBytes: 820_200,
-  },
-  p: {
-    lado: 2000,
-    pixels: '3dcdfe2a5c305d12aa52d3465cfaa65ca0eaf471cc8f16f04ad41e9fed31f1fb',
-    pngBytes: 1_205_008,
-  },
-  pistola: {
-    lado: 1600,
-    pixels: '64bfb533e0753a8ab91666aa96a7a079e1ed97f339eb280ec4448a7665d19dd4',
-    pngBytes: 1_344_406,
-  },
+/** SHA-256 de cada arquivo em public/elementos, como o script grava. */
+const ARQUIVOS: Record<string, string> = {
+  corrente: 'f546fb598e256074e487d8cf902c8037b3633c22128b74501825cf89701307e8',
+  mao: '4f61eca96a196451215545d4ee402b5ddd0cf3cf8314d55409bff686ef570e43',
+  saturno: '309347b9d6931fbf73a6848778fcc46b07dd5f84e2ae43abf55a0116b191ea8e',
+  p: '1f889c72b797fa7d06c60889ce143acac3d74f9b37971e8d450017e388cf82c8',
+  pistola: '90270b7f483bd64233fe2a448ede631ea5905cdc4adb6a06a75a2266d8ca3223',
 };
 
 const pasta = (url: string) => `public${url}`;
 
-async function pixels(arquivo: string) {
+async function pixels(arquivo: string | Buffer) {
   const { data, info } = await sharp(arquivo).raw().toBuffer({ resolveWithObject: true });
   return { data, largura: info.width, altura: info.height, canais: info.channels };
 }
 
 const impressao = (dados: Buffer) => createHash('sha256').update(dados).digest('hex');
 
+/** Dos pixels com alpha zero: quantos sao preto puro e quantos sao claros. */
+function transparentes(data: Buffer) {
+  let total = 0;
+  let pretos = 0;
+  let claros = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] !== 0) continue;
+    total++;
+    const menor = Math.min(data[i], data[i + 1], data[i + 2]);
+    const maior = Math.max(data[i], data[i + 1], data[i + 2]);
+    if (maior === 0) pretos++;
+    // O shader comeca a apagar o branco em 0,90; claro aqui e bem antes disso.
+    if (menor > 0.5 * 255) claros++;
+  }
+  return { total, pretos, claros };
+}
+
 describe('configuracao', () => {
   it('sao cinco elementos, os mesmos cinco', () => {
-    expect(CONFIG.elementos.map((e) => e.nome).sort()).toEqual(Object.keys(ORIGINAIS).sort());
+    expect(CONFIG.elementos.map((e) => e.nome).sort()).toEqual(Object.keys(ARQUIVOS).sort());
   });
 
   it.each(CONFIG.elementos)('$nome: WebP, servido pela propria origem', (e) => {
@@ -81,40 +84,80 @@ describe('configuracao', () => {
   });
 });
 
-describe('os pixels dos originais', () => {
+describe('os pixels', () => {
   it.each(CONFIG.elementos)(
-    '$nome: o WebP decodifica para os pixels do PNG original',
+    '$nome: quadrado de 1024 px, com alpha',
     async (e) => {
-      const original = ORIGINAIS[e.nome];
       const webp = await pixels(pasta(e.url));
 
-      expect(webp.largura).toBe(original.lado);
-      expect(webp.altura).toBe(original.lado);
-      // Alpha preservado.
+      expect(webp.largura).toBe(LADO);
+      expect(webp.altura).toBe(LADO);
       expect(webp.canais).toBe(4);
-      // Todos os bytes, o que inclui a cor dos pixels com alpha zero.
-      expect(impressao(webp.data)).toBe(original.pixels);
     },
     60_000
   );
 
-  it('a impressao enxerga diferenca: um bit trocado muda tudo', async () => {
-    const { data } = await pixels(pasta(CONFIG.elementos[0].url));
-    const mexido = Buffer.from(data);
-    mexido[0] ^= 1;
+  // Nos originais, 99,9 % dos transparentes sao preto puro e nenhum e claro.
+  // A perda leve mexe em alguns perto da borda, sempre para cores escuras.
+  it.each(CONFIG.elementos)(
+    '$nome: os transparentes continuam pretos, sem cor clara para vazar na borda',
+    async (e) => {
+      const { data } = await pixels(pasta(e.url));
+      const t = transparentes(data);
 
-    expect(impressao(mexido)).not.toBe(impressao(data));
+      expect(t.total).toBeGreaterThan(0);
+      expect(t.claros).toBe(0);
+      expect(t.pretos / t.total).toBeGreaterThan(0.95);
+    },
+    60_000
+  );
+
+  it.each(CONFIG.elementos)('$nome: e o arquivo que o script grava', (e) => {
+    expect(impressao(readFileSync(pasta(e.url)))).toBe(ARQUIVOS[e.nome]);
+  });
+
+  it('o script cobre os mesmos cinco da configuracao', () => {
+    expect([...NOMES].sort()).toEqual(CONFIG.elementos.map((e) => e.nome).sort());
+  });
+
+  // A conversao em si, numa imagem pequena feita aqui: transparente preto
+  // continua preto, o alpha do opaco nao muda e o lado e o pedido.
+  it('a conversao preserva alpha e transparentes', async () => {
+    const lado = 64;
+    const bruto = Buffer.alloc(lado * lado * 4);
+    for (let y = 0; y < lado; y++) {
+      for (let x = 0; x < lado; x++) {
+        const i = (y * lado + x) * 4;
+        if (x >= 16 && x < 48 && y >= 16 && y < 48)
+          bruto.fill(200, i, i + 3).fill(255, i + 3, i + 4);
+      }
+    }
+    const original = await sharp(bruto, { raw: { width: lado, height: lado, channels: 4 } })
+      .png()
+      .toBuffer();
+
+    const saida = await pixels(await reexporta(original, 32));
+    const t = transparentes(saida.data);
+
+    expect(saida.largura).toBe(32);
+    expect(saida.canais).toBe(4);
+    expect(t.claros).toBe(0);
+    // Centro do quadrado opaco: alpha cheio.
+    expect(saida.data[(16 * 32 + 16) * 4 + 3]).toBe(255);
+    // Canto: transparente.
+    expect(saida.data[3]).toBe(0);
   });
 });
 
 describe('peso', () => {
-  it.each(CONFIG.elementos)('$nome: o WebP pesa no maximo 65% do PNG original', (e) => {
-    expect(statSync(pasta(e.url)).size / ORIGINAIS[e.nome].pngBytes).toBeLessThanOrEqual(0.65);
+  // Eram 1600 e 2000 px sem perda, de 280 a 720 KB cada (#145).
+  it.each(CONFIG.elementos)('$nome: no maximo 120 KB', (e) => {
+    expect(statSync(pasta(e.url)).size).toBeLessThanOrEqual(120 * 1024);
   });
 
-  it('os cinco juntos pesam menos de 2,7 MB', () => {
+  it('os cinco juntos pesam menos de 400 KB (eram 2,63 MB)', () => {
     const total = CONFIG.elementos.reduce((s, e) => s + statSync(pasta(e.url)).size, 0);
 
-    expect(total).toBeLessThan(2.7 * 1024 * 1024);
+    expect(total).toBeLessThan(400 * 1024);
   });
 });
