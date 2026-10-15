@@ -16,6 +16,7 @@ const {
   consultaOrdem,
   criaOrdem,
   localizaOrdem,
+  pixDaOrdem,
   reembolsaOrdem,
   valorParaApi,
   vencimentoDoPix,
@@ -495,6 +496,116 @@ describe('localizaOrdem', () => {
     vi.stubGlobal('fetch', () => Promise.resolve(new Response('nao e json', { status: 200 })));
 
     expect(await localizaOrdem('ORD-1')).toEqual({ ok: false });
+  });
+});
+
+/**
+ * O Pix que ainda espera pagamento (#369): a tela de pagamento pergunta de
+ * novo ao provedor, e so mostra o QR se ele disser "pendente" com QR.
+ */
+describe('pixDaOrdem', () => {
+  const AGORA = Date.parse('2026-10-07T13:00:00.000Z');
+  const PENDENTE = {
+    id: 'ORD-PIX',
+    created_date: '2026-10-07T12:00:00.000Z',
+    status: 'action_required',
+    status_detail: 'waiting_transfer',
+    transactions: {
+      payments: [
+        {
+          status: 'action_required',
+          status_detail: 'waiting_transfer',
+          expiration_time: 'PT5H',
+          payment_method: { id: 'pix', qr_code: '0002-copia-e-cola', qr_code_base64: 'iVBOR' },
+        },
+      ],
+    },
+  };
+
+  beforeEach(() => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
+    respondeCom(PENDENTE, 200);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('devolve o QR e o copia-e-cola do provedor, com o vencimento da criacao mais a duracao', async () => {
+    expect(await pixDaOrdem('ORD-PIX', AGORA)).toEqual({
+      copiaECola: '0002-copia-e-cola',
+      qrBase64: 'iVBOR',
+      expiraEm: '2026-10-07T17:00:00.000Z',
+    });
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-PIX');
+    expect(oQueFoiEnviado().init?.body).toBeUndefined();
+  });
+
+  it('a data de vencimento do provedor vale mais que a conta', async () => {
+    const [pagamento] = PENDENTE.transactions.payments;
+    respondeCom(
+      {
+        ...PENDENTE,
+        transactions: {
+          payments: [{ ...pagamento, date_of_expiration: '2026-10-07T15:30:00.000-03:00' }],
+        },
+      },
+      200
+    );
+
+    expect((await pixDaOrdem('ORD-PIX', AGORA))?.expiraEm).toBe('2026-10-07T18:30:00.000Z');
+  });
+
+  it('sem nenhuma data, o vencimento fica nulo e o QR aparece', async () => {
+    const [pagamento] = PENDENTE.transactions.payments;
+    respondeCom(
+      { ...PENDENTE, transactions: { payments: [{ ...pagamento, expiration_time: undefined }] } },
+      200
+    );
+
+    expect(await pixDaOrdem('ORD-PIX', AGORA)).toMatchObject({ expiraEm: null });
+  });
+
+  it('vencido nao volta', async () => {
+    expect(await pixDaOrdem('ORD-PIX', Date.parse('2026-10-07T17:00:00.000Z'))).toBeNull();
+  });
+
+  it.each([
+    ['paga', 'processed', 'accredited'],
+    ['cancelada', 'canceled', 'canceled_by_collector'],
+    ['expirada', 'expired', 'expired'],
+  ])('ordem %s nao volta', async (_nome, status, detalhe) => {
+    respondeCom(
+      {
+        ...PENDENTE,
+        status,
+        transactions: {
+          payments: [{ ...PENDENTE.transactions.payments[0], status, status_detail: detalhe }],
+        },
+      },
+      200
+    );
+
+    expect(await pixDaOrdem('ORD-PIX', AGORA)).toBeNull();
+  });
+
+  it('pendente sem QR nao volta', async () => {
+    respondeCom({ ...ORDEM, status: 'action_required', transactions: { payments: [{}] } }, 200);
+
+    expect(await pixDaOrdem('ORD-PIX', AGORA)).toBeNull();
+  });
+
+  it.each([404, 500])('HTTP %i nao volta', async (status) => {
+    respondeCom({ message: 'nao deu' }, status);
+
+    expect(await pixDaOrdem('ORD-PIX', AGORA)).toBeNull();
+  });
+
+  it('rede fora nao volta', async () => {
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('sem rede')));
+
+    expect(await pixDaOrdem('ORD-PIX', AGORA)).toBeNull();
   });
 });
 
