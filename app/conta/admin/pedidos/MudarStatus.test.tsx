@@ -5,16 +5,38 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EstadoAdmin } from './estado';
 
 const PEDIDO = '11111111-1111-4111-8111-111111111111';
-const resposta = vi.hoisted(() => ({ tom: 'erro' as 'ok' | 'erro' }));
+const resposta = vi.hoisted(() => ({
+  tom: 'erro' as 'ok' | 'erro',
+  /** A acao do botao pede a senha (#351). */
+  pedeSenha: false,
+}));
 
-vi.mock('./acoes', () => ({
+const acoes = vi.hoisted(() => ({
   mudarStatus: vi.fn(
-    async (): Promise<EstadoAdmin> => ({
-      recado: { tom: resposta.tom, texto: resposta.tom === 'ok' ? 'Feito.' : 'Não deu agora.' },
+    async (): Promise<EstadoAdmin> =>
+      resposta.pedeSenha
+        ? {
+            recado: null,
+            pedido: '11111111-1111-4111-8111-111111111111',
+            precisaReautenticar: { minutos: 15 },
+          }
+        : {
+            recado: {
+              tom: resposta.tom,
+              texto: resposta.tom === 'ok' ? 'Feito.' : 'Não deu agora.',
+            },
+            pedido: '11111111-1111-4111-8111-111111111111',
+          }
+  ),
+  reautenticarEMudar: vi.fn(
+    async (_anterior: EstadoAdmin, _form: FormData): Promise<EstadoAdmin> => ({
+      recado: { tom: 'ok', texto: 'Estornado no Mercado Pago. Status atualizado.' },
       pedido: '11111111-1111-4111-8111-111111111111',
     })
   ),
 }));
+
+vi.mock('./acoes', () => acoes);
 
 import MudarStatus from './MudarStatus';
 
@@ -31,6 +53,8 @@ async function escreveEEnvia(container: HTMLElement) {
 
 beforeEach(() => {
   resposta.tom = 'erro';
+  resposta.pedeSenha = false;
+  vi.clearAllMocks();
 });
 
 afterEach(cleanup);
@@ -84,5 +108,42 @@ describe('nota do reembolso (#22)', () => {
     render(<MudarStatus pedido={PEDIDO} status="aguardando_pagamento" />);
 
     expect(nota()).toBeNull();
+  });
+});
+
+/**
+ * Reembolsar e cancelar pedem a senha quando o login nao e recente (#351).
+ * O modal e o da #40, e a mudanca refeita e a mesma: botao, pedido e motivo.
+ */
+describe('reautenticacao do reembolso (#351)', () => {
+  it('pede a senha e refaz a mesma mudanca, com o motivo digitado', async () => {
+    resposta.pedeSenha = true;
+    render(<MudarStatus pedido={PEDIDO} status="pago" />);
+
+    fireEvent.change(motivo(), { target: { value: 'cliente desistiu' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reembolsar' }));
+    });
+
+    await screen.findByRole('dialog');
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'senha-certa' } });
+    await act(async () => {
+      fireEvent.submit(screen.getByLabelText('Senha').closest('form') as HTMLFormElement);
+    });
+
+    await screen.findByText('Estornado no Mercado Pago. Status atualizado.');
+    const enviado = acoes.reautenticarEMudar.mock.calls[0][1];
+    expect(enviado.get('pedido')).toBe(PEDIDO);
+    expect(enviado.get('para')).toBe('reembolsado');
+    expect(enviado.get('motivo')).toBe('cliente desistiu');
+    expect(enviado.get('senha')).toBe('senha-certa');
+  });
+
+  it('sem pedido de senha, o modal nao aparece', async () => {
+    const { container } = render(<MudarStatus pedido={PEDIDO} status="pago" />);
+
+    await escreveEEnvia(container);
+
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

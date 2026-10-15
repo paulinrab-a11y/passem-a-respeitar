@@ -20,13 +20,29 @@ vi.mock('@/lib/loja/orders-api', () => ({
   reembolsaOrdem: vi.fn(),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+vi.mock('next/headers', () => ({
+  headers: async () => new Headers({ 'x-forwarded-for': '203.0.113.7' }),
+}));
+// A janela da #40 e a conferencia da senha (#351). O banco que responde por
+// elas fica de fora: o que se prova aqui e quando a acao pergunta e o que
+// faz com a resposta.
+const recente = vi.fn(async () => true);
+const reautenticar = vi.fn(
+  async (_senha: string) => 'certa' as 'certa' | 'errada' | 'indisponivel'
+);
+vi.mock('@/lib/conta/reautenticacao', () => ({
+  JANELA_MINUTOS: 15,
+  RECADO_INDISPONIVEL: 'Não deu para conferir a senha agora. Tente de novo em instantes.',
+  autenticadoRecentemente: () => recente(),
+  reautenticar: (senha: string) => reautenticar(senha),
+}));
 
 const { usuarioDaSessao } = await import('@/lib/supabase/servidor');
 const { clienteAdmin } = await import('@/lib/supabase/admin');
 const { cancelaOrdem, consultaOrdem, localizaOrdem, reembolsaOrdem } = await import(
   '@/lib/loja/orders-api'
 );
-const { mudarStatus } = await import('./acoes');
+const { mudarStatus, reautenticarEMudar } = await import('./acoes');
 const { adminInicial } = await import('./estado');
 
 const ADMIN = {
@@ -127,6 +143,8 @@ beforeEach(() => {
     status: 'refunded',
     statusDetail: 'refunded',
   });
+  recente.mockResolvedValue(true);
+  reautenticar.mockResolvedValue('certa');
   banco();
 });
 
@@ -493,5 +511,88 @@ describe('reembolsar pedido pago', () => {
     expect(r.recado?.tom).toBe('erro');
     expect(rpc).not.toHaveBeenCalled();
     expect(atualizados.filter((a) => a.tabela === 'pagamentos')).toHaveLength(1);
+  });
+});
+
+/**
+ * Reembolsar e cancelar pedem login recente (#351), a mesma janela da #40.
+ * Sem ela nada e estornado, cancelado ou mudado: a resposta pede a senha, e
+ * a acao com senha refaz a mesma mudanca inteira.
+ */
+describe('login recente para reembolsar e cancelar (#351)', () => {
+  it.each(['reembolsado', 'cancelado'])(
+    '%s sem a janela pede a senha e nao toca em nada',
+    async (para) => {
+      recente.mockResolvedValue(false);
+      const r = await envia({ para });
+
+      expect(r).toEqual({ recado: null, pedido: PEDIDO, precisaReautenticar: { minutos: 15 } });
+      expect(rpc).not.toHaveBeenCalled();
+      expect(reembolsaOrdem).not.toHaveBeenCalled();
+      expect(cancelaOrdem).not.toHaveBeenCalled();
+      expect(atualizados).toEqual([]);
+    }
+  );
+
+  it('as outras etapas nao perguntam pela janela', async () => {
+    recente.mockResolvedValue(false);
+    const r = await envia({ para: 'em_producao' });
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(recente).not.toHaveBeenCalled();
+  });
+
+  it('transicao impossivel responde o erro dela, sem pedir senha', async () => {
+    recente.mockResolvedValue(false);
+    statusNoBanco = 'reembolsado';
+    const r = await envia({ para: 'cancelado' });
+
+    expect(r.precisaReautenticar).toBeUndefined();
+    expect(r.recado?.tom).toBe('erro');
+  });
+
+  const comSenha = (senha: string, para = 'cancelado') =>
+    reautenticarEMudar(adminInicial, formulario({ pedido: PEDIDO, para, motivo: 'x', senha }));
+
+  it('com a senha certa refaz a mesma mudanca', async () => {
+    reautenticar.mockImplementation(async () => {
+      recente.mockResolvedValue(true);
+      return 'certa';
+    });
+    recente.mockResolvedValue(false);
+
+    const r = await comSenha('senha-certa');
+
+    expect(reautenticar).toHaveBeenCalledWith('senha-certa');
+    expect(r.recado?.tom).toBe('ok');
+    expect(rpc).toHaveBeenCalledWith(
+      'muda_status_pedido',
+      expect.objectContaining({ p_para: 'cancelado', p_motivo: 'x' })
+    );
+  });
+
+  it('senha errada continua pedindo, sem mudar nada', async () => {
+    reautenticar.mockResolvedValue('errada');
+    const r = await comSenha('errada');
+
+    expect(r.precisaReautenticar).toEqual({ minutos: 15 });
+    expect(r.recado?.texto).toMatch(/incorreta/);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('servico fora nao culpa a senha', async () => {
+    reautenticar.mockResolvedValue('indisponivel');
+    const r = await comSenha('certa');
+
+    expect(r.recado?.texto).not.toMatch(/incorreta/);
+    expect(r.precisaReautenticar).toBeDefined();
+  });
+
+  it('quem nao e administrador nem chega a conferir senha', async () => {
+    vi.mocked(usuarioDaSessao).mockResolvedValue(CLIENTE as never);
+    const r = await comSenha('qualquer');
+
+    expect(r.recado?.texto).toBe('Pedido não encontrado.');
+    expect(reautenticar).not.toHaveBeenCalled();
   });
 });
