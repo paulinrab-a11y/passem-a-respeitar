@@ -68,7 +68,6 @@ describe('posVendaDoPedido', () => {
         garantiaAte: { iso: '2027-01-03', texto: '03/01/2027' },
         arrependimentoAberto: true,
         trocaAberta: true,
-        garantiaAberta: true,
       },
     });
   });
@@ -88,13 +87,15 @@ describe('posVendaDoPedido', () => {
     expect(r?.etapa === 'entregue' && r.prazos).toMatchObject({
       arrependimentoAberto: false,
       trocaAberta: false,
-      garantiaAberta: true,
     });
   });
 
-  it('passados os noventa dias, a garantia legal tambem fecha', () => {
+  // Vicio oculto (CDC, art. 26, § 3º) conta de quando aparece, dia que o banco
+  // nao tem: a garantia nunca ganha um "fechou".
+  it('passados os noventa dias, a garantia nao vira prazo encerrado', () => {
     const r = posVendaDoPedido('entregue', ENTREGUE_A_NOITE, new Date('2027-01-04T12:00:00Z'));
 
-    expect(r?.etapa === 'entregue' && r.prazos?.garantiaAberta).toBe(false);
+    expect(r?.etapa === 'entregue' && r.prazos).not.toHaveProperty('garantiaAberta');
+    expect(r?.etapa === 'entregue' && r.prazos?.garantiaAte.iso).toBe('2027-01-03');
   });
 });

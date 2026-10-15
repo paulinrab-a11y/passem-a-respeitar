@@ -68,7 +68,8 @@ function Agora({ situacao }: { situacao: Situacao }) {
         {situacao.etapa === 'a-caminho' ? 'A camiseta já foi enviada. ' : ''}
         Contando do dia em que você recebe a camiseta, são {ARREPENDIMENTO_DIAS} dias corridos para
         desistir da compra com tudo de volta e {TROCA_DE_TAMANHO_DIAS} para trocar o tamanho.
-        Defeito tem garantia legal de {GARANTIA_DIAS} dias.
+        Defeito tem garantia legal de {GARANTIA_DIAS} dias; o que só aparece com o uso conta a
+        partir de quando aparece.
       </p>
     );
   }
@@ -88,7 +89,15 @@ function Agora({ situacao }: { situacao: Situacao }) {
           aberto={p.arrependimentoAberto}
         />
         <Prazo rotulo="Trocar o tamanho" ate={p.trocaAte} aberto={p.trocaAberta} />
-        <Prazo rotulo="Defeito" ate={p.garantiaAte} aberto={p.garantiaAberta} />
+        {/* Sem "encerrado": defeito que aparece com o uso conta de quando
+            aparece (CDC, art. 26, § 3º), e esse dia o pedido nao tem. */}
+        <div>
+          <dt>Defeito</dt>
+          <dd>
+            até <Data dia={p.garantiaAte} />; se aparecer com o uso, {GARANTIA_DIAS} dias a partir
+            de quando aparecer
+          </dd>
+        </div>
       </dl>
     </>
   );

@@ -60,11 +60,16 @@ export type PosVenda =
         entregueEm: Dia;
         arrependimentoAte: Dia;
         trocaAte: Dia;
+        /**
+         * Fim dos noventa dias para defeito aparente. Nao tem "aberto": o
+         * defeito que aparece com o uso (vicio oculto, CDC art. 26, § 3º)
+         * conta de quando aparece, e o banco nao sabe esse dia. A tela nunca
+         * pode dizer que o direito acabou.
+         */
         garantiaAte: Dia;
         /** Hoje ainda cabe desistir. */
         arrependimentoAberto: boolean;
         trocaAberta: boolean;
-        garantiaAberta: boolean;
       } | null;
     };
 
@@ -104,7 +109,6 @@ export function posVendaDoPedido(
       // O ultimo dia conta inteiro: no dia 12, ainda cabe.
       arrependimentoAberto: hoje <= arrependimentoAte.iso,
       trocaAberta: hoje <= trocaAte.iso,
-      garantiaAberta: hoje <= garantiaAte.iso,
     },
   };
 }

@@ -68,6 +68,7 @@ describe('PosVenda', () => {
       /<dt>Trocar o tamanho<\/dt><dd>até (<!-- -->)?<time dateTime="2026-10-12">/i
     );
     expect(html).toMatch(/<dt>Defeito<\/dt><dd>até (<!-- -->)?<time dateTime="2027-01-03">/i);
+    expect(html).toMatch(/se aparecer com o uso, (<!-- -->)?90(<!-- -->)? dias a partir de quando/);
   });
 
   it('prazo vencido diz que encerrou, e quando', () => {
@@ -75,5 +76,21 @@ describe('PosVenda', () => {
 
     expect(html).toMatch(/<dt>Desistir da compra<\/dt><dd>encerrado em (<!-- -->)?<time/);
     expect(html).toMatch(/<dt>Defeito<\/dt><dd>até (<!-- -->)?<time/);
+  });
+
+  // Vicio oculto (CDC, art. 26, § 3º): o defeito que aparece com o uso conta
+  // de quando aparece. A tela nunca diz que esse direito acabou.
+  it('passados os noventa dias, defeito nao vira encerrado', () => {
+    const html = bloco('entregue', '2026-10-05T15:00:00Z', new Date('2027-03-01T15:00:00Z'));
+
+    expect(html).toMatch(/<dt>Desistir da compra<\/dt><dd>encerrado em/);
+    expect(html).toMatch(/<dt>Trocar o tamanho<\/dt><dd>encerrado em/);
+    expect(html).toMatch(/<dt>Defeito<\/dt><dd>até (<!-- -->)?<time dateTime="2027-01-03">/i);
+    expect(html).toMatch(/se aparecer com o uso/);
+    expect(html.match(/encerrado em/g)).toHaveLength(2);
+  });
+
+  it('sem o dia da entrega, a regra do defeito oculto tambem aparece', () => {
+    expect(bloco('enviado')).toMatch(/o que só aparece com o uso conta a partir de quando aparece/);
   });
 });
