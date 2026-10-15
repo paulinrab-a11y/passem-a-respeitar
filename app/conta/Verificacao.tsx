@@ -1,7 +1,7 @@
 'use client';
 
 import CodigoDeConfirmacao from '@/app/_ui/CodigoDeConfirmacao';
-import { CODIGO_DIGITOS } from '@/lib/esquemas';
+import { CODIGO_DIGITOS } from '@/lib/conta/codigo-digitos';
 import { confirmarCodigoDaConta, reenviarVerificacao } from './acoes';
 
 /**
