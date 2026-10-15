@@ -32,6 +32,7 @@ const ARQUIVOS = [
   'frete',
   'confirmar-email',
   'loja-no-celular',
+  'pre-sequestro',
 ] as const;
 
 export function visitante(arquivo: (typeof ARQUIVOS)[number]) {

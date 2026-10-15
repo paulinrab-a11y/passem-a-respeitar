@@ -5,9 +5,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * cadastro, o login e /conta dividem, o pedido de codigo novo e a conferencia
  * de quem ja tem sessao.
  */
-const verifyOtp = vi.fn(async (_: unknown) => ({ error: null as { message: string } | null }));
-const signOut = vi.fn(async (_: unknown) => ({ error: null }));
-const createClient = vi.fn((..._: unknown[]) => ({ auth: { verifyOtp, signOut } }));
+type ErroDoSupabase = { message: string; code?: string } | null;
+type Sessao = { access_token: string; refresh_token: string; expires_in: number };
+
+// Inventada: nenhum token de verdade entra num teste.
+const SESSAO: Sessao = { access_token: 'acesso', refresh_token: 'renovacao', expires_in: 3600 };
+
+// A ordem das chamadas ao Supabase, de todas as funcoes do client avulso.
+let ordem: string[] = [];
+const verifyOtp = vi.fn(async (_: unknown) => {
+  ordem.push('verifyOtp');
+  return { data: { session: SESSAO as Sessao | null }, error: null as ErroDoSupabase };
+});
+const updateUser = vi.fn(async (_: unknown) => {
+  ordem.push('updateUser');
+  return { error: null as ErroDoSupabase };
+});
+const signOut = vi.fn(async (o: { scope: string }) => {
+  ordem.push(`signOut:${o.scope}`);
+  return { error: null };
+});
+const createClient = vi.fn((..._: unknown[]) => ({ auth: { verifyOtp, updateUser, signOut } }));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (...a: unknown[]) => createClient(...a),
@@ -22,6 +40,7 @@ const {
   cabeReenvioDoEmail,
   cabeReenvioDoIp,
   codigoDaContaConfere,
+  confirmaCadastro,
   mandaCodigo,
 } = await import('./codigo');
 
@@ -31,9 +50,17 @@ const ip = () => `203.0.113.${n++ % 250}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  verifyOtp.mockResolvedValue({ error: null });
+  ordem = [];
   vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
 });
+
+/** O Supabase responde `erro` na proxima chamada de `fn`, e continua anotando a ordem. */
+function recusa(fn: typeof verifyOtp | typeof updateUser, nome: string, erro: ErroDoSupabase) {
+  fn.mockImplementationOnce(async () => {
+    ordem.push(nome);
+    return { data: { session: null }, error: erro };
+  });
+}
 
 describe('cabeReenvio', () => {
   // A cota e uma so para o botao de reenviar e para o login de conta nao
@@ -152,9 +179,98 @@ describe('codigoDaContaConfere', () => {
   });
 
   it('codigo recusado: falso, e nenhuma sessao para encerrar', async () => {
-    verifyOtp.mockResolvedValue({ error: { message: 'Token has expired or is invalid' } });
+    recusa(verifyOtp, 'verifyOtp', { message: 'Token has expired or is invalid' });
 
     expect(await codigoDaContaConfere('maria@exemplo.invalid', '00000000')).toBe(false);
     expect(signOut).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Pre-sequestro de conta (#284): a conta pendente pode ter nascido com a
+ * senha de outra pessoa, e o Supabase nao a troca num segundo cadastro. O
+ * codigo da tela do cadastro grava a senha que a pessoa acabou de escolher.
+ */
+describe('confirmaCadastro', () => {
+  const confirma = () => confirmaCadastro('maria@exemplo.invalid', '12345678', 'a senha da maria');
+
+  it('codigo, depois a senha com a sessao nova, depois as outras sessoes caem', async () => {
+    const r = await confirma();
+
+    expect(ordem).toEqual(['verifyOtp', 'updateUser', 'signOut:others']);
+    expect(verifyOtp).toHaveBeenCalledWith({
+      email: 'maria@exemplo.invalid',
+      token: '12345678',
+      type: 'email',
+    });
+    expect(updateUser).toHaveBeenCalledWith({ password: 'a senha da maria' });
+    // So os dois tokens saem daqui: e o que o cookie precisa, e nada mais.
+    expect(r).toEqual({
+      resultado: 'pronto',
+      sessao: { access_token: 'acesso', refresh_token: 'renovacao' },
+    });
+  });
+
+  // Nada grava cookie aqui: a sessao so chega ao navegador quando quem
+  // chamou a recebe, com a senha ja gravada.
+  it('tudo num client que nao grava nada, com o navegador de quem pediu', async () => {
+    await confirma();
+
+    const opcoes = createClient.mock.calls[0][2] as {
+      auth: { persistSession: boolean; autoRefreshToken: boolean };
+      global: { headers: Record<string, string> };
+    };
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(opcoes.auth).toEqual({ persistSession: false, autoRefreshToken: false });
+    expect(opcoes.global.headers['User-Agent']).toBe('navegador de teste');
+  });
+
+  // O caso comum: ninguem no meio, e a conta pendente ja tem a senha que a
+  // pessoa escolheu. O Supabase recusa trocar uma senha por ela mesma.
+  it('a mesma senha que ja estava na conta nao e falha', async () => {
+    recusa(updateUser, 'updateUser', {
+      message: 'New password should be different from the old password.',
+      code: 'same_password',
+    });
+
+    const r = await confirma();
+
+    expect(r.resultado).toBe('pronto');
+    expect(ordem).toEqual(['verifyOtp', 'updateUser', 'signOut:others']);
+  });
+
+  it('codigo recusado: a senha nem e tocada', async () => {
+    recusa(verifyOtp, 'verifyOtp', { message: 'Token has expired or is invalid' });
+
+    expect(await confirma()).toEqual({ resultado: 'invalido' });
+    expect(ordem).toEqual(['verifyOtp']);
+  });
+
+  // O e-mail ja esta confirmado, e a senha pode ser de outra pessoa: a sessao
+  // nao sai daqui, e todas as da conta caem.
+  it('senha que nao gravou: nenhuma sessao sobra, e quem chamou nao recebe uma', async () => {
+    recusa(updateUser, 'updateUser', { message: 'upstream timeout', code: 'request_timeout' });
+
+    const r = await confirma();
+
+    expect(r).toEqual({ resultado: 'sem-senha' });
+    expect(ordem).toEqual(['verifyOtp', 'updateUser', 'signOut:global']);
+  });
+
+  it('erro sem codigo tambem e falha', async () => {
+    recusa(updateUser, 'updateUser', { message: 'fetch failed' });
+
+    expect(await confirma()).toEqual({ resultado: 'sem-senha' });
+    expect(ordem).toContain('signOut:global');
+  });
+
+  it('codigo certo sem sessao: nao ha com o que gravar a senha', async () => {
+    verifyOtp.mockImplementationOnce(async () => {
+      ordem.push('verifyOtp');
+      return { data: { session: null }, error: null };
+    });
+
+    expect(await confirma()).toEqual({ resultado: 'sem-senha' });
+    expect(updateUser).not.toHaveBeenCalled();
   });
 });
