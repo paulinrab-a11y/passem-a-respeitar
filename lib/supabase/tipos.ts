@@ -29,6 +29,7 @@ export type Database = {
           quantidade: number;
           variacao_id: string;
         };
+        ComputedFields: never;
         Insert: {
           criado_em?: string;
           order_id: string;
@@ -69,6 +70,7 @@ export type Database = {
           quantidade: number;
           tamanho: string | null;
         };
+        ComputedFields: never;
         Insert: {
           criado_em?: string;
           id?: string;
@@ -109,6 +111,7 @@ export type Database = {
           order_id: string;
           para: Database['public']['Enums']['status_pedido'];
         };
+        ComputedFields: never;
         Insert: {
           autor?: string | null;
           criado_em?: string;
@@ -163,6 +166,7 @@ export type Database = {
           total_centavos: number;
           user_id: string | null;
         };
+        ComputedFields: never;
         Insert: {
           anonimizado_em?: string | null;
           atualizado_em?: string;
@@ -226,6 +230,7 @@ export type Database = {
           recebido_em: string;
           tipo: string | null;
         };
+        ComputedFields: never;
         Insert: {
           evento_id: string;
           id?: string;
@@ -273,6 +278,7 @@ export type Database = {
           tentativa: number;
           valor_centavos: number;
         };
+        ComputedFields: never;
         Insert: {
           atualizado_em?: string;
           criado_em?: string;
@@ -327,6 +333,7 @@ export type Database = {
           produto_id: string;
           tamanho: string | null;
         };
+        ComputedFields: never;
         Insert: {
           ativo?: boolean;
           atualizado_em?: string;
@@ -374,6 +381,7 @@ export type Database = {
           peso_gramas: number | null;
           slug: string;
         };
+        ComputedFields: never;
         Insert: {
           altura_cm?: number | null;
           ativo?: boolean;
@@ -414,6 +422,7 @@ export type Database = {
           telefone: string | null;
           termos_aceitos_em: string | null;
         };
+        ComputedFields: never;
         Insert: {
           atualizado_em?: string;
           criado_em?: string;
