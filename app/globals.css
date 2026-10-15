@@ -116,8 +116,8 @@ section{position:relative}
 .elo.so-palavra .box{width:auto}
 .btn{display:inline-flex;align-items:center;gap:12px;font-size:14px;letter-spacing:.2em;padding:14px 22px;border:1px solid var(--prata-3);color:var(--prata);text-decoration:none;text-transform:uppercase;position:relative;overflow:hidden;transition:color .2s,border-color .2s}
 .btn::before{content:"";position:absolute;inset:0;background:var(--vermelho);transform:translateX(-101%);transition:transform .3s cubic-bezier(.7,0,.2,1);z-index:-1}
-.btn:hover{color:#000;border-color:var(--vermelho)}
-.btn:hover::before{transform:none}
+.btn:hover:not(:disabled){color:#000;border-color:var(--vermelho)}
+.btn:hover:not(:disabled)::before{transform:none}
 .btn.cheio{background:var(--prata);color:#000;border-color:var(--prata)}
 .btn.cheio:hover{color:#000}
 .btn.off{background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:default;pointer-events:none}
@@ -428,6 +428,13 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .btn.carregando::before{display:block;transform:none;transition:transform .7s cubic-bezier(.4,0,.2,1)}
 .btn.perigo.carregando:disabled{color:#000;border-color:var(--vermelho);cursor:progress}
 .btn.perigo.carregando:disabled::before{display:block}
+/* Desabilitado sem estar trabalhando: apagado como o .btn.off, sem o wipe
+   vermelho do hover, para nao parecer um botao que responde. O texto fica em
+   --prata-2, que ainda se le (5,4 para 1): a pessoa precisa saber o que o
+   botao vai fazer quando liberar. Vale para todo .btn, e nao so para a
+   entrega e o concierge, que tinham regra propria. */
+.btn:disabled:not(.carregando){background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:not-allowed}
+.btn:disabled:not(.carregando)::before{display:none}
 
 .auth-rodape{margin-top:8px;font-size:13px;letter-spacing:.06em;color:var(--prata-2)}
 .auth-rodape a{color:var(--prata);text-decoration:none;border-bottom:1px solid var(--prata-3)}
@@ -477,6 +484,9 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .conta-foto-acoes{display:flex;flex-direction:column;gap:6px}
 .conta-foto-acoes button{text-align:left;padding:0}
 .conta-foto-acoes button:disabled{color:var(--prata-3);cursor:progress}
+/* Durante o envio o botao diz a porcentagem: e texto que se le, e nao um
+   controle apagado. Em --prata-3 ficava em 1,9 para 1. */
+.conta-foto-acoes button.carregando:disabled{color:var(--prata-2)}
 
 /* Barra de progresso do upload. scaleX e nao width: largura e layout, e
    layout em 60fps durante um envio e o jeito mais simples de travar a pagina
@@ -581,6 +591,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .menu-conta-in .sair{color:var(--prata-2)}
 .menu-conta-in .sair:hover{color:#000}
 .menu-conta-in button:disabled{color:var(--prata-3);cursor:progress;background:none}
+.menu-conta-in button.carregando:disabled{color:var(--prata-2)}
 
 @media (max-width:767px){
   /* Ocupa a largura util em vez de uma coluna estreita encostada no canto:
@@ -1037,10 +1048,6 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 @media (prefers-reduced-motion:reduce){
   .frete-opcoes[aria-hidden],.frete-opcoes[role=radiogroup]{animation:none}
 }
-/* Sem frete nao ha o que finalizar. Apagado como o .btn.off, para nao parecer
-   um botao que responde: o vermelho do hover dizia o contrario. */
-.entrega .btn.cheio:disabled:not(.carregando){background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:not-allowed}
-.entrega .btn.cheio:disabled:not(.carregando)::before{display:none}
 
 @media (max-width:767px){
   .entrega-campos{grid-template-columns:1fr;gap:14px}
@@ -1391,8 +1398,6 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .concierge-form textarea::placeholder{color:var(--prata-2);letter-spacing:.06em}
 .concierge-form textarea:read-only{color:var(--prata-2)}
 .concierge-form .btn{padding:12px 16px;font-size:13px;min-height:46px}
-.concierge-form .btn:disabled{background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:default}
-.concierge-form .btn:disabled::before{display:none}
 /* O widget da Cloudflare, se aparecer, ocupa a largura toda abaixo do campo. */
 .concierge-form .isca,.concierge-form .desafio-convite{grid-column:1 / -1}
 .concierge-form .desafio-convite:empty{display:none}
