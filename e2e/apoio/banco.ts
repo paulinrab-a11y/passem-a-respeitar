@@ -165,6 +165,17 @@ export async function leRastreioDoPedido(id: string) {
   return data;
 }
 
+/** As solicitacoes de pos-venda do pedido (#379), lidas do banco e nao da tela. */
+export async function leSolicitacoes(pedido: string) {
+  const { data, error } = await admin()
+    .from('solicitacoes_pos_venda')
+    .select('tipo, protocolo, mensagem, user_id, resolvida_em')
+    .eq('order_id', pedido)
+    .order('criado_em', { ascending: true });
+  if (error) throw new Error(`nao li as solicitacoes: ${error.message}`);
+  return data ?? [];
+}
+
 /** Quantos pedidos esta pessoa tem. Recusa de verdade nao deixa pedido. */
 export async function pedidosDe(dono: Usuario) {
   const { count, error } = await admin()

@@ -303,6 +303,8 @@ describe('mapeiaDetalhe', () => {
       // Entrou na #356: o checkout com a mesma escolha, no vencido e no cancelado.
       'refazer',
       'rotulo',
+      // Entrou na #379: o que ja foi pedido pelo site, com protocolo.
+      'solicitacoes',
       'tom',
       'total',
       // Entrou na #108: o Payment Brick recebe numero, nao texto formatado.

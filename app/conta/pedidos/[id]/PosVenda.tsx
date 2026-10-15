@@ -1,5 +1,6 @@
+import { NOME_DO_TIPO, type Solicitacao, tiposAbertos, tiposQueCabem } from '@/lib/conta/pos-venda';
 import { CONTATO } from '@/lib/contato';
-import type { Dia } from '@/lib/datas';
+import { type Dia, formataDataHora } from '@/lib/datas';
 import {
   ARREPENDIMENTO_DIAS,
   GARANTIA_DIAS,
@@ -7,6 +8,7 @@ import {
   TERMOS,
   TROCA_DE_TAMANHO_DIAS,
 } from '@/lib/loja/termos';
+import PedirPosVenda from './PedirPosVenda';
 
 /**
  * "Precisa cancelar, desistir ou trocar?" no detalhe do pedido (Issue #276).
@@ -19,26 +21,81 @@ import {
  * Datas so as que o banco sustenta (ver `posVendaDoPedido`). Sem registro de
  * entrega, a regra vai por extenso, sem contagem regressiva inventada.
  *
- * Server Component sem estado: o bloco chega pronto com o resto do pedido,
- * dentro do mesmo boundary, e e o ultimo da pagina — nada abaixo dele anda.
+ * Os botoes de pedir pelo site entraram na #379 (Decreto 7.962/2013, art.
+ * 5º, § 1º: desistir pela mesma ferramenta em que comprou). O e-mail fica
+ * como alternativa. O que ja foi pedido aparece com o protocolo, aberto ou
+ * encerrado, e o botao daquele tipo da lugar a ele enquanto estiver aberto.
+ *
+ * Server Component: o bloco chega pronto com o resto do pedido, dentro do
+ * mesmo boundary, e e o ultimo da pagina — nada abaixo dele anda. So os
+ * botoes sao de cliente.
  */
-export default function PosVenda({ situacao, numero }: { situacao: Situacao; numero: number }) {
+export default function PosVenda({
+  situacao,
+  numero,
+  pedido,
+  solicitacoes = [],
+}: {
+  /** Nulo no pedido cancelado ou reembolsado: so a lista do que foi pedido. */
+  situacao: Situacao | null;
+  numero: number;
+  /** Id do pedido. Sem ele, o bloco nao oferece pedir pelo site. */
+  pedido?: string;
+  solicitacoes?: readonly Solicitacao[];
+}) {
   // O numero no assunto ja vai preenchido: e o que a loja precisa para achar
   // o pedido, e o que a pessoa mais esquece de escrever.
   const assunto = encodeURIComponent(`Pedido #${numero}`);
+  // O que cabe pela etapa, menos o que ja esta aberto: esse aparece na lista
+  // com o protocolo, e um segundo clique nao abre outro.
+  const abertos = tiposAbertos(solicitacoes);
+  const podePedir = pedido ? tiposQueCabem(situacao).filter((t) => !abertos.has(t)) : [];
 
   return (
     <section className="detalhe-bloco" aria-labelledby="pos-venda">
       <h2 id="pos-venda">Precisa cancelar, desistir ou trocar?</h2>
 
-      <Agora situacao={situacao} />
+      {situacao ? <Agora situacao={situacao} /> : null}
+
+      {solicitacoes.length > 0 ? <Pedidas solicitacoes={solicitacoes} /> : null}
+
+      {pedido ? <PedirPosVenda pedido={pedido} tipos={podePedir} /> : null}
 
       <p className="detalhe-nota">
-        Escreva para <a href={`mailto:${CONTATO}?subject=${assunto}`}>{CONTATO}</a> com o número do
-        pedido, #{numero}. Prazos, frete e reembolso de cada caso estão nos{' '}
+        {podePedir.length > 0 ? 'Se preferir, escreva' : 'Escreva'} para{' '}
+        <a href={`mailto:${CONTATO}?subject=${assunto}`}>{CONTATO}</a> com o número do pedido, #
+        {numero}. Prazos, frete e reembolso de cada caso estão nos{' '}
         <a href={TERMOS}>termos de compra</a>.
       </p>
     </section>
+  );
+}
+
+/** O que ja foi pedido pelo site, com protocolo, do mais novo ao mais antigo. */
+function Pedidas({ solicitacoes }: { solicitacoes: readonly Solicitacao[] }) {
+  return (
+    <ul className="pos-venda-lista">
+      {solicitacoes.map((s) => (
+        <li key={s.protocolo}>
+          <span className="pos-venda-lista-nome">
+            {NOME_DO_TIPO[s.tipo]} · protocolo{' '}
+            <strong className="pos-venda-protocolo">{s.protocolo}</strong>
+          </span>
+          <span className="pos-venda-lista-quando">
+            Pedido em <time dateTime={s.criadoEm}>{formataDataHora(s.criadoEm)}</time>
+            {s.resolvidaEm ? (
+              <>
+                {' '}
+                · encerrado em{' '}
+                <time dateTime={s.resolvidaEm}>{formataDataHora(s.resolvidaEm)}</time>
+              </>
+            ) : (
+              ' · aguardando a loja'
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

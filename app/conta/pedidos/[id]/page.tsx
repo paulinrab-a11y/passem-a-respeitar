@@ -259,8 +259,16 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
 
       {/* Cancelar, desistir ou trocar (#276): por ultimo, depois do
           andamento, que e de onde saem os prazos. Pedido cancelado ou
-          reembolsado nao tem o bloco — nao ha o que pedir. */}
-      {pedido.posVenda ? <PosVenda situacao={pedido.posVenda} numero={pedido.numero} /> : null}
+          reembolsado nao tem o bloco — nao ha o que pedir —, a menos que algo
+          tenha sido pedido pelo site: ai o bloco mostra o protocolo (#379). */}
+      {pedido.posVenda || pedido.solicitacoes.length > 0 ? (
+        <PosVenda
+          situacao={pedido.posVenda}
+          numero={pedido.numero}
+          pedido={id}
+          solicitacoes={pedido.solicitacoes}
+        />
+      ) : null}
     </>
   );
 }

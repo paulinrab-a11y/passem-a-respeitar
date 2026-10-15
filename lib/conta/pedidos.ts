@@ -16,6 +16,7 @@ import { type PosVenda, posVendaDoPedido } from '@/lib/loja/termos';
 import { MAX_NO_CHECKOUT, urlDoCheckout } from '@/lib/loja/url-do-checkout';
 import { expirou, pagarAte } from '@/lib/loja/validade-do-pedido';
 import { type EventoDoBanco, type LinhaDoTempo, montaLinhaDoTempo } from './linha-do-tempo';
+import { type LinhaDeSolicitacao, mapeiaSolicitacoes, type Solicitacao } from './pos-venda';
 
 /** Quantos pedidos por pagina. Criterio da #41. */
 export const POR_PAGINA = 20;
@@ -360,6 +361,11 @@ export type PedidoDetalhado = {
    * pacote volta, e o rastreio ali so confunde.
    */
   rastreio: RastreioDoPedido | null;
+  /**
+   * O que a pessoa ja pediu pelo site (#379), com protocolo. A propria
+   * mensagem volta para ela; nada da loja (quem resolveu) vem junto.
+   */
+  solicitacoes: Solicitacao[];
 };
 
 type LinhaDetalhe = LinhaPedido &
@@ -371,6 +377,8 @@ type LinhaDetalhe = LinhaPedido &
     /** Opcionais: so o detalhe le, e so depois da migration 20261015180000. */
     rastreio_codigo?: string | null;
     rastreio_url?: string | null;
+    /** Opcional: so o detalhe le, e so depois da migration 20261015190000. */
+    solicitacoes_pos_venda?: LinhaDeSolicitacao[];
   };
 
 /** Etapas em que o rastreio aparece (#378). */
@@ -416,6 +424,7 @@ export function mapeiaDetalhe(linha: LinhaDetalhe, agoraMs = Date.now()): Pedido
     rastreio: COM_RASTREIO.has(linha.status)
       ? leRastreio(linha.rastreio_codigo, linha.rastreio_url)
       : null,
+    solicitacoes: mapeiaSolicitacoes(linha.solicitacoes_pos_venda ?? []),
   };
 }
 

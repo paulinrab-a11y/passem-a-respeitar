@@ -51,15 +51,17 @@ describe('borda de campo (#376)', () => {
     expect(contraste(hex('prata-borda'), fundo)).toBeGreaterThanOrEqual(3);
   });
 
-  it.each(['.auth-campo input', '.frete-ficha input', '#fim .convite form'])(
-    '%s desenha a borda com --prata-borda',
-    (seletor) => {
-      const ini = CSS.indexOf(`\n${seletor}{`);
-      expect(ini, seletor).toBeGreaterThan(-1);
-      const regra = CSS.slice(ini, CSS.indexOf('}', ini));
-      expect(regra).toContain('border:1px solid var(--prata-borda)');
-    }
-  );
+  it.each([
+    '.auth-campo input',
+    '.frete-ficha input',
+    '#fim .convite form',
+    '.pos-venda-confirmar textarea',
+  ])('%s desenha a borda com --prata-borda', (seletor) => {
+    const ini = CSS.indexOf(`\n${seletor}{`);
+    expect(ini, seletor).toBeGreaterThan(-1);
+    const regra = CSS.slice(ini, CSS.indexOf('}', ini));
+    expect(regra).toContain('border:1px solid var(--prata-borda)');
+  });
 });
 
 describe('--prata-3 como cor de texto', () => {

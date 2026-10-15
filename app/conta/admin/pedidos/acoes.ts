@@ -21,7 +21,7 @@ import { type Estorno, encerraAbertas, estornaAprovadas } from '@/lib/loja/webho
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
-import type { EstadoAdmin } from './estado';
+import type { EstadoAdmin, EstadoResolver } from './estado';
 
 /**
  * Mudanca administrativa de status (Issue #43).
@@ -314,4 +314,70 @@ export async function reautenticarEMudar(
   }
 
   return mudarStatus(anterior, form);
+}
+
+const esquemaResolver = z.object({ pedido: z.string().uuid(), solicitacao: z.string().uuid() });
+
+/**
+ * Marca uma solicitacao de pos-venda como resolvida (#379).
+ *
+ * Para o que o reembolso nao fecha sozinho: a troca combinada por e-mail, o
+ * defeito resolvido, o cancelamento recusado porque a camiseta ja tinha
+ * saido. Cancelar ou reembolsar o pedido ja encerra as abertas, pelo trigger
+ * do banco. Mesma porta do status: sessao, papel, limite, entrada; quem nao
+ * administra recebe "nao encontrado".
+ *
+ * So `resolvida_em`, e so se ainda estava aberta: clicar duas vezes nao move
+ * a data. A pessoa ve "encerrado em" no pedido dela.
+ */
+export async function resolverSolicitacao(
+  _anterior: EstadoResolver,
+  form: FormData
+): Promise<EstadoResolver> {
+  const naoEncontrada: EstadoResolver = {
+    recado: { tom: 'erro', texto: 'Solicitação não encontrada.' },
+  };
+
+  const usuario = await usuarioDaSessao();
+  if (!usuario) return naoEncontrada;
+  if (!ehAdmin({ email: usuario.email, emailVerificado: Boolean(usuario.email_confirmed_at) })) {
+    return naoEncontrada;
+  }
+
+  const cota = await limita(`admin-status:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
+  if (!cota.permitido) {
+    return { recado: { tom: 'erro', texto: 'Muitas mudanças em pouco tempo. Espere um pouco.' } };
+  }
+
+  const dados = esquemaResolver.safeParse({
+    pedido: form.get('pedido'),
+    solicitacao: form.get('solicitacao'),
+  });
+  if (!dados.success) return naoEncontrada;
+
+  const { pedido, solicitacao } = dados.data;
+
+  const { data, error } = await clienteAdmin()
+    .from('solicitacoes_pos_venda')
+    .update({ resolvida_em: new Date().toISOString() })
+    .eq('id', solicitacao)
+    .eq('order_id', pedido)
+    .is('resolvida_em', null)
+    .select('id');
+
+  if (error) {
+    console.warn('[admin] solicitacao indisponivel:', error.code, solicitacao);
+    return { recado: { tom: 'erro', texto: 'Não deu para marcar agora. Tente de novo.' } };
+  }
+  if (!data || data.length === 0) {
+    return { recado: { tom: 'erro', texto: 'Esta solicitação já estava encerrada. Recarregue.' } };
+  }
+
+  console.info('[admin] solicitacao resolvida', usuario.id, pedido, solicitacao);
+
+  revalidatePath('/conta/admin/pedidos');
+  revalidatePath(`/conta/admin/pedidos/${pedido}`);
+  revalidatePath(`/conta/pedidos/${pedido}`);
+
+  return { recado: { tom: 'ok', texto: 'Marcada como resolvida.' } };
 }

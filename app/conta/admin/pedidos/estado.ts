@@ -17,3 +17,10 @@ export type EstadoAdmin = {
 };
 
 export const adminInicial: EstadoAdmin = { recado: null, pedido: null };
+
+/** Marcar uma solicitacao de pos-venda como resolvida (#379). */
+export type EstadoResolver = {
+  recado: { tom: 'ok' | 'erro'; texto: string } | null;
+};
+
+export const resolverInicial: EstadoResolver = { recado: null };
