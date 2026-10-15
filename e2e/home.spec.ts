@@ -115,6 +115,14 @@ test('home: o selo e Whynot Visuals, e a camiseta e so da CBAC', async ({ page }
   await expect(selo).toHaveAttribute('href', 'https://instagram.com/whynotvisuals_');
   await expect(page.locator('footer.assina span')).toHaveText('CBAC');
 
+  // O texto do arroba e o mesmo perfil do link (#314).
+  const santxx = page.locator('footer.assina #igSantxx');
+  await expect(santxx).toHaveText('@ogsantxx');
+  await expect(santxx).toHaveAttribute('href', 'https://instagram.com/ogsantxx');
+  const chefe = page.locator('footer.assina #igChefe');
+  await expect(chefe).toHaveText('@ch3fe3k');
+  await expect(chefe).toHaveAttribute('href', 'https://instagram.com/ch3fe3k');
+
   // Credito do site (#195).
   const credito = page.locator('footer.assina .assina-credito');
   await expect(credito).toHaveText('site feito pela Whynot Visuals');
