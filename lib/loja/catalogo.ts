@@ -18,8 +18,14 @@ import 'server-only';
  * as colunas. `estoque` nao esta concedido para este papel e por isso nao e
  * lido aqui — quem confere e baixa o numero e `cria_pedido`, no banco, na
  * mesma transacao que grava o pedido (#296).
+ *
+ * A vitrine fica em cache entre requests (#374), o checkout nao. A home pode
+ * mostrar um preco de ate um minuto atras; o checkout le o banco na hora e
+ * mostra o numero que vai cobrar antes do pagamento. Quem muda preco e quer a
+ * home certa no mesmo instante chama `revalidateTag(TAG_DO_CATALOGO)`.
  */
 
+import { unstable_cache } from 'next/cache';
 import {
   cotaFrete,
   type MotivoDoFrete,
@@ -34,6 +40,7 @@ import {
   precifica,
   type VariacaoDoBanco,
 } from '@/lib/loja/precos';
+import { clienteAnonimo } from '@/lib/supabase/anonimo';
 import { clienteServidor } from '@/lib/supabase/servidor';
 import { type LinhaDoGuia, leGuia } from './guia-de-tamanhos';
 
@@ -87,11 +94,24 @@ function mapeiaVitrine(linhas: LinhaDoBanco[]): ProdutoDaVitrine[] {
   );
 }
 
-/** O catalogo que a loja mostra. */
-export async function vitrine(): Promise<ProdutoDaVitrine[]> {
-  const supabase = await clienteServidor();
+/** Tag do cache da vitrine, para `revalidateTag` quando o catalogo mudar. */
+export const TAG_DO_CATALOGO = 'catalogo';
 
-  const { data, error } = await supabase
+/** Segundos que a vitrine vale no cache antes de ser lida de novo. */
+export const VITRINE_REVALIDA_EM = 60;
+
+/**
+ * A leitura em si. Client anonimo: o catalogo e o mesmo para quem tem sessao e
+ * para quem nao tem (as policies `produtos_vitrine` e
+ * `produto_variacoes_vitrine` valem igual para `anon` e `authenticated`), e um
+ * client sem cookie e o que pode entrar num cache compartilhado — o Next nem
+ * deixa ler cookie dentro de `unstable_cache`.
+ *
+ * Erro LANCA em vez de devolver lista vazia: o que lanca nao entra no cache, e
+ * um soluco do banco nao deixa a loja vazia por um minuto inteiro.
+ */
+async function leVitrine(): Promise<ProdutoDaVitrine[]> {
+  const { data, error } = await clienteAnonimo()
     .from('produtos')
     // Colunas nomeadas. `estoque` nem aparece — o papel nao tem o GRANT, e
     // pedir coluna sem privilegio derruba a consulta inteira.
@@ -102,8 +122,28 @@ export async function vitrine(): Promise<ProdutoDaVitrine[]> {
     // P, M, G, GG. Por `tamanho` sairia G, GG, M, P.
     .order('ordem', { referencedTable: 'produto_variacoes', ascending: true });
 
-  if (error || !data) return [];
+  if (error || !data) throw new Error('catalogo indisponivel');
   return mapeiaVitrine(data);
+}
+
+// `unstable_cache` e nao `'use cache'`: o segundo pede `cacheComponents`, que
+// muda a renderizacao do site inteiro. Este e o caminho do Next 16 sem ele.
+const vitrineEmCache = unstable_cache(leVitrine, ['loja-vitrine'], {
+  revalidate: VITRINE_REVALIDA_EM,
+  tags: [TAG_DO_CATALOGO],
+});
+
+/**
+ * O catalogo que a loja mostra (home e concierge), em cache por
+ * VITRINE_REVALIDA_EM segundos. A home nao pode cair porque o catalogo caiu:
+ * erro vira lista vazia aqui, fora do cache.
+ */
+export async function vitrine(): Promise<ProdutoDaVitrine[]> {
+  try {
+    return await vitrineEmCache();
+  } catch {
+    return [];
+  }
 }
 
 /** Onde entregar e por qual servico. So o CEP e a escolha: o preco e da cotacao. */
