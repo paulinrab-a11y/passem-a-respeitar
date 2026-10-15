@@ -46,7 +46,23 @@ export default defineConfig({
   // So Chromium. O cookie de sessao e `Secure`, e em http so o Chromium e o
   // Firefox aceitam cookie `Secure` vindo de localhost; o WebKit recusa, e o
   // login local nunca funcionaria nele.
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  //
+  // O celular (#294) so na loja: o toque passa pelo `touch-action`, que o
+  // mouse do desktop nunca exercita. O Pixel 5 e Chromium, o mesmo navegador
+  // que o CI ja instala; a suite inteira nele dobraria o tempo sem medir nada
+  // novo.
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /celular\.spec\.ts$/,
+    },
+    {
+      name: 'celular',
+      use: { ...devices['Pixel 5'] },
+      testMatch: /celular\.spec\.ts$/,
+    },
+  ],
 
   webServer: {
     command: 'node e2e/apoio/servidor.mjs',
