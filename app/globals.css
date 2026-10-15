@@ -1430,3 +1430,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
   .concierge-bolha{animation:none}
   .concierge-digitando.on .eq i{animation:none;transform:scaleY(.5)}
 }
+
+/* Sair do Pix para o formulario (#369), abaixo do link do pedido. */
+.pix-outro{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.pix-outro .detalhe-nota{max-width:42ch;margin:0}

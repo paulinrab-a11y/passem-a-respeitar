@@ -14,9 +14,15 @@ vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: vi.fn(async () => ({ id: 'pessoa', email: 'pessoa@exemplo.test' })),
 }));
 vi.mock('@/app/conta/pedidos/[id]/busca-pedido', () => ({ meuPedido: vi.fn() }));
-vi.mock('./Brick', () => ({ default: () => <div data-brick="montado" /> }));
+vi.mock('@/lib/loja/pix-pendente', () => ({ pixPendente: vi.fn(async () => null) }));
+vi.mock('./Brick', () => ({
+  default: ({ pixInicial }: { pixInicial?: { copiaECola: string } | null }) => (
+    <div data-brick="montado" data-pix={pixInicial?.copiaECola ?? ''} />
+  ),
+}));
 
 const { meuPedido } = await import('@/app/conta/pedidos/[id]/busca-pedido');
+const { pixPendente } = await import('@/lib/loja/pix-pendente');
 const { default: Pagamento } = await import('./page');
 
 const PEDIDO = '44444444-4444-4444-8444-444444444444';
@@ -99,5 +105,37 @@ describe('pagamento e quem vende (#276)', () => {
     const html = await tela();
     expect(html).not.toContain('data-brick');
     expect(html).toContain(FORA_DO_AR);
+  });
+});
+
+/**
+ * O Pix que a pessoa ja gerou (#369): a tela pergunta, e o Brick abre nele.
+ */
+describe('Pix pendente de volta', () => {
+  it('sem Pix aberto, o Brick abre no formulario', async () => {
+    const html = await tela();
+
+    expect(html).toContain('data-brick="montado"');
+    expect(html).toContain('data-pix=""');
+    expect(vi.mocked(pixPendente)).toHaveBeenCalledWith(PEDIDO, '2026-10-09T12:00:00Z');
+  });
+
+  it('com Pix aberto, o Brick recebe o mesmo codigo', async () => {
+    vi.mocked(pixPendente).mockResolvedValueOnce({
+      copiaECola: '00020126-pix-de-teste',
+      qrBase64: null,
+      expiraEm: null,
+    });
+
+    expect(await tela()).toContain('data-pix="00020126-pix-de-teste"');
+  });
+
+  it('sem pagamento no ar, nem pergunta ao provedor', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY', '');
+    vi.mocked(pixPendente).mockClear();
+
+    await tela();
+
+    expect(vi.mocked(pixPendente)).not.toHaveBeenCalled();
   });
 });

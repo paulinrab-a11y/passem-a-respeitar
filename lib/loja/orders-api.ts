@@ -454,6 +454,82 @@ export async function consultaOrdem(provedorId: string): Promise<ResumoDoProvedo
   return localizacao.ok && localizacao.ordem ? localizacao.ordem.resumo : null;
 }
 
+/** O Pix como a tela mostra: o que o provedor mandou, nunca montado aqui. */
+export type PixDoProvedor = {
+  copiaECola: string;
+  qrBase64: string | null;
+  expiraEm: string | null;
+};
+
+/**
+ * Teto da consulta do Pix aberto (#369). Mais curto que `PRAZO_MS`: esta
+ * chamada segura a tela de pagamento, e quem esta esperando o QR prefere o
+ * formulario em cinco segundos a um QR em vinte.
+ */
+const PRAZO_DO_PIX_MS = 5_000;
+
+/**
+ * Quando o Pix de uma ordem consultada vence (#369). A data do provedor,
+ * quando vem; sem ela, a criacao mais a duracao pedida (`PT5H12M`), que e o
+ * que `vencimentoDoPix` faz com "agora" na criacao. Sem nenhuma das duas,
+ * `null`, e a tela deixa de mostrar o vencimento.
+ */
+function vencimentoDaOrdem(ordem: OrdemDoProvedor, pagamento: Pagamento | undefined) {
+  const doProvedor = Date.parse(pagamento?.date_of_expiration ?? '');
+  if (Number.isFinite(doProvedor)) return new Date(doProvedor).toISOString();
+
+  const criada = Date.parse(ordem.created_date ?? '');
+  const duracao = duracaoEmMs(pagamento?.expiration_time);
+  if (!Number.isFinite(criada) || duracao === null) return null;
+
+  return new Date(criada + duracao).toISOString();
+}
+
+/**
+ * O QR e o copia-e-cola de um Pix que ainda espera pagamento (#369).
+ *
+ * Quem gerou o Pix, fechou a aba e voltou por "Pagar agora" caia no
+ * formulario, e escolher Pix de novo cancelava o anterior — o codigo que a
+ * pessoa ja tinha colado no app do banco deixava de valer sem aviso. O QR nao
+ * fica no nosso banco: e dado de pagamento, e a fonte dele e o provedor. Aqui
+ * se pergunta de novo.
+ *
+ * `null` em tudo que nao for "pendente, com QR, ainda valendo": ordem paga,
+ * cancelada, vencida, sem QR, 404, rede fora. Para a tela, todos querem dizer
+ * o mesmo — mostra o formulario, como antes.
+ */
+export async function pixDaOrdem(
+  provedorId: string,
+  agoraMs = Date.now()
+): Promise<PixDoProvedor | null> {
+  try {
+    const r = await fetch(`${base()}/v1/orders/${encodeURIComponent(provedorId)}`, {
+      headers: { Authorization: `Bearer ${token()}` },
+      signal: AbortSignal.timeout(PRAZO_DO_PIX_MS),
+      cache: 'no-store',
+    });
+    if (!r.ok) return null;
+
+    const ordem = (await r.json()) as OrdemDoProvedor;
+    if (resumoDaOrdem(ordem).estado !== 'pendente') return null;
+
+    const pagamento = ordem.transactions?.payments?.[0];
+    const meio = pagamento?.payment_method;
+    if (typeof meio?.qr_code !== 'string' || !meio.qr_code) return null;
+
+    const expiraEm = vencimentoDaOrdem(ordem, pagamento);
+    if (expiraEm && Date.parse(expiraEm) <= agoraMs) return null;
+
+    return {
+      copiaECola: meio.qr_code,
+      qrBase64: typeof meio.qr_code_base64 === 'string' ? meio.qr_code_base64 : null,
+      expiraEm,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Cancela a ordem no provedor (#6, #21).
  *
