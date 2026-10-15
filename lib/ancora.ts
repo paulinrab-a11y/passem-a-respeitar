@@ -57,7 +57,8 @@ function rolaAte(doc: Document, hash: string) {
  *
  * Chamar DEPOIS do init do script da home: e nesse instante que da para saber
  * se ha intro pela frente. Com a trava posta, espera; sem ela — o `booted` do
- * legacy-site ja tinha rodado nesta aba, entao nao havera intro — rola agora.
+ * legacy-site ja tinha rodado nesta aba, ou a intro viu a ancora e nem abriu
+ * (#344, `comoAbre` em app/_home/abertura.ts) — rola agora.
  */
 export function levaAteAAncora(janela: Window & typeof globalThis): () => void {
   const doc = janela.document;

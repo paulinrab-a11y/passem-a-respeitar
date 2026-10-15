@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { withSentryConfig } from '@sentry/nextjs/config';
 
 /**
@@ -89,6 +90,25 @@ const nextConfig = {
   // O Next anuncia a versao no header por padrao. Nao ajuda em nada e entrega
   // de graca qual versao atacar.
   poweredByHeader: false,
+  turbopack: {
+    rules: {
+      // Tracing e debug do Sentry fora do bundle do navegador (#360). So no
+      // codigo do SDK e so no navegador: o servidor continua com tracing. O
+      // porque de ser um loader esta no proprio arquivo.
+      '*.{js,mjs,cjs}': {
+        condition: {
+          all: [
+            'browser',
+            { path: /node_modules[\\/]@sentry(?:-internal)?[\\/]/ },
+            { content: /__SENTRY_(?:TRACING|DEBUG)__/ },
+          ],
+        },
+        loaders: [
+          fileURLToPath(new URL('./lib/sentry/sem-tracing-no-navegador.cjs', import.meta.url)),
+        ],
+      },
+    },
+  },
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },

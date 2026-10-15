@@ -8,8 +8,11 @@ import {
   linhasDaEntrega,
   montaContagem,
   PAINEL,
+  resumoDosItens,
   statusDoFiltro,
+  urlDaExportacao,
   urlDoPainel,
+  urlDoPedidoAdmin,
 } from './painel';
 import { leStatus } from './pedidos';
 
@@ -184,5 +187,42 @@ describe('linhasDaEntrega', () => {
 
   it('sem complemento nao sobra virgula', () => {
     expect(linhasDaEntrega({ ...entrega, complemento: null })[1]).toBe('Avenida Paulista, 1578');
+  });
+});
+
+describe('resumoDosItens (#345)', () => {
+  it('quantidade, nome e tamanho, como o dono separa', () => {
+    expect(resumoDosItens([{ nome: 'Camiseta CBAC', tamanho: 'M', quantidade: 1 }])).toBe(
+      '1× Camiseta CBAC · M'
+    );
+  });
+
+  it('sem tamanho, sem o ponto', () => {
+    expect(resumoDosItens([{ nome: 'Adesivo', tamanho: null, quantidade: 3 }])).toBe('3× Adesivo');
+  });
+
+  it('mais de um item, juntos por +', () => {
+    expect(
+      resumoDosItens([
+        { nome: 'Camiseta CBAC', tamanho: 'M', quantidade: 2 },
+        { nome: 'Camiseta CBAC', tamanho: 'G', quantidade: 1 },
+      ])
+    ).toBe('2× Camiseta CBAC · M + 1× Camiseta CBAC · G');
+  });
+
+  it('sem item, vazio', () => {
+    expect(resumoDosItens([])).toBe('');
+  });
+});
+
+describe('urls do detalhe e da exportacao (#345)', () => {
+  it('o detalhe do dono mora sob o painel, e nao na tela do cliente', () => {
+    expect(urlDoPedidoAdmin('abc')).toBe(`${PAINEL}/abc`);
+  });
+
+  it('a exportacao leva o filtro da tela; o padrao nao vai na URL', () => {
+    expect(urlDaExportacao(FILTRO_PADRAO)).toBe('/api/admin/pedidos');
+    expect(urlDaExportacao('todos')).toBe('/api/admin/pedidos?status=todos');
+    expect(urlDaExportacao('pago')).toBe('/api/admin/pedidos?status=pago');
   });
 });

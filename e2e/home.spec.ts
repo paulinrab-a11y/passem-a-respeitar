@@ -557,8 +557,9 @@ test('home: com reduzir movimento o fundo 3D assenta e para; sem, continua giran
   // Sem a preferencia, a mesma medida ve a corrente girando: e o que prova que
   // ela enxerga a cena, e que o "parado" de cima nao e um canvas vazio.
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  // Segunda carga na mesma aba: a abertura ja foi vista e sai sozinha, num
+  // fade curto (#344). Nao ha o que pular.
   await page.goto('/');
-  await page.locator('#skip').click();
   await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
   await page.evaluate(() => {
     for (const id of ['grain', 'scan', 'vig']) {
@@ -703,4 +704,33 @@ test('home: o Comprar da loja abre o checkout na mesma aba', async ({ page, cont
 
   await page.waitForURL(/\/(entrar\?next=%2Fcheckout|checkout\?p=)/);
   expect(abas).toEqual([]);
+});
+
+/**
+ * A abertura inteira so na primeira vez da aba (#344). Quem recarrega ve uma
+ * reprise curta; quem chega por ancora (o "voltar a loja" do checkout) cai
+ * direto na secao, sem abertura.
+ */
+test('home: a abertura inteira so na primeira vez; depois reprise curta, e por ancora nenhuma', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.locator('#skip')).toBeVisible();
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+  expect(await page.evaluate(() => sessionStorage.getItem('par:intro'))).toBe('1');
+
+  // Recarregar: ninguem clica em pular, e a abertura sai muito antes do fim
+  // da intro inteira (uns 12 s). O manifesto nem acende.
+  await page.reload();
+  await expect(page.locator('#intro')).toBeHidden({ timeout: 5_000 });
+  await expect(page.locator('#manifesto .l').first()).toHaveCSS('opacity', '0');
+
+  // Chegando por ancora, numa aba nova (sem a marca da sessao): a pagina
+  // abre na secao, sem abertura e sem trava.
+  const aba = await page.context().newPage();
+  await aba.goto('/#merch');
+  await expect(aba.locator('#intro')).toBeHidden({ timeout: 5_000 });
+  await expect(aba.getByRole('heading', { name: 'Merch', exact: true })).toBeInViewport();
+  await aba.close();
 });
