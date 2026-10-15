@@ -2,12 +2,14 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import GuiaDeTamanhos from '@/app/_ui/GuiaDeTamanhos';
 import { reais } from '@/lib/conta/pedidos';
-import { guiaDeTamanhos, orcamento } from '@/lib/loja/catalogo';
+import { fichaDoCheckout, orcamento } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
-import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
+import { esquemaItemDoCheckout } from '@/lib/loja/precos';
+import { MAX_NO_CHECKOUT } from '@/lib/loja/url-do-checkout';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import Entrega from './Entrega';
+import Escolha from './Escolha';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,14 +42,19 @@ export default async function Checkout({
   const { p, tam, q } = await searchParams;
 
   // A URL vem de fora, entao e afirmacao e nao fato — mesma regra do `next` em
-  // rotas.ts e do `?p=` da #41.
-  const item = esquemaItemDoCarrinho.safeParse({
+  // rotas.ts e do `?p=` da #41. A quantidade vai de 1 a 3 (#356): `?q=9`
+  // nao monta pedido, como nao montaria um tamanho inventado.
+  const item = esquemaItemDoCheckout.safeParse({
     slug: p,
     tamanho: tam || null,
     quantidade: Number(q ?? 1),
   });
 
-  const conta = item.success ? await orcamento([item.data]) : null;
+  // O preco e a ficha (tamanhos e guia) em paralelo: as duas so dependem do
+  // slug, e uma esperando a outra seria uma ida ao banco a mais na espera.
+  const [conta, ficha] = item.success
+    ? await Promise.all([orcamento([item.data]), fichaDoCheckout(item.data.slug)])
+    : [null, null];
 
   if (!item.success || !conta?.ok) {
     return (
@@ -75,9 +82,9 @@ export default async function Checkout({
   }
 
   const linha = conta.linhas[0];
-  // O guia (#206) tambem aqui: e a ultima chance de trocar o tamanho antes de
-  // pagar, e trocar depois custa frete duas vezes.
-  const guia = linha.tamanho ? await guiaDeTamanhos(linha.produtoSlug) : null;
+  // O guia (#206) e os tamanhos (#356) tambem aqui: e a ultima chance de
+  // trocar antes de pagar, e trocar depois custa frete duas vezes.
+  const guia = linha.tamanho ? (ficha?.guia ?? null) : null;
 
   return (
     <main className="auth conta">
@@ -102,6 +109,17 @@ export default async function Checkout({
               </span>
             </li>
           </ul>
+
+          {/* Tamanho e quantidade aqui mesmo (#356): antes, "Trocar o
+              tamanho" voltava para a home e o endereco digitado se perdia. */}
+          <Escolha
+            slug={linha.produtoSlug}
+            tamanhos={ficha?.tamanhos ?? []}
+            tamanho={linha.tamanho}
+            quantidade={linha.quantidade}
+            maximo={MAX_NO_CHECKOUT}
+          />
+
           {/* <div> e nao <p> (#266): o guia traz um <dialog> com titulo e
               tabela, que nao cabem num paragrafo. Dentro de <p>, o navegador
               fechava o paragrafo antes do <dialog>, o link saia da linha e a
@@ -109,9 +127,6 @@ export default async function Checkout({
           {guia ? (
             <div className="guia-no-checkout">
               <GuiaDeTamanhos linhas={guia} produto={linha.nome} />
-              <a href={`/#merch`} className="auth-link">
-                Trocar o tamanho
-              </a>
             </div>
           ) : null}
 

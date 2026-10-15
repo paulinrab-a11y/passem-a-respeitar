@@ -5,7 +5,7 @@ import { esquemaEndereco, soDigitos } from '@/lib/loja/endereco';
 import { buscaEnderecoPeloCep, type EnderecoPeloCep } from '@/lib/loja/endereco-por-cep';
 import type { OpcaoDeFrete } from '@/lib/loja/frete';
 import { criaPedido, esquemaAceiteDosTermos } from '@/lib/loja/pedido';
-import { esquemaItemDoCarrinho } from '@/lib/loja/precos';
+import { esquemaItemDoCheckout } from '@/lib/loja/precos';
 import { MOTIVOS_TRANSITORIOS, RECADOS_DO_FRETE } from '@/lib/loja/recados-do-frete';
 import { limita } from '@/lib/rate-limit';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
@@ -75,8 +75,9 @@ export async function finalizarCompra(
 
   // O item vem dos campos ocultos, que vieram da URL. Sao ESCOLHAS: o preco
   // e recalculado do catalogo dentro de `criaPedido`. Um campo oculto
-  // adulterado no DevTools muda o que se compra, nunca quanto custa.
-  const item = esquemaItemDoCarrinho.safeParse({
+  // adulterado no DevTools muda o que se compra, nunca quanto custa. A
+  // quantidade vai de 1 a 3, a mesma do seletor (#356).
+  const item = esquemaItemDoCheckout.safeParse({
     slug: form.get('slug'),
     tamanho: form.get('tamanho') || null,
     quantidade: Number(form.get('quantidade') ?? 1),
@@ -186,7 +187,7 @@ export async function cotarFrete(bruto: {
   const cep = typeof bruto.cep === 'string' ? soDigitos(bruto.cep) : '';
   if (!/^\d{8}$/.test(cep)) return recusa('frete-cep-invalido');
 
-  const item = esquemaItemDoCarrinho.safeParse({
+  const item = esquemaItemDoCheckout.safeParse({
     slug: bruto.slug,
     tamanho: bruto.tamanho || null,
     quantidade: Number(bruto.quantidade ?? 1),

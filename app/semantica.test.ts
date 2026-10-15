@@ -42,7 +42,7 @@ vi.mock('@/lib/loja/catalogo', () => ({
     frete: null,
     totalCentavos: 12000,
   }),
-  guiaDeTamanhos: async () => GUIA,
+  fichaDoCheckout: async () => ({ tamanhos: ['P', 'M'], guia: GUIA }),
   vitrine: async () => [
     {
       slug: LINHA.produtoSlug,
@@ -53,6 +53,12 @@ vi.mock('@/lib/loja/catalogo', () => ({
       guia: GUIA,
     },
   ],
+}));
+// O seletor de tamanho e quantidade do checkout (#356) pede o roteador; fora
+// do App Router nao ha um, e a marcacao e o que se mede aqui.
+vi.mock('next/navigation', async (original) => ({
+  ...(await original<typeof import('next/navigation')>()),
+  useRouter: () => ({ replace: () => {} }),
 }));
 vi.mock('@/app/checkout/acoes', () => ({
   finalizarCompra: vi.fn(),
@@ -256,12 +262,31 @@ describe('checkout renderizado', () => {
     expect(escrito.querySelectorAll('p dialog')).toHaveLength(0);
   });
 
-  it('o botao do guia e o link de trocar o tamanho ficam na mesma linha', async () => {
+  // #356: trocar o tamanho e no proprio checkout, e o link de volta para a
+  // home saiu. Sobra o guia na linha dele.
+  it('a linha do guia tem o botao e o dialog, e nada que leve de volta a home', async () => {
     const linha = comoONavegadorLe(await checkout()).querySelector('.guia-no-checkout');
     const filhos = [...(linha?.children ?? [])].map((el) => el.localName);
 
-    expect(filhos).toEqual(['button', 'dialog', 'a']);
-    expect(linha?.lastElementChild?.textContent).toBe('Trocar o tamanho');
+    expect(filhos).toEqual(['button', 'dialog']);
+    expect((await checkout()).includes('href="/#merch">Trocar')).toBe(false);
+  });
+
+  it('tamanho e quantidade sao grupos de radios com legenda, com a escolha da URL marcada', async () => {
+    const pagina = comoONavegadorLe(await checkout());
+    const grupos = [...pagina.querySelectorAll('.checkout-escolha fieldset')];
+
+    expect(grupos.map((g) => g.firstElementChild?.textContent)).toEqual(['Tamanho', 'Quantidade']);
+
+    const tamanhos = [...grupos[0].querySelectorAll('input[type="radio"]')] as HTMLInputElement[];
+    expect(tamanhos.map((r) => r.value)).toEqual(['P', 'M']);
+    expect(tamanhos.filter((r) => r.checked).map((r) => r.value)).toEqual(['M']);
+
+    const quantidades = [
+      ...grupos[1].querySelectorAll('input[type="radio"]'),
+    ] as HTMLInputElement[];
+    expect(quantidades.map((r) => r.value)).toEqual(['1', '2', '3']);
+    expect(quantidades.filter((r) => r.checked).map((r) => r.value)).toEqual(['1']);
   });
 });
 

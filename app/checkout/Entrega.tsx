@@ -64,11 +64,15 @@ const VAZIOS = {
   uf: '',
 };
 
-/** O frete de um CEP: ainda nao pedido, a caminho, ou a resposta. */
-type Frete = { cep: string; resposta: RespostaDoFrete | null };
+/**
+ * O frete de um CEP para um item: ainda nao pedido, a caminho, ou a resposta.
+ * A chave e o CEP E a escolha (#356): duas camisetas pesam mais que uma, e
+ * trocar a quantidade no checkout precisa cotar de novo, mesmo CEP.
+ */
+type Frete = { chave: string; resposta: RespostaDoFrete | null };
 
 /** Nenhum CEP cotado: o comeco, e o "cota de novo" (#240). */
-const NENHUM: Frete = { cep: '', resposta: null };
+const NENHUM: Frete = { chave: '', resposta: null };
 
 /**
  * A chamada que nem chegou a responder: rede que caiu, deploy no meio, 5xx da
@@ -121,17 +125,19 @@ export default function Entrega({
   // ver o preco.
   const cep = valores.cep.replace(/\D/g, '');
   const completo = cep.length === 8;
+  // O que a cotacao responde: este CEP, para este item.
+  const chave = `${cep}|${tamanho ?? ''}|${quantidade}`;
 
   // O ultimo CEP para o qual o endereco foi pedido. Em ref: nao e tela, e
   // um "ja pedi este".
   const enderecoPedido = useRef('');
 
   useEffect(() => {
-    if (!completo || cep === frete.cep) return;
+    if (!completo || chave === frete.chave) return;
 
     // Guardado antes da chamada: a resposta de um CEP velho, chegando depois
     // da de um novo, nao pode tomar o lugar dela.
-    setFrete({ cep, resposta: null });
+    setFrete({ chave, resposta: null });
     // Sem `useTransition`: o pendente dele valia para QUALQUER cotacao no ar,
     // e a do CEP errado, lenta, segurava o esqueleto depois de a do CEP certo
     // ja ter chegado (#31). Quem diz "calculando" e a resposta do CEP atual
@@ -141,8 +147,10 @@ export default function Entrega({
     // junto (#27).
     cotarFrete({ slug, tamanho, quantidade, cep })
       .catch(() => SEM_RESPOSTA)
-      .then((resposta) => setFrete((atual) => (atual.cep === cep ? { cep, resposta } : atual)));
-  }, [cep, completo, frete.cep, slug, tamanho, quantidade]);
+      .then((resposta) =>
+        setFrete((atual) => (atual.chave === chave ? { chave, resposta } : atual))
+      );
+  }, [chave, cep, completo, frete.chave, slug, tamanho, quantidade]);
 
   // Falha passageira nao e resposta do CEP. Enquanto ele esta no campo, ela
   // fica — cotar de novo sozinho seria o loop. Quando o CEP sai do campo, ela
@@ -203,7 +211,7 @@ export default function Entrega({
 
   // O que vale agora e a cotacao do CEP que esta no campo. Apagar um digito
   // tira o frete da tela: preco de outro CEP nao pode ficar parecendo deste.
-  const atual = completo && frete.cep === cep ? frete.resposta : null;
+  const atual = completo && frete.chave === chave ? frete.resposta : null;
   const opcoes = atual?.ok ? atual.opcoes : [];
 
   // A escolha sobrevive a troca de CEP quando o servico continua existindo.
@@ -214,7 +222,7 @@ export default function Entrega({
   // "Calculando" e CEP completo sem a resposta DELE: antes de a chamada sair
   // e enquanto ela nao volta. Nao e o pendente de uma transition, que valia
   // para qualquer chamada no ar (#31).
-  const calculando = completo && (frete.cep !== cep || frete.resposta === null);
+  const calculando = completo && (frete.chave !== chave || frete.resposta === null);
 
   // O botao diz por que nao da para finalizar, sem repetir a mensagem de
   // cima: falta CEP, o frete esta a caminho, ou nao ha frete para este CEP.

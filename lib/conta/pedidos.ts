@@ -10,6 +10,7 @@
 import { cepLegivel, type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
 import type { StatusPedido } from '@/lib/loja/status-do-pedido';
 import { type PosVenda, posVendaDoPedido } from '@/lib/loja/termos';
+import { MAX_NO_CHECKOUT, urlDoCheckout } from '@/lib/loja/url-do-checkout';
 import { expirou, pagarAte } from '@/lib/loja/validade-do-pedido';
 import { type EventoDoBanco, type LinhaDoTempo, montaLinhaDoTempo } from './linha-do-tempo';
 
@@ -210,6 +211,8 @@ export type Pedido = {
 
 type LinhaItem = {
   id: string;
+  /** So o detalhe le (#356): e o que monta o "Fazer o pedido de novo". */
+  produto_slug?: string | null;
   nome: string;
   tamanho: string | null;
   quantidade: number;
@@ -343,6 +346,13 @@ export type PedidoDetalhado = {
    * Nulo no pedido cancelado ou reembolsado, que nao tem o que pedir.
    */
   posVenda: PosVenda | null;
+  /**
+   * O checkout com a mesma escolha (#356): produto, tamanho e quantidade.
+   * So no pedido vencido ou cancelado — o que nao vai ser pago e precisa de
+   * um caminho de volta, e o preco e o frete sao recalculados no checkout,
+   * nunca copiados daqui.
+   */
+  refazer: string | null;
 };
 
 type LinhaDetalhe = LinhaPedido &
@@ -389,5 +399,27 @@ export function mapeiaDetalhe(linha: LinhaDetalhe, agoraMs = Date.now()): Pedido
     itens: mapeiaItens(linha.order_items),
     linhaDoTempo: montaLinhaDoTempo(linha.status, linha.order_status_history),
     posVenda: posVendaDoPedido(linha.status, entregueEm, new Date(agoraMs)),
+    refazer: refazer(linha, pagavel),
   };
+}
+
+/**
+ * O "Fazer o pedido de novo" (#356). Vencido (ainda esperando, fora do prazo)
+ * ou cancelado: a expiracao cancela o pedido na hora em que a pessoa abre a
+ * tela, entao quase sempre e como cancelado que ela o ve. O primeiro item
+ * vale — o checkout monta um produto por vez —, e a quantidade cabe no que
+ * o checkout aceita.
+ */
+function refazer(linha: LinhaDetalhe, pagavel: boolean): string | null {
+  const vencido = linha.status === 'aguardando_pagamento' && !pagavel;
+  if (!vencido && linha.status !== 'cancelado') return null;
+
+  const item = linha.order_items.find((i) => i.produto_slug);
+  if (!item?.produto_slug) return null;
+
+  return urlDoCheckout(
+    item.produto_slug,
+    item.tamanho,
+    Math.min(Math.max(item.quantidade, 1), MAX_NO_CHECKOUT)
+  );
 }
