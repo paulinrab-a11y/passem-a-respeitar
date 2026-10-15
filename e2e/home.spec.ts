@@ -65,6 +65,27 @@ test('assets de public: cache no navegador e headers de seguranca (#312)', async
   }
 });
 
+test('favicon: /favicon.ico e o brasao, e o SVG adaptavel continua no head (#318)', async ({
+  page,
+  request,
+}) => {
+  const resposta = await request.get('/favicon.ico');
+  expect(resposta.status()).toBe(200);
+  const cabecalhos = resposta.headers();
+  expect(cabecalhos['content-type']).toBe('image/x-icon');
+  expect(cabecalhos['content-security-policy']).toContain("default-src 'none'");
+  // Cabecalho de .ico: reservado 0, tipo 1 (icone).
+  expect([...(await resposta.body()).subarray(0, 4)]).toEqual([0, 0, 1, 0]);
+
+  await page.goto('/');
+  // O .ico declara 32x32 e o SVG "any": quem le SVG fica com o SVG, que troca
+  // de cor com o tema; o resto (Safari antigo) fica com o .ico.
+  const ico = page.locator('link[rel="icon"][href^="/favicon.ico"]');
+  await expect(ico).toHaveAttribute('type', 'image/x-icon');
+  await expect(ico).toHaveAttribute('sizes', '32x32');
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveCount(1);
+});
+
 test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({ page }) => {
   // A cena 3D roda por software no navegador sem tela, e rolar por ela e lento.
   test.setTimeout(90_000);
