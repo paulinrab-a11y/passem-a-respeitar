@@ -4,6 +4,7 @@ import { meuPedido } from '@/app/conta/pedidos/[id]/busca-pedido';
 import { pareceUuid } from '@/lib/conta/pedidos';
 import { formataDataHora } from '@/lib/datas';
 import { chavePublica, emReais } from '@/lib/loja/mercadopago';
+import { pixPendente } from '@/lib/loja/pix-pendente';
 import { vendaLiberada } from '@/lib/loja/vendedor';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
@@ -42,11 +43,19 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
   // o cancela.
   if (!pedido.pagavel) redirect(`/conta/pedidos/${id}`);
 
-  const usuario = await usuarioDaSessao();
   // Sem quem vende identificado, em producao, a tela nao monta o pagamento
   // (#276): o mesmo "fora do ar" da chave que falta, e a rota de cobranca
   // recusa do mesmo jeito. Preview e desenvolvimento seguem montando.
   const chave = vendaLiberada() ? chavePublica() : null;
+
+  // O Pix que a pessoa ja gerou e ainda vale (#369): quem volta por "Pagar
+  // agora" ve o MESMO QR, em vez de um formulario que, escolhendo Pix de
+  // novo, cancelaria o codigo que ela talvez ja tenha colado no banco. So
+  // depois de `meuPedido` confirmar o dono, e em paralelo com a sessao.
+  const [usuario, pix] = await Promise.all([
+    usuarioDaSessao(),
+    chave ? pixPendente(id, pedido.criadoEm) : null,
+  ]);
 
   return (
     <main className="auth conta">
@@ -86,6 +95,7 @@ export default async function Pagamento({ params }: { params: Promise<{ id: stri
               valorEscrito={pedido.total}
               email={usuario?.email ?? ''}
               pedido={id}
+              pixInicial={pix}
             />
           ) : (
             <p className="detalhe-nota">

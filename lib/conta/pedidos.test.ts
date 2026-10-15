@@ -298,6 +298,8 @@ describe('mapeiaDetalhe', () => {
       'pagavel',
       // Entrou na #276: o que cabe pedir agora (cancelar, desistir, trocar).
       'posVenda',
+      // Entrou na #356: o checkout com a mesma escolha, no vencido e no cancelado.
+      'refazer',
       'rotulo',
       'tom',
       'total',
@@ -465,6 +467,65 @@ describe('pagavel e pagarAte (#298)', () => {
 
     expect(noPrazo.pagavel).toBe(true);
     expect(vencido.pagavel).toBe(false);
+  });
+});
+
+describe('refazer (#356)', () => {
+  const AGORA = Date.parse('2026-10-15T12:00:00Z');
+  const HORA = 60 * 60 * 1000;
+  const item = (quantidade: number, produto_slug: string | null = 'camiseta-cbac') => ({
+    id: 'item-1',
+    produto_slug,
+    nome: 'Camiseta CBAC',
+    tamanho: 'G',
+    quantidade,
+    preco_unitario_centavos: 12000,
+  });
+  const base = {
+    id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    numero: 3,
+    criado_em: new Date(AGORA - 49 * HORA).toISOString(),
+    status: 'aguardando_pagamento',
+    total_centavos: 12000,
+    frete_centavos: 0,
+    frete_servico: null,
+    frete_prazo_dias: null,
+    ...SEM_ENTREGA,
+    order_items: [item(1)],
+    order_status_history: [],
+  };
+
+  it('vencido leva ao checkout com o mesmo produto e tamanho', () => {
+    expect(mapeiaDetalhe(base, AGORA).refazer).toBe('/checkout?p=camiseta-cbac&tam=G');
+  });
+
+  it('cancelado tambem, que e como a expiracao o deixa', () => {
+    expect(mapeiaDetalhe({ ...base, status: 'cancelado' }, AGORA).refazer).toBe(
+      '/checkout?p=camiseta-cbac&tam=G'
+    );
+  });
+
+  it('a quantidade vai junto, ate o que o checkout aceita', () => {
+    expect(mapeiaDetalhe({ ...base, order_items: [item(2)] }, AGORA).refazer).toBe(
+      '/checkout?p=camiseta-cbac&tam=G&q=2'
+    );
+    expect(mapeiaDetalhe({ ...base, order_items: [item(7)] }, AGORA).refazer).toBe(
+      '/checkout?p=camiseta-cbac&tam=G&q=3'
+    );
+  });
+
+  it.each([
+    ['no prazo', { criado_em: new Date(AGORA - HORA).toISOString() }],
+    ['pago', { status: 'pago' }],
+    ['enviado', { status: 'enviado' }],
+    ['reembolsado', { status: 'reembolsado' }],
+  ])('%s nao oferece refazer', (_nome, muda) => {
+    expect(mapeiaDetalhe({ ...base, ...muda }, AGORA).refazer).toBeNull();
+  });
+
+  it('item sem produto registrado nao vira link quebrado', () => {
+    expect(mapeiaDetalhe({ ...base, order_items: [item(1, null)] }, AGORA).refazer).toBeNull();
+    expect(mapeiaDetalhe({ ...base, order_items: [] }, AGORA).refazer).toBeNull();
   });
 });
 

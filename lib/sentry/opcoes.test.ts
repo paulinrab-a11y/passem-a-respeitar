@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ambiente, limpa, opcoesComuns } from './opcoes';
+import { ambiente, limpa, limpaBreadcrumb, limpaTransacao, opcoesComuns, semQuery } from './opcoes';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -137,5 +137,59 @@ describe('limpa (segunda camada)', () => {
     expect((evento as { request: { headers: Record<string, string> } }).request.headers).toEqual({
       accept: 'c',
     });
+  });
+});
+
+/**
+ * A query string nao sai em lugar nenhum (#352). A busca do painel leva nome
+ * ou e-mail de cliente na URL, e transacao e breadcrumb carregam URL inteira.
+ */
+describe('sem query string (#352)', () => {
+  const BUSCA = '/conta/admin/pedidos?busca=maria%40exemplo.test';
+
+  it('semQuery corta query e fragmento, e so isso', () => {
+    expect(semQuery(BUSCA)).toBe('/conta/admin/pedidos');
+    expect(semQuery('https://site.test/a#b')).toBe('https://site.test/a');
+    expect(semQuery('GET /conta?x=1 200')).toBe('GET /conta 200');
+    expect(semQuery('/conta')).toBe('/conta');
+    expect(semQuery(42)).toBe(42);
+  });
+
+  it('o erro sai com a URL do request sem query', () => {
+    const e = limpa({ request: { url: `https://site.test${BUSCA}` } });
+    expect(e.request?.url).toBe('https://site.test/conta/admin/pedidos');
+  });
+
+  it('a transacao sai sem query no nome, nos spans e no request', () => {
+    const t = limpaTransacao({
+      transaction: `GET ${BUSCA}`,
+      request: { url: `https://site.test${BUSCA}`, query_string: 'busca=maria' },
+      user: { email: 'maria@exemplo.test' },
+      spans: [
+        {
+          description: `GET https://site.test${BUSCA}`,
+          data: { url: BUSCA, 'http.query': '?busca=maria', 'http.method': 'GET' },
+        },
+      ],
+    });
+
+    expect(JSON.stringify(t)).not.toContain('maria');
+    expect(t.transaction).toBe('GET /conta/admin/pedidos');
+    expect(t.spans?.[0].data).toEqual({ url: '/conta/admin/pedidos', 'http.method': 'GET' });
+  });
+
+  it('o breadcrumb de navegacao e de fetch sai sem query', () => {
+    const navegacao = limpaBreadcrumb({ data: { from: '/conta', to: BUSCA } });
+    const fetch = limpaBreadcrumb({ data: { url: BUSCA, method: 'GET', status_code: 200 } });
+
+    expect(navegacao.data).toEqual({ from: '/conta', to: '/conta/admin/pedidos' });
+    expect(fetch.data).toEqual({ url: '/conta/admin/pedidos', method: 'GET', status_code: 200 });
+  });
+
+  it('as tres camadas estao ligadas nas opcoes', () => {
+    const o = opcoesComuns('https://chave@sentry.test/1');
+    expect(o.beforeSend).toBe(limpa);
+    expect(o.beforeSendTransaction).toBe(limpaTransacao);
+    expect(o.beforeBreadcrumb).toBe(limpaBreadcrumb);
   });
 });

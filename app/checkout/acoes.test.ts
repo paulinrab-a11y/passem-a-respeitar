@@ -115,6 +115,13 @@ describe('sucesso', () => {
     });
   });
 
+  // O seletor vai de 1 a 3 (#356), e o servidor confere o mesmo numero: um
+  // campo oculto com 4 nao vira pedido de quatro camisetas.
+  it('quantidade acima da do checkout nao cria pedido', async () => {
+    expect((await enviar({ quantidade: '4' })).irPara).toBeFalsy();
+    expect(criaPedido).not.toHaveBeenCalled();
+  });
+
   it('campo de dinheiro injetado no formulario nem chega na criacao', async () => {
     expect(
       (await enviar({ total: '1', preco: '1', desconto: '11900', user_id: 'outro' })).irPara
@@ -417,8 +424,8 @@ describe('cotarFrete (#199)', () => {
     }
   );
 
-  it('item que nao passa no schema recusa sem consultar', async () => {
-    expect((await cotar({ quantidade: '0' })).ok).toBe(false);
+  it.each(['0', '4'])('quantidade %s nao passa no schema e recusa sem consultar', async (q) => {
+    expect((await cotar({ quantidade: q })).ok).toBe(false);
     expect(opcoesDeFrete).not.toHaveBeenCalled();
   });
 

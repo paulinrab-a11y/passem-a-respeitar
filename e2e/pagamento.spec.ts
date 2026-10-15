@@ -52,7 +52,13 @@ const CAMISETA: Item = {
   preco_unitario_centavos: 12000,
 };
 
-const RECUSADO = 'O pagamento não foi aprovado. Você pode tentar de novo.';
+/**
+ * A recusa diz o motivo do banco e oferece Pix (#365). O Mercado Pago falso
+ * responde `rejected_by_issuer` ao cartao recusado e `insufficient_amount`
+ * ao sem limite: as frases sao as de lib/loja/recusa-do-cartao.ts.
+ */
+const RECUSADO = 'O banco do cartão recusou o pagamento. Tente outro cartão ou pague com Pix.';
+const SEM_LIMITE = 'O cartão não tem limite para este valor. Tente outro cartão ou pague com Pix.';
 
 type Recebido = {
   metodo: string;
@@ -334,6 +340,32 @@ test('pagamento: Pix pendente vira pago quando o Mercado Pago avisa, e a tela ab
   await expect(selo(pagina)).toHaveText('Pago');
 });
 
+/**
+ * Quem gerou o Pix, fechou a aba e voltou ve o MESMO codigo (#369), lido de
+ * novo do provedor, sem cobranca nova. E pode sair dele para o formulario.
+ */
+test('pagamento: voltar a tela com um Pix aberto mostra o mesmo codigo', async ({ cena }) => {
+  const { pagina, pedido } = cena;
+  await pagina.clock.install();
+  const ordem = await geraPix(cena);
+  await esqueceRecebidos();
+
+  await pagina.reload();
+
+  await expect(pagina.getByLabel('Pix copia e cola')).toHaveValue(copiaECola(ordem));
+  await expect(pagina.getByRole('form', { name: 'Formulário do Mercado Pago' })).toHaveCount(0);
+  // Nenhuma ordem nova no provedor, nenhuma tentativa nova no banco.
+  expect(await criacoes()).toEqual([]);
+  expect(await lePagamentos(pedido.id)).toHaveLength(1);
+
+  // O relogio volta a andar: o sdk-react monta o formulario num setTimeout,
+  // e com o relogio parado (ver `geraPix`) ele nunca apareceria.
+  await pagina.clock.resume();
+  await pagina.getByRole('button', { name: 'Pagar com cartão ou gerar outro Pix' }).click();
+  await expect(pagina.getByRole('form', { name: 'Formulário do Mercado Pago' })).toBeVisible();
+  await expect(pagina.getByLabel('Pix copia e cola')).toHaveCount(0);
+});
+
 test('pagamento: Pix pago sem aviso do Mercado Pago e achado pela conferencia da tela', async ({
   cena,
 }) => {
@@ -405,7 +437,7 @@ test('pagamento: cartao sem limite volta 2xx do provedor e continua sendo recusa
 
   // 2xx do provedor nao e aprovacao (#20): para quem paga, e recusa.
   expect(r.status()).toBe(402);
-  expect(await r.json()).toEqual({ erro: RECUSADO });
+  expect(await r.json()).toEqual({ erro: SEM_LIMITE });
   expect((await lePedido(pedido.id)).status).toBe('aguardando_pagamento');
   expect(await lePagamentos(pedido.id)).toMatchObject([
     {

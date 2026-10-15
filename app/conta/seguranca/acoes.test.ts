@@ -18,7 +18,7 @@ const clienteDeAuth = vi.fn(async (_lembrar: boolean) => ({
 
 const rpc = vi.fn(async (_f: string, _a?: unknown) => ({
   data: true as unknown,
-  error: null as { message: string } | null,
+  error: null as { message: string; code?: string } | null,
 }));
 
 vi.mock('@/lib/supabase/servidor', () => ({
@@ -320,6 +320,19 @@ describe('janela de autenticacao recente (#40)', () => {
 
   // A verificacao acontece depois da sessao e antes do banco: nao adianta
   // gastar ida ao banco de quem vai ser barrado.
+  // O banco confere a janela tambem (#349): se ela vencer entre as duas
+  // conferencias, a tela pede a senha em vez de mostrar erro.
+  it('janela recusada pelo banco vira pedido de senha', async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'autenticacao recente exigida', code: '42501' },
+    });
+    const r = await encerrarSessao(sessaoInicial, form({ identificador: HASH }));
+
+    expect(r.precisaReautenticar).toBe(true);
+    expect(r.recado).toBeNull();
+  });
+
   it('a janela e conferida no servidor, nao na tela', async () => {
     recente.mockResolvedValue(false);
     await encerrarSessao(sessaoInicial, form({ identificador: HASH }));

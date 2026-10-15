@@ -4,6 +4,7 @@ import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 import { useRouter } from 'next/navigation';
 import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Mensagem from '@/app/_ui/Mensagem';
+import { RECUSA_GENERICA } from '@/lib/loja/recusa-do-cartao';
 import Pix, { type DadosDoPix } from './Pix';
 
 /**
@@ -30,6 +31,11 @@ export type Pagavel = {
   valorEscrito: string;
   email: string;
   pedido: string;
+  /**
+   * O Pix que a pessoa ja gerou e ainda vale, lido do provedor pelo servidor
+   * (#369). Com ele, a tela abre no QR em vez do formulario.
+   */
+  pixInicial?: DadosDoPix | null;
 };
 
 /** O que o Brick entrega no submit. Nada aqui e valor de dinheiro. */
@@ -48,7 +54,14 @@ type AoEnviar = ComponentProps<typeof Payment>['onSubmit'];
  */
 export const ESPERA_ANALISE_MS = 3000;
 
-export default function Brick({ chavePublica, valor, valorEscrito, email, pedido }: Pagavel) {
+export default function Brick({
+  chavePublica,
+  valor,
+  valorEscrito,
+  email,
+  pedido,
+  pixInicial = null,
+}: Pagavel) {
   /**
    * O `<Payment>` so entra na arvore DEPOIS do `initMercadoPago`.
    *
@@ -67,7 +80,7 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
     vezes.current += 1;
     setErro({ texto, vez: vezes.current });
   }, []);
-  const [pix, setPix] = useState<DadosDoPix | null>(null);
+  const [pix, setPix] = useState<DadosDoPix | null>(pixInicial);
   const [analise, setAnalise] = useState(false);
   const router = useRouter();
 
@@ -161,7 +174,9 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
       const corpo = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        falha(corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.');
+        // O servidor manda a frase do motivo (#365); esta e so para a
+        // resposta sem corpo, e oferece o Pix como as outras.
+        falha(corpo.erro ?? RECUSA_GENERICA);
         // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
         // de limpar o formulario e obrigar a redigitar o cartao.
         throw new Error('recusado');
@@ -185,6 +200,14 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
     [pedido, router, falha]
   );
 
+  // O formulario volta do zero: o esqueleto segura o lugar ate o Brick novo
+  // avisar que montou, como na primeira vez.
+  const voltaAoFormulario = useCallback(() => {
+    setPix(null);
+    setErro(null);
+    setMontado(false);
+  }, []);
+
   // O esqueleto cede o lugar quando o formulario avisa que montou — ou quando
   // ele falha: erro com esqueleto brilhando atras diria "ainda carregando".
   const pronto = montado || Boolean(erro);
@@ -205,7 +228,23 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
         </div>
       )}
 
-      {pix ? <Pix dados={pix} valor={valorEscrito} pedido={pedido} /> : null}
+      {pix ? (
+        <>
+          <Pix dados={pix} valor={valorEscrito} pedido={pedido} />
+          {/* Sair do Pix para o formulario (#369). Quem voltou a tela e
+              achou o QR de antes pode preferir o cartao, ou um Pix novo. A
+              cobranca nova encerra este Pix no provedor antes de nascer
+              (#6): o codigo de cima deixa de valer, e a frase diz isso. */}
+          <p className="pix-outro">
+            <button type="button" className="auth-link" onClick={voltaAoFormulario}>
+              Pagar com cartão ou gerar outro Pix
+            </button>
+            <span className="detalhe-nota">
+              Pagando de outro jeito, o código acima deixa de valer.
+            </span>
+          </p>
+        </>
+      ) : null}
 
       {/* O formulario sai de cena: a cobranca ja existe la, e um segundo envio
           abriria outra. */}

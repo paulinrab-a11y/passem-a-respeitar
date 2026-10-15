@@ -58,6 +58,18 @@ describe('resposta generica', () => {
     expect(JSON.stringify(r)).not.toMatch(/not found/i);
   });
 
+  // O tempo tambem nao conta (#352): conta inexistente volta rapido do
+  // Supabase, e o piso iguala com a que manda e-mail.
+  it('conta que nao existe demora o mesmo piso', async () => {
+    vi.stubEnv('CONTA_PISO_MS', '80');
+    resetPasswordForEmail.mockResolvedValue({ data: {}, error: { message: 'User not found' } });
+
+    const inicio = performance.now();
+    await recuperarSenha(recuperarInicial, formulario({ email: email() }));
+
+    expect(performance.now() - inicio).toBeGreaterThanOrEqual(75);
+  });
+
   it('e-mail malformado nem chega ao provedor', async () => {
     const r = await recuperarSenha(recuperarInicial, formulario({ email: 'nao-e' }));
 

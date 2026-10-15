@@ -1473,6 +1473,25 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
   .concierge-digitando.on .eq i{animation:none;transform:scaleY(.5)}
 }
 
+/* Tamanho e quantidade no checkout (#356). Os mesmos quadrados da ficha da
+   home, com radio de verdade por baixo: o input cobre o quadrado, invisivel,
+   e e ele que recebe o clique, o foco e as setas. Sem transicao de cor: a
+   marcacao muda na hora do clique. Durante a troca, so a opacidade. */
+.checkout-escolha{margin-top:16px;display:flex;flex-wrap:wrap;gap:16px 28px;transition:opacity .15s ease-out}
+.checkout-escolha[aria-busy="true"]{opacity:.6}
+.checkout-escolha fieldset{border:0;padding:0;margin:0;min-width:0}
+.checkout-escolha legend{padding:0;margin-bottom:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
+.checkout-opcoes{display:flex;gap:8px}
+.checkout-opcao{position:relative;display:block}
+.checkout-opcao input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.checkout-opcao span{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata)}
+.checkout-opcao:hover span{border-color:var(--prata)}
+.checkout-opcao input:checked+span{background:var(--prata);color:#000;border-color:var(--prata)}
+.checkout-opcao input:focus-visible+span{outline:2px solid var(--vermelho);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.checkout-escolha{transition:none}}
+/* Sair do Pix para o formulario (#369), abaixo do link do pedido. */
+.pix-outro{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.pix-outro .detalhe-nota{max-width:42ch;margin:0}
 /* Painel do dono (#345): o que separar da prateleira, a exportacao e o
    detalhe do pedido com a trilha e as tentativas de pagamento. */
 .admin-itens{margin-top:10px;font-size:14px;letter-spacing:.02em;color:var(--prata);overflow-wrap:anywhere}

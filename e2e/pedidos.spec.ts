@@ -229,3 +229,23 @@ test('pedidos: o detalhe diz como cancelar, desistir ou trocar, com os prazos', 
     '/termos#como-pedir'
   );
 });
+
+/**
+ * O pedido que nao vai ser pago tem caminho de volta (#356). Antes, o vencido
+ * dizia "Faça um novo" e nao dizia onde. A expiracao cancela o pedido na hora
+ * em que a pessoa abre a tela, entao e como cancelado que ela o ve.
+ */
+test('pedidos: cancelado oferece fazer o pedido de novo, com o mesmo item', async ({ comoAna }) => {
+  const cancelado = await criaPedido(ana, [DA_ANA], ['cancelado'], CASA_DA_ANA);
+
+  await comoAna.goto(`/conta/pedidos/${cancelado.id}`);
+  await expect(comoAna.getByRole('link', { name: 'Fazer o pedido de novo' })).toHaveAttribute(
+    'href',
+    `/checkout?p=${DA_ANA.produto_slug}&tam=${DA_ANA.tamanho}&q=${DA_ANA.quantidade}`
+  );
+  await expect(comoAna.getByRole('link', { name: 'Pagar agora' })).toHaveCount(0);
+
+  // O pago nao oferece: ele vai ser entregue.
+  await comoAna.goto(`/conta/pedidos/${daAna.id}`);
+  await expect(comoAna.getByRole('link', { name: 'Fazer o pedido de novo' })).toHaveCount(0);
+});
