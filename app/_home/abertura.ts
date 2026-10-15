@@ -1,4 +1,5 @@
 import { prendeFundo, soltaFundo } from '@/app/_ui/fundo-inerte';
+import { alvoDoHash } from '@/lib/ancora';
 
 /**
  * Fechar a abertura da home, no DOM (#238).
@@ -67,6 +68,47 @@ export function fechaAbertura(doc: Document): void {
   // na abertura: quem nao tocou em nada nao ganha um contorno de foco que nao
   // pediu. Sem rolar, para a pagina abrir no topo como sempre abriu.
   if (focoNaAbertura) doc.getElementById('som')?.focus({ preventScroll: true });
+}
+
+/** A marca de "ja viu a abertura nesta aba" (#344). */
+const VISTA = 'par:intro';
+
+/**
+ * Como a abertura entra nesta carga da home (#344).
+ *
+ * A intro inteira leva uns 15 s, e rodava em toda carga: quem voltava do
+ * checkout ou da conta, ou recarregava a pagina, assistia o manifesto de novo
+ * antes de ver qualquer coisa. Motion repetido vira atrito. Agora:
+ *
+ * - `completa`: a primeira vez nesta aba. O momento de marca fica inteiro.
+ * - `reprise`: ja viu nesta aba. O preto sai num fade curto, sem manifesto.
+ * - `nenhuma`: chegou com uma ancora que existe na pagina (`/#merch`, o
+ *   "voltar a loja" do checkout). A pessoa pediu uma secao; a pagina abre nela.
+ *
+ * A marca mora no `sessionStorage`: some ao fechar a aba, e a proxima visita
+ * ve a abertura de novo. Storage bloqueado (modo privado de alguns
+ * navegadores, cookies proibidos) lanca ao ler; ai vale a abertura completa,
+ * como antes.
+ */
+export type ComoAbre = 'completa' | 'reprise' | 'nenhuma';
+
+export function comoAbre(janela: Window): ComoAbre {
+  if (alvoDoHash(janela.document, janela.location.hash)) return 'nenhuma';
+  try {
+    if (janela.sessionStorage.getItem(VISTA)) return 'reprise';
+  } catch {
+    // Sem storage, sem memoria: abertura completa.
+  }
+  return 'completa';
+}
+
+/** Anota que a abertura ja foi vista nesta aba. Storage bloqueado nao quebra nada. */
+export function marcaAberturaVista(janela: Window): void {
+  try {
+    janela.sessionStorage.setItem(VISTA, '1');
+  } catch {
+    // Sem storage, a proxima carga mostra a abertura inteira de novo.
+  }
 }
 
 /**

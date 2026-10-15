@@ -15,6 +15,15 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{background:var(--preto);color:var(--prata);scroll-behavior:auto}
+/* A trava tira a barra de rolagem; o `scrollbar-gutter` guarda o lugar dela,
+   e a pagina nao anda de lado quando a intro, a loja ou a sala travam e
+   soltam a rolagem (#344, era o maior pedaco do CLS da home). So onde a
+   barra ocupa lugar: no telefone ela flutua por cima e nao empurra nada, e
+   guardar 15 px numa tela de 320 apertava o layout estreito que ja foi
+   medido nessas larguras (a fita da intro, o widget da Cloudflare). */
+@media (hover:hover) and (pointer:fine) and (min-width:768px){
+  html{scrollbar-gutter:stable}
+}
 html.locked{overflow:hidden}
 
 /* Troca de rota (#49). O site navega por documento inteiro — cada tela da
@@ -1441,3 +1450,8 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 /* Sair do Pix para o formulario (#369), abaixo do link do pedido. */
 .pix-outro{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
 .pix-outro .detalhe-nota{max-width:42ch;margin:0}
+/* Painel do dono (#345): o que separar da prateleira, a exportacao e o
+   detalhe do pedido com a trilha e as tentativas de pagamento. */
+.admin-itens{margin-top:10px;font-size:14px;letter-spacing:.02em;color:var(--prata);overflow-wrap:anywhere}
+.admin-exportar{margin-top:10px}
+.admin-trilha-quem{display:block;margin-top:2px;font-size:12px;letter-spacing:.04em;color:var(--prata-2);overflow-wrap:anywhere}
