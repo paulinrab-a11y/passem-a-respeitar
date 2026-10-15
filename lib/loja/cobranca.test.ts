@@ -793,8 +793,20 @@ describe('cartao', () => {
 
     const r = await pedirCartao();
 
-    expect(r).toEqual({ ok: false, motivo: 'recusado' });
+    // Sem motivo do provedor: o detalhe vai nulo, e a rota usa a frase generica.
+    expect(r).toEqual({ ok: false, motivo: 'recusado', detalhe: null });
     expect(atualizado.some((a) => a.tabela === 'orders')).toBe(false);
+  });
+
+  // No Pix nao ha cartao para conferir: a rota fica com a frase de sempre (#365).
+  it('Pix recusado nao leva detalhe de cartao', async () => {
+    vi.mocked(criaOrdem).mockResolvedValue({
+      ok: false,
+      motivo: 'recusado',
+      resumo: { estado: 'recusado', status: 'failed', statusDetail: 'cc_rejected_other_reason' },
+    });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'recusado' });
   });
 
   it('recusado marca a tentativa como recusada', async () => {
@@ -819,7 +831,12 @@ describe('cartao', () => {
 
     const r = await pedirCartao();
 
-    expect(r).toEqual({ ok: false, motivo: 'recusado' });
+    // O motivo vai para a rota escolher a frase (#365).
+    expect(r).toEqual({
+      ok: false,
+      motivo: 'recusado',
+      detalhe: 'cc_rejected_insufficient_amount',
+    });
     expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
       estado: 'recusado',
       provedor_status: 'failed',
@@ -878,7 +895,7 @@ describe('cartao', () => {
 
     const r = await pedirCartao();
 
-    expect(r).toEqual({ ok: false, motivo: 'recusado' });
+    expect(r).toEqual({ ok: false, motivo: 'recusado', detalhe: detail });
     // A linha guarda o que o provedor disse, com o id da ordem que ele criou.
     expect(atualizado.find((a) => a.tabela === 'pagamentos')?.dados).toEqual({
       provedor_pagamento_id: 'mp-4',

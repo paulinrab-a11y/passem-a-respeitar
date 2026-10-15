@@ -3,6 +3,7 @@
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 import { useRouter } from 'next/navigation';
 import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
+import { RECUSA_GENERICA } from '@/lib/loja/recusa-do-cartao';
 import Pix, { type DadosDoPix } from './Pix';
 
 /**
@@ -153,7 +154,9 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
       const corpo = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        setErro(corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.');
+        // O servidor manda a frase do motivo (#365); esta e so para a
+        // resposta sem corpo, e oferece o Pix como as outras.
+        setErro(corpo.erro ?? RECUSA_GENERICA);
         // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
         // de limpar o formulario e obrigar a redigitar o cartao.
         throw new Error('recusado');

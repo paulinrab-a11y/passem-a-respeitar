@@ -11,6 +11,7 @@ import {
   TERMOS_ATUALIZADOS_EM,
   TROCA_DE_TAMANHO_DIAS,
 } from '@/lib/loja/termos';
+import { VALIDADE_DO_PEDIDO_MS } from '@/lib/loja/validade-do-pedido';
 
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), flush: async () => true }));
 vi.mock('@/lib/sentry/depois', () => ({ enviaDepois: vi.fn() }));
@@ -127,6 +128,17 @@ describe('/termos', () => {
   it('o reembolso volta pelo mesmo meio, com o aviso da fatura do cartao', () => {
     expect(pagina).toMatch(/pelo mesmo meio de pagamento/);
     expect(pagina).toMatch(/até duas faturas/);
+  });
+
+  // O prazo da #298, que os termos nao diziam (#365): lido do mesmo numero
+  // que o cron usa, e nao escrito a mao.
+  it('diz por quanto tempo o pedido espera o pagamento, e o que acontece depois', () => {
+    const horas = VALIDADE_DO_PEDIDO_MS / (60 * 60 * 1000);
+
+    expect(pagina).toMatch(
+      new RegExp(`O pedido espera o pagamento por <strong>${horas} horas</strong>`)
+    );
+    expect(pagina).toMatch(/cancelado automaticamente, sem cobrança nenhuma/);
   });
 
   it('pagamento recusado e Pix vencido nao cobram, e o pedido fica', () => {

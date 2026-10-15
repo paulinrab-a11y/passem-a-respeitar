@@ -11,6 +11,7 @@ import {
   TERMOS_ATUALIZADOS_EM,
   TROCA_DE_TAMANHO_DIAS,
 } from '@/lib/loja/termos';
+import { VALIDADE_DO_PEDIDO_MS } from '@/lib/loja/validade-do-pedido';
 import { dadosDoVendedor } from '@/lib/loja/vendedor';
 
 // Os dados de quem vende sao lidos do ambiente a cada visita: cadastrados na
@@ -18,6 +19,12 @@ import { dadosDoVendedor } from '@/lib/loja/vendedor';
 export const dynamic = 'force-dynamic';
 
 const TITULO = 'Termos de compra — Passem a Respeitar';
+
+/**
+ * O prazo para pagar, em horas, lido do mesmo numero que a tela do pedido, a
+ * cobranca e o cron de expiracao usam (#365). Mudar la muda aqui.
+ */
+const HORAS_PARA_PAGAR = Math.round(VALIDADE_DO_PEDIDO_MS / (60 * 60 * 1000));
 
 export const metadata: Metadata = {
   title: TITULO,
@@ -111,8 +118,13 @@ export default function Termos() {
             Pagamento recusado ou Pix vencido não cobra nada. O pedido continua salvo, aguardando
             pagamento, e você tenta de novo pela página dele, em{' '}
             <a href="/conta/pedidos">Meus pedidos</a>: outro cartão ou um Pix novo. O Pix vale até o
-            horário que aparece junto do código; depois disso, não pode mais ser pago. Pedido que
-            nunca é pago não gera cobrança nenhuma e pode ser cancelado pela loja.
+            horário que aparece junto do código; depois disso, não pode mais ser pago.
+          </p>
+          <p className="detalhe-nota">
+            O pedido espera o pagamento por <strong>{HORAS_PARA_PAGAR} horas</strong>, contadas de
+            quando ele é feito; o horário limite aparece na página do pedido. Passado esse prazo sem
+            pagamento, o pedido é cancelado automaticamente, sem cobrança nenhuma. Para comprar, é
+            só fazer um pedido novo, com o preço e o frete do dia.
           </p>
         </section>
 
