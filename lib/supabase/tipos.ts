@@ -161,6 +161,8 @@ export type Database = {
           numero: number;
           pagamento_id: string | null;
           pagamento_provedor: string | null;
+          rastreio_codigo: string | null;
+          rastreio_url: string | null;
           status: Database['public']['Enums']['status_pedido'];
           termos_aceitos_em: string | null;
           total_centavos: number;
@@ -187,6 +189,8 @@ export type Database = {
           numero?: never;
           pagamento_id?: string | null;
           pagamento_provedor?: string | null;
+          rastreio_codigo?: string | null;
+          rastreio_url?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
           termos_aceitos_em?: string | null;
           total_centavos?: number;
@@ -212,6 +216,8 @@ export type Database = {
           numero?: never;
           pagamento_id?: string | null;
           pagamento_provedor?: string | null;
+          rastreio_codigo?: string | null;
+          rastreio_url?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
           termos_aceitos_em?: string | null;
           total_centavos?: number;
@@ -472,6 +478,19 @@ export type Database = {
         }[];
       };
       encerra_sessao: { Args: { p_identificador: string }; Returns: boolean };
+      envia_pedido: {
+        Args: {
+          p_autor: string;
+          p_motivo?: string;
+          p_order_id: string;
+          p_rastreio_codigo: string;
+          p_rastreio_url?: string;
+        };
+        Returns: {
+          de: Database['public']['Enums']['status_pedido'];
+          para: Database['public']['Enums']['status_pedido'];
+        }[];
+      };
       minha_sessao_atual: { Args: Record<PropertyKey, never>; Returns: string };
       minhas_sessoes: {
         Args: Record<PropertyKey, never>;

@@ -10,8 +10,10 @@
 import { reais } from '@/lib/dinheiro';
 import { cepLegivel } from '@/lib/loja/cep';
 import { type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
+import { leRastreio, type RastreioDoPedido } from '@/lib/loja/rastreio';
 import type { StatusPedido } from '@/lib/loja/status-do-pedido';
 import { type PosVenda, posVendaDoPedido } from '@/lib/loja/termos';
+import { MAX_NO_CHECKOUT, urlDoCheckout } from '@/lib/loja/url-do-checkout';
 import { expirou, pagarAte } from '@/lib/loja/validade-do-pedido';
 import { type EventoDoBanco, type LinhaDoTempo, montaLinhaDoTempo } from './linha-do-tempo';
 
@@ -209,6 +211,8 @@ export type Pedido = {
 
 type LinhaItem = {
   id: string;
+  /** So o detalhe le (#356): e o que monta o "Fazer o pedido de novo". */
+  produto_slug?: string | null;
   nome: string;
   tamanho: string | null;
   quantidade: number;
@@ -342,6 +346,20 @@ export type PedidoDetalhado = {
    * Nulo no pedido cancelado ou reembolsado, que nao tem o que pedir.
    */
   posVenda: PosVenda | null;
+  /**
+   * O checkout com a mesma escolha (#356): produto, tamanho e quantidade.
+   * So no pedido vencido ou cancelado — o que nao vai ser pago e precisa de
+   * um caminho de volta, e o preco e o frete sao recalculados no checkout,
+   * nunca copiados daqui.
+   */
+  refazer: string | null;
+  /**
+   * O codigo dos Correios (#378). So depois que o pedido sai: um codigo
+   * gravado num pedido que voltou a outro estado nao e o que a pessoa vai
+   * acompanhar. Cancelado ou reembolsado depois de enviado tambem nao — o
+   * pacote volta, e o rastreio ali so confunde.
+   */
+  rastreio: RastreioDoPedido | null;
 };
 
 type LinhaDetalhe = LinhaPedido &
@@ -350,7 +368,13 @@ type LinhaDetalhe = LinhaPedido &
     frete_centavos: number;
     frete_servico: string | null;
     frete_prazo_dias: number | null;
+    /** Opcionais: so o detalhe le, e so depois da migration 20261015180000. */
+    rastreio_codigo?: string | null;
+    rastreio_url?: string | null;
   };
+
+/** Etapas em que o rastreio aparece (#378). */
+const COM_RASTREIO = new Set(['enviado', 'entregue']);
 
 /**
  * Mapper do detalhe (#20).
@@ -388,5 +412,30 @@ export function mapeiaDetalhe(linha: LinhaDetalhe, agoraMs = Date.now()): Pedido
     itens: mapeiaItens(linha.order_items),
     linhaDoTempo: montaLinhaDoTempo(linha.status, linha.order_status_history),
     posVenda: posVendaDoPedido(linha.status, entregueEm, new Date(agoraMs)),
+    refazer: refazer(linha, pagavel),
+    rastreio: COM_RASTREIO.has(linha.status)
+      ? leRastreio(linha.rastreio_codigo, linha.rastreio_url)
+      : null,
   };
+}
+
+/**
+ * O "Fazer o pedido de novo" (#356). Vencido (ainda esperando, fora do prazo)
+ * ou cancelado: a expiracao cancela o pedido na hora em que a pessoa abre a
+ * tela, entao quase sempre e como cancelado que ela o ve. O primeiro item
+ * vale — o checkout monta um produto por vez —, e a quantidade cabe no que
+ * o checkout aceita.
+ */
+function refazer(linha: LinhaDetalhe, pagavel: boolean): string | null {
+  const vencido = linha.status === 'aguardando_pagamento' && !pagavel;
+  if (!vencido && linha.status !== 'cancelado') return null;
+
+  const item = linha.order_items.find((i) => i.produto_slug);
+  if (!item?.produto_slug) return null;
+
+  return urlDoCheckout(
+    item.produto_slug,
+    item.tamanho,
+    Math.min(Math.max(item.quantidade, 1), MAX_NO_CHECKOUT)
+  );
 }

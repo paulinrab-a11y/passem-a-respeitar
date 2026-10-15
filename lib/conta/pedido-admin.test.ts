@@ -20,6 +20,8 @@ const LINHA: LinhaDoPainel = {
   frete_prazo_dias: 3,
   user_id: COMPRADOR,
   termos_aceitos_em: '2026-10-14T12:00:00.000Z',
+  rastreio_codigo: null,
+  rastreio_url: null,
   entrega_nome: 'Fulana',
   entrega_cep: '01310100',
   entrega_logradouro: 'Avenida Paulista',
@@ -108,6 +110,16 @@ describe('mapeiaPedidoDoPainel', () => {
 
   it('o e-mail do comprador vem do mapa', () => {
     expect(p.email).toBe('comprador@exemplo.test');
+  });
+
+  it('o rastreio sai quando ha codigo (#378)', () => {
+    expect(mapeiaPedidoDoPainel(LINHA, EMAILS).rastreio).toBeNull();
+    expect(
+      mapeiaPedidoDoPainel(
+        { ...LINHA, status: 'enviado', rastreio_codigo: 'AB123456789BR' },
+        EMAILS
+      ).rastreio
+    ).toEqual({ codigo: 'AB123456789BR', url: null });
   });
 
   it('nada de user_id na saida', () => {

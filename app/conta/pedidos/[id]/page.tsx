@@ -7,6 +7,7 @@ import { conciliaPedido } from '@/lib/loja/conciliacao';
 import { expiraPedido } from '@/lib/loja/expiracao';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPedido } from '../../Esqueletos';
+import Rastreio from '../../Rastreio';
 import { meuPedido } from './busca-pedido';
 import PosVenda from './PosVenda';
 
@@ -164,10 +165,29 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
           </>
         ) : pedido.aguardandoPagamento ? (
           // Vencido, mas a expiracao ainda nao conseguiu cancelar (provedor
-          // fora do ar, ou dentro da folga do cron). Sem botao, e com o que
-          // fazer.
-          <p className="detalhe-nota">
-            O prazo para pagar este pedido acabou. Faça um novo, com o preço e o frete de agora.
+          // fora do ar, ou dentro da folga do cron). Sem "Pagar agora", e com
+          // o caminho de volta (#356): antes a frase mandava fazer um novo
+          // pedido e nao dizia onde.
+          <>
+            <p className="detalhe-nota">
+              O prazo para pagar este pedido acabou. Faça um novo, com o preço e o frete de agora.
+            </p>
+            {pedido.refazer ? (
+              <p className="detalhe-acoes">
+                <a className="btn cheio" href={pedido.refazer}>
+                  Fazer o pedido de novo
+                </a>
+              </p>
+            ) : null}
+          </>
+        ) : pedido.refazer ? (
+          // Cancelado (#356) — quase sempre pela expiracao, que roda logo
+          // acima, na hora em que a pessoa abre a tela. A mesma camiseta, no
+          // mesmo tamanho; o preco e o frete sao os do checkout, de agora.
+          <p className="detalhe-acoes">
+            <a className="btn" href={pedido.refazer}>
+              Fazer o pedido de novo
+            </a>
           </p>
         ) : null}
       </section>
@@ -183,6 +203,10 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
           <p className="entrega-endereco">{pedido.entrega.linha}</p>
         </section>
       ) : null}
+
+      {/* O codigo dos Correios (#378), logo depois do endereco: e a pergunta
+          seguinte de quem leu "Enviado". */}
+      {pedido.rastreio ? <Rastreio rastreio={pedido.rastreio} /> : null}
 
       <section className="detalhe-bloco">
         <h2>Andamento</h2>

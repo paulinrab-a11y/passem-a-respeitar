@@ -273,6 +273,93 @@ describe('o que nunca acontece', () => {
 });
 
 /**
+ * Marcar enviado exige o codigo dos Correios (#378). Status e codigo vao
+ * juntos para `envia_pedido`; sem codigo, nada chega ao banco.
+ */
+describe('marcar enviado com rastreio', () => {
+  beforeEach(() => {
+    statusNoBanco = 'em_producao';
+  });
+
+  it('sem codigo nao chega ao banco, e o recado diz o formato', async () => {
+    const r = await envia({ para: 'enviado' });
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toContain('AB123456789BR');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('codigo fora do formato nao chega ao banco', async () => {
+    const r = await envia({ para: 'enviado', rastreio: 'AB12345BR' });
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('link sem https nao chega ao banco', async () => {
+    const r = await envia({
+      para: 'enviado',
+      rastreio: 'AB123456789BR',
+      rastreioUrl: 'http://rastreio.test/x',
+    });
+
+    expect(r.recado?.texto).toMatch(/https/);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('com codigo: normaliza e grava status e rastreio pela mesma funcao', async () => {
+    const r = await envia({ para: 'enviado', rastreio: ' ab 123456789 br ', motivo: 'postado' });
+
+    expect(r.recado?.tom).toBe('ok');
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('envia_pedido', {
+      p_order_id: PEDIDO,
+      p_autor: expect.stringMatching(/^11111111-/),
+      p_rastreio_codigo: 'AB123456789BR',
+      p_rastreio_url: undefined,
+      p_motivo: 'postado',
+    });
+  });
+
+  it('o link opcional vai junto', async () => {
+    await envia({
+      para: 'enviado',
+      rastreio: 'AB123456789BR',
+      rastreioUrl: 'https://rastreio.test/AB123456789BR',
+    });
+
+    expect(rpc.mock.calls[0][1]).toMatchObject({
+      p_rastreio_url: 'https://rastreio.test/AB123456789BR',
+    });
+  });
+
+  it('as outras etapas ignoram o campo de rastreio', async () => {
+    statusNoBanco = 'pago';
+    await envia({ para: 'em_producao', rastreio: 'lixo' });
+
+    expect(rpc).toHaveBeenCalledWith('muda_status_pedido', expect.anything());
+  });
+
+  it('constraint do banco recusando vira recado proprio', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'x' } as never });
+
+    const r = await envia({ para: 'enviado', rastreio: 'AB123456789BR' });
+
+    expect(r.recado?.tom).toBe('erro');
+    expect(r.recado?.texto).toMatch(/rastreio/);
+  });
+
+  it('enviar nao pede a senha: nao mexe em dinheiro', async () => {
+    recente.mockResolvedValue(false);
+
+    const r = await envia({ para: 'enviado', rastreio: 'AB123456789BR' });
+
+    expect(r.precisaReautenticar).toBeUndefined();
+    expect(r.recado?.tom).toBe('ok');
+  });
+});
+
+/**
  * O cenario da #21: o cliente gera o Pix, o dono cancela o pedido, o cliente
  * paga o QR mesmo assim. Cancelar o pedido tem que cancelar ANTES a cobranca
  * aberta no provedor — e se nao der, o pedido nao e cancelado.

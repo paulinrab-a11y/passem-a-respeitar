@@ -278,18 +278,33 @@ export async function opcoesDeFrete(
   return { ok: true, subtotalCentavos: carrinho.subtotalCentavos, opcoes: cotacao.opcoes };
 }
 
+/** O que o checkout precisa do produto, alem do preco (#206, #356). */
+export type FichaDoCheckout = {
+  /** Os tamanhos ativos, na ordem do catalogo (P, M, G...). Vazio: produto sem tamanho. */
+  tamanhos: string[];
+  /** Medidas por tamanho. Nulo: produto sem guia. */
+  guia: LinhaDoGuia[] | null;
+};
+
 /**
- * O guia de tamanhos de um produto (#206), para o checkout. A vitrine ja traz
- * o dela; o checkout le so o que precisa, e nao a vitrine inteira.
+ * Os tamanhos e o guia de um produto, para o checkout. A vitrine ja traz os
+ * dela; o checkout le so o que precisa, e numa ida so. Os tamanhos entraram
+ * na #356: trocar de tamanho e no proprio checkout, e o seletor so oferece o
+ * que a RLS deixa ver — variacao inativa nao aparece, e nao vira um botao que
+ * leva a "nao consegui montar este pedido".
  */
-export async function guiaDeTamanhos(slug: string): Promise<LinhaDoGuia[] | null> {
+export async function fichaDoCheckout(slug: string): Promise<FichaDoCheckout | null> {
   const supabase = await clienteServidor();
   const { data, error } = await supabase
     .from('produtos')
-    .select('guia_tamanhos')
+    .select('guia_tamanhos, produto_variacoes(tamanho, ordem)')
     .eq('slug', slug)
+    .order('ordem', { referencedTable: 'produto_variacoes', ascending: true })
     .maybeSingle();
 
   if (error || !data) return null;
-  return leGuia(data.guia_tamanhos);
+  return {
+    tamanhos: data.produto_variacoes.flatMap((v) => (v.tamanho ? [v.tamanho] : [])),
+    guia: leGuia(data.guia_tamanhos),
+  };
 }

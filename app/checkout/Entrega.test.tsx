@@ -788,3 +788,59 @@ describe('CEP lembrado da ficha (#205)', () => {
     expect(campo('CEP').value).toBe('');
   });
 });
+
+/**
+ * Trocar tamanho ou quantidade no proprio checkout (#356) muda so as props:
+ * o formulario continua montado, com o endereco digitado, e o frete e cotado
+ * de novo — duas camisetas pesam mais que uma.
+ */
+describe('troca de item no checkout (#356)', () => {
+  it('quantidade nova cota o mesmo CEP de novo e guarda o que foi digitado', async () => {
+    const { rerender } = monta();
+    await act(async () => {
+      fireEvent.change(campo('Quem recebe'), { target: { value: 'Maria Teste' } });
+    });
+    await digitaCep('01310-100');
+    expect(cotarFrete).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      rerender(
+        <Entrega slug="camiseta-cbac" tamanho="G" quantidade={2} subtotalCentavos={24000} />
+      );
+    });
+
+    expect(cotarFrete).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(cotarFrete).mock.calls[1][0]).toEqual({
+      slug: 'camiseta-cbac',
+      tamanho: 'G',
+      quantidade: 2,
+      cep: '01310100',
+    });
+    expect(campo('Quem recebe').value).toBe('Maria Teste');
+    expect(campo('CEP').value).toBe('01310-100');
+    // Os campos ocultos levam a escolha nova para a criacao do pedido.
+    expect((document.querySelector('input[name="quantidade"]') as HTMLInputElement).value).toBe(
+      '2'
+    );
+    expect((document.querySelector('input[name="tamanho"]') as HTMLInputElement).value).toBe('G');
+  });
+
+  it('a cotacao do item antigo, chegando depois, nao toma o lugar da nova', async () => {
+    const antiga = emVoo();
+    vi.mocked(cotarFrete).mockReturnValueOnce(antiga.promessa);
+    const { rerender } = monta();
+    await digitaCep('01310-100');
+
+    await act(async () => {
+      rerender(
+        <Entrega slug="camiseta-cbac" tamanho="M" quantidade={3} subtotalCentavos={36000} />
+      );
+    });
+    await act(async () => {
+      antiga.solta({ ok: false, texto: 'velha', transitorio: false });
+    });
+
+    expect(screen.queryByText('velha')).toBeNull();
+    expect(botao().textContent).toContain('Finalizar');
+  });
+});

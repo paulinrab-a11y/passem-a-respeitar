@@ -84,6 +84,12 @@ async function preencheEndereco(pagina: Page, cep: string) {
  *  caixa do frete pode ter o de tentar de novo (#240). */
 const finalizar = (pagina: Page) => pagina.locator('form.entrega button[type="submit"]');
 
+/**
+ * Os radios do frete, e so eles: desde a #356 o checkout tem tambem os de
+ * tamanho e quantidade.
+ */
+const opcoesDoFrete = (pagina: Page) => pagina.locator('fieldset.frete').getByRole('radio');
+
 /** A caixinha dos termos de compra (#276): sem ela marcada, nao ha pedido. */
 const aceite = (pagina: Page) =>
   pagina.getByRole('checkbox', { name: 'Li e aceito os termos de compra' });
@@ -215,7 +221,7 @@ test('frete: CEP so com PAC mostra so o PAC', async ({ logada }) => {
   await preencheEndereco(logada, CEPS.soPac);
 
   await expect(logada.getByRole('radio', { name: /PAC/ })).toBeChecked();
-  await expect(logada.getByRole('radio')).toHaveCount(1);
+  await expect(opcoesDoFrete(logada)).toHaveCount(1);
 });
 
 /** O botao da falha passageira (#240), dentro da caixa do frete. */
@@ -247,7 +253,7 @@ for (const [caso, cep, frase, oferece] of [
 
     await expect(logada.locator('.frete').getByRole('alert')).toHaveText(frase);
     await expect(tentarDeNovo(logada)).toHaveCount(oferece ? 1 : 0);
-    await expect(logada.getByRole('radio')).toHaveCount(0);
+    await expect(opcoesDoFrete(logada)).toHaveCount(0);
     await expect(finalizar(logada)).toBeDisabled();
     await expect(finalizar(logada)).toContainText('Frete indisponível');
     expect(await pedidosDe(quem)).toBe(antes);
@@ -342,7 +348,7 @@ test('frete: o botao nao anda quando a cotacao chega', async ({ logada }) => {
   const esperando = await posicao();
 
   solta();
-  await expect(logada.getByRole('radio')).toHaveCount(2);
+  await expect(opcoesDoFrete(logada)).toHaveCount(2);
   const cotado = await posicao();
 
   expect(esperando).toBe(parado);
@@ -396,7 +402,7 @@ test('endereco: CEP geral traz cidade e UF e nao apaga a rua', async ({ logada }
   await expect(logada.getByLabel('Rua')).toHaveValue('Rua Minha');
 });
 
-test('checkout: o guia de tamanhos esta ao lado do item, com o link para trocar', async ({
+test('checkout: o guia de tamanhos esta ao lado do item, e o tamanho troca ali mesmo', async ({
   logada,
 }) => {
   // #266: com o guia dentro de <p>, o navegador fechava o paragrafo antes do
@@ -420,7 +426,7 @@ test('checkout: o guia de tamanhos esta ao lado do item, com o link para trocar'
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return [...(doc.querySelector('.guia-no-checkout')?.children ?? [])].map((el) => el.localName);
   }, CHECKOUT);
-  expect(filhos).toEqual(['button', 'dialog', 'a']);
+  expect(filhos).toEqual(['button', 'dialog']);
   await link.click();
 
   const guia = logada.locator('dialog.guia');
@@ -430,11 +436,65 @@ test('checkout: o guia de tamanhos esta ao lado do item, com o link para trocar'
 
   await guia.getByRole('button', { name: 'fechar' }).click();
   await expect(guia).toBeHidden();
-  await expect(logada.getByRole('link', { name: 'Trocar o tamanho' })).toHaveAttribute(
-    'href',
-    '/#merch'
-  );
+  // #356: o tamanho troca no proprio checkout, e o link de volta a home saiu.
+  await expect(logada.getByRole('link', { name: 'Trocar o tamanho' })).toHaveCount(0);
+  await expect(
+    logada.getByRole('group', { name: 'Tamanho' }).getByRole('radio', { name: 'M' })
+  ).toBeChecked();
   expect(hidratacao).toEqual([]);
+});
+
+/**
+ * Tamanho e quantidade no proprio checkout (#356). A troca muda so a URL: o
+ * servidor refaz o orcamento e o formulario fica com o endereco digitado. O
+ * frete e cotado de novo com a quantidade nova, e e ela que vira pedido.
+ */
+test('checkout: trocar tamanho e quantidade guarda o endereco e cota de novo', async ({
+  logada,
+}) => {
+  await logada.goto(CHECKOUT);
+  await preencheEndereco(logada, '04538-133');
+  await expect(finalizar(logada)).toContainText('143,50');
+  await esqueceRecebidos();
+
+  // Pelo radio, que cobre o quadrado: o clique no texto cairia nele, e o
+  // Playwright acusa quem esta por cima em vez de clicar.
+  await logada
+    .getByRole('group', { name: 'Tamanho' })
+    .getByRole('radio', { name: 'G', exact: true })
+    .check();
+  await logada.waitForURL((url) => url.searchParams.get('tam') === 'G');
+  await logada
+    .getByRole('group', { name: 'Quantidade' })
+    .getByRole('radio', { name: '2', exact: true })
+    .check();
+  await logada.waitForURL(
+    (url) => url.searchParams.get('tam') === 'G' && url.searchParams.get('q') === '2'
+  );
+
+  // O resumo de cima e o do servidor: tamanho e quantidade novos.
+  await expect(logada.locator('.pedido-itens .pedido-item-detalhe')).toContainText('tam. G');
+  await expect(logada.locator('.pedido-itens .pedido-item-detalhe')).toContainText('2 ×');
+  // O endereco continua digitado.
+  await expect(logada.getByLabel('Quem recebe')).toHaveValue('Fulana da Suíte');
+  await expect(logada.getByLabel('Número')).toHaveValue('1578');
+  // Duas camisetas, e o frete cotado de novo: R$ 240,00 + PAC.
+  await expect(finalizar(logada)).toContainText('263,50');
+  const cotacoes = await recebidos();
+  expect(cotacoes.at(-1)?.corpo.products[0]).toMatchObject({ quantity: 2 });
+
+  // E e a escolha nova que vira pedido.
+  await aceite(logada).check();
+  await finalizar(logada).click();
+  await logada.waitForURL(/\/checkout\/pagamento\/[0-9a-f-]{36}$/);
+  const id = logada.url().split('/').pop() as string;
+  expect(await leFreteDoPedido(id)).toMatchObject({ total_centavos: 24000 + 2350 });
+});
+
+test('checkout: quantidade acima de tres na URL nao monta pedido', async ({ logada }) => {
+  await logada.goto('/checkout?p=camiseta-cbac&tam=M&q=4');
+
+  await expect(logada.getByText('Não consegui montar este pedido.')).toBeVisible();
 });
 
 /**

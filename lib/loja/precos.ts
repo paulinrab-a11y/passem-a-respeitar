@@ -13,6 +13,7 @@
  */
 
 import { z } from 'zod';
+import { MAX_NO_CHECKOUT } from './url-do-checkout';
 
 /** Quantas linhas distintas cabem num carrinho. */
 const MAX_LINHAS = 20;
@@ -48,6 +49,15 @@ export const esquemaItemDoCarrinho = z.object({
   // e valido para adesivo e poster.
   tamanho: z.enum(TAMANHOS).nullable().default(null),
   quantidade: z.number().int().min(1).max(MAX_POR_ITEM),
+});
+
+/**
+ * O item como o checkout aceita (#356): o do carrinho, com a quantidade de 1
+ * a `MAX_NO_CHECKOUT`. O servidor confere este numero, e nao so o seletor —
+ * `?q=9` na URL ou no campo oculto e recusado como qualquer escolha torta.
+ */
+export const esquemaItemDoCheckout = esquemaItemDoCarrinho.extend({
+  quantidade: z.number().int().min(1).max(MAX_NO_CHECKOUT),
 });
 
 export const esquemaCarrinho = z.object({
