@@ -543,3 +543,29 @@ test('home: com reduzir movimento a vitrine 3D mostra o modelo e redesenha ao re
 
   expect(erros).toEqual([]);
 });
+
+/**
+ * O Comprar da loja leva ao checkout na mesma aba (#301). Antes abria outra
+ * aba e deixava esta presa no modal. Sem sessao, o checkout manda para o
+ * login com o checkout no `next`.
+ */
+test('home: o Comprar da loja abre o checkout na mesma aba', async ({ page, context }) => {
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+  await page.locator('#comprar').scrollIntoViewIfNeeded();
+  await page.locator('#comprar').click();
+  await expect(page.locator('#loja')).toBeVisible();
+
+  const comprarLoja = page.locator('#comprarLoja');
+  await expect(comprarLoja).not.toHaveAttribute('target', /.+/);
+  await expect(comprarLoja).toHaveAttribute('href', /^\/checkout\?p=/);
+
+  const abas: unknown[] = [];
+  context.on('page', (p) => abas.push(p));
+  await vivoHome(comprarLoja);
+  await comprarLoja.click();
+
+  await page.waitForURL(/\/(entrar\?next=%2Fcheckout|checkout\?p=)/);
+  expect(abas).toEqual([]);
+});
