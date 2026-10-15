@@ -232,8 +232,8 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-              <a className="btn cheio" id="comprar" href="#" target="_blank" rel="noopener">
+              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O clique so abre a loja (o script legado cancela a navegacao), e o href e o que o script escreve a partir do CONFIG. Sem `target`: destino interno, na mesma aba (#301). */}
+              <a className="btn cheio" id="comprar" href="#">
                 Comprar
               </a>
             </div>
@@ -351,8 +351,8 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-              <a className="btn cheio" id="comprarLoja" href="#" target="_blank" rel="noopener">
+              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado escreve o destino, /checkout com o produto e o tamanho escolhido (#106). Sem `target`: o checkout abre na mesma aba e a loja sai animada (#301). */}
+              <a className="btn cheio" id="comprarLoja" href="#">
                 Comprar
               </a>
             </div>

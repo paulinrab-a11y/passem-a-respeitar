@@ -19,6 +19,8 @@ import { modalAnimado } from './modal-animado';
 import { atalhoLivre, mostraTocando } from './teclado';
 // A vitrine em fotos: toque, arraste, setas e rotacao automatica (#294).
 import { giro360 } from './giro-360';
+// O Comprar da loja: checkout na mesma aba, com a loja saindo (#301).
+import { ligaComprar } from './comprar';
 
 let booted = false;
 
@@ -939,6 +941,7 @@ const Loja = (()=>{
   const modal = modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); if (fotos) fotos.para(); });
   function fecha(){ modal.fecha(); }
   $('#fecharLoja').addEventListener('click', fecha);
+  ligaComprar($('#comprarLoja'), fecha);
   el.addEventListener('click', e=>{ if (e.target === el) fecha(); });
   addEventListener('keydown', e=>{ if (e.key === 'Escape') fecha(); });
   return { abre, fecha };
