@@ -23,6 +23,8 @@ vi.mock('./acoes', () => ({
       pedido: '11111111-1111-4111-8111-111111111111',
     })
   ),
+  // A acao com senha (#351) nao entra nestes testes.
+  reautenticarEMudar: vi.fn(),
 }));
 
 import MudarStatus from './MudarStatus';
