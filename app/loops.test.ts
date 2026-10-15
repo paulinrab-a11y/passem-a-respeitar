@@ -61,7 +61,7 @@ describe('loop infinito para com movimento reduzido (#52)', () => {
 
   it('acha os loops conhecidos', () => {
     expect(loops).toEqual(
-      expect.arrayContaining(['#rec i', '#hero .desce::after', '.tocando .eq i'])
+      expect.arrayContaining(['#rec i', '#hero .desce::after', '.tocando.on .eq i'])
     );
   });
 

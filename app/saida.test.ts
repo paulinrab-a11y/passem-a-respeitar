@@ -230,13 +230,14 @@ describe('modais da home', () => {
     expect(termina).toContain('doc.contains(quemAbriu)');
     // A loja recebe o botao que a abriu; a sala, o campo do codigo.
     expect(SCRIPT).toContain('Loja.abre(tam, e.currentTarget)');
-    expect(SCRIPT).toContain('modal.abre(inp)');
+    expect(SCRIPT).toContain('abreSala(inp)');
+    expect(SCRIPT).toContain('const abreSala = quem=>{ modal.abre(quem);');
   });
 
   it('a trava de rolagem da loja so cai no fim da saida', () => {
     // E a rotacao das fotos para junto (#294): a camiseta gira enquanto some.
     expect(SCRIPT).toContain(
-      "modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); if (fotos) fotos.para(); })"
+      "modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); if (fotos) fotos.para(); GL.pausa('loja', false); })"
     );
   });
 });

@@ -694,8 +694,17 @@ test('home: o Comprar da loja abre o checkout na mesma aba', async ({ page, cont
   await expect(page.locator('#loja')).toBeVisible();
 
   const comprarLoja = page.locator('#comprarLoja');
+  // Nenhum tamanho vem marcado (#347): o Comprar espera a escolha, e diz isso.
+  await expect(comprarLoja).toHaveAttribute('aria-disabled', 'true');
+  await expect(comprarLoja).not.toHaveAttribute('href', /.*/);
+  await expect(comprarLoja).toHaveAccessibleName('Escolha o tamanho');
+  await expect(page.locator('#loja .tam button[aria-pressed="true"]')).toHaveCount(0);
+
+  await page.locator('#tamLoja').getByRole('button', { name: 'G', exact: true }).click();
+  await expect(comprarLoja).not.toHaveAttribute('aria-disabled', /.*/);
+  await expect(comprarLoja).toHaveAccessibleName('Comprar');
   await expect(comprarLoja).not.toHaveAttribute('target', /.+/);
-  await expect(comprarLoja).toHaveAttribute('href', /^\/checkout\?p=/);
+  await expect(comprarLoja).toHaveAttribute('href', /^\/checkout\?p=.*&tam=G$/);
 
   const abas: unknown[] = [];
   context.on('page', (p) => abas.push(p));

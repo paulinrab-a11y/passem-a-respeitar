@@ -76,3 +76,16 @@ export function vigiaDeQuadro(tolerancia = 1e-4) {
     },
   };
 }
+
+/**
+ * Fracao de um lerp por quadro, corrigida pelo tempo do quadro (#347).
+ *
+ * `x += (alvo - x) * 0.08` a cada quadro anda 8% por quadro: a 120 Hz chega
+ * duas vezes mais rapido que a 60, e numa GPU por software, a 15 quadros por
+ * segundo, quatro vezes mais devagar. Aqui `fator` e o que se andaria em um
+ * quadro de 60 Hz, e `dt` (em segundos) o tempo que de fato passou: o mesmo
+ * caminho no mesmo tempo, em qualquer taxa de quadros.
+ */
+export function passo(fator: number, dt: number): number {
+  return 1 - (1 - fator) ** (dt * 60);
+}

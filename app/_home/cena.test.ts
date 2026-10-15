@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { giroDaCorrente, paralaxe, pulsoDaLuz, relogio, vigiaDeQuadro } from './cena';
+import { giroDaCorrente, paralaxe, passo, pulsoDaLuz, relogio, vigiaDeQuadro } from './cena';
 
 /**
  * A cena 3D com "reduzir movimento" (#286): o que ela faz sozinha no tempo e
@@ -235,5 +235,27 @@ describe('script legado: vitrine', () => {
   it('o modo fotos em GPU por software e o orcamento de quadro (#217) continuam', () => {
     expect(SCRIPT).toContain('if (querFotos()) init360(); else init();');
     expect(loop).toContain('if (agora - ultimoQuadro < Math.max(16, custo * 3)) return;');
+  });
+});
+
+describe('passo (#347)', () => {
+  it('a 60 Hz e o proprio fator', () => {
+    expect(passo(0.08, 1 / 60)).toBeCloseTo(0.08, 10);
+  });
+
+  it('dois quadros de 120 Hz andam o mesmo que um de 60', () => {
+    let x = 0;
+    for (let i = 0; i < 2; i++) x += (1 - x) * passo(0.08, 1 / 120);
+    expect(x).toBeCloseTo(0.08, 10);
+  });
+
+  it('um quadro longo anda o que os quadros curtos andariam juntos', () => {
+    let x = 0;
+    for (let i = 0; i < 4; i++) x += (1 - x) * passo(0.06, 1 / 60);
+    expect(passo(0.06, 4 / 60)).toBeCloseTo(x, 10);
+  });
+
+  it('sem tempo, nao anda', () => {
+    expect(passo(0.08, 0)).toBe(0);
   });
 });

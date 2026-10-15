@@ -128,16 +128,28 @@ describe('script da home: nada pesado no carregamento inicial', () => {
     expect(fora).not.toContain('innerHTML');
   });
 
-  it('modelo 3D e foto 360 so baixam quando a loja abre', () => {
+  // Desde a #347 a vitrine se adianta: o modelo (ou a tira de fotos) comeca a
+  // baixar com a ficha a uma tela de distancia, ou com o ponteiro ou o foco no
+  // Comprar. Continua fora do carregamento inicial.
+  it('modelo 3D e foto 360 so baixam com a loja abrindo ou a ficha chegando perto', () => {
     const abre = corpo('function abre(t, quem){');
 
     expect(abre).toContain('if (querFotos()) init360(); else init();');
     // E ninguem mais chama os dois.
     expect(script.match(/\binit360\(\)/g)).toHaveLength(2);
     expect(corpo('function init360(){')).toContain('giro.style.backgroundImage');
-    expect(
-      corpo('function init(){\n    if (pronto) return; pronto = true;\n    renderer')
-    ).toContain('new THREE.GLTFLoader()');
+    // O loader nasce num lugar so, chamado pelo init e pelo adiantamento.
+    expect(script.match(/new THREE\.GLTFLoader\(\)/g)).toHaveLength(1);
+    expect(corpo('function carregaModelo(){')).toContain('new THREE.GLTFLoader()');
+    expect(script.match(/\bcarregaModelo\(\)/g)).toHaveLength(3);
+    expect(corpo('function preCarrega(){')).toContain('new Image().src = CONFIG.merch360');
+    expect(script).toContain(
+      "comprar.addEventListener('pointerenter', preCarrega, { once:true });"
+    );
+    expect(script).toContain("comprar.addEventListener('focus', preCarrega, { once:true });");
+    expect(script).toMatch(
+      /vigiaFicha\.disconnect\(\); preCarrega\(\);\n {4}\}, \{ rootMargin:'100% 0px' \}\);/
+    );
   });
 
   it('beat so baixa quando o som e ligado', () => {
