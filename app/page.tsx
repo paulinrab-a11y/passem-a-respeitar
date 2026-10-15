@@ -255,11 +255,11 @@ export default async function Home() {
         <footer className="assina">
           {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
           <a id="igSantxx" href="#" target="_blank" rel="noopener">
-            @santxx
+            @ogsantxx
           </a>
           {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
           <a id="igChefe" href="#" target="_blank" rel="noopener">
-            @ch3fe
+            @ch3fe3k
           </a>
           {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
           <a id="igLabel" href="#" target="_blank" rel="noopener">
