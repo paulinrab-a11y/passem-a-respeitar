@@ -34,6 +34,9 @@ const RECADOS: Record<MotivoDaCobranca, string> = {
     'Estamos confirmando seu pagamento anterior. Aguarde um minuto e tente de novo.',
   'pagamento-pendente':
     'Há uma cobrança em aberto neste pedido que não consegui encerrar. Aguarde um minuto e tente de novo.',
+  'pedido-expirado': 'Este pedido expirou. Faça um novo, com o preço e o frete de agora.',
+  'pix-fora-do-prazo':
+    'Este pedido vence em menos de 30 minutos e o Pix não cabe mais no prazo. Pague com cartão ou faça um novo pedido.',
 };
 
 /** 4xx e problema de quem pediu; 5xx e nosso ou do provedor. */
@@ -50,6 +53,10 @@ const CODIGO: Record<MotivoDaCobranca, number> = {
   // Conflito com uma cobranca que ainda esta sendo confirmada, nao falha.
   'pagamento-em-processamento': 409,
   'pagamento-pendente': 409,
+  // O pedido existe e e da pessoa, mas nao aceita mais pagamento (#298).
+  'pedido-expirado': 410,
+  // Ainda aceita pagamento, so nao por Pix (#298).
+  'pix-fora-do-prazo': 409,
 };
 
 export async function POST(request: NextRequest) {
