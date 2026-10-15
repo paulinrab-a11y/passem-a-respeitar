@@ -45,11 +45,6 @@ const DESLIGADAS = [
   'SENTRY_AUTH_TOKEN',
   'SENTRY_ORG',
   'SENTRY_PROJECT',
-  'SMTP_FROM',
-  'SMTP_HOST',
-  'SMTP_PASSWORD',
-  'SMTP_PORT',
-  'SMTP_USER',
   'UPSTASH_REDIS_REST_TOKEN',
   'UPSTASH_REDIS_REST_URL',
   // Quem vende (#276): os dados do dono nao entram na suite. Sem eles a
