@@ -50,7 +50,8 @@ export function valorParaApi(centavos: number): string {
 }
 
 export type MetodoDePagamento =
-  | { tipo: 'pix' }
+  /** `validade`: duracao ISO 8601 do `expiration_time` (#298). */
+  | { tipo: 'pix'; validade: string }
   | { tipo: 'cartao'; bandeira: string; token: string; parcelas: number };
 
 export type DadosDaCobranca = {
@@ -165,7 +166,17 @@ function corpo(dados: DadosDaCobranca) {
     // A chave de conciliacao: e por ela que o webhook acha o pedido depois.
     external_reference: dados.pedidoId,
     processing_mode: 'automatic',
-    transactions: { payments: [{ amount: valor, payment_method: meio }] },
+    transactions: {
+      payments: [
+        {
+          amount: valor,
+          payment_method: meio,
+          // O Pix vence junto com o pedido, e nao no padrao de 24 h do
+          // provedor (#298).
+          ...(dados.metodo.tipo === 'pix' ? { expiration_time: dados.metodo.validade } : {}),
+        },
+      ],
+    },
     payer: {
       email: dados.email,
       ...(dados.documento

@@ -110,8 +110,8 @@ async function Lista({ searchParams }: { searchParams: Busca }) {
                   <strong>{pedido.total}</strong>
                 </p>
 
-                {/* So enquanto espera pagamento (#113). */}
-                {pedido.aguardandoPagamento ? (
+                {/* So enquanto espera pagamento (#113) e dentro do prazo (#298). */}
+                {pedido.pagavel ? (
                   <p className="pedido-acoes">
                     <a className="btn" href={`/checkout/pagamento/${pedido.id}`}>
                       Pagar

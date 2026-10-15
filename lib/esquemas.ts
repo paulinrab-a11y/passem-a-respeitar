@@ -52,6 +52,20 @@ export const esquemaTrocarSenha = z
   .refine((d) => d.nova !== d.atual, { path: ['nova'] });
 
 /**
+ * A senha escolhida no cadastro e a confirmacao dela. Fora dos schemas
+ * porque ela passa por duas portas: o cadastro (#30) e, de novo, a
+ * confirmacao pelo codigo, que grava essa senha na conta (#284). As duas
+ * conferem com as mesmas regras — a senha que o codigo grava e uma que o
+ * cadastro teria aceitado.
+ */
+const senhaEscolhida = {
+  senha: z.string().min(SENHA_MIN).max(SENHA_MAX),
+  confirmacao: z.string().min(1).max(SENHA_MAX),
+};
+
+const confirmacaoBate = (d: { senha: string; confirmacao: string }) => d.senha === d.confirmacao;
+
+/**
  * Cadastro (Issue #30).
  *
  * O aceite e `z.literal(true)`, nao `boolean`: a caixa desmarcada nao e
@@ -66,11 +80,10 @@ export const esquemaTrocarSenha = z
 export const esquemaCriarConta = z
   .object({
     email: z.string().trim().toLowerCase().min(1).max(254).email(),
-    senha: z.string().min(SENHA_MIN).max(SENHA_MAX),
-    confirmacao: z.string().min(1).max(SENHA_MAX),
+    ...senhaEscolhida,
     aceite: z.literal(true),
   })
-  .refine((d) => d.senha === d.confirmacao, { path: ['confirmacao'] });
+  .refine(confirmacaoBate, { path: ['confirmacao'] });
 
 /** Pedido de recuperacao (#32): so o e-mail, normalizado como no login. */
 export const esquemaEmail = z.object({
@@ -142,3 +155,14 @@ export const esquemaCodigo = z.object({
   // la a caixa nao existe, e sem ela vale o lado seguro.
   lembrar: z.boolean().default(false),
 });
+
+/**
+ * O codigo da tela do cadastro, com a senha que a pessoa acabou de escolher
+ * (#284). A senha volta porque o Supabase nao a grava quando o e-mail ja
+ * tinha cadastro pendente: quem confirma pelo codigo grava a dele. Sem
+ * `lembrar`: o cadastro nao tem a caixa.
+ */
+export const esquemaConfirmarCadastro = esquemaCodigo
+  .pick({ email: true, codigo: true })
+  .extend(senhaEscolhida)
+  .refine(confirmacaoBate, { path: ['confirmacao'] });

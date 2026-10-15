@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { type NextRequest, NextResponse } from 'next/server';
 import { concilia } from '@/lib/loja/conciliacao';
+import { expiraVencidos } from '@/lib/loja/expiracao';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -62,7 +63,14 @@ export async function GET(request: NextRequest) {
   // Resumido, e de proposito: contagens, nunca ids de pedido ou de pagamento.
   console.info('[conciliacao]', JSON.stringify(balanco));
 
+  // Depois da conciliacao, e na mesma chamada (#298): o plano da Vercel roda
+  // um cron por dia, e um Pix pago que so a conciliacao descobriu precisa
+  // virar `pago` ANTES de alguem olhar o prazo do pedido dele. A expiracao
+  // ainda confere cada pedido no provedor; esta ordem so poupa a viagem.
+  const expiracao = await expiraVencidos();
+  console.info('[expiracao]', JSON.stringify(expiracao));
+
   // Falha em consultar nao e falha do cron: o proximo ciclo tenta de novo. 200
   // sempre que a varredura rodou; o balanco diz o resto.
-  return NextResponse.json({ ok: true, ...balanco });
+  return NextResponse.json({ ok: true, ...balanco, expiracao });
 }
