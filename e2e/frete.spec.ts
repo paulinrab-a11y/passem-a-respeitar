@@ -84,6 +84,12 @@ async function preencheEndereco(pagina: Page, cep: string) {
  *  caixa do frete pode ter o de tentar de novo (#240). */
 const finalizar = (pagina: Page) => pagina.locator('form.entrega button[type="submit"]');
 
+/**
+ * Os radios do frete, e so eles: desde a #356 o checkout tem tambem os de
+ * tamanho e quantidade.
+ */
+const opcoesDoFrete = (pagina: Page) => pagina.locator('fieldset.frete').getByRole('radio');
+
 /** A caixinha dos termos de compra (#276): sem ela marcada, nao ha pedido. */
 const aceite = (pagina: Page) =>
   pagina.getByRole('checkbox', { name: 'Li e aceito os termos de compra' });
@@ -215,7 +221,7 @@ test('frete: CEP so com PAC mostra so o PAC', async ({ logada }) => {
   await preencheEndereco(logada, CEPS.soPac);
 
   await expect(logada.getByRole('radio', { name: /PAC/ })).toBeChecked();
-  await expect(logada.getByRole('radio')).toHaveCount(1);
+  await expect(opcoesDoFrete(logada)).toHaveCount(1);
 });
 
 /** O botao da falha passageira (#240), dentro da caixa do frete. */
@@ -247,7 +253,7 @@ for (const [caso, cep, frase, oferece] of [
 
     await expect(logada.locator('.frete').getByRole('alert')).toHaveText(frase);
     await expect(tentarDeNovo(logada)).toHaveCount(oferece ? 1 : 0);
-    await expect(logada.getByRole('radio')).toHaveCount(0);
+    await expect(opcoesDoFrete(logada)).toHaveCount(0);
     await expect(finalizar(logada)).toBeDisabled();
     await expect(finalizar(logada)).toContainText('Frete indisponível');
     expect(await pedidosDe(quem)).toBe(antes);
@@ -342,7 +348,7 @@ test('frete: o botao nao anda quando a cotacao chega', async ({ logada }) => {
   const esperando = await posicao();
 
   solta();
-  await expect(logada.getByRole('radio')).toHaveCount(2);
+  await expect(opcoesDoFrete(logada)).toHaveCount(2);
   const cotado = await posicao();
 
   expect(esperando).toBe(parado);
