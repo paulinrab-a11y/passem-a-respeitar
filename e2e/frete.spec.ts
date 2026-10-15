@@ -457,9 +457,17 @@ test('checkout: trocar tamanho e quantidade guarda o endereco e cota de novo', a
   await expect(finalizar(logada)).toContainText('143,50');
   await esqueceRecebidos();
 
-  await logada.getByRole('group', { name: 'Tamanho' }).getByText('G', { exact: true }).click();
+  // Pelo radio, que cobre o quadrado: o clique no texto cairia nele, e o
+  // Playwright acusa quem esta por cima em vez de clicar.
+  await logada
+    .getByRole('group', { name: 'Tamanho' })
+    .getByRole('radio', { name: 'G', exact: true })
+    .check();
   await logada.waitForURL((url) => url.searchParams.get('tam') === 'G');
-  await logada.getByRole('group', { name: 'Quantidade' }).getByText('2', { exact: true }).click();
+  await logada
+    .getByRole('group', { name: 'Quantidade' })
+    .getByRole('radio', { name: '2', exact: true })
+    .check();
   await logada.waitForURL(
     (url) => url.searchParams.get('tam') === 'G' && url.searchParams.get('q') === '2'
   );
