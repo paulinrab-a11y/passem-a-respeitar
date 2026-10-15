@@ -33,6 +33,22 @@ const LIMITE = { maximo: 20, janelaMs: 10 * 60 * 1000 };
  */
 const LIMITE_TOTAL = { maximo: 120, janelaMs: 10 * 60 * 1000 };
 
+/**
+ * Tetos do site inteiro (#352), no desenho dos do concierge (#281). O limite
+ * por IP para um script so; um script trocando de IP passava por ele e
+ * gastava o token do Melhor Envio — a cota de la e da conta, e o checkout de
+ * quem esta comprando depende dela. Os tetos contam so a consulta que iria ao
+ * Melhor Envio, como a cota apertada; o checkout nao passa por aqui.
+ *
+ * Folgados para o lancamento: 300 CEPs novos por hora sao cinco por minuto,
+ * todos diferentes e fora do cache. Batido um deles, a ficha mostra o mesmo
+ * recado do limite, e o frete continua aparecendo no checkout.
+ */
+const TETOS = [
+  { chave: 'frete-ficha:global:hora', maximo: 300, janelaMs: 60 * 60 * 1000 },
+  { chave: 'frete-ficha:global:dia', maximo: 2000, janelaMs: 24 * 60 * 60 * 1000 },
+] as const;
+
 export type FreteNaFicha = { ok: true; opcoes: OpcaoDeFrete[] } | { ok: false; texto: string };
 
 export async function cotarFreteNaFicha(bruto: {
@@ -59,8 +75,17 @@ export async function cotarFreteNaFicha(bruto: {
   // A cota apertada so e descontada quando a consulta vai mesmo ao Melhor
   // Envio (#308): CEP que ja esta no cache, ou cuja cotacao ja esta no ar, nao
   // gasta uma das vinte.
-  const descontaCota = async () =>
-    (await limita(`frete-ficha:${ip}`, LIMITE.maximo, LIMITE.janelaMs)).permitido;
+  // Os tetos globais vem depois da cota do IP: um IP so, ja barrado, nao
+  // gasta o teto de todo mundo.
+  const descontaCota = async () => {
+    if (!(await limita(`frete-ficha:${ip}`, LIMITE.maximo, LIMITE.janelaMs)).permitido) {
+      return false;
+    }
+    for (const { chave, maximo, janelaMs } of TETOS) {
+      if (!(await limita(chave, maximo, janelaMs)).permitido) return false;
+    }
+    return true;
+  };
 
   const r = await opcoesDeFrete([item.data], cep, descontaCota);
   if (!r.ok) {

@@ -1,6 +1,7 @@
 'use server';
 
 import { headers } from 'next/headers';
+import { seguraAtePiso } from '@/lib/conta/piso';
 import { esquemaEmail } from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { CAMPO_DA_ISCA, CAMPO_DO_DESAFIO, desafioConfere, pareceRobo, RECUSA } from '@/lib/robo';
@@ -72,10 +73,14 @@ export async function recuperarSenha(
   const cotaEmail = await limita(`recuperar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
   if (!cotaEmail.permitido) return muitosPedidos;
 
+  // O piso (#352): com conta o Supabase manda e-mail, sem conta volta logo.
+  // A resposta ja era a mesma; o tempo passa a ser tambem.
+  const inicio = Date.now();
   const supabase = await clienteDeAuth(false);
   await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: urlDeRetorno(cabecalhos, DESTINO_DO_LINK),
   });
+  await seguraAtePiso(inicio);
 
   // O erro, se houver, fica aqui dentro de proposito: qualquer diferenca na
   // resposta contaria se o e-mail existe.
