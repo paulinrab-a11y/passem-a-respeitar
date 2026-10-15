@@ -75,6 +75,18 @@ export function formataMesAbreviadoHora(iso: string): string {
   return MES_ABREVIADO_E_HORA.format(new Date(iso));
 }
 
+/**
+ * `2026-10-05 21:30` — planilha do dono (#345). Ano primeiro: ordena como
+ * texto, e o Excel reconhece como data. Montado das partes do mesmo
+ * formatador da linha do tempo, para nao nascer um segundo `Intl` fora daqui.
+ */
+export function formataParaPlanilha(iso: string): string {
+  const partes = Object.fromEntries(
+    DIA_E_HORA.formatToParts(new Date(iso)).map((p) => [p.type, p.value])
+  );
+  return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}`;
+}
+
 /** Um dia do calendario de Brasilia: para `<time dateTime>` e para a tela. */
 export type Dia = {
   /** `2026-10-12`. Compara por texto: a ordem do texto e a dos dias. */

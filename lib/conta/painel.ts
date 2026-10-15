@@ -123,3 +123,36 @@ export function linhasDaEntrega(e: EntregaDoPedido): string[] {
     `CEP ${e.cep}`,
   ];
 }
+
+/** O detalhe do pedido visto pelo dono (#345). */
+export function urlDoPedidoAdmin(id: string): string {
+  return `${PAINEL}/${id}`;
+}
+
+/** A rota que devolve o CSV do filtro aberto (#345). */
+const EXPORTACAO = '/api/admin/pedidos';
+
+/**
+ * O link de "Exportar CSV" leva o filtro que esta na tela: quem olha "Para
+ * enviar" quer a planilha das etiquetas, nao a loja inteira. A pagina nao vai
+ * junto — a planilha e do filtro todo.
+ */
+export function urlDaExportacao(filtro: FiltroAdmin): string {
+  return filtro === FILTRO_PADRAO
+    ? EXPORTACAO
+    : `${EXPORTACAO}?${new URLSearchParams({ status: filtro })}`;
+}
+
+/** Um item como o painel le de `order_items`. */
+export type ItemDoPainel = { nome: string; tamanho: string | null; quantidade: number };
+
+/**
+ * O que foi comprado, numa linha: "1× Camiseta CBAC · M" (#345). E o que o
+ * dono separa da prateleira, e antes so aparecia abrindo o pedido — que dava
+ * 404 para ele. Mais de um item vira uma linha por item, juntas por " + ".
+ */
+export function resumoDosItens(itens: ItemDoPainel[]): string {
+  return itens
+    .map((i) => `${i.quantidade}× ${i.nome}${i.tamanho ? ` · ${i.tamanho}` : ''}`)
+    .join(' + ');
+}
