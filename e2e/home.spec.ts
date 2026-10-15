@@ -65,6 +65,56 @@ test('assets de public: cache no navegador e headers de seguranca (#312)', async
   }
 });
 
+/**
+ * Indexacao (#322): canonical e og:url por pagina, robots.txt e sitemap.xml.
+ * O dominio depende do ambiente; o que se confere e o caminho no fim.
+ */
+test('canonical e og:url por pagina, com card proprio em /privacidade', async ({ page }) => {
+  for (const [caminho, fim] of [
+    ['/', '/'],
+    ['/privacidade', '/privacidade'],
+  ] as const) {
+    await page.goto(caminho);
+    const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+    const ogUrl = await page.locator('meta[property="og:url"]').getAttribute('content');
+    for (const url of [canonical, ogUrl]) {
+      expect(url, caminho).toMatch(/^https?:\/\//);
+      expect(new URL(url ?? '').pathname, caminho).toBe(fim);
+    }
+  }
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    'content',
+    'Privacidade — Passem a Respeitar'
+  );
+});
+
+test('robots.txt e sitemap.xml existem e se apontam (#322)', async ({ request }) => {
+  const robots = await request.get('/robots.txt');
+  expect(robots.status()).toBe(200);
+  expect(robots.headers()['content-type']).toContain('text/plain');
+  const texto = await robots.text();
+  expect(texto).toMatch(/Sitemap: https?:\/\/\S+\/sitemap\.xml/);
+  expect(texto).toContain('Disallow: /api/');
+  expect(texto).toContain('User-Agent: GPTBot');
+  expect(texto).not.toMatch(/Disallow: \/(conta|checkout)/);
+
+  const sitemap = await request.get('/sitemap.xml');
+  expect(sitemap.status()).toBe(200);
+  const xml = await sitemap.text();
+  expect(xml).toMatch(/<loc>https?:\/\/[^<]+\/<\/loc>/);
+  expect(xml).toMatch(/<loc>https?:\/\/[^<]+\/privacidade<\/loc>/);
+  expect(xml).not.toContain('/conta');
+});
+
+test('home: JSON-LD com a camiseta do catalogo e sem data (#322)', async ({ page }) => {
+  await page.goto('/');
+  const bloco = await page.locator('script[type="application/ld+json"]').textContent();
+  const grafo = JSON.parse(bloco ?? '{}')['@graph'] as { '@type': string; name?: string }[];
+  expect(grafo.map((n) => n['@type'])).toEqual(['Organization', 'WebSite', 'Product']);
+  expect(grafo[2]?.name).toBe('Camiseta CBAC');
+  expect(bloco).not.toMatch(/date|rating|review/i);
+});
+
 test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({ page }) => {
   // A cena 3D roda por software no navegador sem tela, e rolar por ela e lento.
   test.setTimeout(90_000);

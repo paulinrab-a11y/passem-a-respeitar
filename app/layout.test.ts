@@ -20,7 +20,8 @@ describe('metadata do layout (#215)', () => {
       type: 'website',
       locale: 'pt_BR',
       siteName: 'CBAC - Passem a Respeitar',
-      url: '/',
+      // Relativo a rota (#322): o Next resolve contra o caminho da pagina.
+      url: './',
     });
     expect(og.images).toEqual([
       expect.objectContaining({ url: '/logo.png', width: 1000, height: 624 }),
@@ -28,6 +29,32 @@ describe('metadata do layout (#215)', () => {
     const tw = metadata.twitter as Record<string, unknown>;
     expect(tw.card).toBe('summary_large_image');
     expect(tw.images).toEqual(og.images);
+  });
+
+  it('canonical por rota e indexavel fora do preview (#322)', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.resetModules();
+    const { metadata } = await import('./layout');
+    expect(metadata.alternates).toEqual({ canonical: './' });
+    expect(metadata.robots).toBeUndefined();
+    vi.unstubAllEnvs();
+  });
+
+  it('preview sai com noindex (#322)', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.resetModules();
+    const { metadata } = await import('./layout');
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+    vi.unstubAllEnvs();
+  });
+
+  it('/privacidade tem card proprio, com og:url por rota (#322)', async () => {
+    const { metadata } = await import('./privacidade/page');
+    const titulo = 'Privacidade — Passem a Respeitar';
+    const og = metadata.openGraph as Record<string, unknown>;
+    expect(og).toMatchObject({ url: './', title: titulo, siteName: 'CBAC - Passem a Respeitar' });
+    expect((metadata.twitter as Record<string, unknown>).title).toBe(titulo);
+    expect(og.images).toEqual([expect.objectContaining({ url: '/logo.png' })]);
   });
 
   // A data de lancamento fica em sigilo ate o pre-save (#269). Descricao e

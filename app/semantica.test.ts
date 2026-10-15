@@ -305,6 +305,20 @@ describe('home renderizada', () => {
     expect(linhas.at(-1)?.textContent).toBe('Passem a respeitar.');
   });
 
+  // #322: o JSON-LD sai no HTML do servidor, com o preco do catalogo e sem data.
+  it('traz o JSON-LD com o selo, o site e a camiseta do catalogo', async () => {
+    const blocos = (await home()).querySelectorAll('script[type="application/ld+json"]');
+    expect(blocos).toHaveLength(1);
+    const grafo = JSON.parse(blocos[0]?.textContent ?? '{}')['@graph'];
+    expect(grafo.map((n: { '@type': string }) => n['@type'])).toEqual([
+      'Organization',
+      'WebSite',
+      'Product',
+    ]);
+    expect(grafo[2]).toMatchObject({ name: 'Camiseta CBAC', offers: { price: '120.00' } });
+    expect(blocos[0]?.textContent).not.toMatch(/date|rating|review/i);
+  });
+
   // #280: era um <div> clicavel, fora do Tab e sem papel de controle.
   it('o indicador "tocando" e um botao que nasce apagado, com o atalho exposto', async () => {
     const pill = (await home()).querySelector('#tocando');

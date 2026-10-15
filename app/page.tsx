@@ -1,4 +1,7 @@
 import Image from 'next/image';
+import { baseDoSite } from '@/lib/base-do-site';
+import { DESCRICAO_DO_SITE, NOME_DO_SITE } from '@/lib/cartao-do-link';
+import { grafoDoSite } from '@/lib/dados-estruturados';
 import { vitrine } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { precoNaFicha } from '@/lib/loja/precos';
@@ -8,6 +11,7 @@ import FreteNaFicha from './_home/FreteNaFicha';
 import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
 import GuiaDeTamanhos from './_ui/GuiaDeTamanhos';
+import JsonLd from './_ui/JsonLd';
 
 // A CSP do proxy.ts carrega um nonce novo a cada request, e o Next so
 // carimba esse nonce nos proprios scripts quando a rota e renderizada por
@@ -34,8 +38,27 @@ export default async function Home() {
     camiseta?.variacoes[0]?.tamanho ??
     '';
 
+  // JSON-LD (#322): selo, site e a camiseta com o preco do mesmo catalogo da
+  // ficha. Os artistas e o EP entram neste mesmo grafo na #275.
+  const grafo = grafoDoSite({
+    base: baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL),
+    nomeDoSite: NOME_DO_SITE,
+    descricaoDoSite: DESCRICAO_DO_SITE,
+    instagramDoSelo: CONFIG.links.igLabel,
+    camiseta: camiseta
+      ? {
+          slug: camiseta.slug,
+          nome: camiseta.nome,
+          descricao: camiseta.descricao,
+          precosCentavos: camiseta.variacoes.map((v) => v.precoCentavos),
+        }
+      : null,
+    fotosDaCamiseta: CONFIG.merchFotos,
+  });
+
   return (
     <>
+      <JsonLd dado={grafo} />
       {/* Decorativos: o fundo em WebGL e o grao de VHS (#59).
           O `aria-hidden` sai dos canvas e vai para um <div> em volta. O
           efeito para o leitor de tela e o mesmo — os dois somem da arvore de
