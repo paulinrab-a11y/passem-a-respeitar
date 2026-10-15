@@ -6,7 +6,7 @@ import { comErro } from '@/app/_ui/campos';
 import { CAMPO_DA_ISCA } from '@/app/_ui/desafio';
 import Erro from '@/app/_ui/Erro';
 import Rotulo from '@/app/_ui/Rotulo';
-import { CODIGO_DIGITOS } from '@/lib/esquemas';
+import { CODIGO_DIGITOS } from '@/lib/conta/codigo-digitos';
 import {
   codigoInicial,
   type Desfecho,

@@ -74,7 +74,9 @@ describe('duracao entre 150 e 250 ms', () => {
   ].map((m) => [m[1], emMs(m[2])] as const);
 
   it('acha as quatro entradas em uso', () => {
+    // `auth-entra` duas vezes: a caixa das telas de conta e o Pix (#346).
     expect(usos.map(([nome]) => nome).sort()).toEqual([
+      'auth-entra',
       'auth-entra',
       'etapa-entra',
       'pedido-entra',
