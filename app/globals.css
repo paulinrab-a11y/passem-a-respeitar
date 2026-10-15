@@ -1473,6 +1473,9 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
   .concierge-digitando.on .eq i{animation:none;transform:scaleY(.5)}
 }
 
+/* Sair do Pix para o formulario (#369), abaixo do link do pedido. */
+.pix-outro{margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.pix-outro .detalhe-nota{max-width:42ch;margin:0}
 /* Painel do dono (#345): o que separar da prateleira, a exportacao e o
    detalhe do pedido com a trilha e as tentativas de pagamento. */
 .admin-itens{margin-top:10px;font-size:14px;letter-spacing:.02em;color:var(--prata);overflow-wrap:anywhere}

@@ -340,6 +340,32 @@ test('pagamento: Pix pendente vira pago quando o Mercado Pago avisa, e a tela ab
   await expect(selo(pagina)).toHaveText('Pago');
 });
 
+/**
+ * Quem gerou o Pix, fechou a aba e voltou ve o MESMO codigo (#369), lido de
+ * novo do provedor, sem cobranca nova. E pode sair dele para o formulario.
+ */
+test('pagamento: voltar a tela com um Pix aberto mostra o mesmo codigo', async ({ cena }) => {
+  const { pagina, pedido } = cena;
+  await pagina.clock.install();
+  const ordem = await geraPix(cena);
+  await esqueceRecebidos();
+
+  await pagina.reload();
+
+  await expect(pagina.getByLabel('Pix copia e cola')).toHaveValue(copiaECola(ordem));
+  await expect(pagina.getByRole('form', { name: 'Formulário do Mercado Pago' })).toHaveCount(0);
+  // Nenhuma ordem nova no provedor, nenhuma tentativa nova no banco.
+  expect(await criacoes()).toEqual([]);
+  expect(await lePagamentos(pedido.id)).toHaveLength(1);
+
+  // O relogio volta a andar: o sdk-react monta o formulario num setTimeout,
+  // e com o relogio parado (ver `geraPix`) ele nunca apareceria.
+  await pagina.clock.resume();
+  await pagina.getByRole('button', { name: 'Pagar com cartão ou gerar outro Pix' }).click();
+  await expect(pagina.getByRole('form', { name: 'Formulário do Mercado Pago' })).toBeVisible();
+  await expect(pagina.getByLabel('Pix copia e cola')).toHaveCount(0);
+});
+
 test('pagamento: Pix pago sem aviso do Mercado Pago e achado pela conferencia da tela', async ({
   cena,
 }) => {

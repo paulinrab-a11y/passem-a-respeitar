@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from 'node:fs';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -282,6 +282,54 @@ describe('depois de enviar o pagamento', () => {
 
     expect(container.querySelector('[role="alert"]')?.textContent).toMatch(/Tente de novo/);
     expect(roteador.push).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Quem volta a tela com um Pix ainda valendo ve o mesmo QR (#369), e pode
+ * sair dele para o formulario.
+ */
+describe('Pix pendente de volta', () => {
+  const PIX = { copiaECola: '00020126-pix-de-teste', qrBase64: null, expiraEm: null };
+  const montaComPix = () =>
+    render(
+      <Brick
+        chavePublica="TEST-chave-publica-de-teste"
+        valor={120}
+        valorEscrito="R$ 120,00"
+        email="pessoa@exemplo.invalid"
+        pedido="11111111-1111-4111-8111-111111111111"
+        pixInicial={PIX}
+      />
+    );
+
+  it('abre no QR, sem o formulario', () => {
+    const { container } = montaComPix();
+
+    expect((screen.getByLabelText('Pix copia e cola') as HTMLInputElement).value).toBe(
+      PIX.copiaECola
+    );
+    expect(container.querySelector('.brick-pilha')).toBeNull();
+  });
+
+  it('"Pagar com cartão ou gerar outro Pix" volta ao formulario, carregando de novo', async () => {
+    const { container } = montaComPix();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Pagar com cartão ou gerar outro Pix' }));
+    });
+
+    expect(screen.queryByLabelText('Pix copia e cola')).toBeNull();
+    const pilha = container.querySelector('.brick-pilha') as HTMLElement;
+    expect(pilha).not.toBeNull();
+    expect(pilha.hasAttribute('data-pronto')).toBe(false);
+  });
+
+  it('sem Pix aberto, abre no formulario como sempre', () => {
+    const { container } = monta();
+
+    expect(screen.queryByLabelText('Pix copia e cola')).toBeNull();
+    expect(container.querySelector('.brick-pilha')).not.toBeNull();
   });
 });
 
