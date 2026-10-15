@@ -7,7 +7,9 @@
  * decisoes que dariam errado em silencio.
  */
 
-import { cepLegivel, type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
+import { reais } from '@/lib/dinheiro';
+import { cepLegivel } from '@/lib/loja/cep';
+import { type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
 import type { StatusPedido } from '@/lib/loja/status-do-pedido';
 import { type PosVenda, posVendaDoPedido } from '@/lib/loja/termos';
 import { expirou, pagarAte } from '@/lib/loja/validade-do-pedido';
@@ -64,12 +66,9 @@ export function leStatus(status: string): { rotulo: string; tom: Tom } {
   return { rotulo: 'Em andamento', tom: 'normal' };
 }
 
-const dinheiro = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-/** Centavos inteiros para `R$ 120,00`. O banco guarda inteiro; so a tela divide. */
-export function reais(centavos: number) {
-  return dinheiro.format(centavos / 100);
-}
+// `reais` mora em lib/dinheiro.ts, que o navegador importa sem levar o zod
+// do endereco junto (#353). Reexportado para o servidor, que o le daqui.
+export { reais };
 
 /** Como o frete do pedido aparece na tela (#199). */
 export type FreteDoPedido = {
