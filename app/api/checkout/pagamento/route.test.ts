@@ -88,6 +88,20 @@ describe('POST /api/checkout/pagamento', () => {
     expect(corpo.erro).not.toMatch(/aprovado/);
   });
 
+  // Pedido vencido nao e "ja pago" nem "nao aprovado": e outro pedido que a
+  // pessoa precisa fazer (#298).
+  it('pedido-expirado e 410 e diz o que fazer', async () => {
+    cobra.mockResolvedValue({ ok: false, motivo: 'pedido-expirado' });
+
+    const r = await pede();
+    const corpo = await r.json();
+
+    expect(r.status).toBe(410);
+    expect(corpo.erro).toContain('expirou');
+    expect(corpo.erro).toContain('Faça um novo');
+    expect(corpo.erro).not.toMatch(/pago|aprovado/);
+  });
+
   it.each([
     ['entrada-invalida', 400],
     ['pedido-nao-encontrado', 404],
@@ -96,6 +110,7 @@ describe('POST /api/checkout/pagamento', () => {
     ['indisponivel', 502],
     ['pagamento-em-processamento', 409],
     ['pagamento-pendente', 409],
+    ['pedido-expirado', 410],
   ] as const)('%s vira HTTP %i', async (motivo, status) => {
     cobra.mockResolvedValue({ ok: false, motivo });
 

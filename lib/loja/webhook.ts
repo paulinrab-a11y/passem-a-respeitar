@@ -58,7 +58,8 @@ import 'server-only';
  * vezes sem ninguem perceber: o segundo `aprovado` so encontra um pedido que
  * ja esta `pago` e nao muda nada. Por isso `encerraAbertas` cancela, aqui e
  * no provedor, as tentativas abertas que sobraram — a cobranca chama antes de
- * abrir outra, o dono chama ao cancelar o pedido, e `aplica` chama quando uma
+ * abrir outra, o dono chama ao cancelar o pedido, a expiracao chama antes de
+ * cancelar o pedido que passou do prazo (#298), e `aplica` chama quando uma
  * e aprovada. E dinheiro que entra onde nao devia (pedido ja pago por outra
  * tentativa, pedido cancelado) vira aviso ao dono em vez de silencio. (#6,
  * #11, #21, #24)
@@ -116,8 +117,15 @@ const PREFIXO_SANDBOX = 'ORDTST';
  * prefixo do `evento_id` e o `tipo` em `pagamento_eventos`, para a auditoria
  * saber de onde veio. `webhook` e `admin` aparecem quando, ao encerrar as
  * tentativas abertas de um pedido, uma delas precisa ser confirmada.
+ * `expiracao` e o pedido que passou do prazo de pagamento (#298).
  */
-export type OrigemDaConfirmacao = 'nao-assinado' | 'conciliacao' | 'cobranca' | 'webhook' | 'admin';
+export type OrigemDaConfirmacao =
+  | 'nao-assinado'
+  | 'conciliacao'
+  | 'cobranca'
+  | 'webhook'
+  | 'admin'
+  | 'expiracao';
 
 export type PagamentoEmAberto = { id: string; order_id: string; estado: string };
 
