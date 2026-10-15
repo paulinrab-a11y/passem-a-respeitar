@@ -78,11 +78,12 @@ test('favicon: /favicon.ico e o brasao, e o SVG adaptavel continua no head (#318
   expect([...(await resposta.body()).subarray(0, 4)]).toEqual([0, 0, 1, 0]);
 
   await page.goto('/');
-  // O .ico declara 32x32 e o SVG "any": quem le SVG fica com o SVG, que troca
+  // O Next declara no sizes o maior tamanho do .ico (48x48) e o SVG "any":
+  // quem le SVG fica com o SVG, que troca
   // de cor com o tema; o resto (Safari antigo) fica com o .ico.
   const ico = page.locator('link[rel="icon"][href^="/favicon.ico"]');
   await expect(ico).toHaveAttribute('type', 'image/x-icon');
-  await expect(ico).toHaveAttribute('sizes', '32x32');
+  await expect(ico).toHaveAttribute('sizes', '48x48');
   await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveCount(1);
 });
 

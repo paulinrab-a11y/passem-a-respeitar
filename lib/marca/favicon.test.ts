@@ -18,7 +18,7 @@ async function pixels(png: Buffer) {
 describe('app/favicon.ico', () => {
   const entradas = leIco(ICO);
 
-  it('tem 32, 16 e 48 px, nessa ordem (o Next declara o primeiro no sizes)', () => {
+  it('tem 32, 16 e 48 px, nessa ordem', () => {
     expect(entradas.map((e) => e.tamanho)).toEqual([32, 16, 48]);
     expect(TAMANHOS).toEqual([32, 16, 48]);
   });
