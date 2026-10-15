@@ -12,6 +12,7 @@ import {
   confirmaCadastro,
   mandaCodigo,
 } from '@/lib/conta/codigo';
+import { seguraAtePiso } from '@/lib/conta/piso';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import {
   esquemaCodigo,
@@ -126,6 +127,9 @@ export async function criarConta(
     );
   }
 
+  // O piso (#352) cobre o cadastro com e-mail ja usado, que o Supabase
+  // responde sem mandar codigo, e por isso mais rapido.
+  const inicio = Date.now();
   const supabase = await clienteDeAuth(false);
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -138,6 +142,7 @@ export async function criarConta(
       emailRedirectTo: urlDeRetorno(cabecalhos, CONTA),
     },
   });
+  await seguraAtePiso(inicio);
 
   if (error) {
     // Nada aqui distingue "e-mail existe" de "caiu a rede": o Supabase nao
@@ -329,8 +334,11 @@ export async function reenviarCodigo(
   // Responder "espere um minuto" ali contava, a quem pedisse dois seguidos,
   // quem esta no meio do cadastro. A contagem da tela ja segura quem e
   // honesto, e o codigo anterior continua valendo quando o Supabase recusa.
+  // O piso (#352): mandar ou nao mandar o codigo nao pode aparecer no tempo.
+  const inicio = Date.now();
   const supabase = await clienteDeAuth(false);
   await mandaCodigo(supabase.auth, email, cabecalhos);
+  await seguraAtePiso(inicio);
 
   return {
     erro: null,
