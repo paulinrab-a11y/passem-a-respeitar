@@ -10,6 +10,7 @@ vi.mock('next/headers', () => ({ headers: async () => cabecalhos }));
 
 const { opcoesDeFrete } = await import('@/lib/loja/catalogo');
 const { cotarFreteNaFicha } = await import('./acoes');
+const { RECADOS_DO_FRETE } = await import('@/lib/loja/recados-do-frete');
 
 const SEDEX = { servico: 'sedex', nome: 'SEDEX', precoCentavos: 1432, prazoDias: 2 } as const;
 
@@ -90,6 +91,28 @@ describe('cotarFreteNaFicha', () => {
     );
     for (let i = 0; i < 20; i++) expect((await cotar()).ok).toBe(true);
     expect((await cotar()).ok).toBe(false);
+  });
+
+  // Teto do site inteiro (#352): trocar de IP nao renova a cota do token do
+  // Melhor Envio. Modulos novos, para o limitador em memoria comecar zerado.
+  it('muitos IPs juntos param no teto global da hora', async () => {
+    vi.resetModules();
+    const catalogo = await import('@/lib/loja/catalogo');
+    const { cotarFreteNaFicha: cotarDoZero } = await import('./acoes');
+    vi.mocked(catalogo.opcoesDeFrete).mockImplementation(async (_i, _c, antesDeConsultar) =>
+      antesDeConsultar && !(await antesDeConsultar())
+        ? { ok: false, motivo: 'frete-limite' }
+        : { ok: true, subtotalCentavos: 12000, opcoes: [SEDEX] }
+    );
+    const deIp = async (i: number) => {
+      cabecalhos = new Headers({ 'x-forwarded-for': `192.0.2.${(i % 250) + 1}` });
+      return cotarDoZero({ slug: 'camiseta-cbac', tamanho: 'M', cep: '01310-100' });
+    };
+
+    // Quinze IPs, vinte consultas cada: todos abaixo do limite por IP.
+    for (let i = 0; i < 300; i++) expect((await deIp(Math.floor(i / 20))).ok).toBe(true);
+
+    expect(await deIp(200)).toEqual({ ok: false, texto: RECADOS_DO_FRETE['frete-limite'] });
   });
 
   it('repetir o CEP do cache acaba barrado pelo teto geral do IP (#308)', async () => {

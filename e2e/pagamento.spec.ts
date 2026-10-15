@@ -52,7 +52,13 @@ const CAMISETA: Item = {
   preco_unitario_centavos: 12000,
 };
 
-const RECUSADO = 'O pagamento não foi aprovado. Você pode tentar de novo.';
+/**
+ * A recusa diz o motivo do banco e oferece Pix (#365). O Mercado Pago falso
+ * responde `rejected_by_issuer` ao cartao recusado e `insufficient_amount`
+ * ao sem limite: as frases sao as de lib/loja/recusa-do-cartao.ts.
+ */
+const RECUSADO = 'O banco do cartão recusou o pagamento. Tente outro cartão ou pague com Pix.';
+const SEM_LIMITE = 'O cartão não tem limite para este valor. Tente outro cartão ou pague com Pix.';
 
 type Recebido = {
   metodo: string;
@@ -405,7 +411,7 @@ test('pagamento: cartao sem limite volta 2xx do provedor e continua sendo recusa
 
   // 2xx do provedor nao e aprovacao (#20): para quem paga, e recusa.
   expect(r.status()).toBe(402);
-  expect(await r.json()).toEqual({ erro: RECUSADO });
+  expect(await r.json()).toEqual({ erro: SEM_LIMITE });
   expect((await lePedido(pedido.id)).status).toBe('aguardando_pagamento');
   expect(await lePagamentos(pedido.id)).toMatchObject([
     {

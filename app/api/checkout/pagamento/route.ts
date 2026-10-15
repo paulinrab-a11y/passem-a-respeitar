@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { cobra, type MotivoDaCobranca } from '@/lib/loja/cobranca';
-import { limita } from '@/lib/rate-limit';
+import { recadoDaRecusa } from '@/lib/loja/recusa-do-cartao';
+import { limita, minutosDeEspera } from '@/lib/rate-limit';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,14 @@ export const dynamic = 'force-dynamic';
  * Pago — ele carrega dado do pagador e campo interno que ninguem pediu.
  */
 
-/** Cinco por hora. O alvo e script tentando cartao em sequencia. */
-const LIMITE = { maximo: 5, janelaMs: 60 * 60 * 1000 };
+/**
+ * Doze por hora. O alvo e script tentando cartao em sequencia (card testing),
+ * que precisa de centenas. Cinco era apertado para gente (#365): errar o CVV
+ * duas vezes, trocar de cartao e cair no Pix ja batia no teto, e a pessoa
+ * ficava uma hora sem conseguir pagar. O teto por pedido continua em
+ * `cobra()` (vinte tentativas).
+ */
+const LIMITE = { maximo: 12, janelaMs: 60 * 60 * 1000 };
 
 /** Mensagem por motivo. Nenhuma conta se um pedido existe ou nao. */
 const RECADOS: Record<MotivoDaCobranca, string> = {
@@ -25,6 +32,8 @@ const RECADOS: Record<MotivoDaCobranca, string> = {
   'pedido-nao-encontrado': 'Pedido não encontrado.',
   'pedido-ja-pago': 'Este pedido já foi pago.',
   'tentativas-demais': 'Muitas tentativas neste pedido.',
+  // O de cartao sai de `recadoDaRecusa` (#365), com o motivo do banco. Este
+  // fica para a recusa sem cartao, como um Pix que o provedor nao aceitou.
   recusado: 'O pagamento não foi aprovado. Você pode tentar de novo.',
   indisponivel: 'Não consegui falar com o pagamento agora. Tente de novo.',
   // Problema nosso, nao do cartao: "nao aprovado" mandaria a pessoa tentar
@@ -68,7 +77,9 @@ export async function POST(request: NextRequest) {
   const cota = await limita(`cobranca:${usuario.id}`, LIMITE.maximo, LIMITE.janelaMs);
   if (!cota.permitido) {
     return NextResponse.json(
-      { erro: RECADOS['tentativas-demais'] },
+      // Quanto esperar, e nao "mais tarde" (#365): a pessoa esta com o
+      // cartao na mao e precisa saber se volta ja ou depois do almoco.
+      { erro: `Muitas tentativas. Tente de novo em ${minutosDeEspera(cota.esperarS)} min.` },
       { status: 429, headers: { 'Retry-After': String(cota.esperarS) } }
     );
   }
@@ -77,7 +88,13 @@ export async function POST(request: NextRequest) {
   const r = await cobra(corpo);
 
   if (!r.ok) {
-    return NextResponse.json({ erro: RECADOS[r.motivo] }, { status: CODIGO[r.motivo] });
+    // Cartao recusado: a frase do mapa, escolhida pelo motivo do banco. So o
+    // texto fixo sai daqui — o `detalhe` cru fica no servidor (#365).
+    const erro =
+      r.motivo === 'recusado' && r.detalhe !== undefined
+        ? recadoDaRecusa(r.detalhe)
+        : RECADOS[r.motivo];
+    return NextResponse.json({ erro }, { status: CODIGO[r.motivo] });
   }
 
   return NextResponse.json({ estado: r.estado, ...(r.pix ? { pix: r.pix } : {}) });

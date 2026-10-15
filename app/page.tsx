@@ -34,10 +34,11 @@ export default async function Home() {
   // codigo seria pior do que nao mostrar preco: a pessoa veria um numero que
   // ninguem garante.
   const temMerch = Boolean(camiseta);
-  const tamanhoPadrao =
-    camiseta?.variacoes.find((v) => v.tamanho === 'M')?.tamanho ??
-    camiseta?.variacoes[0]?.tamanho ??
-    '';
+  // Nenhum tamanho vem marcado (#347): era M para todo mundo, e quem nao
+  // olhava os botoes comprava M sem ter escolhido. O frete da ficha nao
+  // depende do tamanho (peso e caixa sao os mesmos), entao a cotacao usa o
+  // primeiro do catalogo so como referencia.
+  const tamanhoDoFrete = camiseta?.variacoes[0]?.tamanho ?? null;
 
   // JSON-LD (#322): selo, site e a camiseta com o preco do mesmo catalogo da
   // ficha. Os artistas e o EP, ligados por @id, desde a #275.
@@ -256,21 +257,10 @@ export default async function Home() {
             <p className="desc">
               {camiseta?.descricao ?? 'Indisponível no momento. Volte daqui a pouco.'}
             </p>
-            <fieldset
-              className="tam"
-              id="tamanhos"
-              data-padrao={tamanhoPadrao}
-              data-slug={camiseta?.slug ?? ''}
-            >
+            <fieldset className="tam" id="tamanhos" data-slug={camiseta?.slug ?? ''}>
               <legend className="sr">Tamanho</legend>
               {camiseta?.variacoes.map((v) => (
-                <button
-                  key={v.tamanho}
-                  type="button"
-                  data-t={v.tamanho ?? ''}
-                  className={v.tamanho === tamanhoPadrao ? 'on' : undefined}
-                  aria-pressed={v.tamanho === tamanhoPadrao}
-                >
+                <button key={v.tamanho} type="button" data-t={v.tamanho ?? ''} aria-pressed={false}>
                   {v.tamanho}
                 </button>
               ))}
@@ -290,7 +280,7 @@ export default async function Home() {
               {`Feita sob encomenda. Entrega em pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias, para todo o Brasil.`}
             </p>
             {/* O frete antes do login (#205). Mesma cotacao do checkout. */}
-            {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoPadrao} /> : null}
+            {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoDoFrete} /> : null}
           </div>
           {/* O `data-alt` existe para o script legado nao precisar repetir o
               nome do produto no alt das fotos — era a terceira copia dele. */}
@@ -382,21 +372,10 @@ export default async function Home() {
             <div className="rotulo" aria-hidden="true">
               tamanho
             </div>
-            <fieldset
-              className="tam"
-              id="tamLoja"
-              data-padrao={tamanhoPadrao}
-              data-slug={camiseta?.slug ?? ''}
-            >
+            <fieldset className="tam" id="tamLoja" data-slug={camiseta?.slug ?? ''}>
               <legend className="sr">Tamanho</legend>
               {camiseta?.variacoes.map((v) => (
-                <button
-                  key={v.tamanho}
-                  type="button"
-                  data-t={v.tamanho ?? ''}
-                  className={v.tamanho === tamanhoPadrao ? 'on' : undefined}
-                  aria-pressed={v.tamanho === tamanhoPadrao}
-                >
+                <button key={v.tamanho} type="button" data-t={v.tamanho ?? ''} aria-pressed={false}>
                   {v.tamanho}
                 </button>
               ))}
@@ -405,16 +384,19 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado escreve o destino, /checkout com o produto e o tamanho escolhido (#106). Sem `target`: o checkout abre na mesma aba e a loja sai animada (#301). */}
-              <a className="btn cheio" id="comprarLoja" href="#">
-                Comprar
+              {/* biome-ignore lint/a11y/useValidAnchor: nasce desabilitado, sem `href` (#347): o script legado escreve o destino, /checkout com o produto e o tamanho escolhido (#106), so depois da escolha. Sem `target`: o checkout abre na mesma aba e a loja sai animada (#301). Os dois rotulos na mesma celula: a largura nao muda na troca. */}
+              <a className="btn cheio off" id="comprarLoja" role="link" aria-disabled="true">
+                <span className="rotulo-acao" data-ativo="">
+                  <span>Comprar</span>
+                  <span>Escolha o tamanho</span>
+                </span>
               </a>
             </div>
             <p className="aviso">
               {`Feita sob encomenda. Entrega em pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias, para todo o Brasil.`}
             </p>
             {/* A mesma ficha da secao: o CEP digitado la aparece aqui. */}
-            {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoPadrao} /> : null}
+            {camiseta ? <FreteNaFicha slug={camiseta.slug} tamanho={tamanhoDoFrete} /> : null}
           </div>
         </div>
       </div>

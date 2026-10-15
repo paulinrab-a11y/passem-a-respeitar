@@ -156,6 +156,15 @@ export async function limita(chave: string, maximo: number, janelaMs: number): P
 }
 
 /**
+ * `esperarS` em minutos inteiros, para a frase "tente de novo em N min"
+ * (#365). Arredonda para cima e nunca da zero: "em 0 min" mandaria tentar
+ * agora e bater no limite de novo.
+ */
+export function minutosDeEspera(esperarS: number): number {
+  return Math.max(1, Math.ceil(esperarS / 60));
+}
+
+/**
  * IP do visitante. Na Vercel vem em x-forwarded-for, com o IP real primeiro.
  * Sem cabecalho, cai num balde unico: prefiro limitar demais a nao limitar.
  */

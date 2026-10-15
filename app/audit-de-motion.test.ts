@@ -37,6 +37,19 @@ describe('transition', () => {
     expect(todas).toEqual([]);
   });
 
+  // Sem curva declarada o navegador usa `ease`, a mesma que o teste de baixo
+  // so deixa nos elos (#347). Cada propriedade da lista diz a sua.
+  it('toda propriedade de toda transicao declara a curva', () => {
+    const semCurva = TRANSICOES.filter((t) => t.valor !== 'none').flatMap((t) =>
+      t.valor
+        .split(/,(?![^(]*\))/)
+        .filter((parte) => !/cubic-bezier\(|steps\(|\blinear\b|\bease\b/.test(parte))
+        .map((parte) => `${t.seletor} { ${parte.trim()} }`)
+    );
+
+    expect(semCurva).toEqual([]);
+  });
+
   it('`ease` padrao so nos elos, que sao momento de marca', () => {
     const comEase = TRANSICOES.filter((t) => /\bease\b(?!-)/.test(t.valor)).map((t) => t.seletor);
 
@@ -53,15 +66,90 @@ describe('sublinhado do menu', () => {
   });
 });
 
+/**
+ * Auditoria de 15/10 (#347): o que a home anima e quando.
+ */
+describe('hover de movimento so com ponteiro fino', () => {
+  /** O conteudo de cada `@media (hover:hover) and (pointer:fine)...`. */
+  const finos = [
+    ...CSS.matchAll(
+      /@media \(hover:hover\) and \(pointer:fine\)[^{]*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g
+    ),
+  ]
+    .map((m) => m[1])
+    .join('\n');
+  /** O CSS sem esses blocos: o que vale para todo ponteiro. */
+  const fora = CSS.replace(
+    /@media \(hover:hover\) and \(pointer:fine\)[^{]*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g,
+    ''
+  );
+
+  it.each([
+    '.btn:hover:not(:disabled)::before{transform:none}',
+    '.btn:hover:not(:disabled){color:#000;border-color:var(--vermelho)}',
+    '#bar button:hover::after,#bar a:hover::after{transform:scaleX(1)}',
+    '#merch .galeria figure:hover img{transform:scale(1.03)}',
+  ])('%s', (regra) => {
+    expect(finos).toContain(regra);
+    expect(fora).not.toContain(regra);
+  });
+
+  it('o zoom da galeria nao existe com movimento reduzido', () => {
+    expect(CSS).toMatch(
+      /@media \(hover:hover\) and \(pointer:fine\) and \(prefers-reduced-motion:no-preference\)\{\s*#merch \.galeria figure:hover img\{transform:scale\(1\.03\)\}/
+    );
+  });
+
+  it('o wipe dura .22s na curva de saida', () => {
+    expect(CSS).toMatch(
+      /\.btn::before\{[^}]*transition:transform \.22s cubic-bezier\(\.22,1,\.36,1\)/
+    );
+  });
+});
+
+describe('duracoes da home no orcamento', () => {
+  const valor = (seletor: string) => TRANSICOES.find((t) => t.seletor === seletor)?.valor ?? '';
+
+  it.each([
+    ['#bar', /^opacity \.3s /],
+    ['.tocando', /^opacity \.25s cubic-bezier\([^)]*\),transform \.25s /],
+    ['#loja .dica', /^opacity \.2s cubic-bezier/],
+    ['#merch .galeria img', /transform \.3s cubic-bezier\([^)]*\),filter \.3s cubic-bezier/],
+  ])('%s', (seletor, esperado) => {
+    expect(valor(seletor)).toMatch(esperado);
+  });
+
+  it('o concierge cresce do canto do botao que o abre', () => {
+    expect(CSS).toMatch(/\.concierge\{[^}]*transform-origin:bottom right/);
+  });
+});
+
+describe('movimento reduzido na home (#347)', () => {
+  const reduzido = [
+    ...CSS.matchAll(/@media \(prefers-reduced-motion:reduce\)\{((?:[^{}]*\{[^{}]*\})*)\s*\}/g),
+  ]
+    .map((m) => m[1])
+    .join('\n');
+
+  it('o indicador "tocando" so aparece, sem subir', () => {
+    expect(reduzido).toMatch(/\.tocando\{transform:none;transition:opacity /);
+  });
+
+  it('o wipe do .btn troca sem deslizar', () => {
+    expect(reduzido).toContain('.btn::before{transition:none}');
+  });
+});
+
 describe('loops', () => {
   /** Loops que existem por um motivo, e o motivo. */
   const PERMITIDOS: Record<string, string> = {
     '#rec i': 'REC da abertura em VHS: identidade, vive so dentro da intro',
     '#hero .desce::after': 'convite a rolar, no hero',
-    '.tocando .eq i': 'equalizador: so aparece enquanto o som toca',
+    '.tocando.on .eq i': 'equalizador: so pulsa aceso, enquanto o som toca (#347)',
     '.concierge-digitando.on .eq i': 'equalizador do concierge: so enquanto a resposta nao chega',
     '.esq::after,.esq-linha::after': 'brilho do esqueleto, enquanto o dado nao chega',
-    '#merch .galeria figure::after': 'brilho da moldura, enquanto a foto nao chega',
+    '#galeriaMerch.vis figure::after':
+      'brilho da moldura, enquanto a foto nao chega e so com a galeria perto (#347)',
     '#clipe .player.carregando::after': 'brilho do player, enquanto o video nao responde',
   };
 

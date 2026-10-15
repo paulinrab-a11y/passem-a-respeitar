@@ -33,6 +33,9 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_SUPABASE_URL: 'https://projeto-de-teste.supabase.co',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_chave_de_teste',
+      // O piso das acoes que mandam e-mail (#352) e de 1,5 s. Zero aqui; quem
+      // testa o piso pede um valor com vi.stubEnv.
+      CONTA_PISO_MS: '0',
     },
     include: [
       'lib/**/*.test.ts',
