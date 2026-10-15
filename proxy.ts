@@ -11,6 +11,7 @@ import {
   precisaDeSessao,
   temDesafio,
 } from '@/lib/rotas';
+import { cabecalhoDeRelatorio, diretivasDeRelatorio, urlDeRelatorio } from '@/lib/sentry/csp';
 import { COOKIE_LEMBRAR, opcoesDoCookie } from '@/lib/supabase/cookies';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 
@@ -32,6 +33,11 @@ const SUPABASE_HOST = new URL(SUPABASE_URL).origin;
 
 /**
  * Hosts do Mercado Pago, so na tela de pagamento (Issue #108).
+ *
+ * Mudou a lista? Teste antes num preview com a politica nova em
+ * `Content-Security-Policy-Report-Only` (mesmo valor, outro nome de
+ * cabecalho): o navegador relata ao Sentry o que seria bloqueado (#316) sem
+ * quebrar o pagamento de ninguem. So depois troque a politica que bloqueia.
  *
  * Escritos um a um, e a lista saiu de MEDICAO, nao de tutorial: montei o
  * Payment Brick com a politica de antes e li as violacoes que o navegador
@@ -99,7 +105,13 @@ const MP_FRAME = [
  */
 const DESAFIO_FRAME = 'https://challenges.cloudflare.com';
 
-function montaCsp(nonce: string, dev: boolean, pagamento: boolean, desafio: boolean) {
+function montaCsp(
+  nonce: string,
+  dev: boolean,
+  pagamento: boolean,
+  desafio: boolean,
+  relatorio: string | null
+) {
   const script = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -140,6 +152,8 @@ function montaCsp(nonce: string, dev: boolean, pagamento: boolean, desafio: bool
     "form-action 'self'",
     "frame-ancestors 'none'",
     'upgrade-insecure-requests',
+    // Violacoes vao para o Sentry (#316). Sem DSN, nada muda na politica.
+    ...(relatorio ? diretivasDeRelatorio(relatorio) : []),
   ].join('; ');
 }
 
@@ -283,7 +297,14 @@ export async function proxy(request: NextRequest) {
   // contra bot (#28) segue a mesma regra.
   const { pathname } = request.nextUrl;
   const desafio = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) && temDesafio(pathname);
-  const csp = montaCsp(nonce, dev, ehPagamento(pathname), desafio);
+  // Relatorio de violacao so em pagina sem query string (#316). O navegador
+  // manda a URL inteira da pagina no relatorio, e a query pode levar dado de
+  // alguem (a busca do admin aceita e-mail e CPF). O caminho sozinho nao leva:
+  // o que de mais especifico aparece nele e o id do pedido.
+  const relatorio = request.nextUrl.search
+    ? null
+    : urlDeRelatorio(process.env.NEXT_PUBLIC_SENTRY_DSN);
+  const csp = montaCsp(nonce, dev, ehPagamento(pathname), desafio, relatorio);
 
   // O Next le o nonce do header de CSP do request para carimbar os proprios
   // scripts inline de hidratacao. Por isso o header vai no request tambem,
@@ -293,9 +314,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set('Content-Security-Policy', csp);
 
   if (!precisaDeSessao(pathname)) {
-    const response = NextResponse.next({ request: { headers: requestHeaders } });
-    response.headers.set('Content-Security-Policy', csp);
-    return response;
+    return carimba(NextResponse.next({ request: { headers: requestHeaders } }), csp, relatorio);
   }
 
   const { usuario, response } = await leSessao(request, requestHeaders);
@@ -307,7 +326,7 @@ export async function proxy(request: NextRequest) {
     url.pathname = ENTRAR;
     url.search = '';
     url.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
-    return comCsp(NextResponse.redirect(url), response, csp);
+    return comCsp(NextResponse.redirect(url), response, csp, relatorio);
   }
 
   // Ja logado numa pagina de login ou cadastro: nao ha nada a fazer ali.
@@ -315,10 +334,24 @@ export async function proxy(request: NextRequest) {
     // `new URL` com base monta caminho e query de uma vez. O destino ja saiu
     // validado de destinoSeguro, entao a base so completa o host.
     const destino = destinoSeguro(request.nextUrl.searchParams.get('next'));
-    return comCsp(NextResponse.redirect(new URL(destino, request.nextUrl.origin)), response, csp);
+    return comCsp(
+      NextResponse.redirect(new URL(destino, request.nextUrl.origin)),
+      response,
+      csp,
+      relatorio
+    );
   }
 
+  return carimba(response, csp, relatorio);
+}
+
+/**
+ * Poe a CSP na resposta e, quando ha relatorio, o grupo que `report-to`
+ * aponta. Sem `Reporting-Endpoints` o Chrome nao sabe para onde mandar.
+ */
+function carimba(response: NextResponse, csp: string, relatorio: string | null) {
   response.headers.set('Content-Security-Policy', csp);
+  if (relatorio) response.headers.set('Reporting-Endpoints', cabecalhoDeRelatorio(relatorio));
   return response;
 }
 
@@ -329,12 +362,16 @@ export async function proxy(request: NextRequest) {
  * Sem essa copia o token renovado ficaria na resposta que foi descartada, e a
  * pessoa rodaria com o token velho ate ser deslogada sem motivo aparente.
  */
-function comCsp(redirecionamento: NextResponse, origem: NextResponse, csp: string) {
+function comCsp(
+  redirecionamento: NextResponse,
+  origem: NextResponse,
+  csp: string,
+  relatorio: string | null
+) {
   for (const cookie of origem.cookies.getAll()) {
     redirecionamento.cookies.set(cookie);
   }
-  redirecionamento.headers.set('Content-Security-Policy', csp);
-  return redirecionamento;
+  return carimba(redirecionamento, csp, relatorio);
 }
 
 export const config = {
