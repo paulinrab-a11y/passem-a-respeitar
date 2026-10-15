@@ -177,7 +177,9 @@ export default async function Home() {
           {/* O logo e a unica imagem acima da dobra, e a unica com `priority`
               (#47). Antes o script legado a injetava depois de carregar
               three.js e GSAP: o titulo aparecia como texto e trocava por
-              imagem segundos depois. Agora ja vem no HTML. */}
+              imagem segundos depois. Agora ja vem no HTML, e na frente da
+              fila de rede (#377): `priority` sozinho nao poe o fetchpriority
+              na tag. */}
           <h1 id="logoHero">
             <Image
               src={CONFIG.logoUrl}
@@ -186,6 +188,7 @@ export default async function Home() {
               height={624}
               sizes="(max-width: 767px) 92vw, 760px"
               priority
+              fetchPriority="high"
               draggable={false}
             />
             <span>Passem a respeitar</span>

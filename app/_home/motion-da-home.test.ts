@@ -71,7 +71,8 @@ describe('lerps pelo tempo do quadro', () => {
   });
 
   it('as particulas param de verdade quando o fim apaga', () => {
-    expect(frame).toContain('if (S.fim > 0.001 || pMat.opacity > 0.002){');
+    // `pMat` nulo ate a etapa das particulas (#377).
+    expect(frame).toContain('if (pMat && (S.fim > 0.001 || pMat.opacity > 0.002)){');
     expect(frame).toContain('pMat.opacity = op > 0.002 ? op : 0;');
   });
 });

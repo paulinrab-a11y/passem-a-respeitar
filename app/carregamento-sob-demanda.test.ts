@@ -100,7 +100,7 @@ describe('script da home: nada pesado no carregamento inicial', () => {
   }
 
   it('PNG cromado so baixa de dentro do observador de elo', () => {
-    const elementos = corpo('(function elementos(){');
+    const elementos = corpo('function elementos(){');
 
     // A chamada de rede fica guardada num mapa; quem dispara e `carrega`.
     expect(elementos).toContain('carregadores.set(e, ()=> loader.load(');
@@ -112,7 +112,7 @@ describe('script da home: nada pesado no carregamento inicial', () => {
   });
 
   it('sem IntersectionObserver carrega tudo, em vez de nao carregar nada', () => {
-    expect(corpo('(function elementos(){')).toContain(
+    expect(corpo('function elementos(){')).toContain(
       "if (!('IntersectionObserver' in window)){ lista.forEach(carrega); return; }"
     );
   });

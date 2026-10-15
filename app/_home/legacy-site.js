@@ -363,6 +363,26 @@ const GL = (()=>{ try {
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  // Sem conferir shader em producao (#377): com a conferencia ligada, o three
+  // r128 pergunta ao driver o resultado de cada compilacao na hora, e a
+  // pergunta espera o driver terminar — ~2,6 s de tarefa longa na primeira
+  // visita. Em dev continua ligada, que e onde um erro de shader aparece.
+  renderer.debug.checkShaderErrors = process.env.NODE_ENV !== 'production';
+
+  // A cena sobe por etapas (#377), uma tarefa cada, com o navegador livre
+  // entre elas para pintar e responder ao 'pular': fundo, corrente,
+  // particulas, frases, elementos. Antes era um bloco so, de quase um
+  // segundo, logo depois da hidratacao. O resultado na tela e o mesmo — a
+  // intro cobre a cena enquanto ela monta, e o que nao existe ainda (as
+  // particulas do fim, as frases, os PNGs) so aparece longe do topo. Etapa
+  // que lanca cai no mesmo lugar que a cena sem WebGL: a pagina segue em
+  // HTML e o erro chega ao Sentry.
+  let etapas = [];
+  function proximaEtapa(){
+    const fn = etapas.shift(); if (!fn) return;
+    try { fn(); } catch (erro) { pausas.add('falha'); semWebGL(erro); return; }
+    setTimeout(proximaEtapa, 0);
+  }
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x000000);
@@ -392,9 +412,16 @@ const GL = (()=>{ try {
     t.encoding=THREE.sRGBEncoding;
     return t;
   }
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const env = pmrem.fromEquirectangular(envTexture()).texture;
-  scene.environment = env;
+  // O reflexo dos elos, em tres tarefas: cada shader do PMREM compila na sua
+  // (o desfoque, no construtor; o equiretangular, a parte), e so entao o mapa
+  // e gerado. Num so bloco, com o tradutor do ANGLE, passava de um segundo.
+  let pmrem = null;
+  function fundoDesfoque(){ pmrem = new THREE.PMREMGenerator(renderer); }
+  function fundoShader(){ pmrem.compileEquirectangularShader(); }
+  function fundo(){
+    const env = pmrem.fromEquirectangular(envTexture()).texture;
+    scene.environment = env;
+  }
 
   function roughMap(seed, base){
     const s=256, c=document.createElement('canvas'); c.width=c.height=s;
@@ -424,7 +451,7 @@ const GL = (()=>{ try {
   }
   const R_ELO = 0.5, S_ELO = 1.1, R_TUBO = 0.19;
   const ESP = 1.5;
-  const geo = new THREE.TubeGeometry(new Estadio(R_ELO, S_ELO), mobile ? 90 : 140, R_TUBO, mobile ? 14 : 22, true);
+  let geo = null;
 
   const corrente = new THREE.Group();
   corrente.rotation.z = -0.09;
@@ -439,21 +466,36 @@ const GL = (()=>{ try {
     corrente.add(m);
     return m;
   }
-  const elos = TRACKS.map((t,i)=>{
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xf2f3f5,
-      metalness: 1,
-      roughness: 0.16 + t.rough*0.35,
-      roughnessMap: roughMap(i+1, 0.2 + t.rough*0.3),
-      envMapIntensity: 1.6,
+  let elos = [];
+  function montaCorrente(){
+    geo = new THREE.TubeGeometry(new Estadio(R_ELO, S_ELO), mobile ? 90 : 140, R_TUBO, mobile ? 14 : 22, true);
+    elos = TRACKS.map((t,i)=>{
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xf2f3f5,
+        metalness: 1,
+        roughness: 0.16 + t.rough*0.35,
+        roughnessMap: roughMap(i+1, 0.2 + t.rough*0.3),
+        envMapIntensity: 1.6,
+      });
+      return novoElo(i, mat);
     });
-    return novoElo(i, mat);
-  });
-  const matSombra = new THREE.MeshStandardMaterial({ color:0xd0d3d8, metalness:1, roughness:0.3, envMapIntensity:1.1 });
-  [-4,-3,-2,-1, TRACKS.length, TRACKS.length+1, TRACKS.length+2].forEach(i=> novoElo(i, matSombra));
+    elos[TRACKS.length-1].material.transparent = true;
+    // Compila sem desenhar: o shader dos elos sai nesta tarefa, e o primeiro
+    // quadro nao paga por ele. `compile` nao pula objeto invisivel, entao o
+    // que fica para a etapa seguinte e o que ainda nao esta na cena.
+    renderer.compile(scene, camera);
+  }
+  function montaSombras(){
+    const matSombra = new THREE.MeshStandardMaterial({ color:0xd0d3d8, metalness:1, roughness:0.3, envMapIntensity:1.1 });
+    [-4,-3,-2,-1, TRACKS.length, TRACKS.length+1, TRACKS.length+2].forEach(i=> novoElo(i, matSombra));
+    renderer.compile(scene, camera);
+  }
+  // O primeiro quadro so depois de a corrente inteira e as particulas estarem
+  // na cena e compiladas: nenhum quadro sai sem uma parte dela.
+  function ligaQuadro(){ requestAnimationFrame(frame); }
 
   const flutuantes = [];
-  (function elementos(){
+  function elementos(){
     const lista = CONFIG.elementos.filter(e=>e.url);
     if (!lista.length) return;
     const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
@@ -496,7 +538,7 @@ const GL = (()=>{ try {
       if (!secao){ carrega(e); return; }
       if (!vigiados.has(secao)){ vigiados.add(secao); vigia.observe(secao); }
     });
-  })();
+  }
 
   const frases = [];
   function texturaFrase(txt, px){
@@ -525,7 +567,9 @@ const GL = (()=>{ try {
       scene.add(m); frases.push(m);
     });
   }
-  (document.fonts && document.fonts.load ? document.fonts.load('96px Anton') : Promise.resolve()).then(montaFrases, montaFrases);
+  // As frases so aparecem perto do elo delas, mas o shader compila agora, numa
+  // tarefa propria, e nao no meio da rolagem.
+  function frasesComAFonte(){ (document.fonts && document.fonts.load ? document.fonts.load('96px Anton') : Promise.resolve()).then(montaFrases, montaFrases).then(()=> setTimeout(()=> renderer.compile(scene, camera), 0)); }
 
   const vermelho = new THREE.PointLight(0xe0161f, 2.2, 9, 2);
   scene.add(vermelho);
@@ -534,34 +578,40 @@ const GL = (()=>{ try {
   scene.add(branco);
   scene.add(new THREE.AmbientLight(0x111114, 1));
 
+  // As particulas do fim: so aparecem no fim da pagina, e montam numa etapa
+  // propria. Ate la o quadro nao as conhece (`pMat` nulo).
   const N = mobile ? 1600 : 4200;
-  const pA = new Float32Array(N*3), pB = new Float32Array(N*3), pos = new Float32Array(N*3);
-  const centroFim = posLocal(TRACKS.length + 0.6);
-  (function amostraP(){
-    const s=256, c=document.createElement('canvas'); c.width=c.height=s;
-    const x=c.getContext('2d'); x.fillStyle='#000'; x.fillRect(0,0,s,s);
-    x.fillStyle='#fff'; x.font='bold 230px Anton, Impact, sans-serif';
-    x.textAlign='center'; x.textBaseline='middle'; x.fillText('P', s/2, s/2+8);
-    x.strokeStyle='#fff'; x.lineWidth=14; x.beginPath(); x.moveTo(60,200); x.lineTo(200,56); x.stroke();
-    const d=x.getImageData(0,0,s,s).data, pts=[];
-    for(let i=0;i<s*s;i++) if(d[i*4]>128) pts.push(i);
-    for(let k=0;k<N;k++){
-      const p=pts[(Math.random()*pts.length)|0];
-      const px=(p%s)/s-0.5, py=0.5-Math.floor(p/s)/s;
-      pB[k*3]=centroFim.x+px*3.2; pB[k*3+1]=centroFim.y+py*3.2-0.2; pB[k*3+2]=centroFim.z+(Math.random()-.5)*0.25;
-      const r=1.2+Math.random()*2.4, a=Math.random()*Math.PI*2, h=(Math.random()-.5)*4;
-      pA[k*3]=centroFim.x+Math.cos(a)*r; pA[k*3+1]=centroFim.y+h+1.2; pA[k*3+2]=centroFim.z+Math.sin(a)*r;
-      pos[k*3]=pA[k*3]; pos[k*3+1]=pA[k*3+1]; pos[k*3+2]=pA[k*3+2];
-    }
-  })();
-  const pGeo = new THREE.BufferGeometry();
-  pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const cores = new Float32Array(N*3);
-  for(let k=0;k<N;k++){ const red = Math.random()<0.06; cores[k*3]=red?0.88:0.8; cores[k*3+1]=red?0.09:0.82; cores[k*3+2]=red?0.12:0.86; }
-  pGeo.setAttribute('color', new THREE.BufferAttribute(cores,3));
-  const pMat = new THREE.PointsMaterial({ size: mobile ? 0.035 : 0.028, vertexColors:true, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending });
-  const particulas = new THREE.Points(pGeo, pMat);
-  corrente.add(particulas);
+  let pA = null, pB = null, pGeo = null, pMat = null;
+  function particulas(){
+    pA = new Float32Array(N*3); pB = new Float32Array(N*3); const pos = new Float32Array(N*3);
+    const centroFim = posLocal(TRACKS.length + 0.6);
+    (function amostraP(){
+      const s=256, c=document.createElement('canvas'); c.width=c.height=s;
+      const x=c.getContext('2d'); x.fillStyle='#000'; x.fillRect(0,0,s,s);
+      x.fillStyle='#fff'; x.font='bold 230px Anton, Impact, sans-serif';
+      x.textAlign='center'; x.textBaseline='middle'; x.fillText('P', s/2, s/2+8);
+      x.strokeStyle='#fff'; x.lineWidth=14; x.beginPath(); x.moveTo(60,200); x.lineTo(200,56); x.stroke();
+      const d=x.getImageData(0,0,s,s).data, pts=[];
+      for(let i=0;i<s*s;i++) if(d[i*4]>128) pts.push(i);
+      for(let k=0;k<N;k++){
+        const p=pts[(Math.random()*pts.length)|0];
+        const px=(p%s)/s-0.5, py=0.5-Math.floor(p/s)/s;
+        pB[k*3]=centroFim.x+px*3.2; pB[k*3+1]=centroFim.y+py*3.2-0.2; pB[k*3+2]=centroFim.z+(Math.random()-.5)*0.25;
+        const r=1.2+Math.random()*2.4, a=Math.random()*Math.PI*2, h=(Math.random()-.5)*4;
+        pA[k*3]=centroFim.x+Math.cos(a)*r; pA[k*3+1]=centroFim.y+h+1.2; pA[k*3+2]=centroFim.z+Math.sin(a)*r;
+        pos[k*3]=pA[k*3]; pos[k*3+1]=pA[k*3+1]; pos[k*3+2]=pA[k*3+2];
+      }
+    })();
+    pGeo = new THREE.BufferGeometry();
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const cores = new Float32Array(N*3);
+    for(let k=0;k<N;k++){ const red = Math.random()<0.06; cores[k*3]=red?0.88:0.8; cores[k*3+1]=red?0.09:0.82; cores[k*3+2]=red?0.12:0.86; }
+    pGeo.setAttribute('color', new THREE.BufferAttribute(cores,3));
+    pMat = new THREE.PointsMaterial({ size: mobile ? 0.035 : 0.028, vertexColors:true, transparent:true, opacity:0, depthWrite:false, blending:THREE.AdditiveBlending });
+    const pontos = new THREE.Points(pGeo, pMat);
+    corrente.add(pontos);
+    renderer.compile(scene, camera);
+  }
 
   const S = { p:0, pAlvo:0, fim:0, fimAlvo:0, queda:1, shake:0, mx:0, my:0 };
   addEventListener('pointermove', e=>{ S.mx = (e.clientX/innerWidth-0.5); S.my = (e.clientY/innerHeight-0.5); }, {passive:true});
@@ -662,7 +712,7 @@ const GL = (()=>{ try {
 
     // Limiar e zero de verdade (#347): o lerp de S.fim nunca chega a zero, e
     // `pMat.opacity > 0` deixava o laco das particulas rodando para sempre.
-    if (S.fim > 0.001 || pMat.opacity > 0.002){
+    if (pMat && (S.fim > 0.001 || pMat.opacity > 0.002)){
       const k = ease(S.fim);
       const arr = pGeo.attributes.position.array;
       for (let i=0;i<N;i++){
@@ -681,8 +731,8 @@ const GL = (()=>{ try {
     renderer.render(scene, camera);
   }
   function ease(x){ return x<0.5 ? 2*x*x : 1-Math.pow(-2*x+2,2)/2; }
-  elos[TRACKS.length-1].material.transparent = true;
-  requestAnimationFrame(frame);
+  etapas = [fundoDesfoque, fundoShader, fundo, montaCorrente, montaSombras, particulas, ligaQuadro, frasesComAFonte, elementos];
+  setTimeout(proximaEtapa, 0);
 
   addEventListener('resize', ()=>{
     camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -900,6 +950,8 @@ const Loja = (()=>{
   function init(){
     if (pronto) return; pronto = true;
     renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    // Como na cena principal (#377): sem esperar o driver a cada shader.
+    renderer.debug.checkShaderErrors = process.env.NODE_ENV !== 'production';
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
