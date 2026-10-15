@@ -305,6 +305,47 @@ describe('home renderizada', () => {
     expect(linhas.at(-1)?.textContent).toBe('Passem a respeitar.');
   });
 
+  // #322: o JSON-LD sai no HTML do servidor, com o preco do catalogo e sem data.
+  it('traz o JSON-LD com o selo, o site e a camiseta do catalogo', async () => {
+    const blocos = (await home()).querySelectorAll('script[type="application/ld+json"]');
+    expect(blocos).toHaveLength(1);
+    const grafo = JSON.parse(blocos[0]?.textContent ?? '{}')['@graph'];
+    expect(grafo.map((n: { '@type': string }) => n['@type'])).toEqual([
+      'Organization',
+      'WebSite',
+      'MusicGroup',
+      'MusicGroup',
+      'MusicAlbum',
+      'MusicRelease',
+      'Product',
+    ]);
+    expect(grafo.at(-1)).toMatchObject({ name: 'Camiseta CBAC', offers: { price: '120.00' } });
+    expect(blocos[0]?.textContent).not.toMatch(/date|year|rating|review/i);
+  });
+
+  // #275: os perfis saem prontos do servidor, sem depender do script legado.
+  it('os tres perfis do Instagram vem no HTML do servidor, com rel="me"', async () => {
+    const pagina = await home();
+    const perfis = {
+      igSantxx: ['https://instagram.com/ogsantxx', '@ogsantxx'],
+      igChefe: ['https://instagram.com/ch3fe3k', '@ch3fe3k'],
+      igLabel: ['https://instagram.com/whynotvisuals_', 'Whynot Visuals'],
+    };
+    for (const [id, [href, texto]] of Object.entries(perfis)) {
+      const a = pagina.querySelector(`footer.assina #${id}`);
+      expect(a?.getAttribute('href'), id).toBe(href);
+      expect(a?.textContent, id).toBe(texto);
+      expect(a?.getAttribute('rel')?.split(' '), id).toEqual(['me', 'noopener']);
+    }
+    // E o grafo aponta os mesmos perfis.
+    const json = pagina.querySelector('script[type="application/ld+json"]')?.textContent ?? '';
+    for (const [href] of Object.values(perfis)) expect(json).toContain(href);
+  });
+
+  it('sem texto aprovado, a secao "quem sao" nao aparece', async () => {
+    expect((await home()).querySelector('#quem-sao')).toBeNull();
+  });
+
   // #280: era um <div> clicavel, fora do Tab e sem papel de controle.
   it('o indicador "tocando" e um botao que nasce apagado, com o atalho exposto', async () => {
     const pill = (await home()).querySelector('#tocando');

@@ -581,15 +581,28 @@ describe('confirmar pela tela do cadastro grava a senha escolhida (#284)', () =>
 });
 
 describe('reenviar o codigo (#224)', () => {
-  const pedido = (extra: Record<string, string> = {}) =>
-    formulario({ email: 'Maria@Exemplo.invalid', ...extra });
+  // E-mail e IP proprios por caso (#331), estes num prefixo de documentacao
+  // IPv6 que nenhum outro describe usa. As cotas de reenvio (3 por e-mail,
+  // 5 por IP) guardam estado no modulo, e nenhum caso pode depender de
+  // quantas os anteriores gastaram, nem da ordem em que rodaram.
+  let caso = 0;
+  const alvo = () => `Maria${caso}@Exemplo.invalid`;
+  const pedido = (extra: Record<string, string> = {}) => formulario({ email: alvo(), ...extra });
+
+  beforeEach(() => {
+    caso += 1;
+    cabecalhos = new Headers({
+      host: 'passem-a-respeitar.test',
+      'x-forwarded-for': `2001:db8::a:${caso}`,
+    });
+  });
 
   it('pede outro e-mail de cadastro com o link de volta do proprio host', async () => {
     const r = await reenviarCodigo(reenvioInicial, pedido());
 
     expect(resend).toHaveBeenCalledWith({
       type: 'signup',
-      email: 'maria@exemplo.invalid',
+      email: alvo().toLowerCase(),
       options: { emailRedirectTo: 'https://passem-a-respeitar.test/auth/callback?next=%2Fconta' },
     });
     expect(r.erro).toBeNull();
@@ -609,19 +622,12 @@ describe('reenviar o codigo (#224)', () => {
   // "espere um minuto" ali contava, a quem pedisse dois seguidos, quem esta no
   // meio do cadastro (#260). A resposta e a mesma de um envio que deu certo.
   it('o intervalo minimo do Supabase recebe o mesmo recado de sucesso', async () => {
-    // Outro e-mail: o limite por e-mail guarda estado entre os casos.
-    const certo = await reenviarCodigo(
-      reenvioInicial,
-      pedido({ email: 'pendente@exemplo.invalid' })
-    );
+    const certo = await reenviarCodigo(reenvioInicial, pedido());
 
     resend.mockResolvedValue({
       error: { message: 'For security purposes, you can only request this after 42 seconds.' },
     });
-    const recusado = await reenviarCodigo(
-      reenvioInicial,
-      pedido({ email: 'pendente@exemplo.invalid' })
-    );
+    const recusado = await reenviarCodigo(reenvioInicial, pedido());
 
     expect(recusado.erro).toBeNull();
     expect(recusado.aviso).toBe(certo.aviso);
@@ -636,13 +642,13 @@ describe('reenviar o codigo (#224)', () => {
   });
 
   it('para depois de tres reenvios para o mesmo e-mail', async () => {
-    const alvo = 'insistente@exemplo.invalid';
+    // Um IP por pedido: quem para aqui e a cota do e-mail, nao a do IP.
     for (let i = 0; i < 3; i++) {
-      cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': `198.51.100.${150 + i}` });
-      await reenviarCodigo(reenvioInicial, pedido({ email: alvo }));
+      cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': `2001:db8::b:${caso}:${i}` });
+      await reenviarCodigo(reenvioInicial, pedido());
     }
-    cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': '198.51.100.198' });
-    const r = await reenviarCodigo(reenvioInicial, pedido({ email: alvo }));
+    cabecalhos = new Headers({ host: 'h', 'x-forwarded-for': `2001:db8::b:${caso}:9` });
+    const r = await reenviarCodigo(reenvioInicial, pedido());
 
     expect(r.erro).toMatch(/muitos pedidos/i);
     expect(resend).toHaveBeenCalledTimes(3);

@@ -1,16 +1,9 @@
-// GERADO A PARTIR DO SCHEMA. Nao editar na mao.
-//
-// Regenerar depois de toda migration nova, em dois passos:
-//   npx supabase gen types typescript --project-id kmkhokjkpbysmyohaqag > lib/supabase/tipos.ts
-//   npm run lint:fix
-//
-// O segundo passo existe porque o gerador escreve no estilo dele (aspas duplas,
-// sem ponto e virgula) e o Biome do repositorio usa outro. Reformatar uma vez e
-// melhor que manter o arquivo fora do lint: fora do lint, ninguem repara quando
-// ele para de compilar junto com o resto.
+// GERADO A PARTIR DO SCHEMA. Nao editar na mao: rodar `npm run tipos:gerar`
+// com o Supabase local no ar (`npm run e2e:banco`). O job e2e do CI regenera
+// e falha se este arquivo for diferente do que as migrations produzem.
 //
 // Aviso sobre `Insert` e `Update`: eles listam status, total_centavos e
-// user_id como escreviveis. E so o TypeScript descrevendo colunas — ele nao
+// user_id como escreviveis. E so o TypeScript descrevendo colunas, ele nao
 // sabe de GRANT nem de RLS. Pelo cliente do navegador essas escritas sao
 // recusadas pelo banco. Ver supabase/migrations/20260923120000.
 //
@@ -18,13 +11,15 @@
 // escrevivel e `estoque` como legivel, e nenhum dos dois e verdade pelo
 // cliente. O GRANT e por coluna e nao ha policy de escrita. Ver a migration
 // 20260924100000.
+//
+// Nas funcoes, o gerador nao sabe quais colunas do retorno podem vir nulas nem
+// aceita null em argumento com default: `minhas_sessoes` devolve `agente` e
+// `rede` nulos quando o Supabase nao registrou, e quem le trata os dois como
+// opcionais.
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
-  __InternalSupabase: {
-    PostgrestVersion: '14.5';
-  };
   public: {
     Tables: {
       baixas_de_estoque: {
@@ -164,6 +159,7 @@ export type Database = {
           pagamento_id: string | null;
           pagamento_provedor: string | null;
           status: Database['public']['Enums']['status_pedido'];
+          termos_aceitos_em: string | null;
           total_centavos: number;
           user_id: string | null;
         };
@@ -188,6 +184,7 @@ export type Database = {
           pagamento_id?: string | null;
           pagamento_provedor?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
+          termos_aceitos_em?: string | null;
           total_centavos?: number;
           user_id?: string | null;
         };
@@ -212,6 +209,7 @@ export type Database = {
           pagamento_id?: string | null;
           pagamento_provedor?: string | null;
           status?: Database['public']['Enums']['status_pedido'];
+          termos_aceitos_em?: string | null;
           total_centavos?: number;
           user_id?: string | null;
         };
@@ -414,6 +412,7 @@ export type Database = {
           id: string;
           nome: string | null;
           telefone: string | null;
+          termos_aceitos_em: string | null;
         };
         Insert: {
           atualizado_em?: string;
@@ -422,6 +421,7 @@ export type Database = {
           id: string;
           nome?: string | null;
           telefone?: string | null;
+          termos_aceitos_em?: string | null;
         };
         Update: {
           atualizado_em?: string;
@@ -430,6 +430,7 @@ export type Database = {
           id?: string;
           nome?: string | null;
           telefone?: string | null;
+          termos_aceitos_em?: string | null;
         };
         Relationships: [];
       };
@@ -442,41 +443,48 @@ export type Database = {
       cancela_troca_de_email: { Args: Record<PropertyKey, never>; Returns: boolean };
       conta_pedidos_por_status: {
         Args: Record<PropertyKey, never>;
-        Returns: { status: Database['public']['Enums']['status_pedido']; total: number }[];
+        Returns: {
+          status: Database['public']['Enums']['status_pedido'];
+          total: number;
+        }[];
       };
       cria_pedido: {
         Args: {
-          p_user_id: string;
-          p_total_centavos: number;
           p_endereco: Json;
-          p_itens: Json;
           p_frete: Json;
+          p_itens: Json;
+          p_termos_aceitos_em: string;
+          p_total_centavos: number;
+          p_user_id: string;
         };
-        Returns: { pedido_id: string; pedido_numero: number }[];
+        Returns: {
+          pedido_id: string;
+          pedido_numero: number;
+        }[];
       };
       encerra_sessao: { Args: { p_identificador: string }; Returns: boolean };
       minha_sessao_atual: { Args: Record<PropertyKey, never>; Returns: string };
+      minhas_sessoes: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          agente: string;
+          criada_em: string;
+          e_a_atual: boolean;
+          identificador: string;
+          rede: string;
+          ultimo_acesso: string;
+        }[];
+      };
       muda_status_pedido: {
         Args: {
+          p_autor: string;
+          p_motivo?: string;
           p_order_id: string;
           p_para: Database['public']['Enums']['status_pedido'];
-          p_autor: string;
-          p_motivo?: string | null;
         };
         Returns: {
           de: Database['public']['Enums']['status_pedido'];
           para: Database['public']['Enums']['status_pedido'];
-        }[];
-      };
-      minhas_sessoes: {
-        Args: Record<PropertyKey, never>;
-        Returns: {
-          identificador: string;
-          criada_em: string;
-          ultimo_acesso: string;
-          agente: string | null;
-          rede: string | null;
-          e_a_atual: boolean;
         }[];
       };
       pedido_e_meu: { Args: { p_order_id: string }; Returns: boolean };
@@ -512,9 +520,7 @@ export type Tables<
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
       Row: infer R;
@@ -538,9 +544,7 @@ export type TablesInsert<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Insert: infer I;
     }
@@ -563,9 +567,7 @@ export type TablesUpdate<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Update: infer U;
     }
@@ -588,12 +590,25 @@ export type Enums<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals;
-}
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
     ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
+    : never;
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema['CompositeTypes']
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals;
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
+    ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]
     : never;
 
 export const Constants = {

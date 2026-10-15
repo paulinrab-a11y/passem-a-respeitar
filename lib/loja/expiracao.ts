@@ -152,7 +152,13 @@ export async function expiraVencidos({
     if (depoisDe) busca = busca.gt('criado_em', depoisDe);
 
     const pedidos = Math.min(lote, limite - balanco.olhados);
-    const { data: vencidos } = await busca.order('criado_em', { ascending: true }).limit(pedidos);
+    const { data: vencidos, error } = await busca
+      .order('criado_em', { ascending: true })
+      .limit(pedidos);
+
+    // O supabase-js nao lanca quando o banco falha: devolve `{ error }`. Lido
+    // como fila vazia, banco fora fechava o check-in do cron como `ok` (#273).
+    if (error) throw new Error('expiracao: a varredura nao leu o banco', { cause: error });
 
     // Um por vez, como a conciliacao: rajada no provedor e o que o limite
     // deles pune. E um adiado nao para a fila: o proximo pode cancelar.

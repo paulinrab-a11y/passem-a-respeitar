@@ -90,9 +90,7 @@ const $$ = s => Array.from(document.querySelectorAll(s));
   }
   a.href = link;
 })();
-$('#igSantxx').href = CONFIG.links.igSantxx;
-$('#igChefe').href = CONFIG.links.igChefe;
-$('#igLabel').href = CONFIG.links.igLabel;
+// Os links do Instagram saem prontos do servidor desde a #275.
 
 if (CONFIG.logoUrl){
   const logo = `<img src="${CONFIG.logoUrl}" alt="" draggable="false"><span>Passem a respeitar</span>`;

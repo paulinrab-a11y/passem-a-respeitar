@@ -34,7 +34,14 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: 'https://projeto-de-teste.supabase.co',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_chave_de_teste',
     },
-    include: ['lib/**/*.test.ts', 'app/**/*.test.{ts,tsx}', 'proxy.test.ts'],
+    include: [
+      'lib/**/*.test.ts',
+      'app/**/*.test.{ts,tsx}',
+      'proxy.test.ts',
+      'playwright.config.test.ts',
+      // A leitura da saida do psql dos testes SQL (#335).
+      'supabase/**/*.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

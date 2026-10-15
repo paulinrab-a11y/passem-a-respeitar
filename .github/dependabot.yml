@@ -37,6 +37,11 @@ updates:
         update-types: [version-update:semver-major, version-update:semver-minor]
       - dependency-name: gsap
         update-types: [version-update:semver-major, version-update:semver-minor]
+      # @types/node acompanha o Node do runtime (.nvmrc, engines e Vercel).
+      # Major novo dos tipos aceitaria API que producao nao tem; sobe junto
+      # com o runtime, de proposito (#329).
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /

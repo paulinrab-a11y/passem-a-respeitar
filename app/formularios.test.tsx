@@ -153,7 +153,8 @@ describe('os formularios da issue', () => {
 
     expect(texto).toContain("const ID_DO_ERRO = 'erro-entrega';");
     expect(texto).toMatch(/<div className="erro-vaga">\s*<Mensagem\s+id=\{ID_DO_ERRO\}/);
-    expect(texto.match(/\{\.\.\.comErro\([^)]*, ID_DO_ERRO\)\}/g)).toHaveLength(2);
+    // Os campos de texto, os radios do frete e a caixinha dos termos (#276).
+    expect(texto.match(/\{\.\.\.comErro\([^)]*, ID_DO_ERRO\)\}/g)).toHaveLength(3);
   });
 
   it('troca de senha: o aviso de erro interrompe, o de sucesso espera', () => {

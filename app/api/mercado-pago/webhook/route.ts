@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { conferaAssinatura } from '@/lib/loja/assinatura-webhook';
+import { avisaRecusa } from '@/lib/loja/aviso-de-recusa';
 import { processa } from '@/lib/loja/webhook';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 
@@ -78,6 +79,14 @@ export async function POST(request: NextRequest) {
 
   if (r.tipo === 'recusado') {
     console.warn('[webhook] recusado:', r.motivo);
+    // Recusa e, quase sempre, robo. Mas e tambem o sintoma de segredo
+    // trocado no painel e nao na Vercel, e ai todo pagamento real e recusado
+    // em silencio. O dono precisa saber (#273); o orcamento contra rajada
+    // fica em avisaRecusa.
+    await avisaRecusa({
+      motivo: r.motivo,
+      assinatura: veredito.valida ? 'valida' : veredito.motivo,
+    });
     return NextResponse.json({ erro: 'assinatura invalida' }, { status: 401 });
   }
 

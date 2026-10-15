@@ -1,4 +1,7 @@
 import Image from 'next/image';
+import { baseDoSite } from '@/lib/base-do-site';
+import { DESCRICAO_DO_SITE, NOME_DO_SITE } from '@/lib/cartao-do-link';
+import { grafoDoSite } from '@/lib/dados-estruturados';
 import { vitrine } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { precoNaFicha } from '@/lib/loja/precos';
@@ -7,7 +10,9 @@ import { CONFIG } from './_home/config';
 import FreteNaFicha from './_home/FreteNaFicha';
 import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
+import QuemSao from './_home/QuemSao';
 import GuiaDeTamanhos from './_ui/GuiaDeTamanhos';
+import JsonLd from './_ui/JsonLd';
 
 // A CSP do proxy.ts carrega um nonce novo a cada request, e o Next so
 // carimba esse nonce nos proprios scripts quando a rota e renderizada por
@@ -34,8 +39,32 @@ export default async function Home() {
     camiseta?.variacoes[0]?.tamanho ??
     '';
 
+  // JSON-LD (#322): selo, site e a camiseta com o preco do mesmo catalogo da
+  // ficha. Os artistas e o EP, ligados por @id, desde a #275.
+  const grafo = grafoDoSite({
+    base: baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL),
+    nomeDoSite: NOME_DO_SITE,
+    descricaoDoSite: DESCRICAO_DO_SITE,
+    instagramDoSelo: CONFIG.links.igLabel,
+    artistas: [
+      { ancora: 'santxx', nome: 'Santxx', perfis: [CONFIG.links.igSantxx] },
+      { ancora: 'ch3fe', nome: 'Ch3fe', perfis: [CONFIG.links.igChefe] },
+    ],
+    nomeDoEp: 'Passem a Respeitar',
+    camiseta: camiseta
+      ? {
+          slug: camiseta.slug,
+          nome: camiseta.nome,
+          descricao: camiseta.descricao,
+          precosCentavos: camiseta.variacoes.map((v) => v.precoCentavos),
+        }
+      : null,
+    fotosDaCamiseta: CONFIG.merchFotos,
+  });
+
   return (
     <>
+      <JsonLd dado={grafo} />
       {/* Decorativos: o fundo em WebGL e o grao de VHS (#59).
           O `aria-hidden` sai dos canvas e vai para um <div> em volta. O
           efeito para o leitor de tela e o mesmo — os dois somem da arvore de
@@ -252,23 +281,28 @@ export default async function Home() {
           </div>
         </section>
 
+        <QuemSao texto={CONFIG.quemSao} />
+
         <footer className="assina">
-          {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-          <a id="igSantxx" href="#" target="_blank" rel="noopener">
+          {/* Os perfis saem prontos do servidor (#275): robo de busca e de IA
+              ve o vinculo site -> perfis sem rodar JavaScript. `me` diz que o
+              perfil e de quem o site fala. */}
+          <a id="igSantxx" href={CONFIG.links.igSantxx} target="_blank" rel="me noopener">
             @ogsantxx
           </a>
-          {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-          <a id="igChefe" href="#" target="_blank" rel="noopener">
+          <a id="igChefe" href={CONFIG.links.igChefe} target="_blank" rel="me noopener">
             @ch3fe3k
           </a>
-          {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-          <a id="igLabel" href="#" target="_blank" rel="noopener">
+          <a id="igLabel" href={CONFIG.links.igLabel} target="_blank" rel="me noopener">
             Whynot Visuals
           </a>
           {/* So CBAC (#187): a camiseta e da marca, nao e colab com o EP. */}
           <span>CBAC</span>
           {/* A politica existe desde a #109. Rodape e onde a pessoa procura. */}
           <a href="/privacidade">privacidade</a>
+          {/* Os termos de compra (#276), ao lado: quem procura como trocar ou
+              desistir procura no mesmo lugar que a privacidade. */}
+          <a href="/termos">termos de compra</a>
           {/* Credito do site (#195). Link fixo, fora do CONFIG: nao muda por ambiente. */}
           <p className="assina-credito">
             site feito pela{' '}
