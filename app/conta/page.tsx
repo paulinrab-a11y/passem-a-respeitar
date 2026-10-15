@@ -86,7 +86,7 @@ async function Perfil() {
             digitando o endereco. */}
       <p className="conta-atalho">
         <a href="/conta/pedidos">Meus pedidos</a>
-        <a href="/conta/seguranca">Trocar senha</a>
+        <a href="/conta/seguranca">Segurança</a>
         {/* So para quem e administrador (#43). O papel vem do servidor;
               esconder o link e cortesia, nao seguranca — a tela confere de novo. */}
         {ehAdmin({ email: perfil.email, emailVerificado: perfil.emailVerificado }) ? (

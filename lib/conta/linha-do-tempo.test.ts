@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { VERBO } from '../loja/status-do-pedido';
 import { type EventoDoBanco, montaLinhaDoTempo } from './linha-do-tempo';
+import { leStatus } from './pedidos';
 
-const ROTULOS = ['Pedido recebido', 'Pagamento confirmado', 'Em separação', 'Enviado', 'Entregue'];
+const ROTULOS = ['Pedido recebido', 'Pagamento confirmado', 'Em produção', 'Enviado', 'Entregue'];
 
 function evento(para: string, criado_em: string): EventoDoBanco {
   return { para, criado_em };
@@ -206,5 +208,16 @@ describe('montaLinhaDoTempo', () => {
     montaLinhaDoTempo('pago', eventos);
 
     expect(eventos).toEqual(copia);
+  });
+});
+
+describe('mesma palavra para a mesma etapa', () => {
+  it('selo, linha do tempo e botao do admin chamam em_producao de producao', () => {
+    const linha = montaLinhaDoTempo('em_producao', trilhaAte(2));
+    const etapa = linha.etapas.find((e) => e.estado === 'atual');
+
+    expect(leStatus('em_producao').rotulo).toBe('Em produção');
+    expect(etapa?.rotulo).toBe(leStatus('em_producao').rotulo);
+    expect(VERBO.em_producao).toBe('Pôr em produção');
   });
 });

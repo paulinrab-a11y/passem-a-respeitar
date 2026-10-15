@@ -30,7 +30,7 @@ export default async function RecuperarSenha({
         </a>
 
         <h1>Recuperar senha</h1>
-        <p className="auth-sub">Mandamos um link para o seu e-mail.</p>
+        <p className="auth-sub">Digite o e-mail da conta e mandamos um link.</p>
 
         {/* O callback volta para ca quando o link e velho, usado ou inventado. */}
         {erro === 'link' ? (
