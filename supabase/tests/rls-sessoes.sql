@@ -76,8 +76,9 @@ begin
       'session_id', sessao_intruso)::text, true);
   set local role authenticated;
 
+  -- So a propria: a sessao recente que o intruso ganhou acima (#349).
   select count(*) into n from public.minhas_sessoes();
-  insert into r values ('intruso lista sessoes', '0', n::text, n = 0);
+  insert into r values ('intruso so lista a propria sessao', '1', n::text, n = 1);
 
   select public.encerra_sessao(hash_alheio) into ok;
   insert into r values ('intruso encerra sessao alheia', 'false', ok::text, ok = false);
