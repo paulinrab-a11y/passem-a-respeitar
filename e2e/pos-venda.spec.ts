@@ -39,7 +39,7 @@ let pedido: { id: string; numero: number };
 let protocolo: string;
 
 test.beforeAll(async () => {
-  cliente = await criaUsuario('Cliente Pos Venda');
+  cliente = await criaUsuario('ClientePosVenda');
   admin = await criaAdmin();
   pedido = await criaPedido(cliente, [ITEM], ['pago']);
 });
