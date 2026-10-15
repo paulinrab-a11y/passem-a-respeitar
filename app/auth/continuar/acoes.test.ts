@@ -44,7 +44,7 @@ function envia(campos: Record<string, string>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_de_teste');
+  vi.stubEnv('CONVITE_COOKIE_SECRET', 'sb_secret_de_teste');
   gravados.clear();
   apagados.length = 0;
   verifyOtp.mockResolvedValue({ data: { user: { id: CONTA } }, error: null });

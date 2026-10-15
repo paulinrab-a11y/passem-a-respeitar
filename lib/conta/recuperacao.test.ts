@@ -11,7 +11,7 @@ const AGORA_S = 1_800_000_000;
 const AGORA_MS = AGORA_S * 1000;
 
 beforeEach(() => {
-  vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_de_teste');
+  vi.stubEnv('CONVITE_COOKIE_SECRET', 'sb_secret_de_teste');
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -47,9 +47,9 @@ describe('marca da recuperacao', () => {
   });
 
   it('assinada com outro segredo nao vale', () => {
-    vi.stubEnv('SUPABASE_SECRET_KEY', 'segredo-do-atacante');
+    vi.stubEnv('CONVITE_COOKIE_SECRET', 'segredo-do-atacante');
     const forjada = criaMarcaDeRecuperacao(CONTA, AGORA_S) ?? '';
-    vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_de_teste');
+    vi.stubEnv('CONVITE_COOKIE_SECRET', 'sb_secret_de_teste');
     expect(marcaDeRecuperacaoConfere(forjada, CONTA, AGORA_MS)).toBe(false);
   });
 
@@ -61,7 +61,7 @@ describe('marca da recuperacao', () => {
 
   it('sem segredo no servidor, a marca nao nasce nem confere', () => {
     const marca = criaMarcaDeRecuperacao(CONTA, AGORA_S) ?? '';
-    vi.stubEnv('SUPABASE_SECRET_KEY', '');
+    vi.stubEnv('CONVITE_COOKIE_SECRET', '');
     expect(criaMarcaDeRecuperacao(CONTA, AGORA_S)).toBeNull();
     expect(marcaDeRecuperacaoConfere(marca, CONTA, AGORA_MS)).toBe(false);
   });

@@ -12,23 +12,27 @@ import { RECUPERACAO_SEGUNDOS } from '@/lib/supabase/cookies';
  * permissao. Agora o valor e `v1.<id da conta>.<vence em>.<hmac>`, e
  * /redefinir-senha so aceita se o id for o da sessao atual e o HMAC conferir.
  *
- * O segredo e a SUPABASE_SECRET_KEY, que o servidor ja tem em todo ambiente
- * em que ha login (o admin depende dela), e nao uma variavel nova. Ela nao
- * assina nada diretamente: dela se deriva uma chave so desta marca, entao
- * nada que se assine aqui serve para outro uso, e o valor da chave nunca sai
- * do servidor. Trocar a chave invalida as marcas abertas, que vivem meia
- * hora — custa um link novo, nada mais.
+ * O segredo e o CONVITE_COOKIE_SECRET, o que ja assina o cookie do convite
+ * (lib/convite.ts), e nao uma variavel nova. A chave secreta do Supabase fica de
+ * fora de proposito: so lib/supabase/admin.ts a le (fronteira.test.ts). O
+ * segredo nao assina nada diretamente: dele se deriva uma chave so desta
+ * marca, entao um cookie de convite nunca vale como marca, nem o contrario.
+ * Trocar o segredo invalida as marcas abertas, que vivem meia hora — custa um
+ * link novo, nada mais.
  *
- * Sem a chave a marca nao nasce, e sem marca nao ha redefinicao: falha
- * fechada, como o cookie do convite.
+ * Sem o segredo a marca nao nasce, e sem marca nao ha redefinicao: falha
+ * fechada, como o cookie do convite. O aviso no log diz por que.
  */
 
 const VERSAO = 'v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function chave() {
-  const segredo = process.env.SUPABASE_SECRET_KEY;
-  if (!segredo) return null;
+  const segredo = process.env.CONVITE_COOKIE_SECRET;
+  if (!segredo) {
+    console.error('recuperacao: CONVITE_COOKIE_SECRET nao definida; a marca nao nasce');
+    return null;
+  }
   return createHmac('sha256', segredo).update('par_recuperacao').digest();
 }
 

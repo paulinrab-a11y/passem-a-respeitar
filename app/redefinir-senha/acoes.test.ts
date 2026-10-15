@@ -54,7 +54,7 @@ beforeEach(() => {
   // Usuario novo por teste: o limite por conta guarda estado no modulo.
   usuario = { id: `11111111-1111-4111-8111-${String(n++).padStart(12, '0')}` };
   jar.clear();
-  vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_de_teste');
+  vi.stubEnv('CONVITE_COOKIE_SECRET', 'sb_secret_de_teste');
   jar.set('par_recuperacao', criaMarcaDeRecuperacao(usuario.id) ?? '');
 });
 

@@ -36,7 +36,7 @@ function destino(r: Response) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubEnv('SUPABASE_SECRET_KEY', 'sb_secret_de_teste');
+  vi.stubEnv('CONVITE_COOKIE_SECRET', 'sb_secret_de_teste');
   logado = null;
   exchangeCodeForSession.mockResolvedValue({ data: { user: { id: CONTA } }, error: null });
   verifyOtp.mockResolvedValue({ error: null });
@@ -145,7 +145,7 @@ describe('recuperacao (#234)', () => {
   });
 
   it('sem o segredo do servidor a marca nao nasce', async () => {
-    vi.stubEnv('SUPABASE_SECRET_KEY', '');
+    vi.stubEnv('CONVITE_COOKIE_SECRET', '');
     expect(marca(await chega('?code=abc&next=%2Fredefinir-senha'))?.[0]).toBe('par_recuperacao=');
   });
 
