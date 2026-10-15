@@ -72,13 +72,20 @@ function banco() {
             return true;
           })
         );
-      elo.select = () => {
+      let pedeValor = false;
+      elo.select = (colunas?: unknown) => {
+        if (colunas === 'valor_centavos') pedeValor = true;
         if (!emUpdate) return elo;
         const alcancou = tabela !== 'orders' || pedidoPendente;
         return Promise.resolve({ data: alcancou ? [{ id: 'x' }] : [], error: null });
       };
       elo.maybeSingle = () =>
-        Promise.resolve({ data: statusDoPedido ? { status: statusDoPedido } : null, error: null });
+        Promise.resolve(
+          // A conferencia do valor (#350): a tentativa guarda o que o provedor confirma.
+          pedeValor
+            ? { data: { valor_centavos: 12900 }, error: null }
+            : { data: statusDoPedido ? { status: statusDoPedido } : null, error: null }
+        );
       elo.eq = (...a: unknown[]) => registra('eq', ...a);
       elo.neq = (...a: unknown[]) => registra('neq', ...a);
       elo.in = (...a: unknown[]) => registra('in', ...a);
@@ -134,7 +141,13 @@ const orfa = (id: string, criadaEmMs: number): Linha =>
     criado_em: new Date(criadaEmMs).toISOString(),
   });
 
-const APROVADO = { estado: 'aprovado' as const, status: 'processed', statusDetail: 'accredited' };
+const VALOR_OK = { totalCentavos: 12900, pagoCentavos: 12900, moeda: 'BRL' };
+const APROVADO = {
+  estado: 'aprovado' as const,
+  status: 'processed',
+  statusDetail: 'accredited',
+  valor: VALOR_OK,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -257,9 +270,12 @@ describe('o que a varredura faz', () => {
   // Uma falha nao para a fila: o proximo pode estar pago.
   it('provedor fora do ar num item nao impede os outros', async () => {
     linhas = [pendente('a'), pendente('b'), pendente('c')];
-    vi.mocked(consultaOrdem)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValue({ estado: 'aprovado', status: 'processed', statusDetail: null });
+    vi.mocked(consultaOrdem).mockResolvedValueOnce(null).mockResolvedValue({
+      estado: 'aprovado',
+      status: 'processed',
+      statusDetail: null,
+      valor: VALOR_OK,
+    });
 
     const b = await concilia({ agoraMs: AGORA });
 
@@ -304,7 +320,7 @@ describe('o que a varredura faz', () => {
       maximo = Math.max(maximo, emVoo);
       await new Promise((r) => setTimeout(r, 5));
       emVoo -= 1;
-      return { estado: 'aprovado', status: 'processed', statusDetail: null };
+      return { estado: 'aprovado', status: 'processed', statusDetail: null, valor: VALOR_OK };
     });
 
     await concilia({ agoraMs: AGORA });
