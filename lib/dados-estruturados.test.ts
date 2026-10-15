@@ -13,6 +13,11 @@ const entrada = {
   nomeDoSite: 'CBAC - Passem a Respeitar',
   descricaoDoSite: 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals.',
   instagramDoSelo: 'https://instagram.com/whynotvisuals_',
+  artistas: [
+    { ancora: 'santxx', nome: 'Santxx', perfis: ['https://instagram.com/ogsantxx'] },
+    { ancora: 'ch3fe', nome: 'Ch3fe', perfis: ['https://instagram.com/ch3fe3k'] },
+  ],
+  nomeDoEp: 'Passem a Respeitar',
   camiseta,
   fotosDaCamiseta: ['/merch/camiseta-01.jpg'],
 };
@@ -28,6 +33,10 @@ describe('grafoDoSite (#322)', () => {
     expect(nos(g).map((n) => n['@id'])).toEqual([
       'https://www.cbacoccupation.com.br/#organizacao',
       'https://www.cbacoccupation.com.br/#site',
+      'https://www.cbacoccupation.com.br/#santxx',
+      'https://www.cbacoccupation.com.br/#ch3fe',
+      'https://www.cbacoccupation.com.br/#ep',
+      'https://www.cbacoccupation.com.br/#ep-lancamento',
       'https://www.cbacoccupation.com.br/#camiseta',
     ]);
     expect(doTipo(g, 'Organization')).toMatchObject({
@@ -77,8 +86,70 @@ describe('grafoDoSite (#322)', () => {
   // Sigilo da data (#269) e nada inventado.
   it('sem data e sem avaliacao', () => {
     const json = JSON.stringify(grafoDoSite(entrada));
-    expect(json).not.toMatch(/date|release|rating|review/i);
-    expect(json).not.toMatch(/\b20\d{2}\b/);
+    // Nenhuma chave de data (datePublished, releaseDate, dateCreated...) nem
+    // ano. "Release" sozinho pode: e o nome do tipo (MusicRelease, EPRelease).
+    expect(json).not.toMatch(/date|year|rating|review/i);
+    expect(json).not.toMatch(/\b(19|20)\d{2}\b/);
+  });
+});
+
+describe('artistas e EP no grafo (#275)', () => {
+  const g = grafoDoSite(entrada);
+  const id = (ancora: string) => `${BASE.origin}/#${ancora}`;
+  const porId = (ancora: string) => nos(g).find((n) => n['@id'] === id(ancora));
+
+  it('Santxx e Ch3fe sao MusicGroup com o Instagram oficial', () => {
+    expect(porId('santxx')).toEqual({
+      '@type': 'MusicGroup',
+      '@id': id('santxx'),
+      name: 'Santxx',
+      sameAs: ['https://instagram.com/ogsantxx'],
+    });
+    expect(porId('ch3fe')).toMatchObject({
+      '@type': 'MusicGroup',
+      name: 'Ch3fe',
+      sameAs: ['https://instagram.com/ch3fe3k'],
+    });
+  });
+
+  it('o EP e um MusicAlbum EPRelease dos dois, ligado por @id', () => {
+    expect(porId('ep')).toMatchObject({
+      '@type': 'MusicAlbum',
+      name: 'Passem a Respeitar',
+      albumReleaseType: 'https://schema.org/EPRelease',
+      byArtist: [{ '@id': id('santxx') }, { '@id': id('ch3fe') }],
+      albumRelease: { '@id': id('ep-lancamento') },
+    });
+  });
+
+  it('o lancamento tem a Whynot Visuals como recordLabel', () => {
+    expect(porId('ep-lancamento')).toMatchObject({
+      '@type': 'MusicRelease',
+      releaseOf: { '@id': id('ep') },
+      byArtist: [{ '@id': id('santxx') }, { '@id': id('ch3fe') }],
+      recordLabel: { '@id': id('organizacao') },
+    });
+    expect(doTipo(g, 'WebSite')).toMatchObject({ about: { '@id': id('ep') } });
+  });
+
+  it('todo @id citado existe no grafo', () => {
+    const existentes = new Set(nos(g).map((n) => n['@id']));
+    const citados = [...JSON.stringify(g).matchAll(/\{"@id":"([^"]+)"\}/g)].map((m) => m[1]);
+    expect(citados.length).toBeGreaterThan(0);
+    for (const citado of citados) expect(existentes, citado).toContain(citado);
+  });
+
+  it('sameAs so com perfil real, e sem a chave quando nao ha perfil', () => {
+    const semPerfil = grafoDoSite({
+      ...entrada,
+      artistas: [{ ancora: 'santxx', nome: 'Santxx', perfis: [] }],
+    });
+    expect(doTipo(semPerfil, 'MusicGroup')).not.toHaveProperty('sameAs');
+    for (const n of nos(g)) {
+      for (const url of (n.sameAs as string[] | undefined) ?? []) {
+        expect(url).toMatch(/^https:\/\/instagram\.com\/[a-z0-9_.]+$/);
+      }
+    }
   });
 });
 

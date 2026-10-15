@@ -179,6 +179,11 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #fim .convite button{padding:0 18px;border-left:1px solid var(--prata-3);letter-spacing:.2em;font-size:13px;transition:background .2s,color .2s}
 #fim .convite button:hover{background:var(--vermelho);color:#000}
 #fim .convite .erro{font-size:12px;letter-spacing:.14em;color:var(--vermelho);min-height:16px}
+/* Quem sao (#275): so aparece com texto no CONFIG. */
+#quem-sao{padding:14vh var(--gutter) 0;display:flex;justify-content:center}
+#quem-sao .in{max-width:62ch}
+#quem-sao h2{font-family:var(--display);text-transform:uppercase;font-size:clamp(24px,3.2vw,40px);line-height:.95;color:#fff;margin-bottom:18px}
+#quem-sao p{font-size:15px;line-height:1.7;color:var(--prata)}
 footer.assina{padding:40px var(--gutter) 60px;font-size:13px;letter-spacing:.24em;color:var(--prata-2);display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
 footer.assina a{text-decoration:none}
 footer.assina a:hover{color:var(--vermelho)}

@@ -1,15 +1,19 @@
 /**
  * JSON-LD da home (#322): um `@graph` so, com `@id` estaveis.
  *
- * Os `@id` sao ancoras (`<base>/#organizacao`) e nao mudam: a #275 acrescenta
- * Santxx, Ch3fe e o EP neste mesmo grafo, ligando por `@id`, sem mexer nos
- * nos de hoje.
+ * Os `@id` sao ancoras (`<base>/#organizacao`) e nao mudam. A #275 pos
+ * Santxx, Ch3fe e o EP neste mesmo grafo, ligados por `@id`: os artistas sao
+ * `MusicGroup` (o schema.org usa o mesmo tipo para artista solo), o EP e um
+ * `MusicAlbum` do tipo EPRelease, e o lancamento (`MusicRelease`) aponta a
+ * Whynot Visuals como `recordLabel`, que e onde o schema.org poe o selo.
  *
  * Regras que nao se negociam:
  *   - nenhuma data. A data de lancamento esta em sigilo ate o pre-save (#269),
  *     e por isso nao ha `datePublished`, `releaseDate` nem nada parecido;
  *   - nenhuma avaliacao ou nota inventada;
- *   - `sameAs` so com perfil que existe (hoje, o Instagram do selo);
+ *   - `sameAs` so com perfil que existe (hoje, o Instagram de cada um).
+ *     Spotify e YouTube entram quando existirem, nao antes;
+ *   - nada de faixa, descricao ou biografia que a pagina nao mostre.
  *   - preco e nome vem do catalogo, o mesmo que a ficha mostra e o checkout
  *     cobra. Sem catalogo, o Product some em vez de sair com numero velho.
  */
@@ -22,11 +26,21 @@ export type CamisetaNoGrafo = {
   precosCentavos: number[];
 };
 
+type ArtistaNoGrafo = {
+  /** Ancora do `@id` (`<base>/#<ancora>`). Estavel: outros nos apontam para ela. */
+  ancora: string;
+  nome: string;
+  /** Perfis que existem de verdade. */
+  perfis: string[];
+};
+
 type Entrada = {
   base: URL;
   nomeDoSite: string;
   descricaoDoSite: string;
   instagramDoSelo: string;
+  artistas: ArtistaNoGrafo[];
+  nomeDoEp: string;
   camiseta: CamisetaNoGrafo | null;
   fotosDaCamiseta: string[];
 };
@@ -77,6 +91,42 @@ function produto(e: Entrada, camiseta: CamisetaNoGrafo) {
   };
 }
 
+/**
+ * Os artistas, o EP e o lancamento pelo selo (#275). Sem data nenhuma: nem
+ * `datePublished`, nem `releaseDate`, nem `copyrightYear`.
+ */
+function musica(e: Entrada, organizacao: string) {
+  const ep = idNoSite(e.base, 'ep');
+  const artistas = e.artistas.map((a) => ({
+    '@type': 'MusicGroup',
+    '@id': idNoSite(e.base, a.ancora),
+    name: a.nome,
+    ...(a.perfis.length > 0 ? { sameAs: a.perfis } : {}),
+  }));
+  const autoria = artistas.map((a) => ({ '@id': a['@id'] }));
+
+  return [
+    ...artistas,
+    {
+      '@type': 'MusicAlbum',
+      '@id': ep,
+      name: e.nomeDoEp,
+      url: e.base.href,
+      albumReleaseType: 'https://schema.org/EPRelease',
+      byArtist: autoria,
+      albumRelease: { '@id': idNoSite(e.base, 'ep-lancamento') },
+    },
+    {
+      '@type': 'MusicRelease',
+      '@id': idNoSite(e.base, 'ep-lancamento'),
+      name: e.nomeDoEp,
+      releaseOf: { '@id': ep },
+      byArtist: autoria,
+      recordLabel: { '@id': organizacao },
+    },
+  ];
+}
+
 export function grafoDoSite(e: Entrada) {
   const organizacao = idNoSite(e.base, 'organizacao');
   const nos: Record<string, unknown>[] = [
@@ -95,7 +145,9 @@ export function grafoDoSite(e: Entrada) {
       url: e.base.href,
       inLanguage: 'pt-BR',
       publisher: { '@id': organizacao },
+      about: { '@id': idNoSite(e.base, 'ep') },
     },
+    ...musica(e, organizacao),
   ];
 
   if (e.camiseta && e.camiseta.precosCentavos.length > 0) nos.push(produto(e, e.camiseta));

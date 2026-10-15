@@ -10,6 +10,7 @@ import { CONFIG } from './_home/config';
 import FreteNaFicha from './_home/FreteNaFicha';
 import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
+import QuemSao from './_home/QuemSao';
 import GuiaDeTamanhos from './_ui/GuiaDeTamanhos';
 import JsonLd from './_ui/JsonLd';
 
@@ -39,12 +40,17 @@ export default async function Home() {
     '';
 
   // JSON-LD (#322): selo, site e a camiseta com o preco do mesmo catalogo da
-  // ficha. Os artistas e o EP entram neste mesmo grafo na #275.
+  // ficha. Os artistas e o EP, ligados por @id, desde a #275.
   const grafo = grafoDoSite({
     base: baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL),
     nomeDoSite: NOME_DO_SITE,
     descricaoDoSite: DESCRICAO_DO_SITE,
     instagramDoSelo: CONFIG.links.igLabel,
+    artistas: [
+      { ancora: 'santxx', nome: 'Santxx', perfis: [CONFIG.links.igSantxx] },
+      { ancora: 'ch3fe', nome: 'Ch3fe', perfis: [CONFIG.links.igChefe] },
+    ],
+    nomeDoEp: 'Passem a Respeitar',
     camiseta: camiseta
       ? {
           slug: camiseta.slug,
@@ -275,17 +281,19 @@ export default async function Home() {
           </div>
         </section>
 
+        <QuemSao texto={CONFIG.quemSao} />
+
         <footer className="assina">
-          {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-          <a id="igSantxx" href="#" target="_blank" rel="noopener">
+          {/* Os perfis saem prontos do servidor (#275): robo de busca e de IA
+              ve o vinculo site -> perfis sem rodar JavaScript. `me` diz que o
+              perfil e de quem o site fala. */}
+          <a id="igSantxx" href={CONFIG.links.igSantxx} target="_blank" rel="me noopener">
             @ogsantxx
           </a>
-          {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-          <a id="igChefe" href="#" target="_blank" rel="noopener">
+          <a id="igChefe" href={CONFIG.links.igChefe} target="_blank" rel="me noopener">
             @ch3fe3k
           </a>
-          {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-          <a id="igLabel" href="#" target="_blank" rel="noopener">
+          <a id="igLabel" href={CONFIG.links.igLabel} target="_blank" rel="me noopener">
             Whynot Visuals
           </a>
           {/* So CBAC (#187): a camiseta e da marca, nao e colab com o EP. */}
