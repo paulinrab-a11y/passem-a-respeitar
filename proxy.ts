@@ -341,8 +341,13 @@ export const config = {
   matcher: [
     {
       // Arquivo estatico e imagem otimizada nao precisam de CSP com nonce e
-      // pagariam o custo do middleware a toa.
-      source: '/((?!_next/static|_next/image|favicon.ico).*)',
+      // pagariam o custo do middleware a toa. Os arquivos de public/ (merch
+      // 3D, beats, elementos, brasao) tambem ficam de fora (#312): o cache e a
+      // CSP estatica deles saem de next.config.mjs. O Next exige string
+      // literal aqui, entao a lista de extensoes e repetida la; o teste em
+      // app/cache-de-assets.test.ts confere que as duas batem.
+      source:
+        '/((?!_next/static|_next/image|favicon.ico|merch/|beats/|elementos/|.*\\.(?:png|svg|webp|jpg|jpeg|mp3|gltf|bin|ico)$).*)',
       missing: [
         { type: 'header', key: 'next-router-prefetch' },
         { type: 'header', key: 'purpose', value: 'prefetch' },

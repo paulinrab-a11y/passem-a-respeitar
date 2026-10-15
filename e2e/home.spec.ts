@@ -52,6 +52,19 @@ test('home: os cabecalhos de seguranca saem no build de producao', async ({ requ
   expect(cabecalhos['x-powered-by']).toBeUndefined();
 });
 
+test('assets de public: cache no navegador e headers de seguranca (#312)', async ({ request }) => {
+  for (const caminho of ['/merch/camiseta.gltf', '/brasao.png']) {
+    const resposta = await request.get(caminho);
+    expect(resposta.status(), caminho).toBe(200);
+    const cabecalhos = resposta.headers();
+    expect(cabecalhos['cache-control'], caminho).toBe(
+      'public, max-age=86400, stale-while-revalidate=604800'
+    );
+    expect(cabecalhos['x-frame-options'], caminho).toBe('DENY');
+    expect(cabecalhos['content-security-policy'], caminho).toContain("default-src 'none'");
+  }
+});
+
 test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({ page }) => {
   // A cena 3D roda por software no navegador sem tela, e rolar por ela e lento.
   test.setTimeout(90_000);
