@@ -113,6 +113,10 @@ export default function Pix({
   const indo = useRef(false);
 
   const doPedido = `/conta/pedidos/${pedido}`;
+  // Data ilegivel some da tela em vez de lancar no formatador e derrubar a
+  // pagina com o Pix ja gerado (#337).
+  const vence =
+    dados.expiraEm && Number.isFinite(Date.parse(dados.expiraEm)) ? dados.expiraEm : null;
 
   const avisa = useCallback((r: Exclude<Conferencia, 'mudou'>) => {
     setRecado(RECADOS[r]);
@@ -244,7 +248,7 @@ export default function Pix({
           servidor e o navegador escrevem o mesmo texto e a hidratacao bate. */}
       <p className="pix-espera">
         <span className="pedido-status atencao">Aguardando pagamento</span>
-        {dados.expiraEm ? ` · vence em ${formataDiaHora(dados.expiraEm)}` : ''}
+        {vence ? ` · vence em ${formataDiaHora(vence)}` : ''}
       </p>
 
       {/* O que a tela faz, com os numeros do relogio de verdade. Antes dizia

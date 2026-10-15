@@ -168,7 +168,10 @@ type Pagamento = {
     qr_code_base64?: string;
     ticket_url?: string;
   };
+  /** Duracao, como foi pedida (`PT5H12M`): nao e data (#337). */
   expiration_time?: string;
+  /** Quando o Pix vence, em data. Nem toda resposta traz. */
+  date_of_expiration?: string;
 };
 
 type OrdemDoProvedor = {
@@ -179,6 +182,38 @@ type OrdemDoProvedor = {
   created_date?: string;
   transactions?: { payments?: Pagamento[] };
 };
+
+/** `PT5H12M` em milissegundos. So horas e minutos: e o que `validadeDoPix` escreve. */
+function duracaoEmMs(duracao: string | undefined): number | null {
+  const m = /^PT(?:(\d+)H)?(?:(\d+)M)?$/.exec(duracao ?? '');
+  if (!m || (!m[1] && !m[2])) return null;
+
+  return (Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60_000;
+}
+
+/**
+ * Quando o Pix vence, em data ISO (#337).
+ *
+ * O `expiration_time` da resposta e a duracao que mandamos (#298), e nao uma
+ * data: passado direto para a tela, virava `new Date('PT47H59M')` e o
+ * formatador lancava `RangeError`, derrubando a pagina do primeiro Pix real.
+ * Vale a data do provedor quando vem; sem ela, agora mais a duracao, que erra
+ * no maximo os segundos da ida e volta. Sem nenhuma das duas, `null`: a tela
+ * deixa de mostrar o vencimento.
+ */
+export function vencimentoDoPix(
+  pagamento: Pagamento | undefined,
+  metodo: MetodoDePagamento,
+  agoraMs = Date.now()
+): string | null {
+  const doProvedor = Date.parse(pagamento?.date_of_expiration ?? '');
+  if (Number.isFinite(doProvedor)) return new Date(doProvedor).toISOString();
+
+  const pedida = metodo.tipo === 'pix' ? metodo.validade : undefined;
+  const ms = duracaoEmMs(pagamento?.expiration_time) ?? duracaoEmMs(pedida);
+
+  return ms === null ? null : new Date(agoraMs + ms).toISOString();
+}
 
 function corpo(dados: DadosDaCobranca) {
   const valor = valorParaApi(dados.totalCentavos);
@@ -366,7 +401,7 @@ export async function criaOrdem(dados: DadosDaCobranca): Promise<RespostaDaCobra
           pix: {
             copiaECola: meio.qr_code,
             qrBase64: meio.qr_code_base64 ?? null,
-            expiraEm: pagamento?.expiration_time ?? null,
+            expiraEm: vencimentoDoPix(pagamento, dados.metodo),
           },
         }
       : {}),

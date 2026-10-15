@@ -488,3 +488,40 @@ describe('a conferencia sozinha', () => {
     expect(acao.confere).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Vencimento que nao e data nao derruba a pagina (#337): o Pix ja foi gerado,
+ * e a pessoa precisa do QR mais do que do horario.
+ */
+describe('vencimento ilegivel (#337)', () => {
+  it('mostra o Pix e esconde o vencimento', () => {
+    const { container } = render(
+      <Pix
+        dados={{ copiaECola: '00020126...', qrBase64: null, expiraEm: 'PT47H59M' }}
+        valor="R$ 14,38"
+        pedido={PEDIDO}
+      />
+    );
+
+    expect(container.querySelector('input')?.value).toBe('00020126...');
+    expect(container.querySelector('.pix-espera')?.textContent).toBe('Aguardando pagamento');
+  });
+
+  it('com data, mostra o vencimento', () => {
+    const { container } = render(
+      <Pix
+        dados={{
+          copiaECola: '00020126...',
+          qrBase64: null,
+          expiraEm: '2026-01-04T12:59:00.000Z',
+        }}
+        valor="R$ 14,38"
+        pedido={PEDIDO}
+      />
+    );
+
+    expect(container.querySelector('.pix-espera')?.textContent).toBe(
+      'Aguardando pagamento · vence em 04/01, 09:59'
+    );
+  });
+});
