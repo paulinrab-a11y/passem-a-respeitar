@@ -1,4 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
+import { ehHashDeLink, ehTipoDeLink, REDEFINIR } from '@/lib/conta/link-do-email';
+import { criaMarcaDeRecuperacao } from '@/lib/conta/recuperacao';
 import { destinoSeguro, ENTRAR } from '@/lib/rotas';
 import { origemDoPedido } from '@/lib/site-url';
 import { COOKIE_RECUPERACAO, opcoesDaRecuperacao } from '@/lib/supabase/cookies';
@@ -42,13 +44,20 @@ export const dynamic = 'force-dynamic';
  * Recuperacao de senha (#234): o e-mail traz o link com `token_hash`, que
  * nao depende de cookie do navegador que PEDIU — o fluxo PKCE dependia, e
  * quem pedia no celular e abria no computador caia no login. A sessao que
- * nasce aqui para redefinir a senha recebe a marca `par_recuperacao`: so com
+ * nasce para redefinir a senha recebe a marca `par_recuperacao`: so com
  * ela /redefinir-senha troca a senha sem pedir a atual.
+ *
+ * O `token_hash` NAO vira sessao aqui (#348). Um GET acontece sem a pessoa
+ * querer: o verificador de links do provedor de e-mail abre o link antes
+ * dela, e um link que outra pessoa mandou abre com um toque. Se o GET
+ * verificasse, o primeiro gastaria o token, e o segundo poria o navegador
+ * dentro de uma conta que nao e da pessoa. O GET so leva a /auth/continuar,
+ * que mostra um botao; a verificacao e um POST desse botao. O `?code=` PKCE
+ * continua aqui: ele so troca com o verificador gravado no navegador que
+ * pediu, entao nao ha como chegar pronto de outro lugar.
  */
 
-const REDEFINIR = '/redefinir-senha';
-
-const TIPOS = new Set(['signup', 'recovery', 'email', 'email_change', 'magiclink', 'invite']);
+const CONTINUAR = '/auth/continuar';
 
 /**
  * Registra por que um link falhou (#139).
@@ -92,21 +101,28 @@ export async function GET(request: NextRequest) {
   // ela o usa, entao serve de sinal tambem.
   const recuperacao = tipo === 'recovery' || next === REDEFINIR;
 
+  // `token_hash` com tipo conhecido: nada e verificado aqui, so repassado
+  // para a tela do botao (#348). A recuperacao vai sempre para a redefinicao:
+  // o `next` de um link de recuperacao nao escolhe destino nenhum.
+  if (!code && ehHashDeLink(tokenHash) && ehTipoDeLink(tipo)) {
+    const url = new URL(CONTINUAR, origin);
+    url.searchParams.set('token_hash', tokenHash);
+    url.searchParams.set('type', tipo);
+    if (tipo !== 'recovery' && next !== REDEFINIR) url.searchParams.set('next', next);
+    return NextResponse.redirect(url, 303);
+  }
+
   // Recuperacao de senha "manter conectado" nao faz sentido: a sessao que
   // nasce aqui existe para redefinir a senha, e morre com o navegador.
   const supabase = await clienteDeAuth(false);
 
   let falhou = true;
+  let usuarioId: string | null = null;
 
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     falhou = Boolean(error);
-  } else if (tokenHash && tipo && TIPOS.has(tipo)) {
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type: tipo as 'signup' | 'recovery' | 'email' | 'email_change' | 'magiclink' | 'invite',
-    });
-    falhou = Boolean(error);
+    usuarioId = data?.user?.id ?? null;
   }
 
   // `message` e so um sinal para NAO acusar link invalido. Nada e concedido
@@ -137,6 +153,10 @@ export async function GET(request: NextRequest) {
   }
 
   const resposta = NextResponse.redirect(new URL(next, origin));
-  if (recuperacao) resposta.cookies.set(COOKIE_RECUPERACAO, '1', opcoesDaRecuperacao());
+  // A marca e assinada e presa a esta conta (#348). Sessao que nao e de
+  // recuperacao apaga a que estivesse no navegador: ela era de outro link.
+  const marca = recuperacao && usuarioId ? criaMarcaDeRecuperacao(usuarioId) : null;
+  if (marca) resposta.cookies.set(COOKIE_RECUPERACAO, marca, opcoesDaRecuperacao());
+  else resposta.cookies.delete(COOKIE_RECUPERACAO);
   return resposta;
 }
