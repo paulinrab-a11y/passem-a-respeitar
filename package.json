@@ -23,7 +23,8 @@
     "e2e:banco:parar": "supabase stop",
     "banco:testes": "node supabase/tests/rodar.mjs",
     "tipos:gerar": "node supabase/tipos-gerar.mjs",
-    "emails:gera": "node supabase/templates/gera.mjs"
+    "emails:gera": "node supabase/templates/gera.mjs",
+    "favicon:gera": "node lib/marca/gera-favicon.mjs"
   },
   "dependencies": {
     "@mercadopago/sdk-react": "^1.0.7",
