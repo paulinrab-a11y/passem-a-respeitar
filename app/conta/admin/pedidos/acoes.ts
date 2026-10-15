@@ -92,7 +92,9 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
   }
 
   const { pedido, para } = dados.data;
-  const motivo = dados.data.motivo || null;
+  // Vazio nao vai ao banco: sem o argumento, vale o `default null` de
+  // muda_status_pedido. E o que os tipos gerados aceitam (#320).
+  const motivo = dados.data.motivo || undefined;
 
   const admin = clienteAdmin();
 

@@ -69,6 +69,14 @@ function responde(corpo: unknown, status = 200) {
   pedido.mockImplementation(async () => new Response(JSON.stringify(corpo), { status }));
 }
 
+/** O Melhor Envio de verdade demora: a resposta so vem depois de `ms`. */
+function demora(ms = 20) {
+  pedido.mockImplementation(async () => {
+    await new Promise((r) => setTimeout(r, ms));
+    return new Response(JSON.stringify(RESPOSTA), { status: 200 });
+  });
+}
+
 function enviado() {
   const [url, opcoes] = pedido.mock.calls[0];
   return {
@@ -489,6 +497,71 @@ describe('cache', () => {
     pedido.mockRejectedValueOnce(new Error('ECONNRESET'));
 
     expect((await cota([CAMISETA], destino)).ok).toBe(false);
+    expect((await cota([CAMISETA], destino)).ok).toBe(true);
+    expect(pedido).toHaveBeenCalledTimes(2);
+  });
+
+  it('duas perguntas iguais ao mesmo tempo, cache frio: uma consulta so (#308)', async () => {
+    const destino = novoCep();
+    demora();
+    const [a, b] = await Promise.all([cota([CAMISETA], destino), cota([CAMISETA], destino)]);
+
+    expect(pedido).toHaveBeenCalledTimes(1);
+    expect(b).toEqual(a);
+    expect(a.ok).toBe(true);
+  });
+
+  it('a pergunta que espera a outra no ar nao passa por antesDeConsultar (#308)', async () => {
+    const destino = novoCep();
+    demora();
+    const porta = vi.fn(async () => true);
+    await Promise.all([
+      cotaFrete({ cep: destino, volumes: [CAMISETA], antesDeConsultar: porta }),
+      cotaFrete({ cep: destino, volumes: [CAMISETA], antesDeConsultar: porta }),
+    ]);
+    expect(porta).toHaveBeenCalledTimes(1);
+    expect(pedido).toHaveBeenCalledTimes(1);
+  });
+
+  it('do cache, antesDeConsultar nem roda (#308)', async () => {
+    const destino = novoCep();
+    await cota([CAMISETA], destino);
+
+    const porta = vi.fn(async () => true);
+    const r = await cotaFrete({ cep: destino, volumes: [CAMISETA], antesDeConsultar: porta });
+    expect(r.ok).toBe(true);
+    expect(porta).not.toHaveBeenCalled();
+    expect(pedido).toHaveBeenCalledTimes(1);
+  });
+
+  it('antesDeConsultar recusando: nada sai, e volta frete-limite (#308)', async () => {
+    const r = await cotaFrete({
+      cep: novoCep(),
+      volumes: [CAMISETA],
+      antesDeConsultar: async () => false,
+    });
+    expect(r).toEqual({ ok: false, motivo: 'frete-limite' });
+    expect(pedido).not.toHaveBeenCalled();
+  });
+
+  it('falha no ar tambem sai da fila: a proxima pergunta consulta de novo', async () => {
+    const destino = novoCep();
+    // A rede cai so depois de as duas perguntas estarem no ar.
+    let derruba: (e: Error) => void = () => {};
+    pedido.mockReturnValueOnce(
+      new Promise<Response>((_, rejeita) => {
+        derruba = rejeita;
+      })
+    );
+    const duas = Promise.all([cota([CAMISETA], destino), cota([CAMISETA], destino)]);
+    await vi.waitFor(() => expect(pedido).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 10));
+    derruba(new Error('ECONNRESET'));
+    const [a, b] = await duas;
+    expect(a.ok).toBe(false);
+    expect(b.ok).toBe(false);
+    expect(pedido).toHaveBeenCalledTimes(1);
+
     expect((await cota([CAMISETA], destino)).ok).toBe(true);
     expect(pedido).toHaveBeenCalledTimes(2);
   });

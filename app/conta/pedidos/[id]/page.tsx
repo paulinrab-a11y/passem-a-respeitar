@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { type PedidoDetalhado, pareceUuid } from '@/lib/conta/pedidos';
 import { formataData, formataDataHora } from '@/lib/datas';
 import { conciliaPedido } from '@/lib/loja/conciliacao';
+import { expiraPedido } from '@/lib/loja/expiracao';
 import { ENTRAR } from '@/lib/rotas';
 import { EsqueletoPedido } from '../../Esqueletos';
 import { meuPedido } from './busca-pedido';
@@ -87,6 +88,16 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
     if (denovo.tipo === 'ok') pedido = denovo.pedido;
   }
 
+  // Passou do prazo e ainda espera (#298): o cron so passa uma vez por dia, e
+  // quem volta aqui precisa ver "Cancelado" agora, para poder comprar de novo
+  // sem a peca presa no pedido velho. Depois da conciliacao, de proposito: um
+  // Pix pago no ultimo minuto vira `pago` antes. `expiraPedido` rele o prazo
+  // no banco; a tela so diz qual pedido.
+  if (pedido.aguardandoPagamento && !pedido.pagavel && (await expiraPedido(id))) {
+    const denovo = await meuPedido(id);
+    if (denovo.tipo === 'ok') pedido = denovo.pedido;
+  }
+
   const linha = pedido.linhaDoTempo;
 
   return (
@@ -133,14 +144,30 @@ async function Pedido({ id, lido }: { id: string; lido: PedidoDetalhado }) {
           <strong>{pedido.total}</strong>
         </p>
 
-        {/* So enquanto espera pagamento. Pedido pago, cancelado ou enviado
-              nao oferece pagar — e a ausencia do botao e o que diz isso, sem
-              precisar de um botao desabilitado explicando por que. (#113) */}
-        {pedido.aguardandoPagamento ? (
-          <p className="detalhe-acoes">
-            <a className="btn cheio" href={`/checkout/pagamento/${id}`}>
-              Pagar agora
-            </a>
+        {/* So enquanto espera pagamento E dentro do prazo. Pedido pago,
+              cancelado ou enviado nao oferece pagar — e a ausencia do botao e
+              o que diz isso, sem precisar de um botao desabilitado explicando
+              por que. (#113) Vencido, nao paga o preco antigo (#298). */}
+        {pedido.pagavel ? (
+          <>
+            {pedido.pagarAte ? (
+              <p className="detalhe-nota">
+                Pague até <time dateTime={pedido.pagarAte}>{formataDataHora(pedido.pagarAte)}</time>
+                . Depois disso o pedido é cancelado.
+              </p>
+            ) : null}
+            <p className="detalhe-acoes">
+              <a className="btn cheio" href={`/checkout/pagamento/${id}`}>
+                Pagar agora
+              </a>
+            </p>
+          </>
+        ) : pedido.aguardandoPagamento ? (
+          // Vencido, mas a expiracao ainda nao conseguiu cancelar (provedor
+          // fora do ar, ou dentro da folga do cron). Sem botao, e com o que
+          // fazer.
+          <p className="detalhe-nota">
+            O prazo para pagar este pedido acabou. Faça um novo, com o preço e o frete de agora.
           </p>
         ) : null}
       </section>

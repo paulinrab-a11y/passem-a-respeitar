@@ -54,6 +54,7 @@ type MotivoDaCriacao =
   | 'frete-servico-indisponivel'
   | 'entrada-invalida'
   | 'sem-sessao'
+  | 'pedido-em-aberto'
   | 'nao-consegui-gravar';
 
 export type CriacaoDePedido =
@@ -61,6 +62,21 @@ export type CriacaoDePedido =
   | { ok: false; motivo: MotivoDaCriacao };
 
 type LinhaCriada = { pedido_id: string; pedido_numero: number };
+
+/**
+ * O SQLSTATE de `cria_pedido` quando falta estoque, ou quando a variacao saiu
+ * do ar entre o orcamento e a gravacao (#296). Codigo proprio, e nao o texto
+ * da mensagem nem `check_violation`: este ultimo tambem e o de "pedido sem
+ * frete", que e bug nosso e nao recado para quem compra.
+ */
+const SEM_ESTOQUE = 'ES001';
+
+/**
+ * O SQLSTATE de `cria_pedido` quando a pessoa ja tem um pedido nao pago da
+ * mesma variacao com estoque contado (#296). Separado de `SEM_ESTOQUE` porque
+ * a saida e outra: pagar o pedido que ja existe, e nao desistir do produto.
+ */
+const PEDIDO_EM_ABERTO = 'ES002';
 
 /**
  * Cria o pedido do usuario da sessao.
@@ -118,6 +134,11 @@ export async function criaPedido(bruto: unknown): Promise<CriacaoDePedido> {
     // e um `termos_aceitos_em` mandado pelo navegador foi descartado no parse.
     p_termos_aceitos_em: new Date().toISOString(),
   });
+
+  // O estoque e conferido no banco, com a variacao travada, e nao no
+  // orcamento: so la duas compras da ultima peca nao passam juntas.
+  if (error?.code === SEM_ESTOQUE) return { ok: false, motivo: 'produto-indisponivel' };
+  if (error?.code === PEDIDO_EM_ABERTO) return { ok: false, motivo: 'pedido-em-aberto' };
 
   const criado = (data as LinhaCriada[] | null)?.[0];
   if (error || !criado) return { ok: false, motivo: 'nao-consegui-gravar' };

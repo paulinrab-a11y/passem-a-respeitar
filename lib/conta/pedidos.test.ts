@@ -132,6 +132,8 @@ describe('mapeiaPedidos', () => {
       'id',
       'itens',
       'numero',
+      // Entrou na #298: espera pagamento e esta no prazo.
+      'pagavel',
       'rotulo',
       'tom',
       'total',
@@ -291,6 +293,9 @@ describe('mapeiaDetalhe', () => {
       'itens',
       'linhaDoTempo',
       'numero',
+      // Entrou na #298: ate quando aceita pagamento, e se ainda aceita.
+      'pagarAte',
+      'pagavel',
       // Entrou na #276: o que cabe pedir agora (cancelar, desistir, trocar).
       'posVenda',
       'rotulo',
@@ -330,7 +335,7 @@ describe('mapeiaDetalhe', () => {
           { para: 'entregue', criado_em: '2026-09-25T15:00:00Z' },
         ],
       },
-      new Date('2026-09-30T15:00:00Z')
+      Date.parse('2026-09-30T15:00:00Z')
     );
 
     expect(pedido.posVenda).toMatchObject({
@@ -396,6 +401,70 @@ describe('aguardandoPagamento', () => {
       mapeiaDetalhe({ ...base, status: 'aguardando_pagamento', order_status_history: [] })
         .aguardandoPagamento
     ).toBe(true);
+  });
+});
+
+/**
+ * Vencido, o pedido ainda pode estar `aguardando_pagamento` ate a expiracao
+ * passar (#298), mas ja nao oferece pagar: o preco e o frete sao de outro dia.
+ */
+describe('pagavel e pagarAte (#298)', () => {
+  const HORA = 60 * 60 * 1000;
+  const AGORA = Date.parse('2026-10-15T12:00:00Z');
+  const base = {
+    id: '11111111-1111-4111-8111-111111111111',
+    numero: 1,
+    total_centavos: 12000,
+    frete_centavos: 0,
+    frete_servico: null,
+    frete_prazo_dias: null,
+    ...SEM_ENTREGA,
+    order_items: [],
+    order_status_history: [],
+  };
+  const criadoHa = (ms: number) => new Date(AGORA - ms).toISOString();
+
+  it('aguardando e no prazo: oferece pagar e diz ate quando', () => {
+    const criado = criadoHa(HORA);
+    const pedido = mapeiaDetalhe(
+      { ...base, criado_em: criado, status: 'aguardando_pagamento' },
+      AGORA
+    );
+
+    expect(pedido.pagavel).toBe(true);
+    expect(pedido.pagarAte).toBe(new Date(Date.parse(criado) + 48 * HORA).toISOString());
+  });
+
+  it('aguardando e vencido: nao oferece pagar, mas continua aguardando', () => {
+    const pedido = mapeiaDetalhe(
+      { ...base, criado_em: criadoHa(49 * HORA), status: 'aguardando_pagamento' },
+      AGORA
+    );
+
+    expect(pedido.pagavel).toBe(false);
+    expect(pedido.pagarAte).toBeNull();
+    // A conciliacao ainda pergunta ao provedor: um Pix pago no fim do prazo.
+    expect(pedido.aguardandoPagamento).toBe(true);
+  });
+
+  it('pago dentro do prazo nao e pagavel', () => {
+    const pedido = mapeiaDetalhe({ ...base, criado_em: criadoHa(HORA), status: 'pago' }, AGORA);
+
+    expect(pedido.pagavel).toBe(false);
+    expect(pedido.pagarAte).toBeNull();
+  });
+
+  it('na lista, o vencido some do botao', () => {
+    const [noPrazo, vencido] = mapeiaPedidos(
+      [
+        { ...base, criado_em: criadoHa(HORA), status: 'aguardando_pagamento' },
+        { ...base, numero: 2, criado_em: criadoHa(49 * HORA), status: 'aguardando_pagamento' },
+      ],
+      AGORA
+    );
+
+    expect(noPrazo.pagavel).toBe(true);
+    expect(vencido.pagavel).toBe(false);
   });
 });
 

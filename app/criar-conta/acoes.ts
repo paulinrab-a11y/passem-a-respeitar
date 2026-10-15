@@ -9,10 +9,16 @@ import {
   cabeConferencia,
   cabeReenvioDoEmail,
   cabeReenvioDoIp,
+  confirmaCadastro,
   mandaCodigo,
 } from '@/lib/conta/codigo';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
-import { esquemaCodigo, esquemaCriarConta, esquemaEmail } from '@/lib/esquemas';
+import {
+  esquemaCodigo,
+  esquemaConfirmarCadastro,
+  esquemaCriarConta,
+  esquemaEmail,
+} from '@/lib/esquemas';
 import { ipDoRequest, limita } from '@/lib/rate-limit';
 import {
   CAMPO_DA_ISCA,
@@ -37,9 +43,10 @@ import type { EstadoCriarConta } from './estado';
  * "enviamos um codigo para X". O Supabase colabora: com confirmacao ligada, o
  * signUp de e-mail ja confirmado devolve um usuario de mentira e nao manda
  * nada. O de conta ainda nao confirmada manda um codigo novo, mas descarta a
- * senha digitada agora: vale a do primeiro cadastro. Por isso o caminho de
- * volta de quem saiu da tela do codigo e o login com a senha (#260), e nao
- * cadastrar de novo.
+ * senha digitada agora: a conta pendente fica com a do primeiro cadastro.
+ * Quem confirma pela tela do cadastro grava a senha nova no codigo
+ * (`confirmarCadastro`, #284); quem saiu da tela volta pelo login com a
+ * senha (#260).
  *
  * O aceite da politica e carimbado AQUI, com o relogio do servidor, e vai na
  * metadata do signup — a trigger do banco grava em profiles na mesma
@@ -50,6 +57,9 @@ import type { EstadoCriarConta } from './estado';
 const POR_IP = { maximo: 5, janelaMs: 60 * 60 * 1000 };
 /** Por e-mail: nao mandar mais de tres codigos por hora para a mesma caixa. */
 const POR_EMAIL = { maximo: 3, janelaMs: 60 * 60 * 1000 };
+
+/** A mesma frase nos dois limites: nenhum deles diz algo sobre a conta. */
+const MUITAS_TENTATIVAS = 'Muitas tentativas. Tente de novo mais tarde.';
 
 const MENSAGENS: Record<string, string> = {
   email: 'Confira o e-mail.',
@@ -90,17 +100,23 @@ export async function criarConta(
 
   const cabecalhos = await headers();
   const ip = ipDoRequest(cabecalhos);
-  const cotaIp = await limita(`criar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
-  const cotaEmail = await limita(`criar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
-  if (!cotaIp.permitido || !cotaEmail.permitido) {
-    return erro(anterior, 'Muitas tentativas. Tente de novo mais tarde.');
-  }
 
-  // Depois do limite: a conferencia e uma chamada para fora. E antes da
-  // consulta de senha vazada, que e outra.
+  // O limite do IP vem antes do desafio: a conferencia e uma chamada para
+  // fora, e rajada de uma origem nao pode virar uma por request.
+  const cotaIp = await limita(`criar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
+  if (!cotaIp.permitido) return erro(anterior, MUITAS_TENTATIVAS);
+
+  // Antes da consulta de senha vazada, que e outra chamada para fora.
   if (!(await desafioConfere(desafio, 'criar-conta', ip))) {
     return erro(anterior, RECUSA);
   }
+
+  // O do e-mail so agora, com o token conferido (#285), como no reenvio do
+  // codigo: ver `cabeReenvioDoIp` em lib/conta/codigo.ts. Antes do desafio
+  // qualquer texto passa por token, e um script trocando de IP gastaria a
+  // cota de um e-mail alheio sem cadastrar nada.
+  const cotaEmail = await limita(`criar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
+  if (!cotaEmail.permitido) return erro(anterior, MUITAS_TENTATIVAS);
 
   if (await senhaVazada(senha)) {
     return erro(
@@ -136,21 +152,28 @@ export async function criarConta(
   return { erro: null, campo: null, enviadoPara: email, tentativa: anterior.tentativa + 1 };
 }
 
+const MUITAS_CONFERENCIAS = 'Muitas tentativas. Espere alguns minutos e peça um código novo.';
+/** So com o formulario adulterado: o cadastro conferiu a senha antes do codigo. */
+const SENHA_NAO_VEIO = 'A senha não veio junto com o código. Use Trocar e-mail e envie de novo.';
+const SENHA_VAZADA_NO_CODIGO =
+  'Essa senha aparece em vazamentos conhecidos. Use Trocar e-mail e escolha outra.';
+
 /**
- * Confirmar o cadastro pelo codigo de oito digitos (#224).
+ * Confirmar pelo codigo de oito digitos o e-mail de quem chegou pelo LOGIN
+ * (#224, #260).
  *
- * Desde a #227 o e-mail traz so o codigo, sem link: confirmar e sempre por
- * aqui, e termina em sessao em cookie e no destino. O `verifyOtp` roda NO
- * SERVIDOR, com o cliente que grava cookie — o navegador nunca fala com o
- * Supabase direto.
+ * Desde a #227 o e-mail traz so o codigo, sem link: confirmar termina em
+ * sessao em cookie e no destino. O `verifyOtp` roda NO SERVIDOR, com o
+ * cliente que grava cookie — o navegador nunca fala com o Supabase direto.
  *
- * Serve a duas telas: a do cadastro e a do login de conta nao confirmada
- * (#260). Da segunda vem o "manter conectado" e o `next` de quem ia para o
- * checkout; a sessao nasce como nasceria no login.
+ * So a tela do login de conta nao confirmada usa esta acao; a do cadastro
+ * usa `confirmarCadastro`, que grava a senha (#284). Aqui a senha fica como
+ * esta de proposito: quem chegou pelo login acabou de provar que a conhece,
+ * entao ela ja e de quem confirma. Do login vem o "manter conectado" e o
+ * `next` de quem ia para o checkout; a sessao nasce como nasceria no login.
  *
- * O que esta acao nunca diz: se o e-mail tem conta. E-mail repetido no
- * cadastro nao recebe codigo nenhum, e qualquer codigo digitado da "invalido
- * ou vencido" — a mesma resposta de um codigo errado para conta nova.
+ * O que esta acao nunca diz: se o e-mail tem conta. Qualquer codigo errado da
+ * "invalido ou vencido", tenha o e-mail cadastro pendente ou nao.
  */
 export async function confirmarCodigo(
   anterior: EstadoCodigo,
@@ -172,9 +195,7 @@ export async function confirmarCodigo(
   const { email, codigo, lembrar } = dados.data;
 
   const ip = ipDoRequest(await headers());
-  if (!(await cabeConferencia(`email:${email}`, ip))) {
-    return falha('Muitas tentativas. Espere alguns minutos e peça um código novo.');
-  }
+  if (!(await cabeConferencia(`email:${email}`, ip))) return falha(MUITAS_CONFERENCIAS);
 
   const supabase = await clienteDeAuth(lembrar);
   const { error } = await supabase.auth.verifyOtp({ email, token: codigo, type: 'email' });
@@ -186,6 +207,81 @@ export async function confirmarCodigo(
   (await cookies()).set(COOKIE_LEMBRAR, lembrar ? '1' : '0', opcoesDoLembrar(lembrar));
 
   redirect(destinoSeguro(form.get('next')?.toString()));
+}
+
+/**
+ * Confirmar pela tela do cadastro, gravando a senha que a pessoa acabou de
+ * escolher (#224, #284). O porque esta em `confirmaCadastro`, em
+ * lib/conta/codigo.ts: sem isto, quem cadastrou o e-mail antes, com outra
+ * senha, ficava com a conta que a pessoa confirmou.
+ *
+ * A senha volta do formulario do cadastro, que ainda a tem na memoria: o
+ * navegador a junta ao envio na hora (./Codigo.tsx). Nao fica em campo
+ * oculto, cookie nem armazenamento do navegador, e esta acao nao a devolve
+ * nem a registra. Passa pelas mesmas regras do cadastro
+ * (`esquemaConfirmarCadastro`).
+ *
+ * Tudo que pode recusar vem ANTES do `verifyOtp`, porque ele gasta o codigo
+ * e confirma o e-mail: recusar depois deixaria a conta confirmada com a senha
+ * de quem cadastrou primeiro. Por isso a senha vazada e conferida de novo
+ * aqui — com o HIBP fora do ar no cadastro ela passou (falha aberta), e esta
+ * e a ultima porta antes de ela valer.
+ *
+ * O que esta acao nunca diz: se o e-mail tem conta. Os erros do codigo sao
+ * os de `confirmarCodigo`, os da senha dependem so do que veio no formulario,
+ * e os desfechos sem sessao so aparecem depois de um codigo certo, que so a
+ * dona da caixa tem.
+ */
+export async function confirmarCadastro(
+  anterior: EstadoCodigo,
+  form: FormData
+): Promise<EstadoCodigo> {
+  const tentativa = anterior.tentativa + 1;
+  const falha = (texto: string) => ({ erro: texto, tentativa });
+
+  // So a isca, sem desafio, como em `confirmarCodigo`.
+  if (iscaPreenchida(form.get(CAMPO_DA_ISCA))) return falha(RECUSA);
+
+  const dados = esquemaConfirmarCadastro.safeParse({
+    email: form.get('email'),
+    codigo: String(form.get('codigo') ?? '').replace(/\D/g, ''),
+    senha: form.get('senha'),
+    confirmacao: form.get('confirmacao'),
+  });
+  if (!dados.success) {
+    const campos = dados.error.issues.map((i) => i.path[0]);
+    const daSenha = campos.every((c) => c === 'senha' || c === 'confirmacao');
+    return falha(daSenha ? SENHA_NAO_VEIO : CODIGO_INCOMPLETO);
+  }
+  const { email, codigo, senha } = dados.data;
+
+  // O mesmo contador do login: alternar entre as duas telas nao dobra os
+  // chutes.
+  const ip = ipDoRequest(await headers());
+  if (!(await cabeConferencia(`email:${email}`, ip))) return falha(MUITAS_CONFERENCIAS);
+
+  // Depois do limite, porque e uma ida a rede.
+  if (await senhaVazada(senha)) return falha(SENHA_VAZADA_NO_CODIGO);
+
+  const confirmacao = await confirmaCadastro(email, codigo, senha);
+  if (confirmacao.resultado === 'invalido') return falha(CODIGO_INVALIDO);
+  if (confirmacao.resultado === 'sem-senha')
+    return { erro: null, tentativa, desfecho: 'sem-senha' };
+
+  // A sessao so chega ao cookie agora, com a senha ja gravada. `false`: o
+  // cadastro nao tem "manter conectado", e sem a caixa vale o lado seguro.
+  const supabase = await clienteDeAuth(false);
+  const { error } = await supabase.auth.setSession(confirmacao.sessao);
+  // E-mail confirmado e senha gravada; so a sessao nao veio. O login resolve,
+  // e o codigo ja foi gasto: repetir daria "inválido ou vencido". A sessao que
+  // nasceu no codigo fica sem dono e aparece em "Aparelhos conectados" ate
+  // ser encerrada — so acontece com o Supabase caindo entre duas chamadas.
+  if (error) return { erro: null, tentativa, desfecho: 'entrar' };
+
+  // Como no login: o middleware le esta escolha a cada renovacao do token.
+  (await cookies()).set(COOKIE_LEMBRAR, '0', opcoesDoLembrar(false));
+
+  redirect(CONTA);
 }
 
 /**

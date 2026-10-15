@@ -1,4 +1,7 @@
 import Image from 'next/image';
+import { baseDoSite } from '@/lib/base-do-site';
+import { DESCRICAO_DO_SITE, NOME_DO_SITE } from '@/lib/cartao-do-link';
+import { grafoDoSite } from '@/lib/dados-estruturados';
 import { vitrine } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { precoNaFicha } from '@/lib/loja/precos';
@@ -8,6 +11,7 @@ import FreteNaFicha from './_home/FreteNaFicha';
 import Galeria from './_home/Galeria';
 import HomeRuntime from './_home/HomeRuntime';
 import GuiaDeTamanhos from './_ui/GuiaDeTamanhos';
+import JsonLd from './_ui/JsonLd';
 
 // A CSP do proxy.ts carrega um nonce novo a cada request, e o Next so
 // carimba esse nonce nos proprios scripts quando a rota e renderizada por
@@ -34,8 +38,27 @@ export default async function Home() {
     camiseta?.variacoes[0]?.tamanho ??
     '';
 
+  // JSON-LD (#322): selo, site e a camiseta com o preco do mesmo catalogo da
+  // ficha. Os artistas e o EP entram neste mesmo grafo na #275.
+  const grafo = grafoDoSite({
+    base: baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL),
+    nomeDoSite: NOME_DO_SITE,
+    descricaoDoSite: DESCRICAO_DO_SITE,
+    instagramDoSelo: CONFIG.links.igLabel,
+    camiseta: camiseta
+      ? {
+          slug: camiseta.slug,
+          nome: camiseta.nome,
+          descricao: camiseta.descricao,
+          precosCentavos: camiseta.variacoes.map((v) => v.precoCentavos),
+        }
+      : null,
+    fotosDaCamiseta: CONFIG.merchFotos,
+  });
+
   return (
     <>
+      <JsonLd dado={grafo} />
       {/* Decorativos: o fundo em WebGL e o grao de VHS (#59).
           O `aria-hidden` sai dos canvas e vai para um <div> em volta. O
           efeito para o leitor de tela e o mesmo — os dois somem da arvore de
@@ -232,8 +255,8 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-              <a className="btn cheio" id="comprar" href="#" target="_blank" rel="noopener">
+              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O clique so abre a loja (o script legado cancela a navegacao), e o href e o que o script escreve a partir do CONFIG. Sem `target`: destino interno, na mesma aba (#301). */}
+              <a className="btn cheio" id="comprar" href="#">
                 Comprar
               </a>
             </div>
@@ -255,11 +278,11 @@ export default async function Home() {
         <footer className="assina">
           {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
           <a id="igSantxx" href="#" target="_blank" rel="noopener">
-            @santxx
+            @ogsantxx
           </a>
           {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
           <a id="igChefe" href="#" target="_blank" rel="noopener">
-            @ch3fe
+            @ch3fe3k
           </a>
           {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
           <a id="igLabel" href="#" target="_blank" rel="noopener">
@@ -354,8 +377,8 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-              <a className="btn cheio" id="comprarLoja" href="#" target="_blank" rel="noopener">
+              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado escreve o destino, /checkout com o produto e o tamanho escolhido (#106). Sem `target`: o checkout abre na mesma aba e a loja sai animada (#301). */}
+              <a className="btn cheio" id="comprarLoja" href="#">
                 Comprar
               </a>
             </div>

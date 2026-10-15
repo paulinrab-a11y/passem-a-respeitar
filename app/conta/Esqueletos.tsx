@@ -97,8 +97,9 @@ export function EsqueletoPerfil() {
           telefone, e o esqueleto quebra junto em vez de o Sair descer quando
           o perfil chega. */}
       <p className="conta-atalho">
+        {/* "Meus pedidos" e "Segurança": a largura de cada rotulo. */}
         <Linha ch={12} />
-        <Linha ch={12} />
+        <Linha ch={9} />
         <Linha ch={28} />
       </p>
 

@@ -78,7 +78,12 @@ function filtra(linhas: Record<string, unknown>[], ops: unknown[][]) {
 }
 
 function banco({
-  pedido = { id: PEDIDO, total_centavos: 12000, status: 'aguardando_pagamento' },
+  pedido = {
+    id: PEDIDO,
+    total_centavos: 12000,
+    status: 'aguardando_pagamento',
+    criado_em: new Date().toISOString(),
+  },
   ultimaTentativa = null as number | null,
   falhaAoInserir = false,
   /** Tentativas do pedido abertas no provedor, ou ja aprovadas. */
@@ -592,6 +597,99 @@ describe('uma cobranca viva por pedido', () => {
   });
 });
 
+/**
+ * Pedido vencido nao paga o preco nem o frete de outro dia (#298). Mas o que
+ * ja foi pago no provedor continua respondendo "aprovado": o prazo fecha a
+ * porta para cobranca nova, nao apaga a que ja aconteceu.
+ */
+describe('prazo do pedido', () => {
+  const HORA = 60 * 60 * 1000;
+  const criadoHa = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const pedidoDe = (idadeMs: number, status = 'aguardando_pagamento') => ({
+    id: PEDIDO,
+    total_centavos: 12000,
+    status,
+    criado_em: criadoHa(idadeMs),
+  });
+
+  it('dentro do prazo, cobra normalmente', async () => {
+    banco({ pedido: pedidoDe(47 * HORA) });
+
+    expect(await pedirPix()).toMatchObject({ ok: true });
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
+  it('depois do prazo, recusa com motivo proprio e nao grava tentativa', async () => {
+    banco({ pedido: pedidoDe(49 * HORA) });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pedido-expirado' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+    expect(gravado).toEqual([]);
+  });
+
+  it('depois do prazo, o Pix aberto ainda e encerrado antes da recusa', async () => {
+    banco({ pedido: pedidoDe(49 * HORA), abertas: [PIX_ABERTO] });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pedido-expirado' });
+    expect(cancelaOrdem).toHaveBeenCalledTimes(1);
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('depois do prazo, cobranca anterior aprovada la ainda responde aprovado', async () => {
+    banco({
+      pedido: pedidoDe(49 * HORA),
+      abertas: [{ ...PIX_ABERTO, estado: 'aprovado' }],
+    });
+
+    expect(await pedirPix()).toEqual({ ok: true, estado: 'aprovado' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+  });
+
+  it('Pix aberto perto do fim vence junto com o pedido', async () => {
+    banco({ pedido: pedidoDe(47 * HORA + 30 * 1000) });
+
+    await pedirPix();
+
+    const metodo = vi.mocked(criaOrdem).mock.calls[0][0].metodo;
+    // Faltam 59,5 minutos: arredondado para baixo, nunca passa do prazo.
+    expect(metodo).toEqual({ tipo: 'pix', validade: 'PT59M' });
+  });
+
+  it('com menos de 30 minutos, recusa Pix sem gravar tentativa', async () => {
+    banco({ pedido: pedidoDe(48 * HORA - 20 * 60 * 1000) });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pix-fora-do-prazo' });
+    expect(criaOrdem).not.toHaveBeenCalled();
+    expect(gravado).toEqual([]);
+  });
+
+  it('com menos de 30 minutos, cartao ainda cobra', async () => {
+    banco({ pedido: pedidoDe(48 * HORA - 20 * 60 * 1000) });
+
+    const r = await cobra({
+      pedido: PEDIDO,
+      payment_method_id: 'master',
+      token: 'tok12345678',
+      installments: 1,
+    });
+
+    expect(r).toMatchObject({ ok: true });
+    expect(criaOrdem).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelado depois do prazo responde expirado, e nao ja pago', async () => {
+    banco({ pedido: pedidoDe(49 * HORA, 'cancelado') });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pedido-expirado' });
+  });
+
+  it('cancelado dentro do prazo continua sendo pedido-ja-pago', async () => {
+    banco({ pedido: pedidoDe(HORA, 'cancelado') });
+
+    expect(await pedirPix()).toEqual({ ok: false, motivo: 'pedido-ja-pago' });
+  });
+});
+
 describe('autorizacao', () => {
   it('sem sessao nao cobra', async () => {
     vi.mocked(usuarioDaSessao).mockResolvedValue(null);
@@ -612,7 +710,9 @@ describe('autorizacao', () => {
   it.each(['pago', 'em_producao', 'enviado', 'entregue', 'cancelado'])(
     'pedido em %s nao e cobrado de novo',
     async (status) => {
-      banco({ pedido: { id: PEDIDO, total_centavos: 12000, status } });
+      banco({
+        pedido: { id: PEDIDO, total_centavos: 12000, status, criado_em: new Date().toISOString() },
+      });
 
       expect(await pedirPix()).toEqual({ ok: false, motivo: 'pedido-ja-pago' });
       expect(criaOrdem).not.toHaveBeenCalled();

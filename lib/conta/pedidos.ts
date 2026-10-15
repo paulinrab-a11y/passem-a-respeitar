@@ -10,6 +10,7 @@
 import { cepLegivel, type EnderecoNoPedido, enderecoEmUmaLinha } from '@/lib/loja/endereco';
 import type { StatusPedido } from '@/lib/loja/status-do-pedido';
 import { type PosVenda, posVendaDoPedido } from '@/lib/loja/termos';
+import { expirou, pagarAte } from '@/lib/loja/validade-do-pedido';
 import { type EventoDoBanco, type LinhaDoTempo, montaLinhaDoTempo } from './linha-do-tempo';
 
 /** Quantos pedidos por pagina. Criterio da #41. */
@@ -198,6 +199,12 @@ export type Pedido = {
   total: string;
   /** Ainda espera pagamento: e o unico status em que faz sentido oferecer pagar (#113). */
   aguardandoPagamento: boolean;
+  /**
+   * Espera pagamento E esta dentro do prazo (#298). E isto que decide o botao
+   * de pagar: um pedido vencido ainda pode estar `aguardando_pagamento` ate a
+   * expiracao passar por ele, e nao pode ser pago com o preco antigo.
+   */
+  pagavel: boolean;
   itens: ItemDoPedido[];
 };
 
@@ -242,7 +249,12 @@ function mapeiaItens(itens: LinhaItem[]): ItemDoPedido[] {
   }));
 }
 
-export function mapeiaPedidos(linhas: LinhaPedido[]): Pedido[] {
+/** Espera pagamento e o prazo nao acabou (#298). `agoraMs` e injetavel para o teste. */
+function ehPagavel(status: string, criadoEm: string, agoraMs: number): boolean {
+  return status === 'aguardando_pagamento' && !expirou(criadoEm, agoraMs);
+}
+
+export function mapeiaPedidos(linhas: LinhaPedido[], agoraMs = Date.now()): Pedido[] {
   return linhas.map((l) => {
     const { rotulo, tom } = leStatus(l.status);
 
@@ -254,6 +266,7 @@ export function mapeiaPedidos(linhas: LinhaPedido[]): Pedido[] {
       tom,
       total: reais(l.total_centavos),
       aguardandoPagamento: l.status === 'aguardando_pagamento',
+      pagavel: ehPagavel(l.status, l.criado_em, agoraMs),
       itens: mapeiaItens(l.order_items),
     };
   });
@@ -311,6 +324,13 @@ export type PedidoDetalhado = {
    * oferecer pagar.
    */
   aguardandoPagamento: boolean;
+  /** Espera pagamento e esta no prazo (#298): so entao a tela oferece pagar. */
+  pagavel: boolean;
+  /**
+   * Ate quando aceita pagamento, em ISO (#298). So no pedido pagavel: nos
+   * outros, um prazo na tela seria promessa de uma porta que ja fechou.
+   */
+  pagarAte: string | null;
   itens: ItemDoPedido[];
   /**
    * Ja montada aqui, e nao na pagina. Assim a pagina nao ve os eventos crus —
@@ -342,8 +362,9 @@ type LinhaDetalhe = LinhaPedido &
  * nao definir quem escreve e para quem. Nenhum dos dois esta nos criterios da
  * #42, e coluna que ninguem pediu nao precisa sair do banco.
  */
-export function mapeiaDetalhe(linha: LinhaDetalhe, agora: Date = new Date()): PedidoDetalhado {
+export function mapeiaDetalhe(linha: LinhaDetalhe, agoraMs = Date.now()): PedidoDetalhado {
   const { rotulo, tom } = leStatus(linha.status);
+  const pagavel = ehPagavel(linha.status, linha.criado_em, agoraMs);
 
   // O primeiro registro de "entregue" na trilha, como a etapa da linha do
   // tempo: e o unico dia que o banco tem perto do recebimento (#276).
@@ -363,8 +384,10 @@ export function mapeiaDetalhe(linha: LinhaDetalhe, agora: Date = new Date()): Pe
     entrega: leEntrega(linha),
     totalCentavos: linha.total_centavos,
     aguardandoPagamento: linha.status === 'aguardando_pagamento',
+    pagavel,
+    pagarAte: pagavel ? pagarAte(linha.criado_em) : null,
     itens: mapeiaItens(linha.order_items),
     linhaDoTempo: montaLinhaDoTempo(linha.status, linha.order_status_history),
-    posVenda: posVendaDoPedido(linha.status, entregueEm, agora),
+    posVenda: posVendaDoPedido(linha.status, entregueEm, new Date(agoraMs)),
   };
 }

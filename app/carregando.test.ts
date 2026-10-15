@@ -122,3 +122,38 @@ describe('barra de rota', () => {
     expect(CSS).toContain('.barra-rota.on{animation:none;transform:scaleX(.6)}');
   });
 });
+
+describe('botao desabilitado', () => {
+  it('todo .btn desabilitado e parado tem visual proprio, sem o wipe vermelho', () => {
+    expect(CSS).toMatch(
+      /(?:^|\n)\.btn:disabled:not\(\.carregando\)\{[^}]*background:none[^}]*color:var\(--prata-2\)[^}]*cursor:not-allowed/
+    );
+    expect(CSS).toContain('.btn:disabled:not(.carregando)::before{display:none}');
+  });
+
+  it('o hover do .btn nao acende em botao desabilitado', () => {
+    expect(CSS).toContain('.btn:hover:not(:disabled){');
+    expect(CSS).toContain('.btn:hover:not(:disabled)::before{transform:none}');
+    expect(CSS).not.toMatch(/(?:^|\n)\.btn:hover(?:::before)?\{/);
+  });
+
+  it('sem copias locais da regra generica', () => {
+    expect(CSS).not.toContain('.entrega .btn.cheio:disabled');
+    expect(CSS).not.toContain('.concierge-form .btn:disabled');
+  });
+
+  it('o rotulo de progresso, mesmo desabilitado, fica em cor de texto', () => {
+    expect(CSS).toContain('.conta-foto-acoes button.carregando:disabled{color:var(--prata-2)}');
+    expect(CSS).toContain('.menu-conta-in button.carregando:disabled{color:var(--prata-2)}');
+  });
+
+  it('a regra do progresso vem depois da do desabilitado, senao perde no empate', () => {
+    for (const lugar of ['.conta-foto-acoes', '.menu-conta-in']) {
+      const apagado = CSS.indexOf(`${lugar} button:disabled{`);
+      const agindo = CSS.indexOf(`${lugar} button.carregando:disabled{`);
+
+      expect(apagado).toBeGreaterThan(-1);
+      expect(agindo).toBeGreaterThan(apagado);
+    }
+  });
+});

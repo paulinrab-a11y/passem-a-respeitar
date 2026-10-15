@@ -13,6 +13,7 @@ import { RECUSA } from '@/lib/robo';
  *   - token que a Cloudflare recusa: recusa, e nada acontece
  *   - token que a Cloudflare aceita: o formulario segue
  *   - a recusa e a mesma frase nos cinco, e nao conta nada sobre a conta
+ *   - a cota por e-mail so anda depois do desafio (#260, #285)
  *
  * "Nada acontece" e literal: o Supabase nao e chamado, e-mail nao sai, codigo
  * de convite nao e conferido, nada sai para o Gemini.
@@ -69,7 +70,8 @@ let n = 0;
 let ip = '';
 const email = () => `pessoa${n}@exemplo.invalid`;
 
-type Extra = { desafio?: string; isca?: string };
+/** `email` fixa o alvo; sem ele, cada envio usa um e-mail novo. */
+type Extra = { desafio?: string; isca?: string; email?: string };
 type Resposta = { recusado: boolean; mensagem: string | null };
 
 function formulario(campos: Record<string, string>, { desafio, isca }: Extra) {
@@ -94,7 +96,7 @@ const FORMULARIOS = [
       try {
         const r = await entrar(
           estadoInicial,
-          formulario({ email: email(), senha: 'a senha certa' }, extra)
+          formulario({ email: extra.email ?? email(), senha: 'a senha certa' }, extra)
         );
         return { recusado: true, mensagem: r.erro };
       } catch (e) {
@@ -115,7 +117,7 @@ const FORMULARIOS = [
         formulario(
           {
             nome: 'Fulana',
-            email: email(),
+            email: extra.email ?? email(),
             senha: 'uma senha razoavel',
             confirmacao: 'uma senha razoavel',
             aceite: 'on',
@@ -142,7 +144,10 @@ const FORMULARIOS = [
     limite: () => `recuperar:ip:${ip}`,
     andou: () => auth.resetPasswordForEmail.mock.calls.length > 0,
     async envia(extra: Extra): Promise<Resposta> {
-      const r = await recuperarSenha(recuperarInicial, formulario({ email: email() }, extra));
+      const r = await recuperarSenha(
+        recuperarInicial,
+        formulario({ email: extra.email ?? email() }, extra)
+      );
       return { recusado: !r.enviado, mensagem: r.erro };
     },
   },
@@ -353,6 +358,94 @@ describe('cota de codigo por e-mail (#260)', () => {
 
     expect(r.confirmar).toEqual({ email: alvo, lembrar: false, enviado: true });
     expect(auth.resend).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A cota por e-mail do login, do cadastro e da recuperacao de senha (#285),
+ * no desenho do reenvio do codigo: limite do IP, desafio, limite do e-mail.
+ *
+ * Com a cota do e-mail antes do desafio, tokens falsos mandados de IPs
+ * diferentes trancavam a dona do e-mail do lado de fora: quinze minutos sem
+ * entrar, ou uma hora sem cadastrar ou recuperar a senha, em repeticao. As
+ * frases ficam as de hoje: o script continua recebendo a recusa de sempre, e
+ * quem passou pelo desafio e estourou a cota, o "muitas tentativas" de sempre.
+ */
+function oFormulario(nome: string) {
+  const f = FORMULARIOS.find((x) => x.nome === nome);
+  if (!f) throw new Error(`formulario desconhecido: ${nome}`);
+  return f;
+}
+
+/** IPs de fora dos outros casos: o limite por IP guarda estado no modulo. */
+let ipDoScript = 0;
+function deOutroIpDoScript() {
+  ipDoScript += 1;
+  ip = `203.0.113.${ipDoScript}`;
+  cabecalhos = new Headers({
+    host: 'passem-a-respeitar.test',
+    'content-type': 'application/json',
+    'x-forwarded-for': ip,
+  });
+}
+
+describe.each([
+  {
+    nome: 'login',
+    maximo: 5,
+    muitas: /^Muitas tentativas\. Tente de novo em \d+ minutos?\.$/,
+  },
+  {
+    nome: 'cadastro',
+    maximo: 3,
+    muitas: /^Muitas tentativas\. Tente de novo mais tarde\.$/,
+  },
+  {
+    nome: 'recuperacao de senha',
+    maximo: 3,
+    muitas: /^Muitos pedidos\. Tente de novo mais tarde\.$/,
+  },
+])('$nome: cota por e-mail depois do desafio (#285)', ({ nome, maximo, muitas }) => {
+  const f = oFormulario(nome);
+
+  it('tokens falsos de IPs diferentes nao gastam a cota do e-mail', async () => {
+    const alvo = `alvo${n}@exemplo.invalid`;
+
+    cloudflare({ success: false, 'error-codes': ['invalid-input-response'] });
+    // Um a mais que a cota: antes da #285, o ultimo ja voltava "muitas".
+    for (let i = 0; i <= maximo; i++) {
+      deOutroIpDoScript();
+      expect(await f.envia({ email: alvo, desafio: 'x', isca: '' })).toEqual({
+        recusado: true,
+        mensagem: RECUSA,
+      });
+    }
+    expect(f.andou()).toBe(false);
+
+    cloudflare({ success: true, action: f.acao });
+    deOutroIpDoScript();
+    const r = await f.envia({ email: alvo, desafio: TOKEN, isca: '' });
+
+    expect(r).toEqual({ recusado: false, mensagem: null });
+    expect(f.andou()).toBe(true);
+  });
+
+  it('com token aceito a cota do e-mail continua valendo, com a frase de hoje', async () => {
+    const alvo = `alvo${n}@exemplo.invalid`;
+
+    cloudflare({ success: true, action: f.acao });
+    for (let i = 0; i < maximo; i++) {
+      deOutroIpDoScript();
+      expect((await f.envia({ email: alvo, desafio: TOKEN, isca: '' })).recusado).toBe(false);
+    }
+
+    vi.clearAllMocks();
+    deOutroIpDoScript();
+    const r = await f.envia({ email: alvo, desafio: TOKEN, isca: '' });
+
+    expect(r.recusado).toBe(true);
+    expect(r.mensagem).toMatch(muitas);
+    expect(f.andou()).toBe(false);
   });
 });
 

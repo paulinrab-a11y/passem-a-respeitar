@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
+import { cartaoDoLink } from '@/lib/cartao-do-link';
 import { CONTATO } from '@/lib/contato';
 
 export const dynamic = 'force-dynamic';
 
+const TITULO = 'Privacidade — Passem a Respeitar';
+
 export const metadata: Metadata = {
-  title: 'Privacidade — Passem a Respeitar',
+  title: TITULO,
+  // Card proprio (#322): o link desta pagina mostra "Privacidade", e o
+  // `og:url` e o canonical terminam em /privacidade.
+  ...cartaoDoLink(TITULO),
 };
 
 /**

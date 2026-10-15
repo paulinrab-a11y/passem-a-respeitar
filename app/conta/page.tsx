@@ -87,7 +87,7 @@ async function Perfil() {
             digitando o endereco. */}
       <p className="conta-atalho">
         <a href="/conta/pedidos">Meus pedidos</a>
-        <a href="/conta/seguranca">Trocar senha</a>
+        <a href="/conta/seguranca">Segurança</a>
         {/* Os termos (#276), direto no "como pedir": quem chega aqui querendo
               desistir de uma compra quer o caminho, nao o texto inteiro. */}
         <a href={`${TERMOS}#como-pedir`}>Cancelar, desistir ou trocar</a>

@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import { criaOrdem, type MetodoDePagamento } from './orders-api';
+import { expirou, validadeDoPix } from './validade-do-pedido';
 import { vendaLiberada } from './vendedor';
 import { casaOrfa, encerraAbertas, marcaPago, orfasDoPedido } from './webhook';
 
@@ -84,7 +85,14 @@ export type MotivoDaCobranca =
   /** A tentativa anterior ficou sem resposta e ainda nao se sabe o que houve com ela. */
   | 'pagamento-em-processamento'
   /** Ha uma cobranca aberta no provedor que nao deu para cancelar antes de abrir outra. */
-  | 'pagamento-pendente';
+  | 'pagamento-pendente'
+  /** Passou do prazo para pagar (#298): preco e frete sao de outro dia. */
+  | 'pedido-expirado'
+  /**
+   * Falta menos que o vencimento minimo de um Pix no provedor (#298): ele
+   * so existiria vencendo depois do pedido. Cartao ainda cabe.
+   */
+  | 'pix-fora-do-prazo';
 
 export type ResultadoDaCobranca =
   | {
@@ -126,7 +134,7 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   // resposta, sem um `if` para alguem escrever errado.
   const { data: pedido } = await admin
     .from('orders')
-    .select('id, total_centavos, status')
+    .select('id, total_centavos, status, criado_em')
     .eq('id', entrada.data.pedido)
     .eq('user_id', usuario.id)
     .maybeSingle();
@@ -134,9 +142,12 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   if (!pedido) return { ok: false, motivo: 'pedido-nao-encontrado' };
 
   // Pedido que ja saiu de "aguardando pagamento" nao se cobra de novo. Cobrar
-  // duas vezes o mesmo pedido e o erro que ninguem perdoa.
+  // duas vezes o mesmo pedido e o erro que ninguem perdoa. Cancelado depois do
+  // prazo e, quase sempre, a expiracao (#298): quem ficou com a tela de
+  // pagamento aberta precisa ler "expirou", e nao "ja foi pago".
   if (pedido.status !== 'aguardando_pagamento') {
-    return { ok: false, motivo: 'pedido-ja-pago' };
+    const expirado = pedido.status === 'cancelado' && expirou(pedido.criado_em);
+    return { ok: false, motivo: expirado ? 'pedido-expirado' : 'pedido-ja-pago' };
   }
 
   // Tentativa anterior sem resposta (timeout, deploy no meio) pode ter virado
@@ -183,6 +194,14 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   if (abertas.aprovadas > 0) return { ok: true, estado: 'aprovado' };
   if (abertas.presas > 0) return { ok: false, motivo: 'pagamento-pendente' };
 
+  // Passou do prazo, nenhuma tentativa nasce (#298): o total e o frete sao do
+  // dia do pedido, e o cron vai cancela-lo. Depois das anteriores, e nao
+  // antes, de proposito: um Pix pago no ultimo minuto ainda responde
+  // "aprovado" acima, em vez de mandar a pessoa comprar de novo. E antes da
+  // linha nova: e essa ordem que deixa o cron cancelar sem cruzar com uma
+  // cobranca no meio (ver `FOLGA_MS` em expiracao.ts).
+  if (expirou(pedido.criado_em)) return { ok: false, motivo: 'pedido-expirado' };
+
   const { data: anteriores } = await admin
     .from('pagamentos')
     .select('tentativa')
@@ -194,8 +213,15 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   if (tentativa > MAX_TENTATIVAS) return { ok: false, motivo: 'tentativas-demais' };
 
   const ehPix = entrada.data.payment_method_id === 'pix';
+
+  // O Pix vence junto com o pedido (#298). Sem isto o provedor da 24 h a
+  // qualquer Pix, e um aberto na ultima hora seguia pagavel no dia seguinte
+  // pelo preco antigo. Antes da linha nova: recusar aqui nao deixa tentativa.
+  const validade = ehPix ? validadeDoPix(pedido.criado_em) : null;
+  if (ehPix && !validade) return { ok: false, motivo: 'pix-fora-do-prazo' };
+
   const metodo: MetodoDePagamento = ehPix
-    ? { tipo: 'pix' }
+    ? { tipo: 'pix', validade: validade ?? '' }
     : {
         tipo: 'cartao',
         bandeira: entrada.data.payment_method_id,

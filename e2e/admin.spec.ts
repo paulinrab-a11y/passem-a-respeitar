@@ -162,7 +162,7 @@ test('admin: mudar o status grava no banco, com autor e motivo, e o card sinaliz
     return `card ${topo(el)} | botoes ${topo(el.querySelector('.admin-botoes'))}`;
   });
 
-  const separar = await vivo(card(page).getByRole('button', { name: 'Pôr em separação' }));
+  const separar = await vivo(card(page).getByRole('button', { name: 'Pôr em produção' }));
   await card(page).getByLabel('Motivo (opcional)').fill(MOTIVO);
   await separar.click();
 
@@ -172,7 +172,7 @@ test('admin: mudar o status grava no banco, com autor e motivo, e o card sinaliz
   ).toBeVisible();
   // Os botoes agora sao os da etapa seguinte, e o motivo nao vale para ela.
   await expect(card(page).getByRole('button', { name: 'Marcar enviado' })).toBeVisible();
-  await expect(card(page).getByRole('button', { name: 'Pôr em separação' })).toHaveCount(0);
+  await expect(card(page).getByRole('button', { name: 'Pôr em produção' })).toHaveCount(0);
   await expect(card(page).getByLabel('Motivo (opcional)')).toHaveValue('');
 
   // O selo antigo saiu antes de o novo entrar, e o novo entrou animado.

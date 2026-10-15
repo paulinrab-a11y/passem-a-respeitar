@@ -44,6 +44,8 @@ beforeEach(() => {
       total: 'R$ 143,50',
       totalCentavos: 14350,
       aguardandoPagamento: true,
+      pagavel: true,
+      pagarAte: '2026-10-09T13:00:00Z',
       frete: null,
       entrega: null,
       itens: [],

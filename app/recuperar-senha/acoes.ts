@@ -46,23 +46,31 @@ export async function recuperarSenha(
   }
   const { email } = dados.data;
 
+  const muitosPedidos = {
+    erro: 'Muitos pedidos. Tente de novo mais tarde.',
+    campo: null,
+    enviado: false,
+    tentativa,
+  };
+
   const cabecalhos = await headers();
   const ip = ipDoRequest(cabecalhos);
-  const cotaIp = await limita(`recuperar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
-  const cotaEmail = await limita(`recuperar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
-  if (!cotaIp.permitido || !cotaEmail.permitido) {
-    return {
-      erro: 'Muitos pedidos. Tente de novo mais tarde.',
-      campo: null,
-      enviado: false,
-      tentativa,
-    };
-  }
 
-  // Depois do limite: a conferencia e uma chamada para fora.
+  // O limite do IP vem antes do desafio: a conferencia e uma chamada para
+  // fora, e rajada de uma origem nao pode virar uma por request.
+  const cotaIp = await limita(`recuperar:ip:${ip}`, POR_IP.maximo, POR_IP.janelaMs);
+  if (!cotaIp.permitido) return muitosPedidos;
+
   if (!(await desafioConfere(desafio, 'recuperar-senha', ip))) {
     return { erro: RECUSA, campo: null, enviado: false, tentativa };
   }
+
+  // O do e-mail so agora, com o token conferido (#285), como no reenvio do
+  // codigo: ver `cabeReenvioDoIp` em lib/conta/codigo.ts. Antes do desafio
+  // qualquer texto passa por token, e um script trocando de IP deixaria a
+  // dona do e-mail uma hora sem conseguir recuperar a senha, em repeticao.
+  const cotaEmail = await limita(`recuperar:email:${email}`, POR_EMAIL.maximo, POR_EMAIL.janelaMs);
+  if (!cotaEmail.permitido) return muitosPedidos;
 
   const supabase = await clienteDeAuth(false);
   await supabase.auth.resetPasswordForEmail(email, {

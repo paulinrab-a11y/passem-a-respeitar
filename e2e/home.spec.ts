@@ -52,6 +52,69 @@ test('home: os cabecalhos de seguranca saem no build de producao', async ({ requ
   expect(cabecalhos['x-powered-by']).toBeUndefined();
 });
 
+test('assets de public: cache no navegador e headers de seguranca (#312)', async ({ request }) => {
+  for (const caminho of ['/merch/camiseta.gltf', '/brasao.png']) {
+    const resposta = await request.get(caminho);
+    expect(resposta.status(), caminho).toBe(200);
+    const cabecalhos = resposta.headers();
+    expect(cabecalhos['cache-control'], caminho).toBe(
+      'public, max-age=86400, stale-while-revalidate=604800'
+    );
+    expect(cabecalhos['x-frame-options'], caminho).toBe('DENY');
+    expect(cabecalhos['content-security-policy'], caminho).toContain("default-src 'none'");
+  }
+});
+
+/**
+ * Indexacao (#322): canonical e og:url por pagina, robots.txt e sitemap.xml.
+ * O dominio depende do ambiente; o que se confere e o caminho no fim.
+ */
+test('canonical e og:url por pagina, com card proprio em /privacidade', async ({ page }) => {
+  for (const [caminho, fim] of [
+    ['/', '/'],
+    ['/privacidade', '/privacidade'],
+  ] as const) {
+    await page.goto(caminho);
+    const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+    const ogUrl = await page.locator('meta[property="og:url"]').getAttribute('content');
+    for (const url of [canonical, ogUrl]) {
+      expect(url, caminho).toMatch(/^https?:\/\//);
+      expect(new URL(url ?? '').pathname, caminho).toBe(fim);
+    }
+  }
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    'content',
+    'Privacidade — Passem a Respeitar'
+  );
+});
+
+test('robots.txt e sitemap.xml existem e se apontam (#322)', async ({ request }) => {
+  const robots = await request.get('/robots.txt');
+  expect(robots.status()).toBe(200);
+  expect(robots.headers()['content-type']).toContain('text/plain');
+  const texto = await robots.text();
+  expect(texto).toMatch(/Sitemap: https?:\/\/\S+\/sitemap\.xml/);
+  expect(texto).toContain('Disallow: /api/');
+  expect(texto).toContain('User-Agent: GPTBot');
+  expect(texto).not.toMatch(/Disallow: \/(conta|checkout)/);
+
+  const sitemap = await request.get('/sitemap.xml');
+  expect(sitemap.status()).toBe(200);
+  const xml = await sitemap.text();
+  expect(xml).toMatch(/<loc>https?:\/\/[^<]+\/<\/loc>/);
+  expect(xml).toMatch(/<loc>https?:\/\/[^<]+\/privacidade<\/loc>/);
+  expect(xml).not.toContain('/conta');
+});
+
+test('home: JSON-LD com a camiseta do catalogo e sem data (#322)', async ({ page }) => {
+  await page.goto('/');
+  const bloco = await page.locator('script[type="application/ld+json"]').textContent();
+  const grafo = JSON.parse(bloco ?? '{}')['@graph'] as { '@type': string; name?: string }[];
+  expect(grafo.map((n) => n['@type'])).toEqual(['Organization', 'WebSite', 'Product']);
+  expect(grafo[2]?.name).toBe('Camiseta CBAC');
+  expect(bloco).not.toMatch(/date|rating|review/i);
+});
+
 test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({ page }) => {
   // A cena 3D roda por software no navegador sem tela, e rolar por ela e lento.
   test.setTimeout(90_000);
@@ -114,6 +177,14 @@ test('home: o selo e Whynot Visuals, e a camiseta e so da CBAC', async ({ page }
   await expect(selo).toHaveText('Whynot Visuals');
   await expect(selo).toHaveAttribute('href', 'https://instagram.com/whynotvisuals_');
   await expect(page.locator('footer.assina span')).toHaveText('CBAC');
+
+  // O texto do arroba e o mesmo perfil do link (#314).
+  const santxx = page.locator('footer.assina #igSantxx');
+  await expect(santxx).toHaveText('@ogsantxx');
+  await expect(santxx).toHaveAttribute('href', 'https://instagram.com/ogsantxx');
+  const chefe = page.locator('footer.assina #igChefe');
+  await expect(chefe).toHaveText('@ch3fe3k');
+  await expect(chefe).toHaveAttribute('href', 'https://instagram.com/ch3fe3k');
 
   // Credito do site (#195).
   const credito = page.locator('footer.assina .assina-credito');
@@ -542,4 +613,30 @@ test('home: com reduzir movimento a vitrine 3D mostra o modelo e redesenha ao re
   await expect.poll(() => vitrineDesenhada(page), { timeout: 30_000 }).toBe(true);
 
   expect(erros).toEqual([]);
+});
+
+/**
+ * O Comprar da loja leva ao checkout na mesma aba (#301). Antes abria outra
+ * aba e deixava esta presa no modal. Sem sessao, o checkout manda para o
+ * login com o checkout no `next`.
+ */
+test('home: o Comprar da loja abre o checkout na mesma aba', async ({ page, context }) => {
+  await page.goto('/');
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+  await page.locator('#comprar').scrollIntoViewIfNeeded();
+  await page.locator('#comprar').click();
+  await expect(page.locator('#loja')).toBeVisible();
+
+  const comprarLoja = page.locator('#comprarLoja');
+  await expect(comprarLoja).not.toHaveAttribute('target', /.+/);
+  await expect(comprarLoja).toHaveAttribute('href', /^\/checkout\?p=/);
+
+  const abas: unknown[] = [];
+  context.on('page', (p) => abas.push(p));
+  await vivoHome(comprarLoja);
+  await comprarLoja.click();
+
+  await page.waitForURL(/\/(entrar\?next=%2Fcheckout|checkout\?p=)/);
+  expect(abas).toEqual([]);
 });

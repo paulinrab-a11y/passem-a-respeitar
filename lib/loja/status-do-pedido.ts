@@ -56,7 +56,7 @@ export function origensDe(para: StatusPedido): StatusPedido[] {
 export const VERBO: Record<StatusPedido, string> = {
   aguardando_pagamento: 'Aguardar pagamento',
   pago: 'Marcar pago',
-  em_producao: 'Pôr em separação',
+  em_producao: 'Pôr em produção',
   enviado: 'Marcar enviado',
   entregue: 'Marcar entregue',
   cancelado: 'Cancelar',
