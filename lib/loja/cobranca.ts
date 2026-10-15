@@ -101,7 +101,17 @@ export type ResultadoDaCobranca =
       /** So em Pix. Vem do provedor. */
       pix?: { copiaECola: string; qrBase64: string | null; expiraEm: string | null };
     }
-  | { ok: false; motivo: MotivoDaCobranca };
+  | {
+      ok: false;
+      motivo: MotivoDaCobranca;
+      /**
+       * So no cartao recusado (#365): o `status_detail` cru do provedor, ou
+       * nulo se ele nao disse, para a rota escolher a frase em
+       * recusa-do-cartao.ts. Ausente no Pix. Nao sai do servidor — a rota
+       * manda a frase do mapa, nunca isto.
+       */
+      detalhe?: string | null;
+    };
 
 /** Vinte por pedido, que e o teto do check de `pagamentos.tentativa`. */
 const MAX_TENTATIVAS = 20;
@@ -288,8 +298,13 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
 
     // Cartao recusado NAO mexe em `orders.status`: o pedido continua
     // aguardando pagamento e cabe outra tentativa. E para isso que
-    // `pagamentos.tentativa` existe.
-    return { ok: false, motivo: 'recusado' };
+    // `pagamentos.tentativa` existe. O motivo do provedor vai junto para a
+    // rota dizer o que fazer (#365); no Pix nao ha cartao para conferir.
+    return {
+      ok: false,
+      motivo: 'recusado',
+      ...(ehPix ? {} : { detalhe: resposta.resumo?.statusDetail ?? null }),
+    };
   }
 
   await admin
@@ -307,7 +322,11 @@ export async function cobra(bruto: unknown): Promise<ResultadoDaCobranca> {
   // cabe outro cartao; a linha acima ja guarda o status_detail. Mandar a
   // pessoa para o pedido aqui era deixa-la achar que pagou. (#20)
   if (resposta.resumo.estado === 'recusado' || resposta.resumo.estado === 'cancelado') {
-    return { ok: false, motivo: 'recusado' };
+    return {
+      ok: false,
+      motivo: 'recusado',
+      ...(ehPix ? {} : { detalhe: resposta.resumo.statusDetail }),
+    };
   }
 
   // Aprovado na resposta sincrona e confirmacao server-to-server do provedor,

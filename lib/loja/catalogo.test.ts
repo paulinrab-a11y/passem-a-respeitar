@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { opcoesDeFrete, orcamento, vitrine } from './catalogo';
+import {
+  opcoesDeFrete,
+  orcamento,
+  TAG_DO_CATALOGO,
+  VITRINE_REVALIDA_EM,
+  vitrine,
+} from './catalogo';
 import type { ItemDoCarrinho } from './precos';
 
 /**
@@ -11,9 +17,39 @@ import type { ItemDoCarrinho } from './precos';
 vi.mock('@/lib/supabase/servidor', () => ({
   clienteServidor: vi.fn(),
 }));
+vi.mock('@/lib/supabase/anonimo', () => ({
+  clienteAnonimo: vi.fn(),
+}));
 vi.mock('./frete', () => ({ cotaFrete: vi.fn() }));
 
+/**
+ * O cache do Next so existe dentro de um request do Next. Aqui ele vira um
+ * cache de verdade, so que em memoria e sem prazo: o que se confere e com que
+ * chave, prazo e tag a vitrine pede para entrar nele, que o resultado bom fica
+ * e que o erro nao fica. `esvazia()` volta ao estado de deploy novo.
+ */
+const cacheDoNext = vi.hoisted(() => {
+  const guardados = new Map<string, unknown>();
+  const pedidos: { chave: string[]; opcoes: unknown }[] = [];
+  return {
+    pedidos,
+    esvazia: () => guardados.clear(),
+    unstable_cache:
+      <T>(fn: () => Promise<T>, chave: string[], opcoes: unknown) =>
+      async () => {
+        pedidos.push({ chave, opcoes });
+        const k = chave.join('|');
+        if (guardados.has(k)) return guardados.get(k) as T;
+        const valor = await fn();
+        guardados.set(k, valor);
+        return valor;
+      },
+  };
+});
+vi.mock('next/cache', () => ({ unstable_cache: cacheDoNext.unstable_cache }));
+
 const { clienteServidor } = await import('@/lib/supabase/servidor');
+const { clienteAnonimo } = await import('@/lib/supabase/anonimo');
 const { cotaFrete } = await import('./frete');
 
 const PAC = { servico: 'pac', nome: 'PAC', precoCentavos: 2350, prazoDias: 8 } as const;
@@ -31,6 +67,9 @@ function bancoDevolve(resultado: { data: unknown; error: unknown }) {
   vi.mocked(clienteServidor).mockResolvedValue({
     from: () => elo,
   } as unknown as Awaited<ReturnType<typeof clienteServidor>>);
+  vi.mocked(clienteAnonimo).mockReturnValue({
+    from: () => elo,
+  } as unknown as ReturnType<typeof clienteAnonimo>);
 }
 
 const CAMISETA = {
@@ -50,6 +89,7 @@ const CAMISETA = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  cacheDoNext.esvazia();
   vi.mocked(cotaFrete).mockResolvedValue({ ok: true, opcoes: [PAC, SEDEX] });
 });
 
@@ -99,6 +139,61 @@ describe('vitrine', () => {
       'variacoes',
     ]);
     expect(Object.keys(produto.variacoes[0]).sort()).toEqual(['precoCentavos', 'tamanho']);
+  });
+});
+
+describe('vitrine em cache (#374)', () => {
+  it('entra no cache com prazo de um minuto e a tag do catalogo', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+
+    await vitrine();
+
+    expect(VITRINE_REVALIDA_EM).toBe(60);
+    expect(TAG_DO_CATALOGO).toBe('catalogo');
+    expect(cacheDoNext.pedidos.at(-1)?.opcoes).toEqual({ revalidate: 60, tags: ['catalogo'] });
+  });
+
+  // O cache e compartilhado entre requests: o client que entra nele nao pode
+  // carregar a sessao de quem pediu primeiro.
+  it('le com o client anonimo, sem cookie', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+
+    await vitrine();
+
+    expect(clienteAnonimo).toHaveBeenCalledTimes(1);
+    expect(clienteServidor).not.toHaveBeenCalled();
+  });
+
+  it('a segunda leitura sai do cache, sem ir ao banco', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+
+    const primeira = await vitrine();
+    const segunda = await vitrine();
+
+    expect(segunda).toEqual(primeira);
+    expect(clienteAnonimo).toHaveBeenCalledTimes(1);
+  });
+
+  // Um soluco do banco nao pode deixar a loja vazia pelo prazo inteiro.
+  it('erro nao entra no cache: a proxima leitura vai ao banco de novo', async () => {
+    bancoDevolve({ data: null, error: { message: 'indisponivel' } });
+    expect(await vitrine()).toEqual([]);
+
+    bancoDevolve({ data: [CAMISETA], error: null });
+    expect((await vitrine())[0]?.slug).toBe('camiseta-cbac');
+    expect(clienteAnonimo).toHaveBeenCalledTimes(2);
+  });
+
+  // O checkout cobra o preco do banco na hora: o orcamento nao passa pelo cache.
+  it('o orcamento le o banco toda vez, com o client da sessao', async () => {
+    bancoDevolve({ data: [CAMISETA], error: null });
+    const item = [{ slug: 'camiseta-cbac', tamanho: 'M', quantidade: 1 }] as ItemDoCarrinho[];
+
+    await orcamento(item);
+    await orcamento(item);
+
+    expect(clienteServidor).toHaveBeenCalledTimes(2);
+    expect(clienteAnonimo).not.toHaveBeenCalled();
   });
 });
 

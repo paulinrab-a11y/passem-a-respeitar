@@ -46,6 +46,7 @@ const updateUser = vi.fn(async (_o: unknown) => ({ error: null }));
 const clienteDeAuth = vi.fn(async (_lembrar: boolean) => ({
   auth: { signUp, verifyOtp, resend, setSession, updateUser },
 }));
+const jarDelete = vi.fn();
 const jarSet = vi.fn((nome: string, ..._resto: unknown[]) => {
   ordem.push(`cookie:${nome}`);
 });
@@ -58,7 +59,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: avulso })
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => senhaVazada(s) }));
 vi.mock('next/headers', () => ({
   headers: async () => cabecalhos,
-  cookies: async () => ({ set: jarSet }),
+  cookies: async () => ({ set: jarSet, delete: jarDelete }),
 }));
 vi.mock('next/navigation', () => ({
   redirect: (d: string) => {
@@ -288,6 +289,8 @@ describe('confirmar pelo codigo do login (#224, #260)', () => {
       '0',
       expect.objectContaining({ httpOnly: true, maxAge: undefined })
     );
+    // Sessao por codigo nao e recuperacao (#348).
+    expect(jarDelete).toHaveBeenCalledWith('par_recuperacao');
   });
 
   // Do login (#260): quem marcou "manter conectado" antes do codigo continua

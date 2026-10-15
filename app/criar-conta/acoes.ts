@@ -12,6 +12,7 @@ import {
   confirmaCadastro,
   mandaCodigo,
 } from '@/lib/conta/codigo';
+import { seguraAtePiso } from '@/lib/conta/piso';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import {
   esquemaCodigo,
@@ -30,7 +31,7 @@ import {
 } from '@/lib/robo';
 import { CONTA, destinoSeguro } from '@/lib/rotas';
 import { urlDeRetorno } from '@/lib/site-url';
-import { COOKIE_LEMBRAR, opcoesDoLembrar } from '@/lib/supabase/cookies';
+import { COOKIE_LEMBRAR, COOKIE_RECUPERACAO, opcoesDoLembrar } from '@/lib/supabase/cookies';
 import { clienteDeAuth } from '@/lib/supabase/servidor';
 import type { EstadoCriarConta } from './estado';
 
@@ -126,6 +127,9 @@ export async function criarConta(
     );
   }
 
+  // O piso (#352) cobre o cadastro com e-mail ja usado, que o Supabase
+  // responde sem mandar codigo, e por isso mais rapido.
+  const inicio = Date.now();
   const supabase = await clienteDeAuth(false);
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -138,6 +142,7 @@ export async function criarConta(
       emailRedirectTo: urlDeRetorno(cabecalhos, CONTA),
     },
   });
+  await seguraAtePiso(inicio);
 
   if (error) {
     // Nada aqui distingue "e-mail existe" de "caiu a rede": o Supabase nao
@@ -205,7 +210,10 @@ export async function confirmarCodigo(
   // Como no login: o middleware le esta escolha a cada renovacao do token.
   // Sem ela, a sessao de quem marcou "manter conectado" morreria ao fechar o
   // navegador.
-  (await cookies()).set(COOKIE_LEMBRAR, lembrar ? '1' : '0', opcoesDoLembrar(lembrar));
+  const jar = await cookies();
+  jar.set(COOKIE_LEMBRAR, lembrar ? '1' : '0', opcoesDoLembrar(lembrar));
+  // Sessao nova por codigo nao e recuperacao (#348).
+  jar.delete(COOKIE_RECUPERACAO);
 
   redirect(destinoSeguro(form.get('next')?.toString()));
 }
@@ -280,7 +288,9 @@ export async function confirmarCadastro(
   if (error) return { erro: null, tentativa, desfecho: 'entrar' };
 
   // Como no login: o middleware le esta escolha a cada renovacao do token.
-  (await cookies()).set(COOKIE_LEMBRAR, '0', opcoesDoLembrar(false));
+  const jar = await cookies();
+  jar.set(COOKIE_LEMBRAR, '0', opcoesDoLembrar(false));
+  jar.delete(COOKIE_RECUPERACAO);
 
   redirect(CONTA);
 }
@@ -329,8 +339,11 @@ export async function reenviarCodigo(
   // Responder "espere um minuto" ali contava, a quem pedisse dois seguidos,
   // quem esta no meio do cadastro. A contagem da tela ja segura quem e
   // honesto, e o codigo anterior continua valendo quando o Supabase recusa.
+  // O piso (#352): mandar ou nao mandar o codigo nao pode aparecer no tempo.
+  const inicio = Date.now();
   const supabase = await clienteDeAuth(false);
   await mandaCodigo(supabase.auth, email, cabecalhos);
+  await seguraAtePiso(inicio);
 
   return {
     erro: null,

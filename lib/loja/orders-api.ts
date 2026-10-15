@@ -16,6 +16,7 @@ import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import { enviaDepois } from '@/lib/sentry/depois';
 import { montaEstado, type ResumoDoProvedor } from './estado-do-pagamento';
+import { centavosDaApi, moedaDaApi } from './valor-do-provedor';
 
 const BASE = 'https://api.mercadopago.com';
 
@@ -162,6 +163,8 @@ export type RespostaDoEstorno = RespostaDoCancelamento;
 type Pagamento = {
   id?: string;
   status?: string;
+  /** Decimal em texto, como o total: "14.38" (#350). */
+  paid_amount?: string;
   status_detail?: string;
   payment_method?: {
     qr_code?: string;
@@ -180,6 +183,9 @@ type OrdemDoProvedor = {
   status_detail?: string;
   external_reference?: string;
   created_date?: string;
+  /** Decimal em texto, como mandamos em `valorParaApi`. */
+  total_amount?: string;
+  currency?: string;
   transactions?: { payments?: Pagamento[] };
 };
 
@@ -258,10 +264,19 @@ function corpo(dados: DadosDaCobranca) {
 function resumoDaOrdem(ordem: OrdemDoProvedor): ResumoDoProvedor {
   const pagamento = ordem.transactions?.payments?.[0];
 
-  return montaEstado(
-    pagamento?.status ?? ordem.status,
-    pagamento?.status_detail ?? ordem.status_detail
-  );
+  return {
+    ...montaEstado(
+      pagamento?.status ?? ordem.status,
+      pagamento?.status_detail ?? ordem.status_detail
+    ),
+    // O valor vem junto do estado para quem decide "pago" conferir os dois
+    // na mesma leitura (#350).
+    valor: {
+      totalCentavos: centavosDaApi(ordem.total_amount),
+      pagoCentavos: centavosDaApi(pagamento?.paid_amount),
+      moeda: moedaDaApi(ordem.currency),
+    },
+  };
 }
 
 function encontrada(ordem: OrdemDoProvedor, idPedido?: string): OrdemEncontrada | null {

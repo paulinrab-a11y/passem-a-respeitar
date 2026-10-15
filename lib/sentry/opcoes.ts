@@ -15,15 +15,60 @@
  *      segunda camada segura. Cinto e suspensorio, porque o erro custa a
  *      sessao de alguem num painel de terceiro.
  *
+ * Desde a #352 a segunda camada vale tambem para transacoes
+ * (`beforeSendTransaction`) e breadcrumbs (`beforeBreadcrumb`), e tira a
+ * query string de toda URL que encontra. A busca do painel
+ * (`/conta/admin/pedidos?busca=...`) leva nome ou e-mail de cliente na URL,
+ * e transacao e breadcrumb carregam a URL inteira: span de fetch, navegacao,
+ * nome da transacao.
+ *
  * Sem DSN, `enabled: false`: o SDK nao manda nada e nao pesa. O site roda
  * igual em quem nao tem a variavel (dev sem conta, preview sem Sentry).
  */
 
 type Evento = {
-  request?: { cookies?: unknown; headers?: unknown; data?: unknown; query_string?: unknown };
+  request?: {
+    url?: unknown;
+    cookies?: unknown;
+    headers?: unknown;
+    data?: unknown;
+    query_string?: unknown;
+  };
   user?: unknown;
   contexts?: Record<string, unknown>;
 };
+
+type Span = { description?: unknown; data?: Record<string, unknown> };
+
+type Transacao = Evento & { transaction?: unknown; spans?: Span[] };
+
+type Breadcrumb = { message?: unknown; data?: Record<string, unknown> };
+
+/**
+ * A URL sem `?...` nem `#...`. Vale para URL absoluta, caminho e texto com
+ * URL dentro ("GET /conta?busca=x 200"): corta do `?` ou `#` ate o proximo
+ * espaco. Outra coisa que nao texto volta como veio.
+ */
+export function semQuery<T>(valor: T): T {
+  if (typeof valor !== 'string') return valor;
+  return valor.replace(/[?#][^\s]*/g, '') as T;
+}
+
+/** Chaves de `data` (span e breadcrumb) que levam URL ou pedaco dela. */
+const CHAVES_DE_URL = ['url', 'http.url', 'http.target', 'from', 'to', 'server.address'];
+/** Chaves que SAO a query ou o fragmento: saem inteiras. */
+const CHAVES_DE_QUERY = ['http.query', 'http.fragment', 'url.query', 'url.fragment'];
+
+function limpaDados(dados: Record<string, unknown> | undefined) {
+  if (!dados || typeof dados !== 'object') return dados;
+  const saida: Record<string, unknown> = {};
+  for (const [chave, valor] of Object.entries(dados)) {
+    if (CHAVES_DE_QUERY.includes(chave)) continue;
+    saida[chave] =
+      CHAVES_DE_URL.includes(chave) || chave.startsWith('url.') ? semQuery(valor) : valor;
+  }
+  return saida;
+}
 
 /** Cabecalhos que, se sobrarem, levam a sessao junto. */
 const CABECALHOS_SENSIVEIS = ['cookie', 'authorization', 'x-signature', 'set-cookie'];
@@ -40,6 +85,7 @@ export function limpa<E extends Evento>(evento: E): E {
           )
         : undefined;
     evento.request = cabecalhos ? { ...resto, headers: cabecalhos } : resto;
+    if ('url' in evento.request) evento.request.url = semQuery(evento.request.url);
   }
 
   // Quem e a pessoa nao interessa ao rastreio do erro; o id do pedido ou da
@@ -84,6 +130,26 @@ export function ambiente(): Ambiente {
   );
 }
 
+/** Transacao: o mesmo que o erro, mais o nome e cada span (#352). */
+export function limpaTransacao<T extends Transacao>(evento: T): T {
+  limpa(evento);
+  evento.transaction = semQuery(evento.transaction);
+  if (Array.isArray(evento.spans)) {
+    for (const span of evento.spans) {
+      span.description = semQuery(span.description);
+      span.data = limpaDados(span.data);
+    }
+  }
+  return evento;
+}
+
+/** Breadcrumb de navegacao, fetch ou console: URL sem query (#352). */
+export function limpaBreadcrumb<B extends Breadcrumb>(crumb: B): B {
+  crumb.message = semQuery(crumb.message);
+  crumb.data = limpaDados(crumb.data);
+  return crumb;
+}
+
 export function opcoesComuns(dsn: string | undefined) {
   return {
     dsn,
@@ -102,5 +168,7 @@ export function opcoesComuns(dsn: string | undefined) {
       stackFrameVariables: false,
     },
     beforeSend: limpa,
+    beforeSendTransaction: limpaTransacao,
+    beforeBreadcrumb: limpaBreadcrumb,
   };
 }

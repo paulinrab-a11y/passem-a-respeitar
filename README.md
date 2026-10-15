@@ -33,6 +33,7 @@ app/
   recuperar-senha/      pedido do link (#32)
   redefinir-senha/      senha nova, a partir do link (#32)
   auth/callback/        volta dos links de e-mail (#30, #32, #36)
+  auth/continuar/       botão que confirma o link com token_hash, num POST (#348)
   conta/                perfil (#35)
     seguranca/          senha, e-mail, sessões e exclusão (#36 a #39)
     pedidos/            lista e detalhe, com linha do tempo (#41, #42)
