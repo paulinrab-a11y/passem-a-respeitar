@@ -70,6 +70,14 @@ test('recuperacao de senha: o link do e-mail leva a uma senha nova, mesmo em out
   const outro = await browser.newContext({ extraHTTPHeaders: visitante('senha') });
   const pagina = await outro.newPage();
   await pagina.goto(await linkDoEmail(u.email, pedidoEm));
+
+  // Abrir o link nao entra em conta nenhuma (#348): ha um botao, e a sessao
+  // so nasce do clique nele.
+  await pagina.waitForURL('**/auth/continuar?**');
+  const continuar = await vivo(pagina.getByRole('button', { name: 'Continuar' }));
+  const antes = await outro.cookies();
+  expect(antes.filter((c) => c.name.startsWith('sb-') || c.name === 'par_recuperacao')).toEqual([]);
+  await continuar.click();
   await pagina.waitForURL('**/redefinir-senha');
 
   const salvar = await vivo(pagina.getByRole('button', { name: 'Salvar nova senha' }));

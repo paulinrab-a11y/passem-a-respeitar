@@ -1,11 +1,18 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 import { z } from 'zod';
 import { ehAdmin } from '@/lib/admin';
+import {
+  autenticadoRecentemente,
+  JANELA_MINUTOS,
+  RECADO_INDISPONIVEL,
+  reautenticar,
+} from '@/lib/conta/reautenticacao';
 import { ehStatusPedido, STATUS_PEDIDO, transicaoPermitida } from '@/lib/loja/status-do-pedido';
 import { type Estorno, encerraAbertas, estornaAprovadas } from '@/lib/loja/webhook';
-import { limita } from '@/lib/rate-limit';
+import { ipDoRequest, limita } from '@/lib/rate-limit';
 import { clienteAdmin } from '@/lib/supabase/admin';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import type { EstadoAdmin } from './estado';
@@ -21,6 +28,10 @@ import type { EstadoAdmin } from './estado';
  *   3. limite        60 por hora por administrador
  *   4. entrada       zod: id, destino do enum, motivo curto
  *   5. transicao     validada aqui, para a mensagem ser boa...
+ *   5b. login recente reembolsar e cancelar exigem a janela da #40 (#351):
+ *                    sao as duas mudancas que mexem em dinheiro ou encerram
+ *                    o pedido, e uma sessao de admin esquecida aberta nao
+ *                    pode faze-las sem a senha.
  *   6. cobranca      cancelar pedido que espera pagamento cancela ANTES a
  *                    cobranca aberta no provedor (#21). Senao o Pix continua
  *                    pagavel, o dinheiro entra, e o pedido diz "cancelado".
@@ -36,6 +47,13 @@ import type { EstadoAdmin } from './estado';
  */
 
 const LIMITE = { maximo: 60, janelaMs: 60 * 60 * 1000 };
+
+/** As mudancas que pedem login recente (#351). */
+const SENSIVEIS = new Set(['reembolsado', 'cancelado']);
+
+/** Os mesmos limites e chaves da reautenticacao em Seguranca (#40). */
+const REAUTH_POR_CONTA = { maximo: 5, janelaMs: 60 * 60 * 1000 };
+const REAUTH_POR_IP = { maximo: 20, janelaMs: 60 * 60 * 1000 };
 
 /**
  * Por que o reembolso nao pode seguir — ou `null` para seguir. Tres recusas,
@@ -113,6 +131,12 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
     };
   }
 
+  // Antes do provedor: sem a janela, nada e cancelado nem estornado. A
+  // resposta nao muda nada e pede a senha; a tela refaz esta mesma chamada.
+  if (SENSIVEIS.has(para) && !(await autenticadoRecentemente())) {
+    return { recado: null, pedido, precisaReautenticar: { minutos: JANELA_MINUTOS } };
+  }
+
   // Cobranca aberta no provedor morre antes do pedido. Se nao der para
   // cancelar, o pedido nao e cancelado: um Pix vivo num pedido cancelado e
   // dinheiro entrando sem ninguem saber. E se ela ja estava paga, o pedido
@@ -185,4 +209,48 @@ export async function mudarStatus(_anterior: EstadoAdmin, form: FormData): Promi
     },
     pedido,
   };
+}
+
+/**
+ * Confirma a senha e refaz a mudanca (#351), com os mesmos campos.
+ *
+ * Quem nao e administrador recebe "pedido nao encontrado" antes de qualquer
+ * conferencia de senha: a porta continua sem existir para essa pessoa. A
+ * mudanca em si passa de novo por `mudarStatus` inteira — nao ha um segundo
+ * caminho para reembolsar.
+ */
+export async function reautenticarEMudar(
+  anterior: EstadoAdmin,
+  form: FormData
+): Promise<EstadoAdmin> {
+  const usuario = await usuarioDaSessao();
+  if (!usuario) return NAO_ENCONTRADO;
+  if (!ehAdmin({ email: usuario.email, emailVerificado: Boolean(usuario.email_confirmed_at) })) {
+    return NAO_ENCONTRADO;
+  }
+
+  const pedido = String(form.get('pedido') ?? '') || null;
+  const pedirDeNovo = (texto: string): EstadoAdmin => ({
+    recado: { tom: 'erro', texto },
+    pedido,
+    precisaReautenticar: { minutos: JANELA_MINUTOS },
+  });
+
+  const ip = ipDoRequest(await headers());
+  const cotaConta = await limita(
+    `reauth:${usuario.id}`,
+    REAUTH_POR_CONTA.maximo,
+    REAUTH_POR_CONTA.janelaMs
+  );
+  const cotaIp = await limita(`reauth:ip:${ip}`, REAUTH_POR_IP.maximo, REAUTH_POR_IP.janelaMs);
+  if (!cotaConta.permitido || !cotaIp.permitido) {
+    return pedirDeNovo('Muitas tentativas. Tente de novo mais tarde.');
+  }
+
+  const conferencia = await reautenticar(String(form.get('senha') ?? ''));
+  if (conferencia !== 'certa') {
+    return pedirDeNovo(conferencia === 'errada' ? 'A senha está incorreta.' : RECADO_INDISPONIVEL);
+  }
+
+  return mudarStatus(anterior, form);
 }

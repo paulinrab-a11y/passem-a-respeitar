@@ -35,7 +35,7 @@ vi.mock('@/lib/supabase/servidor', () => ({ clienteDeAuth: async () => ({ auth }
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: async () => false }));
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), flush: async () => true }));
 vi.mock('next/headers', () => ({
-  cookies: async () => ({ set: vi.fn(), get: () => undefined }),
+  cookies: async () => ({ set: vi.fn(), get: () => undefined, delete: vi.fn() }),
   headers: async () => cabecalhos,
 }));
 vi.mock('next/navigation', () => ({

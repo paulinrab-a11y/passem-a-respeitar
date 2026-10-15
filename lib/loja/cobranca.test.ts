@@ -125,6 +125,10 @@ function banco({
           error: null,
         });
       elo.maybeSingle = () => {
+        // A conferencia do valor (#350), pelo webhook de verdade.
+        if (ops.some((o) => o[0] === 'select' && o[1] === 'valor_centavos')) {
+          return Promise.resolve({ data: { valor_centavos: 12000 }, error: null });
+        }
         // A releitura depois de aprovar pede so o status; a leitura do pedido
         // pede o resto.
         const releitura = ops.some((o) => o[0] === 'select' && o[1] === 'status');
@@ -525,6 +529,7 @@ describe('uma cobranca viva por pedido', () => {
       estado: 'aprovado',
       status: 'processed',
       statusDetail: 'accredited',
+      valor: { totalCentavos: 12000, pagoCentavos: 12000, moeda: 'BRL' },
     });
 
     const r = await pedirCartao();

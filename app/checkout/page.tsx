@@ -47,7 +47,15 @@ export default async function Checkout({
     quantidade: Number(q ?? 1),
   });
 
-  const conta = item.success ? await orcamento([item.data]) : null;
+  // Orcamento e guia (#206) em paralelo (#374): o guia so precisa do slug, que
+  // ja veio na URL. So vale para produto com tamanho; o de tamanho unico nao
+  // tem tabela de medidas.
+  const [conta, guiaDoProduto] = item.success
+    ? await Promise.all([
+        orcamento([item.data]),
+        item.data.tamanho ? guiaDeTamanhos(item.data.slug) : null,
+      ])
+    : [null, null];
 
   if (!item.success || !conta?.ok) {
     return (
@@ -77,7 +85,7 @@ export default async function Checkout({
   const linha = conta.linhas[0];
   // O guia (#206) tambem aqui: e a ultima chance de trocar o tamanho antes de
   // pagar, e trocar depois custa frete duas vezes.
-  const guia = linha.tamanho ? await guiaDeTamanhos(linha.produtoSlug) : null;
+  const guia = linha.tamanho ? guiaDoProduto : null;
 
   return (
     <main className="auth conta">
