@@ -109,6 +109,33 @@ begin
   select count(*) into n from public.order_status_history where order_id = pedido_b;
   insert into resultado values ('A le historico do pedido de B', '0', n::text, n = 0);
 
+  -- #349: so as colunas que a linha do tempo usa. `de`, `motivo` e `autor`
+  -- ficam para o painel, que le pela chave de servico.
+  select count(*) into n from public.order_status_history
+   where order_id = pedido_a and para is not null and criado_em is not null and id is not null;
+  insert into resultado values ('A le para e criado_em do historico', '2', n::text, n = 2);
+
+  begin
+    perform h.motivo from public.order_status_history h where h.order_id = pedido_a;
+    insert into resultado values ('A le motivo do historico', 'erro', 'passou', false);
+  exception when insufficient_privilege then
+    insert into resultado values ('A le motivo do historico', 'erro', 'erro', true);
+  end;
+
+  begin
+    perform h.autor from public.order_status_history h where h.order_id = pedido_a;
+    insert into resultado values ('A le autor do historico', 'erro', 'passou', false);
+  exception when insufficient_privilege then
+    insert into resultado values ('A le autor do historico', 'erro', 'erro', true);
+  end;
+
+  begin
+    perform h.* from public.order_status_history h where h.order_id = pedido_a;
+    insert into resultado values ('A le o historico inteiro com *', 'erro', 'passou', false);
+  exception when insufficient_privilege then
+    insert into resultado values ('A le o historico inteiro com *', 'erro', 'erro', true);
+  end;
+
   select count(*) into n from public.profiles where id = b;
   insert into resultado values ('A le profile de B', '0', n::text, n = 0);
 
