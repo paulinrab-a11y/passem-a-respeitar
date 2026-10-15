@@ -33,7 +33,12 @@ const CAMPOS = [
   { nome: 'cep', rotulo: 'CEP', auto: 'postal-code', largura: 'terco', modo: 'numeric' },
   { nome: 'logradouro', rotulo: 'Rua', auto: 'address-line1', largura: 'dois-tercos' },
   { nome: 'numero', rotulo: 'Número', auto: 'address-line2', largura: 'terco' },
-  { nome: 'complemento', rotulo: 'Complemento', auto: 'address-line3', largura: 'dois-tercos' },
+  {
+    nome: 'complemento',
+    rotulo: 'Complemento (opcional)',
+    auto: 'address-line3',
+    largura: 'dois-tercos',
+  },
   { nome: 'bairro', rotulo: 'Bairro', auto: 'address-level3', largura: 'inteiro' },
   { nome: 'cidade', rotulo: 'Cidade', auto: 'address-level2', largura: 'dois-tercos' },
   { nome: 'uf', rotulo: 'UF', auto: 'address-level1', largura: 'terco' },

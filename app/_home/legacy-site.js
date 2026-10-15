@@ -108,14 +108,14 @@ const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googl
   // A galeria e montada pelo componente Galeria, com next/image (#47).
   // Ninguem leva um tamanho que nao escolheu (#347): a ficha nasce sem
   // nenhum marcado, e a loja abre com o que a pessoa marcou aqui, se marcou.
+  // O Comprar da ficha e um botao desde a #376: so abre a loja, nao tem
+  // destino para escrever.
   let tam = '';
-  const link = ()=>{ $('#comprar').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
   $('#tamanhos').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
     // `aria-pressed` anda junto com a classe (#59): a classe pinta, o atributo diz.
-    $$('#tamanhos button').forEach(x=>{ x.classList.toggle('on', x===b); x.setAttribute('aria-pressed', String(x===b)); }); tam = b.dataset.t; link(); Som.tick();
+    $$('#tamanhos button').forEach(x=>{ x.classList.toggle('on', x===b); x.setAttribute('aria-pressed', String(x===b)); }); tam = b.dataset.t; Som.tick();
   });
-  link();
 })();
 
 if (CONFIG.clipe.blick){

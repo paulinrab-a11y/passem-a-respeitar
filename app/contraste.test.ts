@@ -45,6 +45,23 @@ describe('a paleta', () => {
   });
 });
 
+describe('borda de campo (#376)', () => {
+  // WCAG 1.4.11: o que diz onde um controle esta pede 3 para 1 contra o fundo.
+  it.each(FUNDOS)('--prata-borda passa de 3 para 1 sobre %s', (fundo) => {
+    expect(contraste(hex('prata-borda'), fundo)).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(['.auth-campo input', '.frete-ficha input', '#fim .convite form'])(
+    '%s desenha a borda com --prata-borda',
+    (seletor) => {
+      const ini = CSS.indexOf(`\n${seletor}{`);
+      expect(ini, seletor).toBeGreaterThan(-1);
+      const regra = CSS.slice(ini, CSS.indexOf('}', ini));
+      expect(regra).toContain('border:1px solid var(--prata-borda)');
+    }
+  );
+});
+
 describe('--prata-3 como cor de texto', () => {
   /** Regras que pintam TEXTO com o cinza mais escuro. `border-color` nao conta. */
   const regras = [...CSS.matchAll(/(?:^|\n)\s*([^{}\n]+)\{([^{}]*)\}/g)]

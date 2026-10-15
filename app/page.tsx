@@ -92,7 +92,11 @@ export default async function Home() {
           <button type="button" id="som" aria-pressed="false">
             <span className="dot"></span>som
           </button>
-          <a href="#clipe">clipe</a>
+          {/* Abaixo de 375 px o clipe sai da barra (#376): os sete itens nao
+              cabem, e o "entrar" saia pela borda. A secao continua no rolar. */}
+          <a href="#clipe" className="bar-clipe">
+            clipe
+          </a>
           <a href="#merch">merch</a>
           <a href="#fim">pré-save</a>
           <a href="#fim" id="linkConvite">
@@ -227,7 +231,12 @@ export default async function Home() {
                 maxLength={16}
                 aria-describedby="erroCod"
               />
-              <button type="submit">entrar</button>
+              {/* Nome proprio (#376): a home tem dois "entrar" — este e o da
+                  conta, na barra. O texto visivel continua o mesmo, e o nome
+                  comeca por ele. */}
+              <button type="submit" aria-label="Entrar com o código do convite">
+                entrar
+              </button>
               {/* Isca da protecao contra bot (#28): fora da tela, do teclado
                   e do leitor de tela. Quem preenche e script. */}
               <div className="isca" aria-hidden="true">
@@ -271,10 +280,11 @@ export default async function Home() {
               <GuiaDeTamanhos linhas={camiseta.guia} produto={camiseta.nome} />
             ) : null}
             <div className="acoes">
-              {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O clique so abre a loja (o script legado cancela a navegacao), e o href e o que o script escreve a partir do CONFIG. Sem `target`: destino interno, na mesma aba (#301). */}
-              <a className="btn cheio" id="comprar" href="#">
+              {/* Botao, e nao link (#376): ele so abre a loja, nao leva a lugar
+                  nenhum. Quem leva ao checkout e o Comprar de dentro da loja. */}
+              <button type="button" className="btn cheio" id="comprar">
                 Comprar
-              </a>
+              </button>
             </div>
             <p className="aviso">
               {`Feita sob encomenda. Entrega em pelo menos ${PRAZO_DE_PRODUCAO_DIAS} dias, para todo o Brasil.`}

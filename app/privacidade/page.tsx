@@ -52,7 +52,7 @@ export default function Privacidade() {
       <div className="auth-scan" aria-hidden="true" />
       <div className="auth-vinheta" aria-hidden="true" />
 
-      <section className="auth-caixa conta-caixa">
+      <section className="auth-caixa conta-caixa leitura">
         <a href="/" className="auth-voltar">
           ← Passem a Respeitar
         </a>
@@ -113,7 +113,7 @@ export default function Privacidade() {
               target="_blank"
               rel="noopener noreferrer"
             >
-              política de privacidade deles
+              política de privacidade do Mercado Pago
             </a>
             .
           </p>
@@ -135,7 +135,7 @@ export default function Privacidade() {
               target="_blank"
               rel="noopener noreferrer"
             >
-              política de privacidade deles
+              política de privacidade da Cloudflare
             </a>
             . Nós guardamos só a resposta: passou ou não passou.
           </p>
@@ -165,7 +165,7 @@ export default function Privacidade() {
           <p className="detalhe-nota">
             O Melhor Envio calcula o frete dos Correios para nós, e vale a{' '}
             <a href="https://lwsa.tech/politicas/" target="_blank" rel="noopener noreferrer">
-              política de privacidade deles
+              política de privacidade do Melhor Envio
             </a>
             . Quando o pedido é enviado, os Correios recebem o endereço completo, porque sem ele o
             pacote não chega.
@@ -197,7 +197,7 @@ export default function Privacidade() {
             </a>{' '}
             e a{' '}
             <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
-              política de privacidade deles
+              política de privacidade do Google
             </a>
             , que podem permitir ao Google usar o texto para melhorar os serviços dele. Por isso,{' '}
             <strong>não escreva no chat dado pessoal</strong>: nome completo, endereço, CPF, e-mail.

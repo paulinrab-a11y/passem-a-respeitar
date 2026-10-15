@@ -52,8 +52,11 @@ export type Forca = {
  * resto so desconta.
  */
 export function forcaDaSenha(senha: string): Forca {
-  if (senha.length === 0) return { nivel: 0, rotulo: '' };
-  if (senha.length < SENHA_MIN) return { nivel: 0, rotulo: 'curta demais' };
+  // O minimo antes do erro (#376): com o campo vazio o rotulo ja diz quanto
+  // precisa, e enquanto falta, quanto falta — em vez de um "curta demais" que
+  // nao conta o tamanho.
+  if (senha.length === 0) return { nivel: 0, rotulo: `mínimo ${SENHA_MIN} caracteres` };
+  if (senha.length < SENHA_MIN) return { nivel: 0, rotulo: `faltam ${SENHA_MIN - senha.length}` };
 
   let pontos = 0;
 

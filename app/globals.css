@@ -6,6 +6,10 @@
      para 1 sobre o preto, e a WCAG pede 4,5: texto secundario usa --prata-2,
      que da 5,4. O teste de acessibilidade segura isso (#175). */
   --prata-3:#3a3d42;
+  /* Borda de campo de formulario (#376). A borda e o que diz onde o campo
+     esta, e a WCAG (1.4.11) pede 3 para 1 para isso: --prata-3 da 1,9. So
+     para borda de campo — linha e divisoria seguem em --prata-3. */
+  --prata-borda:#5f636a;
   --vermelho:#e0161f;
   --vermelho-luz:rgba(224,22,31,.35);
   --display:var(--font-anton), Impact, 'Arial Narrow', sans-serif;
@@ -200,7 +204,7 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #fim .acoes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
 #fim .convite{margin-top:56px;display:flex;flex-direction:column;align-items:center;gap:12px}
 #fim .convite label{font-size:13px;letter-spacing:.2em;color:var(--prata-2)}
-#fim .convite form{display:flex;border:1px solid var(--prata-3)}
+#fim .convite form{display:flex;border:1px solid var(--prata-borda)}
 #fim .convite input{font:inherit;font-size:16px;letter-spacing:.28em;text-transform:uppercase;background:transparent;color:var(--prata);border:0;padding:14px 18px;width:min(240px,55vw);text-align:center}
 #fim .convite input::placeholder{color:var(--prata-2);letter-spacing:.2em}
 #fim .convite button{padding:0 18px;border-left:1px solid var(--prata-3);letter-spacing:.2em;font-size:13px;transition:background .2s cubic-bezier(.22,1,.36,1),color .2s cubic-bezier(.22,1,.36,1)}
@@ -215,7 +219,7 @@ footer.assina{padding:40px var(--gutter) 60px;font-size:13px;letter-spacing:.24e
 footer.assina a{text-decoration:none}
 footer.assina a:hover{color:var(--vermelho)}
 /* Credito do site (#195): linha propria, abaixo dos links, um tom mais baixo. */
-footer.assina .assina-credito{flex-basis:100%;text-align:center;margin-top:-10px;font-size:11px;letter-spacing:.2em}
+footer.assina .assina-credito{flex-basis:100%;text-align:center;margin-top:-10px;font-size:12px;letter-spacing:.2em}
 footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;text-underline-offset:3px}
 
 /* Acima do concierge (60), como a loja (70) ja estava (#270). Com os dois no
@@ -251,7 +255,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 #loja .vitrine{position:relative;aspect-ratio:1/1.05;border:1px solid var(--prata-3);background:radial-gradient(ellipse at 50% 60%, #15161a 0%, #050505 70%);overflow:hidden;cursor:grab;touch-action:pan-y pinch-zoom}
 #loja .vitrine:active{cursor:grabbing}
 #loja .vitrine canvas{width:100%;height:100%;display:block;touch-action:none}
-#loja .dica{position:absolute;left:14px;bottom:12px;font-size:11px;letter-spacing:.22em;color:var(--prata-2);pointer-events:none;transition:opacity .2s cubic-bezier(.22,1,.36,1)}
+#loja .dica{position:absolute;left:14px;bottom:12px;font-size:12px;letter-spacing:.22em;color:var(--prata-2);pointer-events:none;transition:opacity .2s cubic-bezier(.22,1,.36,1)}
 #loja .vitrine.usada .dica{opacity:0}
 #loja .giro{position:absolute;inset:6%;background-repeat:no-repeat;background-size:400% 100%;background-position:0 50%;filter:drop-shadow(0 30px 40px rgba(0,0,0,.6))}
 #loja .vitrine.modo-360 canvas{display:none}
@@ -363,7 +367,6 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
   #scan{opacity:.14}
 }
 @media (max-width:360px){
-  #bar .right{gap:10px;font-size:0.875rem}
   .elo .palavra{font-size:2.5rem}
   #merch .preco,#loja .preco{font-size:2rem}
 }
@@ -429,7 +432,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .auth-campo span{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2)}
 /* 16px nao e escolha estetica: abaixo disso o iOS da zoom sozinho ao focar o
    campo, e a pagina inteira sai do lugar. */
-.auth-campo input{font:inherit;font-size:16px;letter-spacing:.06em;background:transparent;color:var(--prata);border:1px solid var(--prata-3);padding:14px 16px;width:100%}
+.auth-campo input{font:inherit;font-size:16px;letter-spacing:.06em;background:transparent;color:var(--prata);border:1px solid var(--prata-borda);padding:14px 16px;width:100%}
 .auth-campo input:hover{border-color:var(--prata-2)}
 .auth-campo input:disabled{opacity:.45}
 /* Foco nao anima de proposito: e disparado por teclado e acontece o tempo
@@ -536,7 +539,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
    empurrar a pagina para o lado no telefone de 320px. */
 .conta-nome{font-family:var(--display);text-transform:uppercase;font-size:26px;line-height:1.1;color:#fff;overflow-wrap:anywhere}
 .conta-email{margin-top:6px;font-size:14px;letter-spacing:.04em;color:var(--prata-2);overflow-wrap:anywhere}
-.conta-selo{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--vermelho);border:1px solid var(--vermelho);padding:2px 7px;white-space:nowrap;vertical-align:middle}
+.conta-selo{display:inline-block;margin-left:8px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--vermelho);border:1px solid var(--vermelho);padding:2px 7px;white-space:nowrap;vertical-align:middle}
 .conta-selo.ok{color:var(--prata-2);border-color:var(--prata-3)}
 .conta-desde{margin-top:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
 
@@ -679,7 +682,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .senha-barra[data-nivel="2"] i{background:#c9a227}
 .senha-barra[data-nivel="3"] i{background:var(--prata-2)}
 .senha-barra[data-nivel="4"] i{background:var(--prata)}
-.senha-forca span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);min-width:8ch}
+.senha-forca span{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);min-width:8ch}
 
 @keyframes toast-entra{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 /* Saida mais curta e para cima e para fora, sem chamar atencao. */
@@ -742,7 +745,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .sessoes li.saindo{animation:sessao-sai .16s cubic-bezier(.4,0,1,1) forwards;pointer-events:none}
 .sessoes-quem{min-width:0}
 .sessoes-aparelho{font-size:14px;letter-spacing:.04em;color:var(--prata)}
-.sessoes-selo{display:inline-block;margin-left:10px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata-2);border:1px solid var(--prata-3);padding:2px 7px;vertical-align:middle}
+.sessoes-selo{display:inline-block;margin-left:10px;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--prata-2);border:1px solid var(--prata-3);padding:2px 7px;vertical-align:middle}
 .sessoes-detalhe{margin-top:5px;font-size:12px;letter-spacing:.06em;color:var(--prata-2)}
 .sessoes-agora{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);white-space:nowrap}
 .sessoes form{margin:0}
@@ -844,7 +847,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 
 .pedido-topo{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
 .pedido-topo h2{font-family:var(--display);text-transform:uppercase;font-size:19px;letter-spacing:.04em;color:#fff}
-.pedido-status{font-size:10px;letter-spacing:.16em;text-transform:uppercase;border:1px solid;padding:3px 8px;white-space:nowrap}
+.pedido-status{font-size:12px;letter-spacing:.16em;text-transform:uppercase;border:1px solid;padding:3px 8px;white-space:nowrap}
 .pedido-status.atencao{color:var(--vermelho);border-color:var(--vermelho)}
 .pedido-status.normal{color:var(--prata);border-color:var(--prata-3)}
 .pedido-status.apagado{color:var(--prata-2);border-color:#1c1d20}
@@ -859,7 +862,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .pedido-frete{margin-top:12px;display:flex;align-items:baseline;justify-content:space-between;gap:14px;font-size:13px;letter-spacing:.04em;line-height:1.45;color:var(--prata-2)}
 .pedido-frete span:last-child{color:var(--prata);white-space:nowrap}
 .pedido-total{margin-top:16px;padding-top:12px;border-top:1px solid #16171a;display:flex;align-items:baseline;justify-content:space-between;gap:14px}
-.pedido-total span{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2)}
+.pedido-total span{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2)}
 .pedido-total strong{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
 
 .pedidos-vazio{margin-top:34px;border-left:2px solid var(--vermelho);padding-left:16px;display:flex;flex-direction:column;align-items:flex-start;gap:14px}
@@ -871,7 +874,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .pedidos-paginas{margin-top:26px;padding-top:16px;border-top:1px solid var(--prata-3);display:flex;align-items:center;justify-content:space-between;gap:14px}
 .pedidos-paginas a{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none}
 .pedidos-paginas a:hover{color:var(--vermelho)}
-.pedidos-pagina-atual{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2)}
+.pedidos-pagina-atual{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2)}
 
 @media (max-width:767px){
   .pedidos article{padding:16px 14px 14px}
@@ -1018,7 +1021,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .guia-sub{margin-top:10px;font-size:13px;letter-spacing:.06em;line-height:1.5;color:var(--prata-2)}
 .guia-tabela{margin-top:22px;width:100%;border-collapse:collapse;font-size:14px;letter-spacing:.06em}
 .guia-tabela th,.guia-tabela td{padding:10px 8px;text-align:center;border-bottom:1px solid #1c1d20}
-.guia-tabela thead th{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);font-weight:400}
+.guia-tabela thead th{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);font-weight:400}
 .guia-tabela tbody th{text-align:left;font-weight:400;color:#fff;letter-spacing:.12em}
 .guia-tabela td{color:var(--prata)}
 .guia-como{margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px;letter-spacing:.04em;line-height:1.5;color:var(--prata-2)}
@@ -1038,7 +1041,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
    tem altura reservada: a cotacao chega depois, e a ficha nao anda. */
 .frete-ficha{margin-top:18px;display:flex;flex-direction:column;gap:8px;max-width:40ch}
 .frete-ficha label{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--prata-2)}
-.frete-ficha input{font:inherit;font-size:16px;letter-spacing:.12em;background:transparent;color:var(--prata);border:1px solid var(--prata-3);padding:12px 14px;width:min(180px,100%)}
+.frete-ficha input{font:inherit;font-size:16px;letter-spacing:.12em;background:transparent;color:var(--prata);border:1px solid var(--prata-borda);padding:12px 14px;width:min(180px,100%)}
 .frete-ficha input::placeholder{color:var(--prata-2);letter-spacing:.12em}
 .frete-ficha input:hover{border-color:var(--prata-2)}
 .frete-ficha-resposta{min-height:calc(2 * 1.5em);font-size:13px;letter-spacing:.04em;line-height:1.5;color:var(--prata-2)}
@@ -1199,7 +1202,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
    O filtro ativo e borda vermelha e texto branco — nao texto vermelho, que em
    11px fica abaixo do minimo da WCAG (#176). */
 .admin-filtros{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px}
-.admin-filtro{display:inline-flex;align-items:baseline;gap:7px;min-height:32px;padding:6px 10px;border:1px solid var(--prata-3);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none;transition:color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1)}
+.admin-filtro{display:inline-flex;align-items:baseline;gap:7px;min-height:32px;padding:6px 10px;border:1px solid var(--prata-3);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none;transition:color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1)}
 .admin-filtro:hover{color:var(--prata);border-color:var(--prata-2)}
 .admin-filtro[aria-current]{color:#fff;border-color:var(--vermelho)}
 .admin-filtro-n{font-family:var(--display);font-size:14px;letter-spacing:.04em;color:var(--prata)}
@@ -1208,7 +1211,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 /* O <details> do endereco. O marcador do navegador sai e entra um chevron
    desenhado com borda: so `transform` muda quando abre. */
 .admin-entrega{margin-top:12px;padding-top:10px;border-top:1px solid #16171a}
-.admin-entrega-resumo{display:flex;align-items:center;gap:10px;min-height:32px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);cursor:pointer;list-style:none;transition:color .2s cubic-bezier(.22,1,.36,1)}
+.admin-entrega-resumo{display:flex;align-items:center;gap:10px;min-height:32px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);cursor:pointer;list-style:none;transition:color .2s cubic-bezier(.22,1,.36,1)}
 .admin-entrega-resumo::-webkit-details-marker{display:none}
 .admin-entrega-resumo::before{content:"";flex:none;width:6px;height:6px;border-right:1px solid var(--vermelho);border-bottom:1px solid var(--vermelho);transform:rotate(-45deg);transition:transform .2s cubic-bezier(.22,1,.36,1)}
 .admin-entrega[open] .admin-entrega-resumo::before{transform:rotate(45deg)}
@@ -1481,3 +1484,31 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .admin-itens{margin-top:10px;font-size:14px;letter-spacing:.02em;color:var(--prata);overflow-wrap:anywhere}
 .admin-exportar{margin-top:10px}
 .admin-trilha-quem{display:block;margin-top:2px;font-size:12px;letter-spacing:.04em;color:var(--prata-2);overflow-wrap:anywhere}
+
+/* Termos e privacidade (#376): texto de leitura longa, e nao nota de rodape.
+   Os 13 px fixos da `.detalhe-nota` servem para um recado ao lado de um
+   formulario; para paginas inteiras de clausula, o corpo do site, entrelinha
+   mais aberta e linha de ate 60 caracteres. A mesma fonte. */
+.leitura .detalhe-nota{font-size:var(--t-body, 16px);line-height:1.65;max-width:60ch}
+
+/* Alvos de toque no celular (#376). A area cresce por padding e a margem
+   negativa devolve o lugar: nada muda de posicao nem de tamanho na tela, so
+   o quanto o dedo pega. */
+@media (max-width:767px){
+  #bar button,#bar a{padding-block:13px;margin-block:-9px}
+  .tocando{padding-block:15px;bottom:1px}
+  .guia-abrir{padding-block:13px;margin-block:-1px -13px}
+  .guia-no-checkout .guia-abrir{margin-top:-13px}
+  /* No rodape as linhas ficam a 12 px uma da outra: 6 px de cada lado e o
+     maximo sem a area de um link invadir a do link de baixo. */
+  footer.assina a{padding-block:6px;margin-block:-6px}
+}
+
+/* Barra abaixo de 375 px (#376). Medido em 320 px: o "entrar" saia 37 px
+   pela borda direita (WCAG 1.4.10). Respiro e espacamento menores, e o
+   "clipe" sai da barra — a secao continua logo abaixo do hero, no rolar.
+   Substitui a regra de 360 px que o `gap` de 11 px de cima anulava. */
+@media (max-width:374px){
+  #bar .right{gap:9px;font-size:0.875rem;letter-spacing:.02em}
+  #bar .right .bar-clipe{display:none}
+}

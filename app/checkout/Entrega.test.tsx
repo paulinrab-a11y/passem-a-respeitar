@@ -37,7 +37,7 @@ const ENDERECO = {
   CEP: '01310-100',
   Rua: 'Rua das Flores',
   Número: '42',
-  Complemento: 'ap 3',
+  'Complemento (opcional)': 'ap 3',
   Bairro: 'Centro',
   Cidade: 'São Paulo',
   UF: 'SP',
