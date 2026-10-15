@@ -2,7 +2,8 @@
 
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 import { useRouter } from 'next/navigation';
-import { type ComponentProps, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Mensagem from '@/app/_ui/Mensagem';
 import Pix, { type DadosDoPix } from './Pix';
 
 /**
@@ -58,7 +59,14 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
    */
   const [sdkPronto, setSdkPronto] = useState(false);
   const [montado, setMontado] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  // A `vez` muda a cada erro: a mesma recusa duas vezes seguidas e anunciada,
+  // e animada, duas vezes (ver Mensagem).
+  const [erro, setErro] = useState<{ texto: string; vez: number } | null>(null);
+  const vezes = useRef(0);
+  const falha = useCallback((texto: string) => {
+    vezes.current += 1;
+    setErro({ texto, vez: vezes.current });
+  }, []);
   const [pix, setPix] = useState<DadosDoPix | null>(null);
   const [analise, setAnalise] = useState(false);
   const router = useRouter();
@@ -123,8 +131,8 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
   // pessoa tinha digitado apagado justamente na hora de tentar de novo.
   const aoMontar = useCallback(() => setMontado(true), []);
   const aoFalhar = useCallback(
-    () => setErro('Não consegui carregar o pagamento. Recarregue a página.'),
-    []
+    () => falha('Não consegui carregar o pagamento. Recarregue a página.'),
+    [falha]
   );
   const aoEnviar = useCallback<AoEnviar>(
     async ({ formData }) => {
@@ -146,14 +154,14 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
       }).catch(() => null);
 
       if (!r) {
-        setErro('Não consegui falar com o pagamento. Tente de novo.');
+        falha('Não consegui falar com o pagamento. Tente de novo.');
         throw new Error('rede');
       }
 
       const corpo = await r.json().catch(() => ({}));
 
       if (!r.ok) {
-        setErro(corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.');
+        falha(corpo.erro ?? 'O pagamento não foi aprovado. Você pode tentar de novo.');
         // Rejeitar mantem o Brick vivo com o que a pessoa digitou, em vez
         // de limpar o formulario e obrigar a redigitar o cartao.
         throw new Error('recusado');
@@ -174,7 +182,7 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
       // Aprovado: o pedido e quem conta a historia.
       router.push(`/conta/pedidos/${pedido}`);
     },
-    [pedido, router]
+    [pedido, router, falha]
   );
 
   // O esqueleto cede o lugar quando o formulario avisa que montou — ou quando
@@ -183,11 +191,19 @@ export default function Brick({ chavePublica, valor, valorEscrito, email, pedido
 
   return (
     <div className="brick">
-      {erro ? (
-        <p className="conta-recado erro" role="alert">
-          {erro}
-        </p>
-      ) : null}
+      {/* Lugar reservado (#346), o mesmo do Pix e do checkout: a recusa entra
+          sem empurrar o formulario, com o cartao digitado, para baixo. O
+          erro anterior sai quando a pessoa tenta de novo. */}
+      {pix || analise ? null : (
+        <div className="erro-vaga">
+          <Mensagem
+            texto={erro?.texto}
+            chave={erro?.vez ?? 0}
+            classe="conta-recado erro"
+            papel="alert"
+          />
+        </div>
+      )}
 
       {pix ? <Pix dados={pix} valor={valorEscrito} pedido={pedido} /> : null}
 
