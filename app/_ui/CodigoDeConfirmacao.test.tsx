@@ -231,3 +231,81 @@ describe('voltar', () => {
     ]);
   });
 });
+
+/**
+ * O codigo conferiu, mas a pessoa nao entrou (#284): o codigo ja foi gasto,
+ * e a tela troca o campo pelo proximo passo em vez de pedir outro codigo.
+ */
+describe('desfecho', () => {
+  const comDesfecho = (desfecho: EstadoCodigo['desfecho']) => (anterior: EstadoCodigo) => ({
+    erro: null,
+    tentativa: anterior.tentativa + 1,
+    desfecho,
+  });
+
+  it('senha que nao gravou: some o campo, e o caminho e criar uma senha pela recuperacao', async () => {
+    respostaDoCodigo = comDesfecho('sem-senha');
+    const { container } = tela({ children: <p>rodape do cadastro</p> });
+
+    await digita('12345678');
+    const link = await screen.findByRole('link', { name: 'Esqueci minha senha' });
+
+    expect(link.getAttribute('href')).toBe('/recuperar-senha');
+    expect(screen.getByText('E-mail confirmado, falta a senha')).toBeTruthy();
+    // O codigo ja foi gasto: nada de campo, reenvio ou rodape pedindo codigo.
+    expect(screen.queryByLabelText(/Código de 8 dígitos/)).toBeNull();
+    expect(container.querySelectorAll('form')).toHaveLength(0);
+    expect(screen.queryByText('rodape do cadastro')).toBeNull();
+  });
+
+  // O campo onde estava o foco saiu da tela. O foco vai para o proximo passo,
+  // e o texto o descreve: o leitor de tela le o recado ao cair no link.
+  it('o foco vai para o link, e o texto do recado o descreve', async () => {
+    respostaDoCodigo = comDesfecho('sem-senha');
+    tela();
+
+    await digita('12345678');
+    const link = await screen.findByRole('link', { name: 'Esqueci minha senha' });
+
+    expect(document.activeElement).toBe(link);
+    const descricao = document.getElementById(link.getAttribute('aria-describedby') ?? '');
+    expect(descricao?.textContent).toMatch(/Não consegui gravar a senha que você escolheu/);
+    expect(descricao?.textContent).toMatch(/Esqueci minha senha/);
+  });
+
+  it('sessao que nao chegou: o caminho e o login', async () => {
+    respostaDoCodigo = comDesfecho('entrar');
+    tela();
+
+    await digita('12345678');
+    const link = await screen.findByRole('link', { name: 'Entrar' });
+
+    expect(link.getAttribute('href')).toBe('/entrar');
+    expect(screen.getByText('Conta confirmada')).toBeTruthy();
+    expect(document.activeElement).toBe(link);
+    expect(screen.queryByLabelText(/Código de 8 dígitos/)).toBeNull();
+  });
+
+  // A entrada e a mesma da tela do codigo, que respeita "reduzir movimento".
+  it('o recado entra com a classe da tela, numa caixa nova', async () => {
+    respostaDoCodigo = comDesfecho('entrar');
+    const { container } = tela();
+    const antes = container.firstElementChild;
+
+    await digita('12345678');
+    await screen.findByRole('link', { name: 'Entrar' });
+
+    expect(container.firstElementChild).not.toBe(antes);
+    expect(container.firstElementChild?.className).toBe('auth-form codigo-tela');
+  });
+
+  it('sem desfecho, o erro fica no campo como sempre', async () => {
+    tela();
+
+    await digita('00000000');
+    await screen.findByRole('alert');
+
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(campo()).toBeTruthy();
+  });
+});

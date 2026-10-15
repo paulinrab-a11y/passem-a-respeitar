@@ -77,7 +77,9 @@ export type MotivoDoFrete =
   /** Nenhum dos dois servicos atende este CEP. */
   | 'frete-sem-servico'
   /** Rede, demora, resposta torta ou erro do lado deles. */
-  | 'frete-fora-do-ar';
+  | 'frete-fora-do-ar'
+  /** Quem chamou recusou a consulta em `antesDeConsultar` (cota do IP, #308). */
+  | 'frete-limite';
 
 export type Cotacao = { ok: true; opcoes: OpcaoDeFrete[] } | { ok: false; motivo: MotivoDoFrete };
 
@@ -274,16 +276,34 @@ async function gravaCache(chave: string, opcoes: OpcaoDeFrete[]) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Cotacoes que ja sairam para o Melhor Envio e ainda nao voltaram (#308).
+ *
+ * A mesma pergunta feita de novo enquanto a primeira esta no ar (a tela e a
+ * criacao do pedido, ou as duas fichas da home) espera a mesma resposta, em
+ * vez de fazer outra consulta. Sai daqui assim que volta, deu certo ou nao: a
+ * partir dai quem responde e o cache, e falha nao fica guardada.
+ */
+const emVoo = new Map<string, Promise<Cotacao>>();
+
+/**
  * PAC e SEDEX para este carrinho, ate este CEP.
  *
  * `cep` chega so com digitos: quem chama ja passou pelo schema do endereco.
+ *
+ * `antesDeConsultar` roda so quando a resposta nao esta no cache nem no ar,
+ * imediatamente antes de perguntar ao Melhor Envio. E onde a ficha da home
+ * desconta a cota do IP (#308): quem repete um CEP ja cotado nao gasta
+ * consulta. Devolvendo `false`, nao se pergunta nada e a cotacao volta
+ * `frete-limite`.
  */
 export async function cotaFrete({
   cep,
   volumes,
+  antesDeConsultar,
 }: {
   cep: string;
   volumes: Volume[];
+  antesDeConsultar?: () => Promise<boolean>;
 }): Promise<Cotacao> {
   if (!/^\d{8}$/.test(cep)) return { ok: false, motivo: 'frete-cep-invalido' };
 
@@ -325,6 +345,23 @@ export async function cotaFrete({
   const guardado = await leCache(chave);
   if (guardado) return { ok: true, opcoes: guardado };
 
+  const noAr = emVoo.get(chave);
+  if (noAr) return noAr;
+
+  if (antesDeConsultar && !(await antesDeConsultar())) {
+    return { ok: false, motivo: 'frete-limite' };
+  }
+  // A cota e assincrona: outra chamada igual pode ter saido nesse meio tempo.
+  const saiuAntes = emVoo.get(chave);
+  if (saiuAntes) return saiuAntes;
+
+  const consulta = pergunta(config, corpo, chave).finally(() => emVoo.delete(chave));
+  emVoo.set(chave, consulta);
+  return consulta;
+}
+
+/** A consulta em si, ao Melhor Envio. Grava no cache quando da certo. */
+async function pergunta(config: Configuracao, corpo: unknown, chave: string): Promise<Cotacao> {
   let resposta: Response;
   try {
     resposta = await fetch(`${config.base}${CAMINHO}`, {

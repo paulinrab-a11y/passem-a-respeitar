@@ -22,7 +22,7 @@
 const SEQUENCIA = [
   ['aguardando_pagamento', 'Pedido recebido'],
   ['pago', 'Pagamento confirmado'],
-  ['em_producao', 'Em separação'],
+  ['em_producao', 'Em produção'],
   ['enviado', 'Enviado'],
   ['entregue', 'Entregue'],
 ] as const;

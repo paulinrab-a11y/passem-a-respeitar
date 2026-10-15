@@ -3,6 +3,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata, Viewport } from 'next';
 import { Anton, Pirata_One } from 'next/font/google';
 import { baseDoSite } from '@/lib/base-do-site';
+import { cartaoDoLink, DESCRICAO_DO_SITE, NOME_DO_SITE } from '@/lib/cartao-do-link';
 import BarraDeRota from './_ui/BarraDeRota';
 import './globals.css';
 
@@ -29,31 +30,21 @@ const pirata = Pirata_One({
 // em /public (1000x624, perto do 1,91:1 que os cards pedem); arte propria de
 // 1200x630 e decisao do dono.
 const BASE = baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL);
-// Sem data de lancamento (#269): ela fica em sigilo ate o pre-save, por
-// decisao do dono. O concierge diz o mesmo; o card do link nao pode contar.
-const DESCRICAO = 'O respeito vem antes dos números.';
-const IMAGEM = { url: '/logo.png', width: 1000, height: 624, alt: 'Passem a Respeitar' };
 
 export const metadata: Metadata = {
   metadataBase: BASE,
   // Nome do site decidido pelo dono em 06/10/2026 (#218): a marca na frente.
-  title: 'CBAC - Passem a Respeitar',
-  description: 'EP Passem a Respeitar. Santxx x Ch3fe. Whynot Visuals.',
-  openGraph: {
-    type: 'website',
-    locale: 'pt_BR',
-    siteName: 'CBAC - Passem a Respeitar',
-    url: '/',
-    title: 'CBAC - Passem a Respeitar',
-    description: DESCRICAO,
-    images: [IMAGEM],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'CBAC - Passem a Respeitar',
-    description: DESCRICAO,
-    images: [IMAGEM],
-  },
+  title: NOME_DO_SITE,
+  description: DESCRICAO_DO_SITE,
+  // Canonical por rota (#322): `./` vira o caminho da pagina servida, absoluto
+  // pela `metadataBase`, e sem a query.
+  alternates: { canonical: './' },
+  // Preview fora do indice (#322). A Vercel ja manda X-Robots-Tag nos
+  // enderecos de preview; isto cobre um alias que nao mande. As paginas que
+  // ja sao noindex declaram o delas e continuam assim.
+  ...(process.env.VERCEL_ENV === 'preview' ? { robots: { index: false, follow: false } } : {}),
+  // Imagem, locale e o `og:url` por rota moram em lib/cartao-do-link.ts.
+  ...cartaoDoLink(NOME_DO_SITE),
 };
 
 export const viewport: Viewport = {

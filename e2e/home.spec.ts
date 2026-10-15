@@ -5,6 +5,15 @@ import { visitante } from './apoio/visitante';
 test.use({ extraHTTPHeaders: visitante('home') });
 
 /**
+ * O script da home terminou de subir: o HomeRuntime marca o `<html>` depois
+ * do init, do concierge e da ancora, com sucesso ou nao (#335). O chunk do
+ * three por software no CI leva segundos.
+ */
+async function esperaHomePronta(page: Page) {
+  await expect(page.locator('html')).toHaveAttribute('data-home', 'pronta', { timeout: 30_000 });
+}
+
+/**
  * A home, no build de producao.
  *
  * Nao e teste de animacao: nenhum teste automatico pega regressao de
@@ -26,9 +35,10 @@ test('home: abre sem erro de script e sem violar a politica de seguranca', async
   expect(resposta?.status()).toBe(200);
   await expect(page).toHaveTitle(/Passem a Respeitar/i);
 
-  // Tempo para o script da home subir e pedir o que pede.
-  await page.waitForLoadState('load');
-  await page.waitForTimeout(1500);
+  // O script da home marca quando terminou de subir (#335): init, concierge e
+  // ancora feitos. So depois disso "nenhum erro" e "nada barrado" afirmam
+  // alguma coisa; um tempo fixo terminava antes do script numa maquina lenta.
+  await esperaHomePronta(page);
 
   expect(barrados).toEqual([]);
   expect(erros).toEqual([]);
@@ -50,6 +60,87 @@ test('home: os cabecalhos de seguranca saem no build de producao', async ({ requ
   expect(cabecalhos['x-content-type-options']).toBe('nosniff');
   expect(cabecalhos['strict-transport-security']).toContain('max-age=31536000');
   expect(cabecalhos['x-powered-by']).toBeUndefined();
+});
+
+test('assets de public: cache no navegador e headers de seguranca (#312)', async ({ request }) => {
+  // O modelo 3D inteiro: o .gltf aponta para o .bin e para as duas texturas,
+  // e qualquer um que falte deixa a vitrine na silhueta (#335).
+  for (const [caminho, tipo] of [
+    ['/merch/camiseta.gltf', /gltf|json/],
+    ['/merch/camiseta.bin', /octet-stream/],
+    ['/merch/camiseta-cor.webp', /image\/webp/],
+    ['/merch/camiseta-normal.webp', /image\/webp/],
+    ['/brasao.png', /image\/png/],
+  ] as const) {
+    const resposta = await request.get(caminho);
+    expect(resposta.status(), caminho).toBe(200);
+    const cabecalhos = resposta.headers();
+    expect(cabecalhos['content-type'], caminho).toMatch(tipo);
+    expect(cabecalhos['cache-control'], caminho).toBe(
+      'public, max-age=86400, stale-while-revalidate=604800'
+    );
+    expect(cabecalhos['x-frame-options'], caminho).toBe('DENY');
+    expect(cabecalhos['content-security-policy'], caminho).toContain("default-src 'none'");
+  }
+});
+
+/**
+ * Indexacao (#322): canonical e og:url por pagina, robots.txt e sitemap.xml.
+ * O dominio depende do ambiente; o que se confere e o caminho no fim.
+ */
+test('canonical e og:url por pagina, com card proprio em /privacidade', async ({ page }) => {
+  for (const [caminho, fim] of [
+    ['/', '/'],
+    ['/privacidade', '/privacidade'],
+  ] as const) {
+    await page.goto(caminho);
+    const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+    const ogUrl = await page.locator('meta[property="og:url"]').getAttribute('content');
+    for (const url of [canonical, ogUrl]) {
+      expect(url, caminho).toMatch(/^https?:\/\//);
+      expect(new URL(url ?? '').pathname, caminho).toBe(fim);
+    }
+  }
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    'content',
+    'Privacidade — Passem a Respeitar'
+  );
+});
+
+test('robots.txt e sitemap.xml existem e se apontam (#322)', async ({ request }) => {
+  const robots = await request.get('/robots.txt');
+  expect(robots.status()).toBe(200);
+  expect(robots.headers()['content-type']).toContain('text/plain');
+  const texto = await robots.text();
+  expect(texto).toMatch(/Sitemap: https?:\/\/\S+\/sitemap\.xml/);
+  expect(texto).toContain('Disallow: /api/');
+  expect(texto).toContain('User-Agent: GPTBot');
+  expect(texto).not.toMatch(/Disallow: \/(conta|checkout)/);
+
+  const sitemap = await request.get('/sitemap.xml');
+  expect(sitemap.status()).toBe(200);
+  const xml = await sitemap.text();
+  expect(xml).toMatch(/<loc>https?:\/\/[^<]+\/<\/loc>/);
+  expect(xml).toMatch(/<loc>https?:\/\/[^<]+\/privacidade<\/loc>/);
+  expect(xml).not.toContain('/conta');
+});
+
+test('home: JSON-LD com a camiseta do catalogo e sem data (#322)', async ({ page }) => {
+  await page.goto('/');
+  const bloco = await page.locator('script[type="application/ld+json"]').textContent();
+  const grafo = JSON.parse(bloco ?? '{}')['@graph'] as { '@type': string; name?: string }[];
+  expect(grafo.map((n) => n['@type'])).toEqual([
+    'Organization',
+    'WebSite',
+    'MusicGroup',
+    'MusicGroup',
+    'MusicAlbum',
+    'MusicRelease',
+    'Product',
+  ]);
+  expect(grafo.at(-1)?.name).toBe('Camiseta CBAC');
+  expect(grafo.find((n) => n['@type'] === 'MusicAlbum')?.name).toBe('Passem a Respeitar');
+  expect(bloco).not.toMatch(/date|year|rating|review/i);
 });
 
 test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({ page }) => {
@@ -74,17 +165,14 @@ test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({
   // Cada elemento baixa quando o elo dele chega perto (#47): e preciso passar
   // por eles.
   // Os cinco elementos moram nos cinco primeiros elos.
+  // Espera o pedido de cada um, e nao um tempo fixo entre as rolagens (#335).
   for (let i = 1; i <= 5; i++) {
     await page.locator(`#elo-${i}`).scrollIntoViewIfNeeded();
-    await page.waitForTimeout(250);
+    await expect.poll(() => pedidos.length).toBeGreaterThanOrEqual(i);
   }
 
-  await expect.poll(() => pedidos.length).toBeGreaterThanOrEqual(5);
-  // Folga para um PNG de reserva aparecer, se fosse aparecer: ele so e pedido
-  // quando o navegador nao consegue abrir o WebP.
-  await page.waitForTimeout(1000);
-
-  expect(pedidos.map((p) => p.caminho).sort()).toEqual([
+  const caminhos = pedidos.map((p) => p.caminho);
+  expect([...caminhos].sort()).toEqual([
     '/elementos/corrente.webp',
     '/elementos/mao.webp',
     '/elementos/p.webp',
@@ -95,13 +183,30 @@ test('home: os elementos cromados baixam em WebP, sem recorrer ao PNG', async ({
     expect(pedido.status, pedido.caminho).toBe(200);
     expect(pedido.tipo, pedido.caminho).toBe('image/webp');
   }
+
+  // Um PNG de reserva so seria pedido se o navegador nao abrisse o WebP. Em
+  // vez de esperar um tempo para ver se ele aparece, prova-se a causa: os
+  // cinco WebP decodificam neste navegador.
+  const decodificados = await page.evaluate(
+    (urls) =>
+      Promise.all(
+        urls.map(async (url) => {
+          const img = new Image();
+          img.src = url;
+          await img.decode();
+          return img.naturalWidth > 0;
+        })
+      ),
+    caminhos
+  );
+  expect(decodificados).toEqual([true, true, true, true, true]);
 });
 
 /**
  * Os nomes (#187): o selo e Whynot Visuals, e a camiseta e so da CBAC.
  *
- * O nome e a descricao da camiseta vem do banco, e o link do selo e escrito
- * pelo script da home: os dois so existem com o site de pe.
+ * O nome e a descricao da camiseta vem do banco: so existem com o site de pe.
+ * Os links do Instagram saem do servidor desde a #275.
  */
 test('home: o selo e Whynot Visuals, e a camiseta e so da CBAC', async ({ page }) => {
   await page.goto('/');
@@ -114,6 +219,14 @@ test('home: o selo e Whynot Visuals, e a camiseta e so da CBAC', async ({ page }
   await expect(selo).toHaveText('Whynot Visuals');
   await expect(selo).toHaveAttribute('href', 'https://instagram.com/whynotvisuals_');
   await expect(page.locator('footer.assina span')).toHaveText('CBAC');
+
+  // O texto do arroba e o mesmo perfil do link (#314).
+  const santxx = page.locator('footer.assina #igSantxx');
+  await expect(santxx).toHaveText('@ogsantxx');
+  await expect(santxx).toHaveAttribute('href', 'https://instagram.com/ogsantxx');
+  const chefe = page.locator('footer.assina #igChefe');
+  await expect(chefe).toHaveText('@ch3fe3k');
+  await expect(chefe).toHaveAttribute('href', 'https://instagram.com/ch3fe3k');
 
   // Credito do site (#195).
   const credito = page.locator('footer.assina .assina-credito');

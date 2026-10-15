@@ -11,8 +11,8 @@
 -- O assert que prova que a troca funcionou e "A lista orders sem filtro": sem
 -- where nenhum, tem que voltar 1 e nao 2.
 --
--- Como rodar: cole no SQL Editor do Supabase, ou via MCP. Ainda nao roda no
--- CI — falta o runner, que e a Issue #10.
+-- Como rodar: `npm run banco:testes` com o banco local no ar (o CI roda no
+-- job e2e, #335), ou cole no SQL Editor do Supabase.
 
 begin;
 
@@ -215,8 +215,8 @@ begin
   reset role;
   perform set_config('request.jwt.claims', null, true);
 
-  -- orders antes de auth.users: o on delete restrict impede a ordem inversa,
-  -- de proposito (pedido nao some porque o dono apagou a conta).
+  -- orders antes de auth.users: com `on delete set null` (#39) a ordem
+  -- inversa deixaria os pedidos de teste no banco, anonimizados.
   delete from public.orders where user_id in (a, b);
   delete from auth.users where id in (a, b);
 end;

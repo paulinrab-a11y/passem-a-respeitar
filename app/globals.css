@@ -179,6 +179,11 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #fim .convite button{padding:0 18px;border-left:1px solid var(--prata-3);letter-spacing:.2em;font-size:13px;transition:background .2s,color .2s}
 #fim .convite button:hover{background:var(--vermelho);color:#000}
 #fim .convite .erro{font-size:12px;letter-spacing:.14em;color:var(--vermelho);min-height:16px}
+/* Quem sao (#275): so aparece com texto no CONFIG. */
+#quem-sao{padding:14vh var(--gutter) 0;display:flex;justify-content:center}
+#quem-sao .in{max-width:62ch}
+#quem-sao h2{font-family:var(--display);text-transform:uppercase;font-size:clamp(24px,3.2vw,40px);line-height:.95;color:#fff;margin-bottom:18px}
+#quem-sao p{font-size:15px;line-height:1.7;color:var(--prata)}
 footer.assina{padding:40px var(--gutter) 60px;font-size:13px;letter-spacing:.24em;color:var(--prata-2);display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
 footer.assina a{text-decoration:none}
 footer.assina a:hover{color:var(--vermelho)}
@@ -495,8 +500,12 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .conta-progresso i{display:block;height:100%;background:var(--vermelho);transform-origin:left;transform:scaleX(0);transition:transform .18s linear}
 
 .conta-identidade{min-width:0}
-.conta-nome{font-family:var(--display);text-transform:uppercase;font-size:26px;line-height:1.1;color:#fff}
-.conta-email{margin-top:6px;font-size:14px;letter-spacing:.04em;color:var(--prata-2);word-break:break-all}
+/* Nome e e-mail vem do usuario e nao tem tamanho garantido: 80 caracteres,
+   palavra sem espaco, e-mail comprido. `anywhere` (e nao `break-word`) entra no
+   min-content, entao a palavra comprida quebra em vez de alargar a caixa e
+   empurrar a pagina para o lado no telefone de 320px. */
+.conta-nome{font-family:var(--display);text-transform:uppercase;font-size:26px;line-height:1.1;color:#fff;overflow-wrap:anywhere}
+.conta-email{margin-top:6px;font-size:14px;letter-spacing:.04em;color:var(--prata-2);overflow-wrap:anywhere}
 .conta-selo{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--vermelho);border:1px solid var(--vermelho);padding:2px 7px;white-space:nowrap;vertical-align:middle}
 .conta-selo.ok{color:var(--prata-2);border-color:var(--prata-3)}
 .conta-desde{margin-top:8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2)}
@@ -811,7 +820,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 
 .pedido-itens{list-style:none;margin-top:16px;display:flex;flex-direction:column;gap:8px}
 .pedido-itens li{display:flex;align-items:baseline;justify-content:space-between;gap:14px}
-.pedido-item-nome{font-size:14px;letter-spacing:.02em;color:var(--prata);min-width:0}
+.pedido-item-nome{font-size:14px;letter-spacing:.02em;color:var(--prata);min-width:0;overflow-wrap:anywhere}
 .pedido-item-detalhe{font-size:12px;letter-spacing:.06em;color:var(--prata-2);white-space:nowrap}
 
 /* O frete do pedido (#199), entre os itens e o total. */
@@ -863,9 +872,17 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .detalhe-bloco h2{font-family:var(--display);text-transform:uppercase;font-size:20px;letter-spacing:.04em;color:#fff;margin-bottom:18px}
 .detalhe-bloco .pedido-itens{margin-top:0}
 .detalhe-nota{font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);max-width:48ch;margin-bottom:18px}
+/* A versao dos termos (#276): fecha a pagina com a mesma linha que separa os
+   blocos, sem titulo — e rodape do texto, nao mais uma secao. */
+.termos-data{margin-top:40px;padding-top:24px;border-top:1px solid var(--prata-3)}
+/* O subtitulo so tem margem em cima; sem esta, o paragrafo encostava nele. */
+.termos-intro{margin-top:28px}
+/* Os prazos do pedido entregue (#276): a lista do resumo, com o respiro do
+   paragrafo antes do "como pedir" que vem embaixo. */
+.pos-venda-prazos{margin-bottom:18px}
 /* Para onde vai (#242): destinatario em branco, endereco numa linha so. */
-.entrega-nome{font-size:14px;letter-spacing:.02em;color:#fff}
-.entrega-endereco{margin-top:6px;font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2)}
+.entrega-nome{font-size:14px;letter-spacing:.02em;color:#fff;overflow-wrap:anywhere}
+.entrega-endereco{margin-top:6px;font-size:13px;line-height:1.55;letter-spacing:.02em;color:var(--prata-2);overflow-wrap:anywhere}
 
 /* A fila. `border-left` no <li> desenha o fio que liga as etapas, e o ::before
    do primeiro/ultimo apara as pontas — sem elemento extra so para a linha. */
@@ -1158,7 +1175,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .admin-entrega[open] .admin-entrega-resumo::before{transform:rotate(45deg)}
 .admin-entrega-resumo:hover{color:var(--prata)}
 .admin-entrega-corpo{margin-top:10px;display:grid;gap:12px;justify-items:start;animation:admin-etapa-entra .2s cubic-bezier(.22,1,.36,1) backwards}
-.admin-entrega-corpo p{margin:0;font-size:14px;letter-spacing:.02em;line-height:1.55;color:var(--prata)}
+.admin-entrega-corpo p{margin:0;font-size:14px;letter-spacing:.02em;line-height:1.55;color:var(--prata);overflow-wrap:anywhere}
 .admin-entrega-corpo p strong{font-weight:400;color:#fff}
 .admin-entrega-corpo .btn{font-size:12px;padding:10px 16px}
 .admin-copiar-falhou{margin:0;font-size:13px;line-height:1.45;letter-spacing:.02em;color:var(--vermelho)}

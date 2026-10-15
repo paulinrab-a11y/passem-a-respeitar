@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
+import { cartaoDoLink } from '@/lib/cartao-do-link';
 import { CONTATO } from '@/lib/contato';
 
 export const dynamic = 'force-dynamic';
 
+const TITULO = 'Privacidade — Passem a Respeitar';
+
 export const metadata: Metadata = {
-  title: 'Privacidade — Passem a Respeitar',
+  title: TITULO,
+  // Card proprio (#322): o link desta pagina mostra "Privacidade", e o
+  // `og:url` e o canonical terminam em /privacidade.
+  ...cartaoDoLink(TITULO),
 };
 
 /**
@@ -71,7 +77,8 @@ export default function Privacidade() {
           </p>
           <p className="detalhe-nota">
             <strong>Pedidos:</strong> o que você comprou, quanto pagou, e o endereço de entrega. Sem
-            o endereço a camiseta não chega.
+            o endereço a camiseta não chega. Também a data e a hora em que você aceitou os{' '}
+            <a href="/termos">termos de compra</a>, que ficam no pedido como registro do aceite.
           </p>
           <p className="detalhe-nota">
             <strong>Pagamento:</strong> o pagamento é processado pelo Mercado Pago. O número do seu

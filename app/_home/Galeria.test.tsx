@@ -18,7 +18,7 @@ vi.mock('next/image', () => ({
   ),
 }));
 
-import Galeria from './Galeria';
+import Galeria, { altDaFoto } from './Galeria';
 
 const FOTOS = ['/m/1.jpg', '/m/2.jpg', '/m/3.jpg', '/m/4.jpg', '/m/5.jpg'];
 
@@ -33,12 +33,23 @@ function monta() {
 }
 
 describe('galeria da merch (#47)', () => {
-  it('uma moldura por foto, na ordem, com o nome do produto no alt', () => {
+  it('uma moldura por foto, na ordem, cada uma com alt proprio', () => {
     const g = monta();
 
     expect(g.figuras()).toHaveLength(FOTOS.length);
     expect(g.fotos().map((f) => f.getAttribute('src'))).toEqual(FOTOS);
-    expect(g.fotos().every((f) => f.getAttribute('alt') === 'Camiseta de teste')).toBe(true);
+    expect(g.fotos().map((f) => f.getAttribute('alt'))).toEqual([
+      'Camiseta de teste, foto 1 de 5',
+      'Camiseta de teste, foto 2 de 5',
+      'Camiseta de teste, foto 3 de 5',
+      'Camiseta de teste, foto 4 de 5',
+      'Camiseta de teste, foto 5 de 5',
+    ]);
+  });
+
+  it('sem nome do produto, o alt ainda diz qual foto e', () => {
+    expect(altDaFoto('', 0, 7)).toBe('Foto 1 de 7');
+    expect(altDaFoto('Camiseta', 6, 7)).toBe('Camiseta, foto 7 de 7');
   });
 
   it('todas preguicosas, nenhuma com priority: a galeria fica abaixo da dobra', () => {

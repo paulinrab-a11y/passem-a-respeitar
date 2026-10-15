@@ -18,6 +18,15 @@ import { useState } from 'react';
  * enquanto a foto nao chega, e a foto entra por cima com fade.
  */
 
+/**
+ * Cada foto com o seu alt: o mesmo nome repetido sete vezes nao deixa quem
+ * usa leitor de tela saber em qual foto esta nem quantas faltam.
+ */
+export function altDaFoto(alt: string, i: number, total: number) {
+  const posicao = `foto ${i + 1} de ${total}`;
+  return alt ? `${alt}, ${posicao}` : `F${posicao.slice(1)}`;
+}
+
 /** A primeira ocupa a largura da galeria; as duas seguintes, metade; o resto, um terco. */
 function tamanhos(i: number) {
   if (i === 0) return '(max-width: 767px) 100vw, 50vw';
@@ -39,7 +48,7 @@ export default function Galeria({ fotos, alt }: { fotos: string[]; alt: string }
         <figure key={foto} className={prontas.has(foto) ? 'ok' : undefined}>
           <Image
             src={foto}
-            alt={alt}
+            alt={altDaFoto(alt, i, fotos.length)}
             // Proporcao 3:2, a mesma da moldura. O valor so reserva espaco e
             // escolhe o maior arquivo do srcset; quem define o tamanho na
             // tela e o CSS.

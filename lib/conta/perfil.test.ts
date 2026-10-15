@@ -175,4 +175,46 @@ describe('iniciais', () => {
   it('nao quebra com e-mail de uma letra so', () => {
     expect(iniciais(null, 'x@y.z')).toBe('XZ');
   });
+
+  // Pior caso de dado real: emoji, acento combinante, sufixo de geracao, nome
+  // enorme. Nenhum desses pode virar meio caractere no avatar.
+  const bemFormada = (s: string) =>
+    !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(s);
+
+  it.each([
+    ['👩‍🚀 Ana', '👩‍🚀A'],
+    ['🔥', '🔥'],
+    ['Ana 🇧🇷', 'A🇧🇷'],
+    ['🔥🔥🔥', '🔥🔥'],
+  ])('emoji em "%s" sai inteiro: %s', (nome, esperado) => {
+    const saida = iniciais(nome, 'qualquer@exemplo.com');
+    expect(saida).toBe(esperado);
+    expect(bemFormada(saida)).toBe(true);
+  });
+
+  it('o jeito antigo partia o emoji ao meio', () => {
+    // Prova de que o teste acima pega o bug: slice por unidade UTF-16.
+    expect(bemFormada('🔥'.slice(0, 1))).toBe(false);
+  });
+
+  it('letra com acento combinante fica junto do acento', () => {
+    // "E" + U+0301, como alguns teclados de celular mandam.
+    expect(iniciais('E\u0301lio Ávila', 'qualquer@exemplo.com')).toBe('ÉÁ');
+  });
+
+  it.each([
+    ['Christopher Souza III', 'CS'],
+    ['João Pereira Filho', 'JP'],
+    ['Luiz Carlos Santos Júnior', 'LS'],
+    ['Pedro Alves Jr.', 'PA'],
+    ['Ana Neto', 'AN'],
+  ])('sufixo de geracao nao vira inicial: "%s" tira %s', (nome, esperado) => {
+    expect(iniciais(nome, 'qualquer@exemplo.com')).toBe(esperado);
+  });
+
+  it('nome de 80 caracteres com acento tira duas letras', () => {
+    const nome = 'Maria das Dores da Conceição Antonietta Guimarães Albuquerque Assunção Ribeirões';
+    expect(nome.length).toBe(80);
+    expect(iniciais(nome, 'qualquer@exemplo.com')).toBe('MR');
+  });
 });

@@ -143,6 +143,17 @@ export async function leFreteDoPedido(id: string) {
   return data;
 }
 
+/** Quando o pedido registrou o aceite dos termos de compra (#276), lido do banco. */
+export async function leAceiteDoPedido(id: string) {
+  const { data, error } = await admin()
+    .from('orders')
+    .select('termos_aceitos_em')
+    .eq('id', id)
+    .single();
+  if (error || !data) throw new Error(`nao li o pedido: ${error?.message}`);
+  return data.termos_aceitos_em as string | null;
+}
+
 /** Quantos pedidos esta pessoa tem. Recusa de verdade nao deixa pedido. */
 export async function pedidosDe(dono: Usuario) {
   const { count, error } = await admin()
@@ -229,6 +240,33 @@ export async function emailDoUsuario(id: string) {
   return data.user.email ?? '';
 }
 
+/** A conta ainda existe no Auth? Lido do banco, nao da tela (#335). */
+export async function usuarioExiste(id: string) {
+  const { data, error } = await admin().auth.admin.getUserById(id);
+  if (error && error.status !== 404) throw new Error(`nao li o usuario: ${error.message}`);
+  return Boolean(data?.user);
+}
+
+/** De quem e o pedido e se foi anonimizado, lido do banco (#335). */
+export async function leDonoDoPedido(id: string) {
+  const { data, error } = await admin()
+    .from('orders')
+    .select('user_id, anonimizado_em, total_centavos')
+    .eq('id', id)
+    .single();
+  if (error || !data) throw new Error(`nao li o pedido: ${error?.message}`);
+  return data;
+}
+
+/**
+ * Apaga um pedido pelo id. O pedido de quem excluiu a conta fica sem dono, e
+ * `apagaUsuariosDaSuite` acha pedido pelo dono: este so sai por aqui.
+ */
+export async function apagaPedido(id: string) {
+  const { error } = await admin().from('orders').delete().eq('id', id);
+  if (error) throw new Error(`nao apaguei o pedido: ${error.message}`);
+}
+
 /** O usuario com este e-mail confirmou o endereco? Lido do banco, nao da tela. */
 export async function emailConfirmado(email: string) {
   const { data, error } = await admin().auth.admin.listUsers({ perPage: 200 });
@@ -252,11 +290,45 @@ export async function apagaUsuariosDaSuite() {
   for (const u of data.users) {
     if (!u.email?.endsWith(`@${DOMINIO}`)) continue;
 
-    // `orders.user_id` e `on delete restrict`: pedido primeiro.
+    // `orders.user_id` e `on delete set null` (#39): apagar so o usuario
+    // deixaria os pedidos de teste no banco, sem dono. Pedido primeiro.
     await banco.from('orders').delete().eq('user_id', u.id);
     const { error: e } = await banco.auth.admin.deleteUser(u.id);
     if (e) throw new Error(`nao apaguei ${u.id}: ${e.message}`);
     apagados += 1;
   }
   return apagados;
+}
+
+/**
+ * As tentativas de pagamento de um pedido, da primeira para a ultima, lidas
+ * do banco e nao da tela (#274). A chave de idempotencia vem junto: o teste
+ * confere que foi ELA que chegou ao Mercado Pago falso.
+ */
+export async function lePagamentos(pedido: string) {
+  const { data, error } = await admin()
+    .from('pagamentos')
+    .select(
+      'tentativa, metodo, estado, valor_centavos, idempotency_key, provedor_pagamento_id, provedor_status, provedor_status_detail'
+    )
+    .eq('order_id', pedido)
+    .order('tentativa', { ascending: true });
+  if (error) throw new Error(`nao li os pagamentos: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Faz as tentativas do pedido parecerem mais velhas do que sao.
+ *
+ * A conferencia da tela do Pix so pergunta ao provedor por tentativa com mais
+ * de 15 s (lib/loja/conciliacao.ts), e o relogio do servidor e o de verdade:
+ * o `page.clock` adianta so o navegador. Envelhecer a linha e o que deixa o
+ * teste chegar ali sem esperar 15 s parado.
+ */
+export async function envelhecePagamentos(pedido: string, ms: number) {
+  const { error } = await admin()
+    .from('pagamentos')
+    .update({ criado_em: new Date(Date.now() - ms).toISOString() })
+    .eq('order_id', pedido);
+  if (error) throw new Error(`nao envelheci os pagamentos: ${error.message}`);
 }

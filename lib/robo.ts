@@ -116,8 +116,11 @@ type Resposta = {
 };
 
 /**
- * Pergunta a Cloudflare se o token vale. Vem DEPOIS do limite de tentativas:
- * e uma chamada para fora, e rajada nao pode virar uma chamada por request.
+ * Pergunta a Cloudflare se o token vale. Vem DEPOIS do limite por IP: e uma
+ * chamada para fora, e rajada nao pode virar uma chamada por request. E ANTES
+ * do limite por e-mail, onde houver um (#260, #285): antes daqui qualquer
+ * texto passa por token, e quem gasta a cota de um e-mail precisa ter
+ * passado pelo desafio, senao um script trocando de IP tranca a conta alheia.
  *
  * Falha fechada: Cloudflare fora do ar, resposta torta ou demora recusam o
  * envio. O contrario seria a protecao sumir justamente quando alguem

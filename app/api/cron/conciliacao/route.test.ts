@@ -19,7 +19,19 @@ const expiraVencidos = vi.fn(async () => ({ olhados: 2, expirados: 1, pagos: 0, 
 
 vi.mock('@/lib/loja/expiracao', () => ({ expiraVencidos: () => expiraVencidos() }));
 
+const captureCheckIn = vi.fn(
+  (_checkIn: Record<string, unknown>, _config?: unknown) => 'id-do-check-in'
+);
+vi.mock('@sentry/nextjs', () => ({
+  captureCheckIn: (checkIn: Record<string, unknown>, config?: unknown) =>
+    captureCheckIn(checkIn, config),
+}));
+
+const enviaDepois = vi.fn();
+vi.mock('@/lib/sentry/depois', () => ({ enviaDepois: () => enviaDepois() }));
+
 const { GET } = await import('./route');
+const { MONITOR } = await import('@/lib/sentry/monitor-da-conciliacao');
 
 const SEGREDO = 'segredo-do-cron-de-teste-com-tamanho-razoavel';
 
@@ -95,6 +107,8 @@ describe('autorizacao', () => {
     expect(r.status).toBe(401);
     expect(concilia).not.toHaveBeenCalled();
     expect(expiraVencidos).not.toHaveBeenCalled();
+    // Quem chuta o segredo nao mexe no monitor (#273).
+    expect(captureCheckIn).not.toHaveBeenCalled();
   });
 
   // O timingSafeEqual compara bytes e lanca com tamanhos diferentes. Contar
@@ -127,5 +141,69 @@ describe('autorizacao', () => {
     const naoConfigurado = await GET(pede('Bearer x'));
 
     expect(await semSegredo.json()).toEqual(await naoConfigurado.json());
+  });
+});
+
+describe('monitor do Sentry (#273)', () => {
+  const statusDosCheckIns = () => captureCheckIn.mock.calls.map(([c]) => c.status);
+
+  it('rodada limpa: in_progress e depois ok, com o mesmo id', async () => {
+    const r = await GET(pede(`Bearer ${SEGREDO}`));
+
+    expect(r.status).toBe(200);
+    expect(statusDosCheckIns()).toEqual(['in_progress', 'ok']);
+    expect(captureCheckIn.mock.calls[1]?.[0]).toMatchObject({
+      monitorSlug: MONITOR.slug,
+      checkInId: 'id-do-check-in',
+    });
+    expect(captureCheckIn.mock.calls[0]?.[1]).toEqual(MONITOR.config);
+    expect(enviaDepois).toHaveBeenCalledTimes(1);
+  });
+
+  it('com falhas na conciliacao: check-in error, resposta continua 200 com o balanco', async () => {
+    concilia.mockResolvedValueOnce({
+      olhados: 4,
+      mudados: 1,
+      semAvanco: 0,
+      repetidos: 0,
+      falhas: 3,
+    });
+
+    const r = await GET(pede(`Bearer ${SEGREDO}`));
+
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ falhas: 3 });
+    expect(statusDosCheckIns()).toEqual(['in_progress', 'error']);
+  });
+
+  // Banco fora: o supabase-js devolve `{ error }`, e e `concilia` (provado em
+  // conciliacao.test.ts) que transforma isso nesta excecao.
+  it('banco fora na conciliacao: check-in error, nao expira, e a excecao segue (vira 500)', async () => {
+    concilia.mockRejectedValueOnce(new Error('conciliacao: a varredura nao leu o banco'));
+
+    await expect(GET(pede(`Bearer ${SEGREDO}`))).rejects.toThrow('a varredura nao leu o banco');
+    expect(expiraVencidos).not.toHaveBeenCalled();
+    expect(statusDosCheckIns()).toEqual(['in_progress', 'error']);
+    expect(enviaDepois).toHaveBeenCalledTimes(1);
+  });
+
+  it('banco fora na expiracao: check-in error e a excecao segue (vira 500)', async () => {
+    expiraVencidos.mockRejectedValueOnce(new Error('expiracao: a varredura nao leu o banco'));
+
+    await expect(GET(pede(`Bearer ${SEGREDO}`))).rejects.toThrow('a varredura nao leu o banco');
+    expect(statusDosCheckIns()).toEqual(['in_progress', 'error']);
+    expect(enviaDepois).toHaveBeenCalledTimes(1);
+  });
+
+  it('o agendamento do monitor e o mesmo do vercel.json, com margem de uma hora', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const vercel = JSON.parse(
+      await readFile(new URL('../../../../vercel.json', import.meta.url), 'utf8')
+    );
+    const cron = vercel.crons.find((c: { path: string }) => c.path === '/api/cron/conciliacao');
+
+    expect(MONITOR.config.schedule).toEqual({ type: 'crontab', value: cron.schedule });
+    // Plano Hobby: o cron diario dispara em qualquer minuto da hora marcada.
+    expect(MONITOR.config.checkinMargin).toBeGreaterThanOrEqual(60);
   });
 });

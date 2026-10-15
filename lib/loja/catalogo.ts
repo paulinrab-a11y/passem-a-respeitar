@@ -218,12 +218,21 @@ export type OpcoesDeFrete =
   | { ok: true; subtotalCentavos: number; opcoes: OpcaoDeFrete[] }
   | { ok: false; motivo: MotivoDaRecusa | 'catalogo-indisponivel' | MotivoDoFrete };
 
-/** PAC e SEDEX para este carrinho e este CEP: o que a tela do checkout mostra. */
-export async function opcoesDeFrete(itens: ItemDoCarrinho[], cep: string): Promise<OpcoesDeFrete> {
+/**
+ * PAC e SEDEX para este carrinho e este CEP: o que a tela do checkout mostra.
+ *
+ * `antesDeConsultar` vai direto para `cotaFrete`: so roda quando a resposta
+ * nao esta no cache (#308).
+ */
+export async function opcoesDeFrete(
+  itens: ItemDoCarrinho[],
+  cep: string,
+  antesDeConsultar?: () => Promise<boolean>
+): Promise<OpcoesDeFrete> {
   const carrinho = await leCarrinho(itens);
   if (!carrinho.ok) return carrinho;
 
-  const cotacao = await cotaFrete({ cep, volumes: carrinho.volumes });
+  const cotacao = await cotaFrete({ cep, volumes: carrinho.volumes, antesDeConsultar });
   if (!cotacao.ok) return cotacao;
 
   return { ok: true, subtotalCentavos: carrinho.subtotalCentavos, opcoes: cotacao.opcoes };

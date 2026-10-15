@@ -1,11 +1,18 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId } from 'react';
 import Mensagem from '@/app/_ui/Mensagem';
 import { reais } from '@/lib/conta/pedidos';
 import { cepLegivel } from '@/lib/loja/endereco';
-import { cotarFreteNaFicha, type FreteNaFicha as Resposta } from './acoes';
-import { lembraCep, useCepLembrado } from './cep-lembrado';
+import { cotarFreteNaFicha } from './acoes';
+import {
+  chaveDoFrete,
+  largaRecusas,
+  lembraCep,
+  pedeFrete,
+  useCepLembrado,
+  useFreteDaChave,
+} from './cep-lembrado';
 
 /**
  * O frete na ficha da camiseta (Issue #205), antes de login e de checkout.
@@ -15,32 +22,29 @@ import { lembraCep, useCepLembrado } from './cep-lembrado';
  * ficha anda quando a cotacao chega.
  *
  * O CEP fica lembrado no navegador: a ficha da secao e a da loja mostram o
- * mesmo, e o checkout comeca com ele preenchido.
+ * mesmo, e o checkout comeca com ele preenchido. A cotacao tambem e uma so
+ * para as duas (#308).
  */
-
-type Cotacao = { cep: string; resposta: Resposta | null };
 
 export default function FreteNaFicha({ slug, tamanho }: { slug: string; tamanho: string | null }) {
   const id = useId();
   const cep = useCepLembrado();
   const completo = cep.length === 8;
-  const [cotacao, setCotacao] = useState<Cotacao>({ cep: '', resposta: null });
+  // A cotacao e da pagina, nao desta ficha (#308): a secao e a loja leem a
+  // mesma, e um CEP vira uma consulta so. A chave e a do CEP da tela, entao a
+  // resposta de um CEP velho nunca aparece no lugar da do novo.
+  const chave = chaveDoFrete(slug, tamanho, cep);
+  const resposta = useFreteDaChave(chave);
 
   useEffect(() => {
-    if (!completo || cep === cotacao.cep) return;
+    if (!completo) {
+      largaRecusas();
+      return;
+    }
+    pedeFrete(chave, () => cotarFreteNaFicha({ slug, tamanho, cep }));
+  }, [chave, completo, slug, tamanho, cep]);
 
-    // Guardado antes da chamada: a resposta de um CEP velho nao toma o lugar
-    // da do novo.
-    setCotacao({ cep, resposta: null });
-    // Sem `useTransition`: ele marcaria "pendente" enquanto QUALQUER cotacao
-    // estivesse no ar, e uma resposta velha e lenta esconderia a nova. O que
-    // diz se esta calculando e a resposta do CEP atual ainda nao ter chegado.
-    cotarFreteNaFicha({ slug, tamanho, cep }).then((resposta) => {
-      setCotacao((atual) => (atual.cep === cep ? { cep, resposta } : atual));
-    });
-  }, [cep, completo, cotacao.cep, slug, tamanho]);
-
-  const atual = completo && cotacao.cep === cep ? cotacao.resposta : null;
+  const atual = completo ? resposta : null;
   const calculando = completo && atual === null;
 
   return (

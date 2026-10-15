@@ -18,6 +18,7 @@ const {
   localizaOrdem,
   reembolsaOrdem,
   valorParaApi,
+  vencimentoDoPix,
 } = await import('./orders-api');
 
 /**
@@ -175,7 +176,12 @@ describe('criaOrdem', () => {
       ok: true,
       provedorId: 'ORD-1',
       resumo: { estado: 'pendente', status: 'action_required', statusDetail: 'waiting_transfer' },
-      pix: { copiaECola: '00020126...', qrBase64: 'iVBOR', expiraEm: null },
+      // A resposta nao traz data: vale agora + a duracao pedida (#337).
+      pix: {
+        copiaECola: '00020126...',
+        qrBase64: 'iVBOR',
+        expiraEm: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+      },
     });
   });
 
@@ -821,5 +827,174 @@ describe('reembolsaOrdem', () => {
     expect(JSON.stringify(r)).not.toContain('quem@exemplo.test');
     expect(JSON.stringify(r)).not.toContain('token-de-teste');
     expect(oQueFoiEnviado().url).not.toContain('token-de-teste');
+  });
+});
+
+/**
+ * O desvio da suite (#274): a suite de ponta a ponta aponta a Orders API para
+ * um Mercado Pago falso nesta maquina. O Access Token vai junto em toda
+ * chamada, entao o desvio so vale para esta maquina, e nunca em producao.
+ */
+describe('para onde vao as chamadas', () => {
+  beforeEach(() => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
+    vi.stubEnv('MERCADOPAGO_API_URL', '');
+    vi.stubEnv('VERCEL_ENV', '');
+    respondeCom(ORDEM, 200);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('sem desvio, vai ao Mercado Pago', async () => {
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1');
+  });
+
+  it('o desvio da suite vale fora de producao, para as quatro operacoes', async () => {
+    vi.stubEnv('MERCADOPAGO_API_URL', 'http://127.0.0.1:46332');
+
+    await localizaOrdem('ORD-1');
+    expect(oQueFoiEnviado().url).toBe('http://127.0.0.1:46332/v1/orders/ORD-1');
+
+    await cancelaOrdem('ORD-1', 'chave-c');
+    expect(oQueFoiEnviado().url).toBe('http://127.0.0.1:46332/v1/orders/ORD-1/cancel');
+
+    await buscaOrdensPorReferencia('ped-1', { desdeMs: 0, ateMs: 1000 });
+    expect(oQueFoiEnviado().url).toMatch(/^http:\/\/127\.0\.0\.1:46332\/v1\/orders\?/);
+
+    respondeCom({ id: 'ORD-1' }, 201);
+    await criaOrdem({
+      pedidoId: 'ped-1',
+      totalCentavos: 12000,
+      email: 'quem@exemplo.test',
+      metodo: { tipo: 'pix', validade: 'PT5H12M' },
+      idempotencia: 'chave-1',
+    });
+    expect(oQueFoiEnviado().url).toBe('http://127.0.0.1:46332/v1/orders');
+  });
+
+  it('localhost tambem e esta maquina, e caminho no fim nao muda nada', async () => {
+    vi.stubEnv('MERCADOPAGO_API_URL', 'http://localhost:46332/qualquer/coisa');
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('http://localhost:46332/v1/orders/ORD-1');
+  });
+
+  it('em producao e ignorado: ninguem aponta a cobranca para outro lugar por variavel', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('MERCADOPAGO_API_URL', 'http://127.0.0.1:46332');
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1');
+  });
+
+  // Fora de producao tambem: o token iria no cabecalho para quem estivesse
+  // do outro lado.
+  it.each([
+    ['host de fora', 'https://outro-lugar.invalid'],
+    ['http para host de fora', 'http://outro-lugar.invalid:46332'],
+    ['https para esta maquina', 'https://127.0.0.1:46332'],
+    ['nome que so comeca como esta maquina', 'http://localhost.outro-lugar.invalid'],
+    ['texto que nao e endereco', 'nao e url'],
+  ])('%s e ignorado', async (_caso, desvio) => {
+    vi.stubEnv('MERCADOPAGO_API_URL', desvio);
+    await localizaOrdem('ORD-1');
+
+    expect(oQueFoiEnviado().url).toBe('https://api.mercadopago.com/v1/orders/ORD-1');
+  });
+});
+
+/**
+ * O primeiro Pix real caiu na pagina de erro (#337): a resposta ecoa o
+ * `expiration_time` como foi pedido (`PT47H59M`), e ele ia para a tela como
+ * se fosse data. A tela recebe sempre data ISO, ou nada.
+ */
+describe('vencimentoDoPix (#337)', () => {
+  const PIX = { tipo: 'pix', validade: 'PT5H12M' } as const;
+  const AGORA = Date.parse('2026-01-02T10:00:00.000Z');
+
+  it('a duracao ecoada pelo provedor vira agora + duracao', () => {
+    expect(vencimentoDoPix({ expiration_time: 'PT47H59M' }, PIX, AGORA)).toBe(
+      '2026-01-04T09:59:00.000Z'
+    );
+  });
+
+  it('a data do provedor vale mais que a conta', () => {
+    expect(
+      vencimentoDoPix(
+        { expiration_time: 'PT5H12M', date_of_expiration: '2026-01-02T12:00:00.000-03:00' },
+        PIX,
+        AGORA
+      )
+    ).toBe('2026-01-02T15:00:00.000Z');
+  });
+
+  it('sem nada na resposta, usa a duracao que foi pedida', () => {
+    expect(vencimentoDoPix({}, PIX, AGORA)).toBe('2026-01-02T15:12:00.000Z');
+  });
+
+  it('so horas ou so minutos tambem servem', () => {
+    expect(vencimentoDoPix({ expiration_time: 'PT2H' }, PIX, AGORA)).toBe(
+      '2026-01-02T12:00:00.000Z'
+    );
+    expect(vencimentoDoPix({ expiration_time: 'PT45M' }, PIX, AGORA)).toBe(
+      '2026-01-02T10:45:00.000Z'
+    );
+  });
+
+  it('nada legivel vira null, e nunca data invalida', () => {
+    expect(
+      vencimentoDoPix(
+        { expiration_time: 'amanha', date_of_expiration: 'logo' },
+        { tipo: 'cartao', bandeira: 'visa', token: 't', parcelas: 1 },
+        AGORA
+      )
+    ).toBeNull();
+  });
+
+  it('a criacao do Pix devolve data, nao a duracao', async () => {
+    vi.stubEnv('MERCADOPAGO_ACCESS_TOKEN', 'token-de-teste');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              id: 'ORD-9',
+              transactions: {
+                payments: [
+                  {
+                    status: 'action_required',
+                    status_detail: 'waiting_transfer',
+                    expiration_time: 'PT47H59M',
+                    payment_method: { qr_code: '000201', qr_code_base64: 'iVBOR' },
+                  },
+                ],
+              },
+            }),
+            { status: 201 }
+          )
+      )
+    );
+
+    const r = await criaOrdem({
+      pedidoId: 'ped-9',
+      totalCentavos: 1438,
+      email: 'quem@exemplo.test',
+      documento: null,
+      metodo: { tipo: 'pix', validade: 'PT47H59M' },
+      idempotencia: 'chave-9',
+    });
+
+    const vence = r.ok ? r.pix?.expiraEm : undefined;
+    expect(vence).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(Number.isFinite(Date.parse(vence ?? ''))).toBe(true);
+
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 });

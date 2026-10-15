@@ -46,8 +46,11 @@ vi.mock('./abertura', { spy: true });
 
 const CENA = { Scene: class {}, WebGLRenderer: class {} };
 
+const pronta = () => document.documentElement.dataset.home;
+
 function montaHome() {
   document.documentElement.className = '';
+  delete document.documentElement.dataset.home;
   document.body.innerHTML = `
     <header id="bar"></header>
     <div id="intro"><button type="button" id="skip">pular</button></div>
@@ -137,6 +140,26 @@ describe('quando tudo funciona', () => {
     expect(duble.captureException).not.toHaveBeenCalled();
     expect(duble.montaConcierge).toHaveBeenCalledOnce();
     expect(duble.levaAteAAncora).toHaveBeenCalledWith(window);
+    // O marcador que o e2e espera (#335) so aparece com tudo isso feito.
+    expect(pronta()).toBe('pronta');
+  });
+
+  it('o marcador de pronta so aparece depois do init, e desmontar o tira', async () => {
+    let chega = (_cena: Record<string, unknown>) => {};
+    duble.three.mockReturnValue(
+      new Promise<Record<string, unknown>>((resolve) => {
+        chega = resolve;
+      })
+    );
+
+    const { unmount } = await monta();
+    await proximoTique();
+    expect(pronta()).toBeUndefined();
+
+    chega(CENA);
+    await vi.waitFor(() => expect(pronta()).toBe('pronta'));
+    unmount();
+    expect(pronta()).toBeUndefined();
   });
 
   it('desmontar solta a ancora', async () => {
@@ -163,6 +186,9 @@ describe('quando o chunk do three nao chega', () => {
     expect(duble.initSite).not.toHaveBeenCalled();
     expect(duble.montaConcierge).toHaveBeenCalledOnce();
     expect(duble.levaAteAAncora).toHaveBeenCalledWith(window);
+    // Pronta tambem no fracasso: a pagina em HTML e a home, e o e2e precisa
+    // saber que nao ha mais script a caminho.
+    expect(pronta()).toBe('pronta');
   });
 
   it('depois de desmontar, nada acontece: nem fecha, nem avisa', async () => {
@@ -182,6 +208,7 @@ describe('quando o chunk do three nao chega', () => {
     expect(fechaAbertura).not.toHaveBeenCalled();
     expect(duble.captureException).not.toHaveBeenCalled();
     expect(duble.montaConcierge).not.toHaveBeenCalled();
+    expect(pronta()).toBeUndefined();
   });
 });
 
