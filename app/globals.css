@@ -48,7 +48,7 @@ img,canvas,svg{display:block}
 html.sem-webgl #gl{display:none}
 html.sem-webgl .elo .box{opacity:1;transform:none}
 
-#bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:18px var(--gutter);mix-blend-mode:difference;opacity:0;transition:opacity .6s cubic-bezier(.22,1,.36,1)}
+#bar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:18px var(--gutter);mix-blend-mode:difference;opacity:0;transition:opacity .3s cubic-bezier(.22,1,.36,1)}
 #bar.on{opacity:1}
 #bar .logo{width:34px;height:34px}
 #bar .logo path{fill:var(--prata)}
@@ -57,7 +57,11 @@ html.sem-webgl .elo .box{opacity:1;transform:none}
 /* O sublinhado cresce por `transform`, e nao por `width` (#53): largura e
    layout, e animar layout recalcula a barra inteira a cada quadro. */
 #bar button::after,#bar a::after{content:"";position:absolute;left:0;bottom:-2px;height:2px;width:100%;background:var(--vermelho);transform:scaleX(0);transform-origin:left;transition:transform .25s cubic-bezier(.22,1,.36,1)}
-#bar button:hover::after,#bar a:hover::after{transform:scaleX(1)}
+/* Hover de movimento so com mouse ou caneta (#347): no toque o :hover gruda
+   depois do toque e o sublinhado ficava aceso. */
+@media (hover:hover) and (pointer:fine){
+  #bar button:hover::after,#bar a:hover::after{transform:scaleX(1)}
+}
 #som .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--prata-2);margin-right:8px;vertical-align:middle}
 #som.on .dot{background:var(--vermelho);box-shadow:0 0 12px var(--vermelho)}
 
@@ -85,7 +89,7 @@ html.sem-webgl .elo .box{opacity:1;transform:none}
 #manifesto .fim img+span,#hero h1 img+span,#sala h3 img+span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #skip{position:absolute;bottom:26px;right:var(--gutter);font-size:13px;letter-spacing:.2em;color:var(--prata-2);padding:6px 0}
 #skip:hover{color:var(--prata)}
-#ligar{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:13px;letter-spacing:.22em;color:var(--prata-2);border:1px solid var(--prata-3);padding:12px 20px;transition:border-color .2s,color .2s;opacity:0}
+#ligar{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:13px;letter-spacing:.22em;color:var(--prata-2);border:1px solid var(--prata-3);padding:12px 20px;transition:border-color .2s cubic-bezier(.22,1,.36,1),color .2s cubic-bezier(.22,1,.36,1);opacity:0}
 #ligar:hover{border-color:var(--vermelho);color:var(--prata)}
 
 main{position:relative;z-index:5}
@@ -117,25 +121,33 @@ section{position:relative}
 .elo .texto{margin-top:22px;font-size:clamp(16px,1.55vw,19px);line-height:1.5;letter-spacing:.02em;color:var(--prata);max-width:46ch}
 .elo .palavra{font-size:clamp(52px, 9vw, 132px);line-height:.85;max-width:none;color:transparent;-webkit-text-stroke:1.5px #fff;text-shadow:0 0 34px var(--vermelho-luz)}
 .elo.so-palavra .box{width:auto}
-.btn{display:inline-flex;align-items:center;gap:12px;font-size:14px;letter-spacing:.2em;padding:14px 22px;border:1px solid var(--prata-3);color:var(--prata);text-decoration:none;text-transform:uppercase;position:relative;overflow:hidden;transition:color .2s,border-color .2s}
-.btn::before{content:"";position:absolute;inset:0;background:var(--vermelho);transform:translateX(-101%);transition:transform .3s cubic-bezier(.7,0,.2,1);z-index:-1}
-.btn:hover:not(:disabled){color:#000;border-color:var(--vermelho)}
-.btn:hover:not(:disabled)::before{transform:none}
+.btn{display:inline-flex;align-items:center;gap:12px;font-size:14px;letter-spacing:.2em;padding:14px 22px;border:1px solid var(--prata-3);color:var(--prata);text-decoration:none;text-transform:uppercase;position:relative;overflow:hidden;transition:color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1)}
+.btn::before{content:"";position:absolute;inset:0;background:var(--vermelho);transform:translateX(-101%);transition:transform .22s cubic-bezier(.22,1,.36,1);z-index:-1}
+/* O wipe so com ponteiro fino (#347). No toque o :hover gruda e o botao
+   ficava vermelho depois de solto; e o texto preto sem o wipe atras sumiria.
+   As duas regras andam juntas. */
+@media (hover:hover) and (pointer:fine){
+  .btn:hover:not(:disabled){color:#000;border-color:var(--vermelho)}
+  .btn:hover:not(:disabled)::before{transform:none}
+}
 .btn.cheio{background:var(--prata);color:#000;border-color:var(--prata)}
 .btn.cheio:hover{color:#000}
 .btn.off{background:none;color:var(--prata-2);border-color:var(--prata-3);cursor:default;pointer-events:none}
 .btn.off::before{display:none}
 .btn .play{width:0;height:0;border-left:10px solid currentColor;border-top:6px solid transparent;border-bottom:6px solid transparent}
 
-.tocando{position:fixed;left:var(--gutter);bottom:24px;z-index:20;display:flex;align-items:center;gap:14px;font-size:13px;letter-spacing:.18em;opacity:0;transform:translateY(10px);transition:opacity .4s cubic-bezier(.22,1,.36,1),transform .4s cubic-bezier(.22,1,.36,1);pointer-events:none;cursor:pointer}
+.tocando{position:fixed;left:var(--gutter);bottom:24px;z-index:20;display:flex;align-items:center;gap:14px;font-size:13px;letter-spacing:.18em;opacity:0;transform:translateY(10px);transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .25s cubic-bezier(.22,1,.36,1);pointer-events:none;cursor:pointer}
 .tocando.on{opacity:1;transform:none;pointer-events:auto}
 .tocando:hover{color:var(--vermelho)}
 .tocando .eq{display:flex;gap:3px;align-items:flex-end;height:14px}
 /* Altura fixa e escala em transform: animar `height` reflui o layout a cada
    quadro, e e uma das propriedades que a #52 proibe. A origem embaixo faz a
    barra crescer para cima, como antes. */
-.tocando .eq i{width:3px;height:14px;transform-origin:bottom;background:var(--vermelho);animation:eq .6s ease-in-out infinite alternate}
-.tocando .eq i:nth-child(2){animation-delay:.15s}.tocando .eq i:nth-child(3){animation-delay:.3s}.tocando .eq i:nth-child(4){animation-delay:.45s}
+.tocando .eq i{display:block;width:3px;height:14px;transform-origin:bottom;background:var(--vermelho);transform:scaleY(.21)}
+/* So pulsa aceso (#347): apagado ele continua na pagina, transparente, e o
+   loop rodava sem ninguem ver, com o som desligado. */
+.tocando.on .eq i{animation:eq .6s ease-in-out infinite alternate}
+.tocando.on .eq i:nth-child(2){animation-delay:.15s}.tocando.on .eq i:nth-child(3){animation-delay:.3s}.tocando.on .eq i:nth-child(4){animation-delay:.45s}
 @keyframes eq{from{transform:scaleY(.21)}to{transform:scaleY(1)}}
 
 #clipe{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:12vh var(--gutter)}
@@ -158,7 +170,7 @@ section{position:relative}
    e de cada seletor, logo abaixo. */
 fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #merch .tam{margin-top:26px;display:flex;gap:8px}
-#merch .tam button{width:46px;height:46px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:background-color .2s,color .2s,border-color .2s}
+#merch .tam button{width:46px;height:46px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:background-color .2s cubic-bezier(.22,1,.36,1),color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1)}
 #merch .tam button:hover{border-color:var(--prata)}
 #merch .tam button.on{background:var(--prata);color:#000;border-color:var(--prata)}
 #merch .acoes{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap}
@@ -167,8 +179,14 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #merch .galeria figure{margin:0;overflow:hidden;background:#0a0a0a;border:1px solid #141416;aspect-ratio:3/2;grid-column:span 2}
 #merch .galeria figure:first-child{grid-column:span 6;aspect-ratio:3/2}
 #merch .galeria figure:nth-child(2),#merch .galeria figure:nth-child(3){grid-column:span 3}
-#merch .galeria img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.08);transition:transform .6s cubic-bezier(.22,1,.36,1),filter .4s}
-#merch .galeria figure:hover img{transform:scale(1.03);filter:grayscale(1) contrast(1.15)}
+#merch .galeria img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) contrast(1.08)}
+/* Hover so com ponteiro fino (#347), e o zoom so sem "reduzir movimento". */
+@media (hover:hover) and (pointer:fine){
+  #merch .galeria figure:hover img{filter:grayscale(1) contrast(1.15)}
+}
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){
+  #merch .galeria figure:hover img{transform:scale(1.03)}
+}
 
 #fim{min-height:180vh;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:0 var(--gutter) 10vh;text-align:center}
 #fim .frase{font-family:var(--display);text-transform:uppercase;font-size:clamp(18px,2.4vw,30px);letter-spacing:.06em;line-height:1.1;color:var(--prata-2);max-width:26ch;margin-bottom:46px}
@@ -179,7 +197,7 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 #fim .convite form{display:flex;border:1px solid var(--prata-3)}
 #fim .convite input{font:inherit;font-size:16px;letter-spacing:.28em;text-transform:uppercase;background:transparent;color:var(--prata);border:0;padding:14px 18px;width:min(240px,55vw);text-align:center}
 #fim .convite input::placeholder{color:var(--prata-2);letter-spacing:.2em}
-#fim .convite button{padding:0 18px;border-left:1px solid var(--prata-3);letter-spacing:.2em;font-size:13px;transition:background .2s,color .2s}
+#fim .convite button{padding:0 18px;border-left:1px solid var(--prata-3);letter-spacing:.2em;font-size:13px;transition:background .2s cubic-bezier(.22,1,.36,1),color .2s cubic-bezier(.22,1,.36,1)}
 #fim .convite button:hover{background:var(--vermelho);color:#000}
 #fim .convite .erro{font-size:12px;letter-spacing:.14em;color:var(--vermelho);min-height:16px}
 /* Quem sao (#275): so aparece com texto no CONFIG. */
@@ -227,7 +245,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 #loja .vitrine{position:relative;aspect-ratio:1/1.05;border:1px solid var(--prata-3);background:radial-gradient(ellipse at 50% 60%, #15161a 0%, #050505 70%);overflow:hidden;cursor:grab;touch-action:pan-y pinch-zoom}
 #loja .vitrine:active{cursor:grabbing}
 #loja .vitrine canvas{width:100%;height:100%;display:block;touch-action:none}
-#loja .dica{position:absolute;left:14px;bottom:12px;font-size:11px;letter-spacing:.22em;color:var(--prata-2);pointer-events:none;transition:opacity .4s}
+#loja .dica{position:absolute;left:14px;bottom:12px;font-size:11px;letter-spacing:.22em;color:var(--prata-2);pointer-events:none;transition:opacity .2s cubic-bezier(.22,1,.36,1)}
 #loja .vitrine.usada .dica{opacity:0}
 #loja .giro{position:absolute;inset:6%;background-repeat:no-repeat;background-size:400% 100%;background-position:0 50%;filter:drop-shadow(0 30px 40px rgba(0,0,0,.6))}
 #loja .vitrine.modo-360 canvas{display:none}
@@ -237,7 +255,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 #loja .desc{margin-top:12px;font-size:15px;letter-spacing:.05em;line-height:1.5;color:var(--prata-2);max-width:40ch}
 #loja .rotulo{margin-top:24px;font-size:12px;letter-spacing:.22em;color:var(--prata-2)}
 #loja .tam{margin-top:10px;display:flex;gap:8px}
-#loja .tam button{width:50px;height:50px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:background-color .2s,color .2s,border-color .2s}
+#loja .tam button{width:50px;height:50px;border:1px solid var(--prata-3);font-size:14px;letter-spacing:.1em;color:var(--prata);transition:background-color .2s cubic-bezier(.22,1,.36,1),color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1)}
 #loja .tam button:hover{border-color:var(--prata)}
 #loja .tam button.on{background:var(--prata);color:#000;border-color:var(--prata)}
 #loja .acoes{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap}
@@ -353,7 +371,10 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
      equalizador vira barras paradas a meia altura — continua dizendo "tocando",
      so nao pulsa. */
   #rec i{animation:none}
-  .tocando .eq i{animation:none;transform:scaleY(.5)}
+  .tocando .eq i,.tocando.on .eq i{animation:none;transform:scaleY(.5)}
+  /* O indicador so aparece, sem subir; o wipe troca sem deslizar (#347). */
+  .tocando{transform:none;transition:opacity .25s cubic-bezier(.22,1,.36,1)}
+  .btn::before{transition:none}
 }
 
 /* ===========================================================================
@@ -646,7 +667,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 .senha-forca{display:flex;align-items:center;gap:12px;margin-top:-4px}
 .senha-barra{flex:1;height:3px;background:#16171a;overflow:hidden}
 /* scaleX e nao width: largura e layout, e isto anima a cada tecla digitada. */
-.senha-barra i{display:block;height:100%;background:var(--prata-3);transform-origin:left;transform:scaleX(0);transition:transform .18s cubic-bezier(.22,1,.36,1),background-color .18s}
+.senha-barra i{display:block;height:100%;background:var(--prata-3);transform-origin:left;transform:scaleX(0);transition:transform .18s cubic-bezier(.22,1,.36,1),background-color .18s cubic-bezier(.22,1,.36,1)}
 .senha-barra[data-nivel="0"] i{background:var(--vermelho)}
 .senha-barra[data-nivel="1"] i{background:var(--vermelho)}
 .senha-barra[data-nivel="2"] i{background:#c9a227}
@@ -755,7 +776,9 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
    mesmo botao dos outros formularios. O preenchimento continua sendo o wipe
    do .btn, que aqui vira a barra de progresso do envio. */
 .btn.perigo{border-color:var(--vermelho);color:var(--vermelho)}
-.btn.perigo:hover:not(:disabled){color:#000}
+@media (hover:hover) and (pointer:fine){
+  .btn.perigo:hover:not(:disabled){color:#000}
+}
 .btn.perigo:disabled{border-color:var(--prata-3);color:var(--prata-3);cursor:not-allowed}
 .btn.perigo:disabled::before{display:none}
 
@@ -969,7 +992,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 /* Guia de tamanhos (#206): um link abaixo dos tamanhos e um <dialog>. O modal
    anima como os da home (#49): entra com a caixa subindo, sai com a classe
    .saindo. O backdrop e do proprio dialog. */
-.guia-abrir{margin-top:12px;align-self:flex-start;font-size:13px;letter-spacing:.14em;color:var(--prata-2);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--prata-3);transition:color .2s,text-decoration-color .2s}
+.guia-abrir{margin-top:12px;align-self:flex-start;font-size:13px;letter-spacing:.14em;color:var(--prata-2);text-decoration:underline;text-underline-offset:4px;text-decoration-color:var(--prata-3);transition:color .2s cubic-bezier(.22,1,.36,1),text-decoration-color .2s cubic-bezier(.22,1,.36,1)}
 .guia-abrir:hover{color:var(--prata);text-decoration-color:var(--prata)}
 #merch .guia-abrir,#loja .guia-abrir{display:inline-block}
 .guia-no-checkout{margin:12px 0 0;display:flex;gap:18px;align-items:baseline;flex-wrap:wrap;font-size:13px}
@@ -1163,7 +1186,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
    O filtro ativo e borda vermelha e texto branco — nao texto vermelho, que em
    11px fica abaixo do minimo da WCAG (#176). */
 .admin-filtros{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px}
-.admin-filtro{display:inline-flex;align-items:baseline;gap:7px;min-height:32px;padding:6px 10px;border:1px solid var(--prata-3);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none;transition:color .2s,border-color .2s}
+.admin-filtro{display:inline-flex;align-items:baseline;gap:7px;min-height:32px;padding:6px 10px;border:1px solid var(--prata-3);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--prata-2);text-decoration:none;transition:color .2s cubic-bezier(.22,1,.36,1),border-color .2s cubic-bezier(.22,1,.36,1)}
 .admin-filtro:hover{color:var(--prata);border-color:var(--prata-2)}
 .admin-filtro[aria-current]{color:#fff;border-color:var(--vermelho)}
 .admin-filtro-n{font-family:var(--display);font-size:14px;letter-spacing:.04em;color:var(--prata)}
@@ -1172,7 +1195,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 /* O <details> do endereco. O marcador do navegador sai e entra um chevron
    desenhado com borda: so `transform` muda quando abre. */
 .admin-entrega{margin-top:12px;padding-top:10px;border-top:1px solid #16171a}
-.admin-entrega-resumo{display:flex;align-items:center;gap:10px;min-height:32px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);cursor:pointer;list-style:none;transition:color .2s}
+.admin-entrega-resumo{display:flex;align-items:center;gap:10px;min-height:32px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--prata-2);cursor:pointer;list-style:none;transition:color .2s cubic-bezier(.22,1,.36,1)}
 .admin-entrega-resumo::-webkit-details-marker{display:none}
 .admin-entrega-resumo::before{content:"";flex:none;width:6px;height:6px;border-right:1px solid var(--vermelho);border-bottom:1px solid var(--vermelho);transform:rotate(-45deg);transition:transform .2s cubic-bezier(.22,1,.36,1)}
 .admin-entrega[open] .admin-entrega-resumo::before{transform:rotate(45deg)}
@@ -1254,9 +1277,12 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 /* Galeria da merch: o servidor ja entrega as molduras vazias, com a mesma
    grade e a mesma proporcao, e a foto entra por cima quando carrega. */
 #merch .galeria figure{position:relative}
-#merch .galeria figure::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(205,208,213,.06),transparent);transform:translateX(-100%);animation:esq-brilho 1.8s cubic-bezier(.4,0,.2,1) infinite}
+#merch .galeria figure::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(205,208,213,.06),transparent);transform:translateX(-100%)}
+/* O brilho so depois de a galeria chegar perto (#347): antes ele rodava em
+   seis molduras fora da tela desde o primeiro quadro. */
+#galeriaMerch.vis figure::after{animation:esq-brilho 1.8s cubic-bezier(.4,0,.2,1) infinite}
 #merch .galeria figure.ok::after{display:none}
-#merch .galeria img{opacity:0;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1),filter .4s}
+#merch .galeria img{opacity:0;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .3s cubic-bezier(.22,1,.36,1),filter .3s cubic-bezier(.22,1,.36,1)}
 #merch .galeria figure.ok img{opacity:1}
 
 /* Player do clipe enquanto o video nao respondeu. */
@@ -1266,7 +1292,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 @media (prefers-reduced-motion:reduce){
   .auth-caixa>.esqueleto{animation:none}
   .esq::after,.esq-linha::after{animation:none}
-  #merch .galeria figure::after{animation:none}
+  #merch .galeria figure::after,#galeriaMerch.vis figure::after{animation:none}
   #clipe .player.carregando::after{animation:none}
   #merch .galeria img{transition:none}
 }
@@ -1385,14 +1411,14 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .concierge-abrir[aria-expanded="true"]{color:#000;border-color:var(--vermelho)}
 .concierge-abrir[aria-expanded="true"]::before{transform:none}
 
-.concierge{position:fixed;right:var(--gutter);bottom:76px;z-index:60;display:flex;flex-direction:column;width:min(420px,calc(100vw - 2*var(--gutter)));max-height:min(70vh,640px);background:#050505;border:1px solid var(--prata-3);color:var(--prata)}
+.concierge{position:fixed;right:var(--gutter);bottom:76px;z-index:60;transform-origin:bottom right;display:flex;flex-direction:column;width:min(420px,calc(100vw - 2*var(--gutter)));max-height:min(70vh,640px);background:#050505;border:1px solid var(--prata-3);color:var(--prata)}
 .concierge[hidden]{display:none}
 .concierge.on{animation:modal-caixa-entra .2s cubic-bezier(.22,1,.36,1) backwards}
 .concierge.saindo{animation:modal-caixa-sai .15s cubic-bezier(.4,0,1,1) forwards;pointer-events:none}
 
 .concierge-topo{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--prata-3)}
 .concierge-topo h3{font-family:var(--display);text-transform:uppercase;font-size:16px;letter-spacing:.08em;line-height:1;color:#fff}
-.concierge-fechar{font-size:13px;letter-spacing:.2em;padding:6px 0;color:var(--prata-2);transition:color .2s}
+.concierge-fechar{font-size:13px;letter-spacing:.2em;padding:6px 0;color:var(--prata-2);transition:color .2s cubic-bezier(.22,1,.36,1)}
 .concierge-fechar:hover{color:var(--vermelho)}
 .concierge-nota{padding:8px 16px;border-bottom:1px solid var(--prata-3);font-size:12px;line-height:1.5;letter-spacing:.04em;color:var(--prata-2)}
 

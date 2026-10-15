@@ -90,17 +90,20 @@ describe.each(['tamanhos', 'tamLoja'])('seletor de tamanho #%s', (id) => {
     expect(seletor(id)).toMatch(/^<fieldset[^>]*>\s*<legend className="sr">Tamanho<\/legend>/);
   });
 
-  it('mantem o que o script legado le: data-padrao, data-slug e button[data-t]', () => {
+  it('mantem o que o script legado le: data-slug e button[data-t]', () => {
     const bloco = seletor(id);
 
-    expect(bloco).toContain('data-padrao={tamanhoPadrao}');
     expect(bloco).toContain("data-slug={camiseta?.slug ?? ''}");
     expect(bloco).toMatch(/<button[\s\S]*?data-t=\{v\.tamanho \?\? ''\}/);
-    expect(bloco).toContain("className={v.tamanho === tamanhoPadrao ? 'on' : undefined}");
   });
 
-  it('o botao escolhido diz que esta escolhido, alem de mudar de cor', () => {
-    expect(seletor(id)).toContain('aria-pressed={v.tamanho === tamanhoPadrao}');
+  // #347: era M para todo mundo, e quem nao olhava levava M sem escolher.
+  it('nenhum tamanho nasce escolhido', () => {
+    const bloco = seletor(id);
+
+    expect(bloco).not.toContain('data-padrao');
+    expect(bloco).not.toMatch(/className=\{v\.tamanho/);
+    expect(bloco).toContain('aria-pressed={false}');
   });
 });
 

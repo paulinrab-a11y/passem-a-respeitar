@@ -10,7 +10,7 @@
 import { comoAbre, fechaAbertura, marcaAberturaVista, nevoaDaLinha } from './abertura';
 // O que a cena faz sozinha no tempo, e quando ela vai para a GPU, com e sem
 // "reduzir movimento" (#286).
-import { giroDaCorrente, paralaxe, pulsoDaLuz, relogio, vigiaDeQuadro } from './cena';
+import { giroDaCorrente, paralaxe, passo, pulsoDaLuz, relogio, vigiaDeQuadro } from './cena';
 // E o navegador tem WebGL? A resposta decide se a cena que lancou e um
 // aparelho sem 3D (esperado) ou um bug que o Sentry precisa saber.
 import { temWebGL } from './webgl';
@@ -106,7 +106,9 @@ const drive = (id, w=1600) => /^(https?:|\/)/.test(id) ? id : `https://lh3.googl
   // O botao vai junto: e para ele que o foco volta quando a loja fecha (#49).
   $('#comprar').addEventListener('click', e=>{ e.preventDefault(); Loja.abre(tam, e.currentTarget); });
   // A galeria e montada pelo componente Galeria, com next/image (#47).
-  let tam = $('#tamanhos').dataset.padrao || '';
+  // Ninguem leva um tamanho que nao escolheu (#347): a ficha nasce sem
+  // nenhum marcado, e a loja abre com o que a pessoa marcou aqui, se marcou.
+  let tam = '';
   const link = ()=>{ $('#comprar').href = CONFIG.links.merch === '#' ? '#' : CONFIG.links.merch + (CONFIG.links.merch.includes('?')?'&':'?') + 'tam=' + tam; };
   $('#tamanhos').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
@@ -301,7 +303,10 @@ const Som = (()=>{
   return { liga, desliga, corrente, tick, proximo, get ligado(){return ligado} };
 })();
 
-document.addEventListener('mouseover', e=>{
+// So com mouse (#347): no toque o `mouseover` sintetico chega junto do
+// clique, e o tick tocava em cima do som do proprio toque.
+document.addEventListener('pointerover', e=>{
+  if (e.pointerType !== 'mouse') return;
   if (e.target.closest('.btn, #bar a, #bar button, #skip, #ligar')) Som.tick();
 });
 
@@ -348,7 +353,7 @@ function semWebGL(erro){
     console.warn('home: sem WebGL, a cena 3D fica de fora.', erro && erro.message);
   }
   document.documentElement.classList.add('sem-webgl');
-  return { S:{ p:0, pAlvo:0, fim:0, fimAlvo:0, queda:1, shake:0, mx:0, my:0 }, camera:null, semGL:true };
+  return { S:{ p:0, pAlvo:0, fim:0, fimAlvo:0, queda:1, shake:0, mx:0, my:0 }, camera:null, semGL:true, pausa(){} };
 }
 const GL = (()=>{ try {
   const canvas = $('#gl');
@@ -580,7 +585,22 @@ const GL = (()=>{ try {
     return pose;
   }
 
+  // Pausa (#347): com a loja ou a sala por cima, a cena nao aparece e
+  // continuava desenhando a 60 quadros por segundo atras do modal. Quem
+  // pausa e um dono ('loja', 'sala'): a sala abre fechando a loja, e o fim
+  // da saida da loja nao pode religar a cena por baixo da sala.
+  const pausas = new Set();
+  let rodando = true;
+  function pausa(dono, sim){
+    if (sim) pausas.add(dono); else pausas.delete(dono);
+    if (pausas.size || rodando) return;
+    // Volta sem pular: o tempo parado nao conta como quadro, e a cena
+    // parada com movimento reduzido redesenha o que mudou enquanto isso.
+    rodando = true; tPrev = performance.now(); vigia.invalida();
+    requestAnimationFrame(frame);
+  }
   function frame(now){
+    if (pausas.size){ rodando = false; return; }
     requestAnimationFrame(frame);
     if (document.hidden) return;
     const dt = Math.min((now - tPrev)/1000, 0.05); tPrev = now;
@@ -598,11 +618,13 @@ const GL = (()=>{ try {
     const alvo = posElo(f, tmpA); alvo.y -= corrente.position.y;
     const fimOff = S.fim * 2.4;
     const lado = (Math.floor(f + 0.5) % 2 ? -1 : 1) * (mobile ? 0.1 : 0.75);
-    camera.position.x += ((alvo.x + lado) - camera.position.x) * 0.08;
-    camera.position.y += ((alvo.y + 0.15 - fimOff - my*0.25) - camera.position.y) * 0.08;
-    camera.position.z += ((alvo.z + (mobile ? 6.6 : 3.4) + S.fim*1.4) - camera.position.z) * 0.08;
+    // Lerps pelo tempo do quadro, e nao por quadro (#347): ver `passo`.
+    const kCam = passo(0.08, dt), kOp = passo(0.06, dt);
+    camera.position.x += ((alvo.x + lado) - camera.position.x) * kCam;
+    camera.position.y += ((alvo.y + 0.15 - fimOff - my*0.25) - camera.position.y) * kCam;
+    camera.position.z += ((alvo.z + (mobile ? 6.6 : 3.4) + S.fim*1.4) - camera.position.z) * kCam;
     tmpB.copy(alvo); tmpB.y -= fimOff;
-    if (S.shake > 0.001){ tmpB.x += (Math.random()-.5)*S.shake; tmpB.y += (Math.random()-.5)*S.shake; S.shake *= 0.9; }
+    if (S.shake > 0.001){ tmpB.x += (Math.random()-.5)*S.shake; tmpB.y += (Math.random()-.5)*S.shake; S.shake *= Math.pow(0.9, dt*60); }
     camera.lookAt(tmpB);
 
     vermelho.position.set(camera.position.x + 1.4, camera.position.y - 0.5, camera.position.z - 1.6);
@@ -616,7 +638,7 @@ const GL = (()=>{ try {
       m.lookAt(camera.position);
       m.rotation.z = Math.sin(tA*0.35+d.fase)*0.12;
       const prox = Math.max(0, 1 - Math.abs(d.elo - f)*1.1);
-      m.material.uniforms.op.value += (prox*0.95 - m.material.uniforms.op.value)*0.06;
+      m.material.uniforms.op.value += (prox*0.95 - m.material.uniforms.op.value)*kOp;
     });
 
     frases.forEach(m=>{
@@ -627,7 +649,7 @@ const GL = (()=>{ try {
       m.rotateY(d.giro + Math.sin(tA*0.3+d.fase)*0.25);
       m.rotation.z += Math.sin(tA*0.27+d.fase)*0.05;
       const prox = Math.max(0, 1 - Math.abs(d.elo - f)*0.75);
-      m.material.opacity += (prox*0.92 - m.material.opacity)*0.06;
+      m.material.opacity += (prox*0.92 - m.material.opacity)*kOp;
       m.visible = m.material.opacity > 0.01;
     });
 
@@ -638,7 +660,9 @@ const GL = (()=>{ try {
       document.querySelectorAll('.elo').forEach((s,i)=> s.classList.toggle('vis', i === atual));
     }
 
-    if (S.fim > 0.001 || pMat.opacity > 0){
+    // Limiar e zero de verdade (#347): o lerp de S.fim nunca chega a zero, e
+    // `pMat.opacity > 0` deixava o laco das particulas rodando para sempre.
+    if (S.fim > 0.001 || pMat.opacity > 0.002){
       const k = ease(S.fim);
       const arr = pGeo.attributes.position.array;
       for (let i=0;i<N;i++){
@@ -648,7 +672,8 @@ const GL = (()=>{ try {
         arr[j+2] = pA[j+2] + (pB[j+2] - pA[j+2]) * k;
       }
       pGeo.attributes.position.needsUpdate = true;
-      pMat.opacity = Math.min(1, S.fim*2.2);
+      const op = Math.min(1, S.fim*2.2);
+      pMat.opacity = op > 0.002 ? op : 0;
       elos[TRACKS.length-1].scale.setScalar(1 - k*0.85);
       elos[TRACKS.length-1].material.opacity = 1 - k;
     }
@@ -665,7 +690,7 @@ const GL = (()=>{ try {
     renderer.setSize(innerWidth, innerHeight); vigia.invalida();
   });
 
-  return { S, camera };
+  return { S, camera, pausa };
 } catch (erro) { return semWebGL(erro); } })();
 
 gsap.registerPlugin(ScrollTrigger);
@@ -705,9 +730,11 @@ ScrollTrigger.create({
   html.classList.add('locked');
   scrollTo(0,0);
 
-  const tc = $('#tc'); let fr = 0;
+  // O timecode conta pelo relogio, a 30 quadros por segundo de fita (#347):
+  // contando quadros de tela, a 120 Hz a fita corria quatro vezes mais rapido.
+  const tc = $('#tc'), t0 = performance.now();
   (function tcLoop(){ if(!tcOn) return; requestAnimationFrame(tcLoop);
-    fr++; const f=fr%30, s=Math.floor(fr/30)%60, m=Math.floor(fr/1800)%60;
+    const fr = Math.floor((performance.now() - t0) * 0.03); const f=fr%30, s=Math.floor(fr/30)%60, m=Math.floor(fr/1800)%60;
     tc.textContent = `00:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}:${String(f).padStart(2,'0')}`; })();
 
   const c=$('#vhs'), x=c.getContext('2d'), img=x.createImageData(c.width,c.height);
@@ -766,7 +793,7 @@ ScrollTrigger.create({
   // Botao desabilitado perde o foco, e o foco ia para o <body>, fora da
   // abertura (#270): passa para 'pular' antes. So quando estava nele — e o
   // contorno so aparece se a pessoa veio pelo teclado.
-  $('#ligar').addEventListener('click', ()=>{ Som.liga(); if (document.activeElement === $('#ligar')) $('#skip').focus({preventScroll:true}); $('#ligar').style.opacity=0; $('#ligar').disabled=true; });
+  $('#ligar').addEventListener('click', ()=>{ Som.liga(); if (document.activeElement === $('#ligar')) $('#skip').focus({preventScroll:true}); gsap.to('#ligar', { opacity:0, duration:.15, ease:'power2.out', overwrite:true }); $('#ligar').disabled=true; });
   // Quem clicou em 'pular' enquanto este script baixava (#238) nao clicou a
   // toa: o clique vale agora, que ha o que pular — pelo mesmo caminho do botao.
   if (pulouAntes) $('#skip').click();
@@ -775,14 +802,25 @@ ScrollTrigger.create({
 const Loja = (()=>{
   const el = $('#loja'), vit = $('#vitrine'), canvas = $('#glLoja');
   let renderer, scene, camera, camisa, brasao, rotY = 0.35, rotX = 0.05, velY = 0, arrastando = false, ux = 0, uy = 0, aberto = false, pronto = false, usaFotos = null;
-  let tam = $('#tamLoja').dataset.padrao || '';
+  // Sem tamanho pre-marcado (#347): era M para todo mundo, e quem nao olhava
+  // os botoes levava M sem ter escolhido.
+  let tam = '';
   // Destino do Comprar: /checkout com a escolha na query (#106). O slug vem do
   // dataset, carimbado pelo servidor a partir do catalogo — nao ha nome de
   // produto escrito neste arquivo desde a #99.
   const slugDoProduto = () => $('#tamLoja').dataset.slug || '';
+  // Sem tamanho, o Comprar fica desabilitado e diz o que falta (#347): sem
+  // `href` ele nao recebe foco nem clique; `role="link"` com `aria-disabled`
+  // conta ao leitor de tela que e um link desabilitado, com o rotulo como
+  // nome. Os dois rotulos moram na mesma celula, entao o botao nao muda de
+  // largura quando a pessoa escolhe.
   const link = ()=>{
-    const slug = slugDoProduto();
-    $('#comprarLoja').href = slug ? `/checkout?p=${encodeURIComponent(slug)}&tam=${encodeURIComponent(tam)}` : '#';
+    const slug = slugDoProduto(), a = $('#comprarLoja'), pode = Boolean(slug && tam);
+    if (pode){ a.href = `/checkout?p=${encodeURIComponent(slug)}&tam=${encodeURIComponent(tam)}`; a.removeAttribute('aria-disabled'); a.removeAttribute('role'); }
+    else { a.removeAttribute('href'); a.setAttribute('aria-disabled', 'true'); a.setAttribute('role', 'link'); }
+    a.classList.toggle('off', !pode);
+    const rotulo = a.querySelector('.rotulo-acao');
+    if (rotulo) rotulo.toggleAttribute('data-ativo', Boolean(slug) && !tam);
   };
   $('#tamLoja').addEventListener('click', e=>{
     const b = e.target.closest('button'); if(!b) return;
@@ -807,6 +845,58 @@ const Loja = (()=>{
     s.quadraticCurveTo(0, 1.02, -0.46, 1.42);
     return s;
   }
+  // O modelo comeca a baixar antes de a loja abrir (#347): quando a ficha
+  // chega perto, ou quando o ponteiro ou o foco chegam no Comprar. Antes ele
+  // so saia ao abrir, e a silhueta ficava segundos na tela. Uma promessa so,
+  // pedida uma vez; o init a consome.
+  let modelo = null;
+  function carregaModelo(){
+    if (modelo || !CONFIG.merchModelo || !THREE.GLTFLoader) return modelo;
+    const fontes = driveAudio(CONFIG.merchModelo);
+    const loader = new THREE.GLTFLoader();
+    modelo = new Promise(chegou=>{
+      const tenta = ()=>{
+        if (!fontes.length){ console.warn('modelo 3D não carregou'); return; }
+        loader.load(fontes.shift(), gltf=> chegou(gltf.scene), undefined, tenta);
+      };
+      tenta();
+    });
+    return modelo;
+  }
+  // Em fotos, o que se adianta e a tira de quatro fotos.
+  let tiraPedida = false;
+  function preCarrega(){
+    if (querFotos()){
+      if (tiraPedida || !CONFIG.merch360) return;
+      tiraPedida = true; new Image().src = CONFIG.merch360;
+    } else carregaModelo();
+  }
+
+  // Silhueta -> modelo com fade de 250 ms (#347), e nao num corte. Os dois
+  // ficam na cena enquanto o modelo acende e a silhueta apaga; no fim a
+  // silhueta sai e o modelo volta a ser opaco. Com movimento reduzido, ou com
+  // a loja fechada (ninguem ve), a troca e direta.
+  let troca = null;
+  const materiais = obj=>{ const lista = []; obj.traverse(o=>{ if (o.isMesh && o.material) lista.push(...[].concat(o.material)); }); return lista; };
+  function trocaPeloModelo(m){
+    if (reduzMotion || !aberto){ camisa.clear(); camisa.add(m); vigiaDaVitrine.invalida(); return; }
+    const velhos = [...camisa.children], novos = materiais(m), apagando = materiais(camisa);
+    novos.forEach(x=>{ x.userData.par = { op:x.opacity, tr:x.transparent }; x.transparent = true; x.opacity = 0; });
+    apagando.forEach(x=>{ x.userData.par = { op:x.opacity }; x.transparent = true; });
+    camisa.add(m);
+    troca = { ini: performance.now(), velhos, novos, apagando };
+  }
+  function andaTroca(agora){
+    if (!troca) return;
+    const k = Math.min(1, (agora - troca.ini) / 250), e = 1 - Math.pow(1 - k, 3);
+    troca.novos.forEach(x=>{ x.opacity = x.userData.par.op * e; });
+    troca.apagando.forEach(x=>{ x.opacity = x.userData.par.op * (1 - e); });
+    if (k < 1) return;
+    troca.velhos.forEach(o=> camisa.remove(o));
+    troca.novos.forEach(x=>{ x.opacity = x.userData.par.op; x.transparent = x.userData.par.tr; x.needsUpdate = true; });
+    troca = null;
+  }
+
   function init(){
     if (pronto) return; pronto = true;
     renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
@@ -839,25 +929,15 @@ const Loja = (()=>{
 
     scene.add(camisa);
 
-    if (CONFIG.merchModelo && THREE.GLTFLoader){
-      const fontes = driveAudio(CONFIG.merchModelo);
-      const loader = new THREE.GLTFLoader();
-      const tenta = ()=>{
-        if (!fontes.length){ console.warn('modelo 3D não carregou'); return; }
-        loader.load(fontes.shift(), gltf=>{
-          const m = gltf.scene;
-          const box = new THREE.Box3().setFromObject(m), tam = new THREE.Vector3(), centro = new THREE.Vector3();
-          box.getSize(tam); box.getCenter(centro);
-          const k = 3.1 / Math.max(tam.y, 0.001);
-          m.position.sub(centro).multiplyScalar(k); m.scale.setScalar(k);
-          m.traverse(o=>{ if (o.isMesh && o.material){ o.material.side = THREE.DoubleSide; if ('roughness' in o.material) o.material.roughness = Math.max(o.material.roughness, 0.6); } });
-          // O modelo chega segundos depois do primeiro quadro: com a vitrine
-          // parada, sem isto ficava para sempre a silhueta (#286).
-          camisa.clear(); camisa.add(m); vigiaDaVitrine.invalida();
-        }, undefined, tenta);
-      };
-      tenta();
-    }
+    const chegando = carregaModelo();
+    if (chegando) chegando.then(m=>{
+      const box = new THREE.Box3().setFromObject(m), tam = new THREE.Vector3(), centro = new THREE.Vector3();
+      box.getSize(tam); box.getCenter(centro);
+      const k = 3.1 / Math.max(tam.y, 0.001);
+      m.position.sub(centro).multiplyScalar(k); m.scale.setScalar(k);
+      m.traverse(o=>{ if (o.isMesh && o.material){ o.material.side = THREE.DoubleSide; if ('roughness' in o.material) o.material.roughness = Math.max(o.material.roughness, 0.6); } });
+      trocaPeloModelo(m);
+    });
 
     const down = e=>{ arrastando = true; ux = e.clientX; uy = e.clientY; vit.setPointerCapture && vit.setPointerCapture(e.pointerId); };
     const move = e=>{ if(!arrastando) return; const dx = e.clientX-ux, dy = e.clientY-uy; ux = e.clientX; uy = e.clientY; velY = dx*0.012; rotY += velY; rotX = Math.max(-0.5, Math.min(0.5, rotX + dy*0.006)); };
@@ -895,8 +975,12 @@ const Loja = (()=>{
     // Intervalo minimo = o triplo do custo do ultimo quadro: no pior caso a
     // vitrine ocupa um terco do tempo e a pagina continua respondendo.
     if (agora - ultimoQuadro < Math.max(16, custo * 3)) return;
+    // Pelo tempo do quadro (#347): numa GPU lenta o intervalo chega a 250 ms,
+    // e a camiseta girava na mesma proporcao mais devagar.
+    const dt = Math.min((agora - (ultimoQuadro || agora - 16)) / 1000, 0.25), f = dt * 60;
     ultimoQuadro = agora;
-    if (!arrastando && !reduzMotion){ velY *= 0.92; rotY += velY + 0.004; rotX += (0.05 - rotX)*0.03; }
+    if (!arrastando && !reduzMotion){ velY *= Math.pow(0.92, f); rotY += (velY + 0.004) * f; rotX += (0.05 - rotX)*passo(0.03, dt); }
+    andaTroca(agora);
     camisa.rotation.set(rotX, rotY, 0);
     camisa.position.y = reduzMotion ? 0 : Math.sin(agora/1400)*0.04;
     poseDaVitrine[0] = rotX; poseDaVitrine[1] = rotY;
@@ -944,7 +1028,7 @@ const Loja = (()=>{
     if (aberto){ $('#fecharLoja').focus(); return; }
     if (querFotos()) init360(); else init();
     if (t){ tam = t; $$('#tamLoja button').forEach(x=>{ x.classList.toggle('on', x.dataset.t===t); x.setAttribute('aria-pressed', String(x.dataset.t===t)); }); link(); }
-    modal.abre(quem); aberto = true; document.documentElement.classList.add('locked');
+    modal.abre(quem); aberto = true; document.documentElement.classList.add('locked'); GL.pausa('loja', true);
     // A rotacao automatica liga a cada abertura, e nao so na primeira: depois
     // de um arraste ela parava de vez, e reabrir a loja nao a trazia (#294).
     if (fotos) fotos.giraSozinho();
@@ -954,18 +1038,33 @@ const Loja = (()=>{
   }
   // `aberto` e a trava de rolagem so caem no FIM da saida: a camiseta continua
   // girando enquanto o modal some, e a pagina de tras nao rola por baixo.
-  const modal = modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); if (fotos) fotos.para(); });
+  // A cena principal volta no mesmo instante, depois da saida (#347).
+  const modal = modalAnimado(el, ()=>{ aberto = false; document.documentElement.classList.remove('locked'); if (fotos) fotos.para(); GL.pausa('loja', false); });
   function fecha(){ modal.fecha(); }
   $('#fecharLoja').addEventListener('click', fecha);
   ligaComprar($('#comprarLoja'), fecha);
   el.addEventListener('click', e=>{ if (e.target === el) fecha(); });
   addEventListener('keydown', e=>{ if (e.key === 'Escape') fecha(); });
+  // Adianta a vitrine (#347): a ficha a uma tela de distancia, ou a mao e o
+  // foco chegando no Comprar.
+  const comprar = $('#comprar');
+  comprar.addEventListener('pointerenter', preCarrega, { once:true });
+  comprar.addEventListener('focus', preCarrega, { once:true });
+  if ('IntersectionObserver' in window){
+    const vigiaFicha = new IntersectionObserver(es=>{
+      if (!es.some(e=>e.isIntersecting)) return;
+      vigiaFicha.disconnect(); preCarrega();
+    }, { rootMargin:'100% 0px' });
+    vigiaFicha.observe($('#merch'));
+  }
   return { abre, fecha };
 })();
 
 (function convite(){
   const form=$('#formConvite'), inp=$('#cod'), erro=$('#erroCod'), sala=$('#sala'), video=$('#salaVideo');
-  const modal = modalAnimado(sala);
+  // Com a sala por cima, a cena principal para (#347), como com a loja.
+  const modal = modalAnimado(sala, ()=> GL.pausa('sala', false));
+  const abreSala = quem=>{ modal.abre(quem); GL.pausa('sala', true); };
   const aberto = CONFIG.fase >= 3;
   if (!aberto){ inp.placeholder='em breve'; inp.disabled=true; form.querySelector('button').disabled=true; }
   // Issue #13: a validacao mora no servidor. O cliente nao conhece codigo
@@ -1009,7 +1108,7 @@ const Loja = (()=>{
           f.title = 'Teaser';
           video.appendChild(f);
         }
-        modal.abre(inp); Som.corrente(1); $('#fecharSala').focus();
+        abreSala(inp); Som.corrente(1); $('#fecharSala').focus();
       } else {
         erro.textContent = dados.erro || 'Esse código não abre nada aqui.';
         inp.setAttribute('aria-invalid','true');
@@ -1045,7 +1144,7 @@ const Loja = (()=>{
         f.title = 'Teaser';
         video.appendChild(f);
       }
-      modal.abre($('#linkConvite')); $('#fecharSala').focus();
+      abreSala($('#linkConvite')); $('#fecharSala').focus();
       return true;
     } catch { return false; }
   }

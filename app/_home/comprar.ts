@@ -22,8 +22,10 @@ import { ehNavegacao } from '@/app/_ui/barra-de-rota';
 export function ligaComprar(link: HTMLAnchorElement, fecha: () => void): void {
   link.addEventListener('click', (e) => {
     // Sem produto no catalogo o destino e `#`. Em aba nova, abria outra copia
-    // da home; na mesma aba, rolaria esta para o topo, atras da loja.
-    if (link.getAttribute('href') === '#') {
+    // da home; na mesma aba, rolaria esta para o topo, atras da loja. Sem
+    // tamanho escolhido nao ha destino nenhum (#347).
+    const destino = link.getAttribute('href');
+    if (!destino || destino === '#') {
       e.preventDefault();
       return;
     }
