@@ -147,10 +147,13 @@ describe('quem passa', () => {
     });
   });
 
-  it('motivo vazio vira null, nao string vazia', async () => {
+  // Sem o argumento, o banco usa o `default null` da funcao. No corpo JSON da
+  // chamada, `undefined` some, entao o motivo gravado e null e nao ''.
+  it('motivo vazio nao vai ao banco, nem como string vazia', async () => {
     await envia({ motivo: '' });
 
-    expect(rpc.mock.calls[0][1]).toMatchObject({ p_motivo: null });
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_motivo: undefined });
+    expect(JSON.stringify(rpc.mock.calls[0][1])).not.toContain('p_motivo');
   });
 
   // O papel vem do servidor. Um campo `admin=true` no formulario e ruido.
