@@ -1100,7 +1100,9 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 /* As medidas sao as do formulario de verdade, lidas no navegador: fundo
    #08080a, 16px de recuo, caixa dos meios de pagamento em 89px com 134 de
    altura, botao em 255px com 153x48. */
-.esq-brick{height:359px;box-sizing:border-box;padding:0 16px;background:#08080a;display:flex;flex-direction:column;align-items:flex-start;pointer-events:none;animation:esq-aparece .2s cubic-bezier(.22,1,.36,1) .15s backwards;transition:opacity .15s cubic-bezier(.4,0,1,1)}
+/* A visibilidade vira so no fim do fade (#346): antes ela caia no primeiro
+   quadro e cortava a saida do esqueleto. */
+.esq-brick{height:359px;box-sizing:border-box;padding:0 16px;background:#08080a;display:flex;flex-direction:column;align-items:flex-start;pointer-events:none;animation:esq-aparece .2s cubic-bezier(.22,1,.36,1) .15s backwards;transition:opacity .15s cubic-bezier(.4,0,1,1),visibility 0s linear .15s}
 .esq-brick-titulo{display:block;width:40%;height:16px;margin:48px 0 25px}
 .esq-brick-meios{width:100%;height:134px;box-sizing:border-box;display:flex;flex-direction:column;border:1px solid #1c1d20}
 .esq-brick-meios>.esq{display:block;flex:1;background:#08080a}
@@ -1121,7 +1123,9 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .pagamento-valor{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.04em;color:#fff}
 
 /* Pix gerado (#110) ---------------------------------------------------------- */
-.pix{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
+/* Entra no lugar do formulario com a mesma entrada das telas de conta (#346):
+   antes trocava seco. */
+.pix{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;animation:auth-entra .24s cubic-bezier(.22,1,.36,1) backwards}
 .pix-valor{font-family:var(--display);font-weight:400;font-size:34px;letter-spacing:.04em;color:#fff}
 /* Fundo branco no QR nao e escolha estetica: leitor de codigo precisa de
    contraste, e QR claro sobre preto falha em boa parte dos aparelhos. */
@@ -1136,6 +1140,9 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 @media (max-width:767px){
   .pix-qr{width:200px;height:200px}
   .pix .btn{min-height:52px}
+}
+@media (prefers-reduced-motion:reduce){
+  .pix{animation-name:so-fade}
 }
 
 /* Acoes do pedido (#113): o botao de pagar, so enquanto espera pagamento. */
