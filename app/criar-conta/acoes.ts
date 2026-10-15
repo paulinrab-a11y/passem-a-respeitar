@@ -132,7 +132,8 @@ export async function criarConta(
     password: senha,
     options: {
       // Sem nome (#207): o perfil nasce sem ele, e a pessoa poe em Conta se
-      // quiser. O aceite continua carimbado aqui, com o relogio do servidor.
+      // quiser. O campo diz que houve aceite; a hora gravada no perfil e a do
+      // banco, que descarta a data mandada aqui (#309).
       data: { termos_aceitos_em: new Date().toISOString() },
       emailRedirectTo: urlDeRetorno(cabecalhos, CONTA),
     },

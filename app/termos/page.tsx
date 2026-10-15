@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cartaoDoLink } from '@/lib/cartao-do-link';
 import { CONTATO } from '@/lib/contato';
 import { formataData } from '@/lib/datas';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
@@ -16,10 +17,15 @@ import { dadosDoVendedor } from '@/lib/loja/vendedor';
 // Vercel, aparecem aqui sem depender de um build ter pego a variavel.
 export const dynamic = 'force-dynamic';
 
+const TITULO = 'Termos de compra — Passem a Respeitar';
+
 export const metadata: Metadata = {
-  title: 'Termos de compra — Passem a Respeitar',
+  title: TITULO,
   description:
     'Quem vende, prazos, pagamento, cancelamento, direito de arrependimento, defeito e troca da Camiseta CBAC.',
+  // Card proprio: o link desta pagina mostra "Termos de compra", nao o nome do
+  // site.
+  ...cartaoDoLink(TITULO),
 };
 
 /**

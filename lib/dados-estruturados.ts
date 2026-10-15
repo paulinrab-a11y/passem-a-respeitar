@@ -18,6 +18,8 @@
  *     cobra. Sem catalogo, o Product some em vez de sair com numero velho.
  */
 
+import { ARREPENDIMENTO_DIAS } from './loja/termos';
+
 export type CamisetaNoGrafo = {
   slug: string;
   nome: string;
@@ -59,6 +61,21 @@ function produto(e: Entrada, camiseta: CamisetaNoGrafo) {
   // estoque nao e lido pelo papel publico, e prometer pronta-entrega seria
   // dizer ao Google o que a pagina nao diz.
   const disponibilidade = 'https://schema.org/MadeToOrder';
+  // Nova, e com a devolucao que o /termos promete: 7 dias do recebimento,
+  // frete de volta pago pela loja e o valor todo de volta (CDC art. 49).
+  const condicoes = {
+    itemCondition: 'https://schema.org/NewCondition',
+    hasMerchantReturnPolicy: {
+      '@type': 'MerchantReturnPolicy',
+      applicableCountry: 'BR',
+      returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+      merchantReturnDays: ARREPENDIMENTO_DIAS,
+      returnMethod: 'https://schema.org/ReturnByMail',
+      returnFees: 'https://schema.org/FreeReturn',
+      refundType: 'https://schema.org/FullRefund',
+      merchantReturnLink: new URL('/termos#arrependimento', e.base).href,
+    },
+  };
   const oferta =
     menor === maior
       ? {
@@ -67,6 +84,7 @@ function produto(e: Entrada, camiseta: CamisetaNoGrafo) {
           priceCurrency: 'BRL',
           price: emReais(menor),
           availability: disponibilidade,
+          ...condicoes,
         }
       : {
           '@type': 'AggregateOffer',
@@ -76,6 +94,7 @@ function produto(e: Entrada, camiseta: CamisetaNoGrafo) {
           highPrice: emReais(maior),
           offerCount: camiseta.precosCentavos.length,
           availability: disponibilidade,
+          ...condicoes,
         };
 
   return {
@@ -134,13 +153,14 @@ export function grafoDoSite(e: Entrada) {
       '@type': 'Organization',
       '@id': organizacao,
       name: 'Whynot Visuals',
-      url: e.base.href,
+      // Sem `url`: este site e do EP, nao do selo. O perfil e o `sameAs`.
       sameAs: [e.instagramDoSelo],
     },
     {
       '@type': 'WebSite',
       '@id': idNoSite(e.base, 'site'),
       name: e.nomeDoSite,
+      alternateName: 'Passem a Respeitar',
       description: e.descricaoDoSite,
       url: e.base.href,
       inLanguage: 'pt-BR',

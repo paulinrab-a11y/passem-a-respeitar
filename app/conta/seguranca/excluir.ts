@@ -85,12 +85,24 @@ export async function excluirConta(
     .update({ anonimizado_em: new Date().toISOString() })
     .eq('user_id', usuario.id);
 
+  // Encerra TODAS as sessoes antes de apagar (#309). O cascade do deleteUser
+  // tambem levaria as sessoes, mas por baixo do Auth; assim e o proprio Auth
+  // que revoga os refresh tokens de cada aparelho, e outro aparelho logado nao
+  // segue renovando token durante a exclusao. Se nao deu para encerrar, nada e
+  // apagado: a pessoa continua com a conta e tenta de novo.
+  const { error: erroSaida } = await supabase.auth.signOut({ scope: 'global' });
+  if (erroSaida) {
+    return erro('Não consegui excluir a conta agora. Tente de novo em instantes.');
+  }
+
   // Apagar o usuario leva junto, por cascade: o perfil, as sessoes e os
   // refresh tokens. Os pedidos ficam, com user_id nulo.
   const { error } = await admin.auth.admin.deleteUser(usuario.id);
 
   if (error) {
-    return erro('Não consegui excluir a conta agora. Tente de novo em instantes.');
+    // A sessao ja foi encerrada logo acima: para tentar de novo, a pessoa
+    // precisa entrar outra vez.
+    return erro('Não consegui excluir a conta agora. Entre de novo e tente em instantes.');
   }
 
   // Os cookies desta sessao nao apontam mais para nada, mas continuam no
