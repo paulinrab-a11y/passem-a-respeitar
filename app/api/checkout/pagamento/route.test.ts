@@ -55,6 +55,24 @@ describe('POST /api/checkout/pagamento', () => {
     expect(cobra).not.toHaveBeenCalled();
   });
 
+  // A sessao vem antes de tudo: quem nao esta logado nao gasta a cota de
+  // ninguem nem faz o servidor ler o que mandou (#331).
+  it('sem sessao nao le o corpo nem consome a cota', async () => {
+    usuarioDaSessao.mockResolvedValue(null);
+    const pedido = new NextRequest('https://passem-a-respeitar.test/api/checkout/pagamento', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pedido: PEDIDO, payment_method_id: 'pix' }),
+    });
+    const leu = vi.spyOn(pedido, 'json');
+
+    const r = await POST(pedido);
+
+    expect(r.status).toBe(401);
+    expect(leu).not.toHaveBeenCalled();
+    expect(limita).not.toHaveBeenCalled();
+  });
+
   it('fora da cota e 429 com Retry-After e nao cobra', async () => {
     limita.mockResolvedValue({ permitido: false, esperarS: 120 });
 
@@ -108,6 +126,7 @@ describe('POST /api/checkout/pagamento', () => {
     ['pedido-ja-pago', 409],
     ['tentativas-demais', 429],
     ['indisponivel', 502],
+    ['configuracao', 502],
     ['pagamento-em-processamento', 409],
     ['pagamento-pendente', 409],
     ['pedido-expirado', 410],
