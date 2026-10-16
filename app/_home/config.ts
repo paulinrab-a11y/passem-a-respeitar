@@ -47,9 +47,11 @@ export const CONFIG: SiteConfig = {
     igLabel: 'https://instagram.com/whynotvisuals_',
   },
   logoUrl: '/logo.png',
-  // Vazio ate o dono e os artistas aprovarem o texto (#275). A proposta esta
-  // na descricao do PR; nada sobre eles vai ao ar sem esse aceite.
-  quemSao: '',
+  // Texto aprovado pelo dono (#275, #386). So o que ele escreveu: nada de
+  // data, cidade de nascimento, faixa ou numero. O "trap" daqui e o que
+  // autoriza o `genre` dos MusicGroup no JSON-LD (ver app/page.tsx).
+  quemSao:
+    'Santxx e Ch3fe são dois nomes do trap de São Paulo. Passem a Respeitar é o EP que os dois assinam juntos, pela Whynot Visuals.',
   // Vazio de proposito ate o clipe subir no YouTube (#75). Com string vazia
   // o script nao monta iframe nenhum e a secao mostra "clipe em breve".
   //

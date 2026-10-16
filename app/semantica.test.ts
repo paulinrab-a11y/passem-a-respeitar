@@ -361,8 +361,8 @@ describe('home renderizada', () => {
   it('os tres perfis do Instagram vem no HTML do servidor, com rel="me"', async () => {
     const pagina = await home();
     const perfis = {
-      igSantxx: ['https://instagram.com/ogsantxx', '@ogsantxx'],
-      igChefe: ['https://instagram.com/ch3fe3k', '@ch3fe3k'],
+      igSantxx: ['https://instagram.com/ogsantxx', 'Santxx · @ogsantxx'],
+      igChefe: ['https://instagram.com/ch3fe3k', 'Ch3fe · @ch3fe3k'],
       igLabel: ['https://instagram.com/whynotvisuals_', 'Whynot Visuals'],
     };
     for (const [id, [href, texto]] of Object.entries(perfis)) {
@@ -376,8 +376,24 @@ describe('home renderizada', () => {
     for (const [href] of Object.values(perfis)) expect(json).toContain(href);
   });
 
-  it('sem texto aprovado, a secao "quem sao" nao aparece', async () => {
-    expect((await home()).querySelector('#quem-sao')).toBeNull();
+  // #386: o texto aprovado pelo dono, no HTML do servidor, entre a merch e o
+  // rodape. E o genero do grafo so existe porque esse texto diz trap.
+  it('a secao "quem sao" sai do servidor com o texto aprovado, antes do rodape', async () => {
+    const pagina = await home();
+    const secao = pagina.querySelector('main > #quem-sao');
+    expect(secao?.querySelector('h2')?.textContent).toBe('Quem são Santxx e Ch3fe');
+    expect(secao?.querySelector('p')?.textContent).toBe(
+      'Santxx e Ch3fe são dois nomes do trap de São Paulo. Passem a Respeitar é o EP que os dois assinam juntos, pela Whynot Visuals.'
+    );
+    expect(secao?.previousElementSibling?.id).toBe('merch');
+    expect(secao?.nextElementSibling?.matches('footer.assina')).toBe(true);
+
+    const json = pagina.querySelector('script[type="application/ld+json"]')?.textContent ?? '';
+    const grafo = JSON.parse(json)['@graph'] as { '@type': string; genre?: string[] }[];
+    const artistas = grafo.filter((n) => n['@type'] === 'MusicGroup');
+    expect(artistas).toHaveLength(2);
+    for (const a of artistas) expect(a.genre).toEqual(['Trap', 'Rap']);
+    expect(secao?.textContent).toMatch(/\btrap\b/i);
   });
 
   // #280: era um <div> clicavel, fora do Tab e sem papel de controle.
