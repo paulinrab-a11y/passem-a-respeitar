@@ -25,8 +25,29 @@ const signOut = vi.fn(async (o: { scope: string }) => {
   ordem.push(`signOut:${o.scope}`);
   return { error: null };
 });
-const createClient = vi.fn((..._: unknown[]) => ({ auth: { verifyOtp, updateUser, signOut } }));
+const signInWithOtp = vi.fn(async (_: unknown) => ({ error: null as ErroDoSupabase }));
+// A sessao que nasce depois de a senha da conta pendente sair (#387).
+const SESSAO_NOVA = {
+  access_token: 'acesso-novo',
+  refresh_token: 'renovacao-nova',
+  expires_in: 3600,
+};
+const signInWithPassword = vi.fn(async (_: unknown) => {
+  ordem.push('signInWithPassword');
+  return { data: { session: SESSAO_NOVA as Sessao | null }, error: null as ErroDoSupabase };
+});
+const createClient = vi.fn((..._: unknown[]) => ({
+  auth: { verifyOtp, updateUser, signOut, signInWithOtp, signInWithPassword },
+}));
 
+// A troca de senha da entrada por codigo (#387) vai pela chave secreta.
+const updateUserById = vi.fn(async (_id: string, _o: unknown) => {
+  ordem.push('updateUserById');
+  return { error: null as ErroDoSupabase };
+});
+vi.mock('@/lib/supabase/admin', () => ({
+  clienteAdmin: () => ({ auth: { admin: { updateUserById } } }),
+}));
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (...a: unknown[]) => createClient(...a),
 }));
@@ -41,7 +62,9 @@ const {
   cabeReenvioDoIp,
   codigoDaContaConfere,
   confirmaCadastro,
+  entraPorCodigo,
   mandaCodigo,
+  mandaCodigoDeEntrada,
 } = await import('./codigo');
 
 let n = 0;
@@ -272,5 +295,160 @@ describe('confirmaCadastro', () => {
 
     expect(await confirma()).toEqual({ resultado: 'sem-senha' });
     expect(updateUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('mandaCodigoDeEntrada (#387)', () => {
+  it('pede o codigo criando a conta se preciso, com o aceite carimbado, sem client de cookie', async () => {
+    const antes = Date.now();
+    expect(await mandaCodigoDeEntrada('fulana@exemplo.invalid')).toBe(true);
+
+    const pedido = signInWithOtp.mock.calls[0][0] as {
+      email: string;
+      options: { shouldCreateUser: boolean; data: Record<string, string> };
+    };
+    expect(pedido.email).toBe('fulana@exemplo.invalid');
+    expect(pedido.options.shouldCreateUser).toBe(true);
+    // So o aceite vai na metadata: nada que a pessoa escreva chega ao perfil.
+    expect(Object.keys(pedido.options.data)).toEqual(['termos_aceitos_em']);
+    expect(Date.parse(pedido.options.data.termos_aceitos_em)).toBeGreaterThanOrEqual(antes - 1000);
+    expect(createClient.mock.calls[0][2]).toMatchObject({
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  });
+
+  it('o erro do Supabase vira falso, sem lancar', async () => {
+    signInWithOtp.mockResolvedValueOnce({ error: { message: 'over_email_send_rate_limit' } });
+    expect(await mandaCodigoDeEntrada('fulana@exemplo.invalid')).toBe(false);
+  });
+});
+
+describe('entraPorCodigo (#387)', () => {
+  const AGORA = '2026-10-16T12:00:00.500Z';
+
+  /**
+   * O usuario que o verifyOtp devolve: a hora em que o e-mail foi confirmado
+   * e a desta entrada, que o Supabase devolve ja gravada.
+   */
+  function conferido(confirmadoEm: string | null, entrouEm: string | null = AGORA) {
+    verifyOtp.mockImplementationOnce(async () => {
+      ordem.push('verifyOtp');
+      return {
+        data: {
+          session: SESSAO,
+          user: { id: 'u1', email_confirmed_at: confirmadoEm, last_sign_in_at: entrouEm },
+        },
+        error: null,
+      } as unknown as Awaited<ReturnType<typeof verifyOtp>>;
+    });
+  }
+
+  const sessao = { access_token: 'acesso', refresh_token: 'renovacao' };
+
+  it('conta ja confirmada: so a sessao, sem tocar na senha nem nas outras sessoes', async () => {
+    // Confirmada tres segundos antes desta entrada: outra conferencia.
+    conferido('2026-10-16T11:59:57.500Z');
+
+    expect(await entraPorCodigo('a@exemplo.invalid', '12345678')).toEqual({
+      resultado: 'pronto',
+      sessao,
+    });
+    expect(verifyOtp).toHaveBeenCalledWith({
+      email: 'a@exemplo.invalid',
+      token: '12345678',
+      type: 'email',
+    });
+    expect(ordem).toEqual(['verifyOtp']);
+  });
+
+  // Pre-sequestro (#284): a conta pendente pode ter a senha de outra pessoa.
+  it('conta confirmada por este codigo: senha que ninguem conhece, e so a sessao nova fica', async () => {
+    conferido('2026-10-16T12:00:00.487Z');
+
+    // A troca pela chave secreta derruba todas as sessoes: a que vai para o
+    // cookie e a que nasce depois dela, com a senha nova.
+    expect(await entraPorCodigo('a@exemplo.invalid', '12345678')).toEqual({
+      resultado: 'pronto',
+      sessao: { access_token: 'acesso-novo', refresh_token: 'renovacao-nova' },
+    });
+    expect(ordem).toEqual(['verifyOtp', 'updateUserById', 'signInWithPassword', 'signOut:others']);
+    // So na conta que o codigo provou, e sem passar pela sessao, que mandaria
+    // "Sua senha foi trocada" a quem nunca teve senha.
+    expect(updateUserById.mock.calls[0][0]).toBe('u1');
+    expect(updateUser).not.toHaveBeenCalled();
+    const { password } = updateUserById.mock.calls[0][1] as { password: string };
+    expect(password.length).toBeGreaterThanOrEqual(48);
+    expect(signInWithPassword).toHaveBeenCalledWith({ email: 'a@exemplo.invalid', password });
+    // Outra a cada conta: nada fixo, nada que se adivinhe.
+    conferido('2026-10-16T12:00:00.487Z');
+    await entraPorCodigo('b@exemplo.invalid', '12345678');
+    expect((updateUserById.mock.calls[1][1] as { password: string }).password).not.toBe(password);
+  });
+
+  it.each([
+    ['da confirmacao', null, AGORA],
+    ['da entrada', '2026-10-16T11:00:00.000Z', null],
+  ])('sem a hora %s, a senha antiga tambem nao fica', async (_, confirmado, entrou) => {
+    conferido(confirmado, entrou);
+    await entraPorCodigo('a@exemplo.invalid', '12345678');
+    expect(ordem).toEqual(['verifyOtp', 'updateUserById', 'signInWithPassword', 'signOut:others']);
+  });
+
+  it('senha que nao trocou: nenhuma sessao sobra, e quem chamou nao recebe uma', async () => {
+    conferido('2026-10-16T12:00:00.487Z');
+    updateUserById.mockImplementationOnce(async () => {
+      ordem.push('updateUserById');
+      return { error: { message: 'fetch failed' } };
+    });
+
+    expect(await entraPorCodigo('a@exemplo.invalid', '12345678')).toEqual({
+      resultado: 'recuperar',
+    });
+    expect(ordem).toEqual(['verifyOtp', 'updateUserById', 'signOut:global']);
+  });
+
+  it('sem a sessao nova depois da troca: o caminho e a recuperacao', async () => {
+    conferido('2026-10-16T12:00:00.487Z');
+    signInWithPassword.mockImplementationOnce(async () => {
+      ordem.push('signInWithPassword');
+      return { data: { session: null }, error: { message: 'fetch failed' } };
+    });
+
+    expect(await entraPorCodigo('a@exemplo.invalid', '12345678')).toEqual({
+      resultado: 'recuperar',
+    });
+  });
+
+  it('sem a chave secreta, a troca falha fechada', async () => {
+    conferido('2026-10-16T12:00:00.487Z');
+    updateUserById.mockImplementationOnce(async () => {
+      throw new Error('SUPABASE_SECRET_KEY nao definida.');
+    });
+
+    expect(await entraPorCodigo('a@exemplo.invalid', '12345678')).toEqual({
+      resultado: 'recuperar',
+    });
+    expect(ordem).toEqual(['verifyOtp', 'signOut:global']);
+  });
+
+  it('codigo recusado: nada mais e tocado', async () => {
+    recusa(verifyOtp, 'verifyOtp', { message: 'Token has expired or is invalid' });
+
+    expect(await entraPorCodigo('a@exemplo.invalid', '12345678')).toEqual({
+      resultado: 'invalido',
+    });
+    expect(ordem).toEqual(['verifyOtp']);
+  });
+
+  it('codigo certo sem sessao: invalido, e nada mais e tocado', async () => {
+    verifyOtp.mockImplementationOnce(async () => {
+      ordem.push('verifyOtp');
+      return { data: { session: null }, error: null };
+    });
+
+    expect(await entraPorCodigo('a@exemplo.invalid', '12345678')).toEqual({
+      resultado: 'invalido',
+    });
+    expect(ordem).toEqual(['verifyOtp']);
   });
 });

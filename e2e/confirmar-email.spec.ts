@@ -68,8 +68,10 @@ test('confirmar: a senha certa abre o codigo e leva ao checkout, conectado', asy
   const pendente = await criaPendente('Checkout');
   const checkout = '/checkout?p=camiseta-cbac&tam=M&q=1';
 
-  // Quem clica em Comprar sem sessao cai no login com o destino na URL.
+  // Quem clica em Comprar sem sessao cai no login com o destino na URL. La a
+  // porta que abre primeiro e o codigo (#387); a senha esta a um clique.
   await page.goto(`/entrar?next=${encodeURIComponent(checkout)}`);
+  await (await vivo(page.getByRole('button', { name: 'Usar senha' }))).click();
   await vivo(page.getByRole('button', { name: 'Entrar' }));
   await page.getByRole('checkbox', { name: 'Manter conectado' }).check();
   await preencheLogin(page, pendente.email, pendente.senha);

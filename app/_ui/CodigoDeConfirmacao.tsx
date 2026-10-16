@@ -35,6 +35,13 @@ const DESFECHOS: Record<Desfecho, { titulo: string; texto: string; href: string;
       href: '/recuperar-senha',
       rotulo: 'Esqueci minha senha',
     },
+    recuperar: {
+      titulo: 'E-mail confirmado, falta um passo',
+      texto:
+        'Por segurança, não deu para terminar a entrada pelo código. Crie uma senha em “Esqueci minha senha”: o link chega neste mesmo e-mail.',
+      href: '/recuperar-senha',
+      rotulo: 'Esqueci minha senha',
+    },
     entrar: {
       titulo: 'Conta confirmada',
       texto: 'Sua senha está gravada. Entre com este e-mail e a senha que você acabou de escolher.',

@@ -1,10 +1,12 @@
 import 'server-only';
 
+import { randomBytes } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { CODIGO_DIGITOS } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
 import { CONTA } from '@/lib/rotas';
 import { urlDeRetorno } from '@/lib/site-url';
+import { clienteAdmin } from '@/lib/supabase/admin';
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 import { cabecalhosDeOrigem } from '@/lib/supabase/servidor';
 
@@ -107,6 +109,152 @@ export async function mandaCodigo(auth: Auth, email: string, cabecalhos: Headers
     options: { emailRedirectTo: urlDeRetorno(cabecalhos, CONTA) },
   });
   return !error;
+}
+
+/**
+ * Manda o codigo de entrar sem senha (#387), criando a conta se o e-mail nao
+ * tiver nenhuma.
+ *
+ * O Supabase escolhe o e-mail pelo estado da conta: conta confirmada recebe o
+ * modelo "Magic link or OTP"; e-mail sem conta, ou com conta que nunca
+ * confirmou, recebe o "Confirm sign up". Os dois trazem o mesmo tipo de
+ * codigo de oito digitos, conferido do mesmo jeito.
+ *
+ * O aceite vai na metadata, como no cadastro (`criarConta`): a trigger
+ * `cria_profile_no_signup` carimba a hora do banco na conta que nascer aqui.
+ * Para conta que ja existe o Supabase ignora a metadata, e o aceite que vale
+ * e o do cadastro dela.
+ *
+ * Num client que nao grava cookie: pedir o codigo nao mexe na sessao de
+ * ninguem. A resposta diz se o Supabase aceitou o pedido; quem responde a
+ * pessoa nao a usa, pelo mesmo motivo do reenvio (`mandaCodigo`).
+ */
+export async function mandaCodigoDeEntrada(email: string) {
+  const avulso = await clienteAvulso();
+  const { error } = await avulso.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+      data: { termos_aceitos_em: new Date().toISOString() },
+    },
+  });
+  return !error;
+}
+
+/**
+ * Diferenca maxima entre a confirmacao do e-mail e a entrada para dizer que
+ * as duas aconteceram nesta conferencia. O Supabase grava as duas na mesma
+ * chamada, com milissegundos entre elas (medido no Supabase local: 13 ms); a
+ * conta confirmada antes tem a confirmacao la atras.
+ */
+const MESMA_CONFERENCIA_MS = 2000;
+
+/**
+ * A conta acabou de ser confirmada por este codigo? Os dois relogios sao do
+ * Supabase, que devolve a entrada desta conferencia ja gravada. Sem uma das
+ * datas, a resposta e sim: na duvida, a senha que existia nao e de confianca.
+ */
+function confirmouAgora(usuario: {
+  email_confirmed_at?: string | null;
+  last_sign_in_at?: string | null;
+}) {
+  const confirmado = usuario.email_confirmed_at
+    ? Date.parse(usuario.email_confirmed_at)
+    : Number.NaN;
+  const entrou = usuario.last_sign_in_at ? Date.parse(usuario.last_sign_in_at) : Number.NaN;
+  if (!Number.isFinite(confirmado) || !Number.isFinite(entrou)) return true;
+  return entrou - confirmado < MESMA_CONFERENCIA_MS;
+}
+
+/** Senha que ninguem conhece, para tirar da conta a que veio de outra pessoa. */
+function senhaDescartavel() {
+  return randomBytes(48).toString('base64url');
+}
+
+/** Poe na conta uma senha que ninguem conhece, sem e-mail de aviso. */
+async function trocaSenhaSemAviso(id: string, senha: string) {
+  try {
+    return await clienteAdmin().auth.admin.updateUserById(id, { password: senha });
+  } catch (e) {
+    // Chave secreta ausente lanca; aqui isso e so mais um jeito de falhar.
+    return { error: e instanceof Error ? e : new Error(String(e)) };
+  }
+}
+
+/**
+ * O que sobra de entrar pelo codigo (#387):
+ *
+ * - `invalido`: o codigo nao conferiu, e nada mudou na conta.
+ * - `recuperar`: o e-mail ficou confirmado, mas nao deu para tirar da conta a
+ *   senha que ela tinha. Nenhuma sessao ficou viva; o caminho e criar uma
+ *   senha pela recuperacao.
+ * - `pronto`: a sessao vai para quem chamou gravar no cookie.
+ */
+export type EntradaPorCodigo =
+  | { resultado: 'invalido' }
+  | { resultado: 'recuperar' }
+  | { resultado: 'pronto'; sessao: { access_token: string; refresh_token: string } };
+
+/**
+ * Confere o codigo de entrar sem senha (#387).
+ *
+ * Pre-sequestro de conta (#284): alguem cadastra o e-mail de outra pessoa com
+ * uma senha DELE e nao confirma. Se a dona do e-mail entra pelo codigo, o
+ * Supabase confirma aquela conta pendente e a senha dele continua valendo.
+ * Por isso, quando ESTE codigo e o que confirmou a conta, a senha que ela
+ * tinha e trocada por uma que ninguem conhece, e as outras sessoes caem. Ela
+ * so podia ter vindo de quem nao provou a posse do e-mail: quem cadastrou e
+ * nao confirmou, ou o proprio Supabase, que cria a conta do codigo com uma
+ * senha aleatoria. Quem quiser senha cria uma depois, pela recuperacao.
+ *
+ * Conta que ja era confirmada fica como esta: a senha dela foi escolhida por
+ * quem provou a posse do e-mail, no cadastro ou na recuperacao.
+ *
+ * Tudo num client que nao grava cookie, como em `confirmaCadastro`: a sessao
+ * so sai daqui quando a conta ja nao tem senha de mais ninguem.
+ */
+export async function entraPorCodigo(email: string, codigo: string): Promise<EntradaPorCodigo> {
+  const avulso = await clienteAvulso();
+
+  const { data, error } = await avulso.auth.verifyOtp({ email, token: codigo, type: 'email' });
+  if (error) return { resultado: 'invalido' };
+  // Na pratica o Supabase sempre devolve os dois. Sem sessao nao ha o que
+  // gravar no cookie, e o codigo ja foi gasto: o caminho e pedir outro.
+  if (!data.session || !data.user) return { resultado: 'invalido' };
+
+  if (confirmouAgora(data.user)) {
+    // Pela chave secreta, e nao pelo `updateUser` da sessao: por ali o
+    // Supabase manda "Sua senha foi trocada", e quem acabou de criar a conta
+    // pelo codigo nunca teve senha nenhuma para ver trocada. A troca e so
+    // desta conta, a que o codigo acabou de provar ser de quem digitou.
+    //
+    // A troca pela chave secreta derruba TODAS as sessoes da conta, a que o
+    // codigo acabou de abrir inclusive (medido no Supabase local). A sessao
+    // que vai para o cookie nasce depois, com a senha que so este servidor
+    // conheceu e que nao sai daqui.
+    const senha = senhaDescartavel();
+    const { error: erroDaSenha } = await trocaSenhaSemAviso(data.user.id, senha);
+    if (erroDaSenha) {
+      // `global`: a que acabou de nascer e qualquer outra. A conta fica
+      // confirmada, mas ninguem entra nela com a senha antiga por esta porta.
+      await avulso.auth.signOut({ scope: 'global' });
+      return { resultado: 'recuperar' };
+    }
+
+    const nova = await avulso.auth.signInWithPassword({ email, password: senha });
+    // A conta ja esta limpa: sem a sessao nova, o caminho e a recuperacao,
+    // que da a pessoa uma senha dela.
+    if (nova.error || !nova.data.session) return { resultado: 'recuperar' };
+    // `others`: sobra so esta. A troca ja derrubou as outras; isto e a
+    // segunda trava, caso o Supabase deixe de derrubar um dia.
+    await avulso.auth.signOut({ scope: 'others' });
+
+    const { access_token, refresh_token } = nova.data.session;
+    return { resultado: 'pronto', sessao: { access_token, refresh_token } };
+  }
+
+  const { access_token, refresh_token } = data.session;
+  return { resultado: 'pronto', sessao: { access_token, refresh_token } };
 }
 
 /**

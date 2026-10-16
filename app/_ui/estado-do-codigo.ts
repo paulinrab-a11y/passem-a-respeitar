@@ -19,13 +19,17 @@ export type EstadoCodigo = {
    * - `entrar`: e-mail confirmado e senha gravada, mas a sessao nao chegou
    *   ao navegador. O caminho e o login.
    *
-   * Nos dois o codigo ja foi gasto: a tela troca o campo por este recado, em
+   * - `recuperar`: so a entrada sem senha (#387). O codigo confirmou a conta,
+   *   mas nao deu para tirar dela a senha que outra pessoa pode ter posto. O
+   *   caminho e criar uma senha em "Esqueci minha senha".
+   *
+   * Em todos o codigo ja foi gasto: a tela troca o campo por este recado, em
    * vez de pedir um codigo que nao vale mais.
    */
   desfecho?: Desfecho;
 };
 
-export type Desfecho = 'sem-senha' | 'entrar';
+export type Desfecho = 'sem-senha' | 'entrar' | 'recuperar';
 
 export const codigoInicial: EstadoCodigo = { erro: null, tentativa: 0 };
 

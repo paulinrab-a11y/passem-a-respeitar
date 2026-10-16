@@ -53,7 +53,8 @@ const TEXTO = 'Arial,Helvetica,sans-serif';
 /** Por que cinco avisos ficam com a chave desligada. */
 const SEM_USO = {
   telefone: 'O site não pede telefone. Com a chave desligada este e-mail nunca sai.',
-  login: 'O site só tem login por e-mail e senha. Com a chave desligada este e-mail nunca sai.',
+  login:
+    'O site só tem login por e-mail, com senha ou com código. Com a chave desligada este e-mail nunca sai.',
   etapas: 'O site não tem verificação em duas etapas. Com a chave desligada este e-mail nunca sai.',
 };
 
@@ -99,17 +100,19 @@ export const EMAILS = [
     tipo: 'template',
     secao: 'Authentication',
     painel: 'Magic link or OTP',
-    assunto: 'Seu acesso — Passem a Respeitar',
-    titulo: 'Seu acesso',
+    assunto: 'Seu código de acesso — Passem a Respeitar',
+    titulo: 'Seu código de acesso',
+    // So o codigo, sem link (#387), como o do cadastro (#227): o site entra
+    // pelo codigo, e o link PKCE so abria no navegador que pediu. A ultima
+    // frase termina em "digite este código no site:" porque e nela que o e2e
+    // ancora a leitura (e2e/apoio/correio.ts).
     texto: [
-      'Use o botão abaixo para entrar na sua conta.',
-      'O link e o código valem por uma hora e só funcionam uma vez.',
+      'Pediram para entrar na sua conta com um código.',
+      'O código vale por uma hora e só funciona uma vez. Para entrar, digite este código no site:',
     ],
-    botao: ['Entrar', '{{ .ConfirmationURL }}'],
-    // O mesmo modelo serve ao login por link e ao login por codigo.
     codigo: true,
     aviso:
-      'Não foi você? Ignore este e-mail. Ninguém entra na conta sem o clique ou sem o código, e o site nunca pede o código por telefone nem por mensagem.',
+      'Não foi você? Ignore este e-mail. Ninguém entra na conta sem o código, e o site nunca pede o código por telefone nem por mensagem.',
   },
   {
     chave: 'email_change',

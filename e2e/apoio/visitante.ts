@@ -36,6 +36,7 @@ const ARQUIVOS = [
   'pre-sequestro',
   'conta',
   'pos-venda',
+  'entrar-com-codigo',
 ] as const;
 
 export function visitante(arquivo: (typeof ARQUIVOS)[number]) {
