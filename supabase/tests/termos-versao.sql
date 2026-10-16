@@ -1,10 +1,10 @@
 -- Issue #380 — versao dos termos gravada no pedido.
 --
--- As duas `cria_pedido` convivem ate o deploy (migration 20261015200000):
---   - a de 6 parametros continua criando pedido, com a versao nula, como o
---     codigo em producao espera;
---   - a de 7 grava a versao, e recusa pedido sem ela;
---   - so o service_role executa a nova.
+-- A `cria_pedido` (7 parametros):
+--   - grava a versao, e recusa pedido sem ela;
+--   - so o service_role executa.
+-- A de 6 parametros, sem a versao, saiu na #391 (migration 20261016120000);
+-- supabase/tests/cria-pedido.sql confere que sobrou uma so.
 --
 -- Transacao desfeita no fim, como cria-pedido.sql.
 
@@ -59,12 +59,6 @@ begin
   select termos_versao into v from public.orders where id = pedido;
   insert into r values ('7 parametros grava a versao', '2026-10-15T20:00:00-03:00', coalesce(v, 'nula'),
     v = '2026-10-15T20:00:00-03:00');
-
-  -- A antiga, que producao chama, continua criando — com a versao nula.
-  select c.pedido_id into pedido
-  from public.cria_pedido(quem, 14350, endereco, itens, frete, now()) as c;
-  select termos_versao into v from public.orders where id = pedido;
-  insert into r values ('6 parametros continua criando', 'nula', coalesce(v, 'nula'), v is null);
 
   -- Sem a versao, a nova recusa.
   begin
