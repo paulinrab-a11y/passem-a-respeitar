@@ -282,7 +282,7 @@ subject = "Você foi convidado — Passem a Respeitar"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.magic_link]
-subject = "Seu acesso — Passem a Respeitar"
+subject = "Seu código de acesso — Passem a Respeitar"
 content_path = "./supabase/templates/magic_link.html"
 
 [auth.email.template.email_change]

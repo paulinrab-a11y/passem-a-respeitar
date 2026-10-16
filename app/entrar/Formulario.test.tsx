@@ -29,6 +29,24 @@ vi.mock('./acoes', () => ({
     return { erro: 'E-mail ou senha incorretos.', campo: 'credenciais', tentativa };
   }),
 }));
+// Entrar sem senha (#387): o pedido responde como o de verdade, a mesma
+// tela para qualquer e-mail, e recusa sem o aceite.
+vi.mock('./acoes-codigo', () => ({
+  pedirCodigo: vi.fn(async (anterior: { tentativa: number }, form: FormData) => {
+    const tentativa = anterior.tentativa + 1;
+    if (form.get('aceite') !== 'on') {
+      return { erro: 'Para continuar, é preciso aceitar.', campo: 'aceite', tentativa };
+    }
+    return {
+      erro: null,
+      campo: null,
+      tentativa,
+      enviado: { email: String(form.get('email')), lembrar: form.get('lembrar') === 'on' },
+    };
+  }),
+  reenviarCodigoDeEntrada: vi.fn(),
+  entrarComCodigo: vi.fn(),
+}));
 // As acoes do codigo sao as do cadastro; aqui so importa o que a tela manda.
 vi.mock('@/app/criar-conta/acoes', () => ({ confirmarCodigo: vi.fn(), reenviarCodigo: vi.fn() }));
 
@@ -186,5 +204,71 @@ describe('conta que nunca confirmou o e-mail (#260)', () => {
     });
 
     expect(screen.getByText('Confirme seu e-mail')).toBeTruthy();
+  });
+});
+
+describe('entrar com codigo (#387)', () => {
+  it('vindo do checkout, abre o pedido do codigo, sem campo de senha', () => {
+    render(<Formulario next="/checkout?p=camiseta-cbac&tam=M" modoInicial="codigo" />);
+
+    expect(screen.queryByLabelText('Senha')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Receber código' })).toBeTruthy();
+    // O aceite e o do cadastro, e nasce desmarcado.
+    expect(campo('Li e aceito a política de privacidade').checked).toBe(false);
+  });
+
+  it('a senha continua a um clique, e o codigo tambem, nos dois sentidos', () => {
+    render(<Formulario next="/conta" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Receber um código por e-mail' }));
+    expect(screen.queryByLabelText('Senha')).toBeNull();
+    // A que entra depois da troca vem com o fade curto.
+    expect(document.querySelector('form')?.className).toBe('auth-form auth-troca');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Usar senha' }));
+    expect(campo('Senha')).toBeTruthy();
+  });
+
+  it('sem aceite, o erro aponta a caixa e nada de tela do codigo', async () => {
+    const { container } = render(<Formulario next="/conta" modoInicial="codigo" />);
+
+    fireEvent.change(campo('E-mail'), { target: { value: 'maria@exemplo.com' } });
+    await act(async () => {
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    });
+    const erro = await screen.findByRole('alert');
+
+    const aceite = campo('Li e aceito a política de privacidade');
+    expect(aceite.getAttribute('aria-invalid')).toBe('true');
+    expect(aceite.getAttribute('aria-describedby')).toBe(erro.id);
+    expect(campo('E-mail').value).toBe('maria@exemplo.com');
+  });
+
+  it('a tela do codigo leva o e-mail, o destino, o manter conectado e o aceite', async () => {
+    const { container } = render(
+      <Formulario next="/checkout?p=camiseta-cbac&tam=M" modoInicial="codigo" />
+    );
+
+    fireEvent.change(campo('E-mail'), { target: { value: 'maria@exemplo.com' } });
+    fireEvent.click(campo('Manter conectado'));
+    fireEvent.click(campo('Li e aceito a política de privacidade'));
+    await act(async () => {
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    });
+
+    expect(screen.getByText('Confira seu e-mail')).toBeTruthy();
+    const [codigo, reenvio] = container.querySelectorAll('form');
+    for (const f of [codigo, reenvio]) {
+      expect(Object.fromEntries(new FormData(f))).toMatchObject({
+        email: 'maria@exemplo.com',
+        next: '/checkout?p=camiseta-cbac&tam=M',
+        lembrar: '1',
+        aceite: 'on',
+      });
+    }
+
+    // Trocar e-mail volta com o que estava digitado.
+    fireEvent.click(screen.getByRole('button', { name: 'Trocar e-mail' }));
+    expect(campo('E-mail').value).toBe('maria@exemplo.com');
   });
 });
