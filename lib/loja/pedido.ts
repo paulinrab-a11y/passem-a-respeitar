@@ -134,9 +134,8 @@ export async function criaPedido(bruto: unknown): Promise<CriacaoDePedido> {
     // O corpo nao tem como trazer outra: o schema so conhece `aceite: true`,
     // e um `termos_aceitos_em` mandado pelo navegador foi descartado no parse.
     p_termos_aceitos_em: new Date().toISOString(),
-    // QUAL texto foi aceito (#380): a versao que /termos mostra agora. Com
-    // este argumento, o PostgREST chama a `cria_pedido` de 7 parametros; a de
-    // 6 fica para o codigo antigo ate o deploy (migration 20261015200000).
+    // QUAL texto foi aceito (#380): a versao que /termos mostra agora. A
+    // `cria_pedido` exige; a de 6 parametros, sem a versao, saiu na #391.
     p_termos_versao: TERMOS_ATUALIZADOS_EM,
   });
 
