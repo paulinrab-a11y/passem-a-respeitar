@@ -83,10 +83,21 @@ describe('ehStatusPedido', () => {
  * A tabela vive em dois lugares — aqui e em SQL — e os dois tem que dizer a
  * mesma coisa. Este teste le a migration e reconstroi a tabela dela. Se
  * alguem mudar um lado e esquecer o outro, cai aqui, nao em producao.
+ *
+ * Com uma diferenca so, desde a #391: `enviado` e botao aqui, mas no banco a
+ * porta e `envia_pedido` (status e codigo de rastreio juntos), e
+ * `muda_status_pedido` recusa esse destino. A comparacao tira o `enviado`.
  */
 describe('a tabela em SQL e a mesma', () => {
   const sql = readFileSync(
-    join(__dirname, '..', '..', 'supabase', 'migrations', '20260925120000_muda_status_pedido.sql'),
+    join(
+      __dirname,
+      '..',
+      '..',
+      'supabase',
+      'migrations',
+      '20261016120100_enviado_so_por_envia_pedido.sql'
+    ),
     'utf8'
   );
 
@@ -106,7 +117,9 @@ describe('a tabela em SQL e a mesma', () => {
     }
 
     for (const de of STATUS_PEDIDO) {
-      const esperado = [...proximosDe(de)].sort();
+      const esperado = proximosDe(de)
+        .filter((para) => para !== 'enviado')
+        .sort();
       const noSql = [...(doSql.get(de) ?? [])].sort();
       expect({ de, destinos: noSql }).toEqual({ de, destinos: esperado });
     }

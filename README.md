@@ -149,7 +149,9 @@ tem uma linha a mais: `identificador_da_sessao_atual` (a função
 | `20261015170000_historico_por_coluna_e_encerra_sessao_recente.sql` | `20261015210957` |
 | `20261015180000_codigo_de_rastreio.sql` | `20261015231116` |
 | `20261015190000_solicitacoes_pos_venda.sql` | `20261015233245` |
-| `20261015200000_versao_dos_termos_no_pedido.sql` | pendente |
+| `20261015200000_versao_dos_termos_no_pedido.sql` | `20261015235203` |
+| `20261016120000_cria_pedido_so_com_versao_dos_termos.sql` | pendente |
+| `20261016120100_enviado_so_por_envia_pedido.sql` | pendente |
 
 **Não rode `supabase db push` contra produção.** Com as versões desencontradas
 ele acha que nenhum arquivo foi aplicado e tenta reaplicar tudo. Se um dia o

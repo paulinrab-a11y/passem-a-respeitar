@@ -5,7 +5,8 @@
 --     EXECUTE a todo mundo);
 --   - status e rastreio mudam juntos, e so de `em_producao`;
 --   - codigo fora do formato dos Correios nao entra, e o status nao muda;
---   - o dono le o proprio rastreio, nao o do vizinho, e nao escreve nele.
+--   - o dono le o proprio rastreio, nao o do vizinho, e nao escreve nele;
+--   - `muda_status_pedido` nao marca enviado: a porta e so esta (#391).
 --
 -- Mesmo formato de rls-pedidos.sql: tudo numa transacao, desfeita no fim.
 
@@ -106,6 +107,14 @@ begin
     insert into resultado values ('sem codigo', 'erro 22004', 'erro 22004', true);
   end;
 
+  -- A porta antiga nao serve mais para enviado (#391): sem codigo, nao sai.
+  begin
+    perform public.muda_status_pedido(pedido_a, 'enviado', quem);
+    insert into resultado values ('muda_status_pedido para enviado', 'erro P0001', 'passou', false);
+  exception when sqlstate 'P0001' then
+    insert into resultado values ('muda_status_pedido para enviado', 'erro P0001', 'erro P0001', true);
+  end;
+
   select status::text into v_status from public.orders where id = pedido_a;
   insert into resultado values ('recusa nao muda o status', 'em_producao', v_status, v_status = 'em_producao');
 
@@ -132,6 +141,11 @@ begin
   end;
 
   perform public.envia_pedido(pedido_b, quem, 'CD987654321BR');
+
+  -- Depois de enviado, o resto continua pela porta de sempre.
+  perform public.muda_status_pedido(pedido_a, 'entregue', quem);
+  select status::text into v_status from public.orders where id = pedido_a;
+  insert into resultado values ('muda_status_pedido de enviado para entregue', 'entregue', v_status, v_status = 'entregue');
 
   -- ---------------------------------------------------------------------
   -- Sessao do usuario A

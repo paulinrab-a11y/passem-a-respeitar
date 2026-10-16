@@ -35,31 +35,23 @@ where n.nspname = 'public' and p.proname = 'cria_pedido';
 -- assinatura mudou duas vezes (#199, #276); uma versao esquecida seria um
 -- caminho que cria pedido sem frete ou sem aceite.
 --
--- Issue #380 — por enquanto sao DUAS, de proposito: a de 6 parametros, que o
--- codigo em producao chama, e a de 7, com a versao dos termos, que o codigo
--- novo chama (ver a migration 20261015200000). As duas exigem o aceite.
--- Quando a de 6 sair, numa migration depois do deploy, este teste volta a
--- exigir uma so.
+-- Issue #380/#391 — a de 6 parametros, sem a versao dos termos, conviveu com
+-- a de 7 ate o deploy do codigo novo e saiu na migration 20261016120000.
+-- Volta a ser uma so: a que exige o aceite e a versao.
 
 select
   pg_get_function_identity_arguments(p.oid) as parametros,
   case
-    when count(*) over () > 2 then 'FALHOU'
-    when pg_get_function_identity_arguments(p.oid) not like '%p_termos_aceitos_em timestamp with time zone%' then 'FALHOU'
-    when not exists (
-      select 1 from pg_proc q
-      join pg_namespace m on m.oid = q.pronamespace
-      where m.nspname = 'public' and q.proname = 'cria_pedido'
-        and pg_get_function_identity_arguments(q.oid) like '%p_termos_aceitos_em timestamp with time zone, p_termos_versao text'
-    ) then 'FALHOU'
+    when count(*) over () <> 1 then 'FALHOU'
+    when pg_get_function_identity_arguments(p.oid)
+      not like '%p_termos_aceitos_em timestamp with time zone, p_termos_versao text' then 'FALHOU'
     else 'OK'
   end as veredito
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public' and p.proname = 'cria_pedido';
 
--- Esperado: duas linhas, as duas com `p_termos_aceitos_em`, uma terminando em
--- `p_termos_versao text`, veredito OK nas duas.
+-- Esperado: uma linha, terminando em `p_termos_versao text`, veredito OK.
 
 -- ---------------------------------------------------------------------------
 -- Issue #296 — estoque.
@@ -133,7 +125,7 @@ begin
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"P","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('estoque 0 recusa', 'ES001', 'criou', false);
   exception when sqlstate 'ES001' then
     insert into r values ('estoque 0 recusa', 'ES001', 'ES001', true);
@@ -145,7 +137,7 @@ begin
   -- Estoque 2, quantidade 1: fica 1, e a baixa fica registrada.
   select c.pedido_id into pedido from public.cria_pedido(quem, 14350, endereco,
     '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now()) as c;
+    frete, now(), 'teste') as c;
 
   select estoque into e from public.produto_variacoes where produto_id = produto and tamanho = 'M';
   insert into r values ('estoque 2 com 1 pedida fica 1', '1', e::text, e = 1);
@@ -156,7 +148,7 @@ begin
   -- Nao controlado: nada muda e nada e registrado.
   perform public.cria_pedido(quem, 38350, endereco,
     '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"G","quantidade":3,"preco_unitario_centavos":12000}]',
-    frete, now());
+    frete, now(), 'teste');
   select count(*) into n from public.produto_variacoes
   where produto_id = produto and tamanho = 'G' and estoque is null;
   insert into r values ('estoque nulo continua nulo', '1', n::text, n = 1);
@@ -171,7 +163,7 @@ begin
     perform public.cria_pedido(quem, 26350, endereco,
       '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000},
         {"produto_slug":"teste-estoque","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('linhas repetidas somam', 'ES001', 'criou', false);
   exception when sqlstate 'ES001' then
     insert into r values ('linhas repetidas somam', 'ES001', 'ES001', true);
@@ -184,7 +176,7 @@ begin
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"XGG","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('variacao desligada recusa', 'ES001', 'criou', false);
   exception when sqlstate 'ES001' then
     insert into r values ('variacao desligada recusa', 'ES001', 'ES001', true);
@@ -193,16 +185,16 @@ begin
   -- A recusa vem antes do insert em `orders`: nao gasta numero de pedido.
   select c.pedido_numero into numero_a from public.cria_pedido(quem, 14350, endereco,
     '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"G","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now()) as c;
+    frete, now(), 'teste') as c;
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"P","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
   exception when sqlstate 'ES001' then null;
   end;
   select c.pedido_numero into numero_b from public.cria_pedido(quem, 14350, endereco,
     '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"G","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now()) as c;
+    frete, now(), 'teste') as c;
   insert into r values ('recusa nao gasta numero', (numero_a + 1)::text, numero_b::text,
     numero_b = numero_a + 1);
 
@@ -218,7 +210,7 @@ begin
   -- Pago, enviado e reembolsado: a peca saiu da loja, nao volta.
   select c.pedido_id into pedido from public.cria_pedido(quem, 26350, endereco,
     '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"M","quantidade":2,"preco_unitario_centavos":12000}]',
-    frete, now()) as c;
+    frete, now(), 'teste') as c;
   update public.orders set status = 'pago' where id = pedido;
   update public.orders set status = 'enviado' where id = pedido;
   update public.orders set status = 'reembolsado' where id = pedido;
@@ -230,7 +222,7 @@ begin
   update public.produto_variacoes set estoque = 1 where produto_id = produto and tamanho = 'M';
   select c.pedido_id into pedido from public.cria_pedido(quem, 14350, endereco,
     '[{"produto_slug":"teste-estoque","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now()) as c;
+    frete, now(), 'teste') as c;
   update public.orders set status = 'pago' where id = pedido;
   update public.orders set status = 'reembolsado' where id = pedido;
 
@@ -260,13 +252,13 @@ begin
 
   select c.pedido_id into reserva from public.cria_pedido(quem, 14350, endereco,
     '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now()) as c;
+    frete, now(), 'teste') as c;
 
   -- O Pix expirou e a pessoa finaliza de novo: recusa, e nao segunda reserva.
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('segundo pedido nao pago na mesma variacao recusa', 'ES002', 'criou', false);
   exception when sqlstate 'ES002' then
     insert into r values ('segundo pedido nao pago na mesma variacao recusa', 'ES002', 'ES002', true);
@@ -278,18 +270,18 @@ begin
   -- O limite e por pessoa: quem nao tem pedido aberto compra normalmente.
   perform public.cria_pedido(outra, 14350, endereco,
     '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now());
+    frete, now(), 'teste');
   select estoque into e from public.produto_variacoes where produto_id = produto and tamanho = 'M';
   insert into r values ('outra pessoa compra a mesma variacao', '1', e::text, e = 1);
 
   -- Variacao nao contada nao prende peca, entao nao entra no limite.
   perform public.cria_pedido(quem, 14350, endereco,
     '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"G","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now());
+    frete, now(), 'teste');
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"G","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('variacao nao contada nao limita', 'criou', 'criou', true);
   exception when others then
     insert into r values ('variacao nao contada nao limita', 'criou', sqlstate, false);
@@ -298,7 +290,7 @@ begin
   -- O limite e por variacao: outro tamanho contado passa.
   select c.pedido_id into pedido from public.cria_pedido(quem, 14350, endereco,
     '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000}]',
-    frete, now()) as c;
+    frete, now(), 'teste') as c;
   select estoque into e from public.produto_variacoes where produto_id = produto and tamanho = 'GG';
   insert into r values ('outra variacao contada passa', '0', e::text, e = 0);
 
@@ -307,7 +299,7 @@ begin
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('pedido em aberto vem antes da falta', 'ES002', 'criou', false);
   exception when sqlstate 'ES002' then
     insert into r values ('pedido em aberto vem antes da falta', 'ES002', 'ES002', true);
@@ -320,7 +312,7 @@ begin
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"M","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('pago libera nova compra', 'criou', 'criou', true);
   exception when others then
     insert into r values ('pago libera nova compra', 'criou', sqlstate, false);
@@ -331,7 +323,7 @@ begin
   begin
     perform public.cria_pedido(quem, 14350, endereco,
       '[{"produto_slug":"teste-reserva","nome":"Teste","tamanho":"GG","quantidade":1,"preco_unitario_centavos":12000}]',
-      frete, now());
+      frete, now(), 'teste');
     insert into r values ('cancelado libera nova compra', 'criou', 'criou', true);
   exception when others then
     insert into r values ('cancelado libera nova compra', 'criou', sqlstate, false);

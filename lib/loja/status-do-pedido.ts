@@ -3,7 +3,8 @@
  *
  * Funcao pura. A mesma tabela existe em SQL, dentro de `muda_status_pedido`,
  * e um teste compara as duas: a rota valida antes para dar mensagem boa; o
- * banco valida de novo porque rota se esquece.
+ * banco valida de novo porque rota se esquece. A excecao e `enviado`, que no
+ * banco passa por `envia_pedido`, com o codigo de rastreio (#378, #391).
  *
  * O que nao esta aqui e o que importa:
  *
