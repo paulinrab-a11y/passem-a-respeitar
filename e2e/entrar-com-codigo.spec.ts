@@ -122,7 +122,7 @@ test('conta confirmada entra pelo codigo no login normal e continua com a senha 
 
   // No login normal a senha abre primeiro; o codigo esta a um clique.
   await page.goto('/entrar');
-  await (await vivo(page.getByRole('button', { name: 'Receber um código por e-mail' }))).click();
+  await (await vivo(page.getByRole('button', { name: 'receba um código' }))).click();
   const antes = Date.now() - 1000;
   const campo = await pedeCodigo(page, u.email);
   await campo.fill(await codigoDoEmail(u.email, antes));

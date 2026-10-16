@@ -220,7 +220,7 @@ describe('entrar com codigo (#387)', () => {
   it('a senha continua a um clique, e o codigo tambem, nos dois sentidos', () => {
     render(<Formulario next="/conta" />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Receber um código por e-mail' }));
+    fireEvent.click(screen.getByRole('button', { name: 'receba um código' }));
     expect(screen.queryByLabelText('Senha')).toBeNull();
     // A que entra depois da troca vem com o fade curto.
     expect(document.querySelector('form')?.className).toBe('auth-form auth-troca');

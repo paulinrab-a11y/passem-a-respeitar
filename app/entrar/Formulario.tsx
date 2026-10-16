@@ -137,14 +137,14 @@ function FormularioSenha({
         <Rotulo parado="Entrar" agindo="Entrando…" ativo={andando} />
       </button>
 
+      {/* O codigo divide a linha do cadastro (#387), e nao ganha uma propria:
+          com uma linha a mais a tela passava da dobra, e o clique logo depois
+          da rolagem se perdia enquanto o widget da Cloudflare chegava. */}
       <p className="auth-rodape">
-        Sem senha?{' '}
+        Ainda não tem conta? <a href="/criar-conta">Criar conta</a> ou{' '}
         <button type="button" className="auth-alterna" onClick={aoUsarCodigo}>
-          Receber um código por e-mail
+          receba um código
         </button>
-      </p>
-      <p className="auth-rodape">
-        Ainda não tem conta? <a href="/criar-conta">Criar conta</a>
       </p>
     </form>
   );
