@@ -148,7 +148,9 @@ if (CONFIG.clipe.blick){
 // intro tem o tratamento deles. A classe e posta aqui, e nao no HTML: se este
 // script nao rodar, nada fica invisivel.
 (function entradas(){
-  const alvos = ['#clipe .in', '#merch .ficha', '#galeriaMerch', '#fim .frase', '#fim .acoes', '#fim .convite']
+  // "Quem sao" (#386) entra como as vizinhas; sem texto no CONFIG ela nem
+  // existe, e o filtro abaixo a tira da lista.
+  const alvos = ['#clipe .in', '#merch .ficha', '#galeriaMerch', '#fim .frase', '#fim .acoes', '#fim .convite', '#quem-sao .in']
     .map(s=>$(s)).filter(Boolean);
   alvos.forEach(el=> el.classList.add('entra'));
   const mostra = el=> el.classList.add('vis');

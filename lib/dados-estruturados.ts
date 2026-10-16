@@ -34,6 +34,11 @@ type ArtistaNoGrafo = {
   nome: string;
   /** Perfis que existem de verdade. */
   perfis: string[];
+  /**
+   * Generos musicais (#386). So entram se o texto visivel da pagina disser o
+   * mesmo: quem decide e o chamador, que confere o paragrafo "quem sao".
+   */
+  generos?: string[];
 };
 
 type Entrada = {
@@ -120,6 +125,7 @@ function musica(e: Entrada, organizacao: string) {
     '@type': 'MusicGroup',
     '@id': idNoSite(e.base, a.ancora),
     name: a.nome,
+    ...(a.generos && a.generos.length > 0 ? { genre: a.generos } : {}),
     ...(a.perfis.length > 0 ? { sameAs: a.perfis } : {}),
   }));
   const autoria = artistas.map((a) => ({ '@id': a['@id'] }));

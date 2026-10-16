@@ -42,14 +42,17 @@ export default async function Home() {
 
   // JSON-LD (#322): selo, site e a camiseta com o preco do mesmo catalogo da
   // ficha. Os artistas e o EP, ligados por @id, desde a #275.
+  // O genero so vai ao grafo se a pagina o mostrar (#386): o paragrafo
+  // "quem sao" diz trap. Sem esse texto, o grafo nao afirma genero nenhum.
+  const generos = /\btrap\b/i.test(CONFIG.quemSao) ? ['Trap', 'Rap'] : undefined;
   const grafo = grafoDoSite({
     base: baseDoSite(process.env.NEXT_PUBLIC_SITE_URL, process.env.VERCEL_URL),
     nomeDoSite: NOME_DO_SITE,
     descricaoDoSite: DESCRICAO_DO_SITE,
     instagramDoSelo: CONFIG.links.igLabel,
     artistas: [
-      { ancora: 'santxx', nome: 'Santxx', perfis: [CONFIG.links.igSantxx] },
-      { ancora: 'ch3fe', nome: 'Ch3fe', perfis: [CONFIG.links.igChefe] },
+      { ancora: 'santxx', nome: 'Santxx', perfis: [CONFIG.links.igSantxx], generos },
+      { ancora: 'ch3fe', nome: 'Ch3fe', perfis: [CONFIG.links.igChefe], generos },
     ],
     nomeDoEp: 'Passem a Respeitar',
     camiseta: camiseta
@@ -310,11 +313,13 @@ export default async function Home() {
           {/* Os perfis saem prontos do servidor (#275): robo de busca e de IA
               ve o vinculo site -> perfis sem rodar JavaScript. `me` diz que o
               perfil e de quem o site fala. */}
+          {/* O nome antes do arroba (#386): quem busca "Santxx" ou "Ch3fe"
+              acha o nome no texto, e nao so o perfil. */}
           <a id="igSantxx" href={CONFIG.links.igSantxx} target="_blank" rel="me noopener">
-            @ogsantxx
+            Santxx · @ogsantxx
           </a>
           <a id="igChefe" href={CONFIG.links.igChefe} target="_blank" rel="me noopener">
-            @ch3fe3k
+            Ch3fe · @ch3fe3k
           </a>
           <a id="igLabel" href={CONFIG.links.igLabel} target="_blank" rel="me noopener">
             Whynot Visuals

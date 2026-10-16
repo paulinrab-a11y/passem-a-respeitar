@@ -133,6 +133,18 @@ describe('artistas e EP no grafo (#275)', () => {
     });
   });
 
+  // #386: genero so quando o chamador manda (a pagina mostra o texto).
+  it('genero entra no MusicGroup so quando vem na entrada', () => {
+    const comGenero = grafoDoSite({
+      ...entrada,
+      artistas: entrada.artistas.map((a) => ({ ...a, generos: ['Trap', 'Rap'] })),
+    });
+    expect(nos(comGenero).find((n) => n['@id'] === id('santxx'))).toMatchObject({
+      genre: ['Trap', 'Rap'],
+    });
+    expect(porId('santxx')).not.toHaveProperty('genre');
+  });
+
   it('o EP e um MusicAlbum EPRelease dos dois, ligado por @id', () => {
     expect(porId('ep')).toMatchObject({
       '@type': 'MusicAlbum',
