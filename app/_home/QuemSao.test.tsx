@@ -16,8 +16,12 @@ describe('QuemSao (#275)', () => {
     expect(html).toContain('<p>Dois artistas.</p>');
   });
 
-  // O texto e do dono e dos artistas: o codigo nao publica biografia por conta.
-  it('o texto do CONFIG continua vazio ate o dono aprovar', () => {
-    expect(CONFIG.quemSao).toBe('');
+  // O texto e do dono (#386): o codigo nao publica biografia por conta. Este
+  // teste trava o paragrafo aprovado; mudar o texto e decisao dele.
+  it('o texto do CONFIG e o aprovado pelo dono, sem data', () => {
+    expect(CONFIG.quemSao).toBe(
+      'Santxx e Ch3fe são dois nomes do trap de São Paulo. Passem a Respeitar é o EP que os dois assinam juntos, pela Whynot Visuals.'
+    );
+    expect(CONFIG.quemSao).not.toMatch(/\b(19|20)\d{2}\b/);
   });
 });
