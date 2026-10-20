@@ -24,6 +24,10 @@ export default async function Entrar({
   // campo do formulario; se chegasse cru, o proximo passo seria o navegador
   // mandando a pessoa para fora do site depois de um login bem-sucedido.
   const destino = destinoSeguro(next);
+  // Quem vem do checkout (#387) quer comprar, nao criar senha: a porta que
+  // abre primeiro e o codigo no e-mail. A senha continua a um clique.
+  const doCheckout =
+    destino === '/checkout' || destino.startsWith('/checkout?') || destino.startsWith('/checkout/');
 
   return (
     <main className="auth">
@@ -36,7 +40,11 @@ export default async function Entrar({
         </a>
 
         <h1>Entrar</h1>
-        <p className="auth-sub">Sua conta, seus pedidos.</p>
+        <p className="auth-sub">
+          {doCheckout
+            ? 'Receba um código no e-mail e siga para a compra.'
+            : 'Sua conta, seus pedidos.'}
+        </p>
 
         {/* O callback dos links de e-mail (#30, #32) volta para ca quando o
             link e velho, usado ou inventado. Uma frase, sem dizer qual. */}
@@ -46,7 +54,7 @@ export default async function Entrar({
           </p>
         ) : null}
 
-        <Formulario next={destino} />
+        <Formulario next={destino} modoInicial={doCheckout ? 'codigo' : 'senha'} />
       </section>
     </main>
   );

@@ -183,7 +183,7 @@
 
       <label for="a2">Assunto <small>(Subject)</small></label>
       <div class="campo">
-        <input readonly value="Seu acesso — Passem a Respeitar" id="a2">
+        <input readonly value="Seu código de acesso — Passem a Respeitar" id="a2">
         <button type="button" data-de="a2">Copiar</button>
       </div>
 
@@ -196,7 +196,7 @@
     &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
     &lt;meta name=&quot;color-scheme&quot; content=&quot;dark&quot;&gt;
     &lt;meta name=&quot;supported-color-schemes&quot; content=&quot;dark&quot;&gt;
-    &lt;title&gt;Seu acesso — Passem a Respeitar&lt;/title&gt;
+    &lt;title&gt;Seu código de acesso — Passem a Respeitar&lt;/title&gt;
   &lt;/head&gt;
   &lt;body bgcolor=&quot;#000000&quot; style=&quot;margin:0;padding:0;background:#000000;&quot;&gt;
     &lt;table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; bgcolor=&quot;#000000&quot; style=&quot;background:#000000;&quot;&gt;
@@ -207,37 +207,22 @@
           &lt;td style=&quot;padding:28px 28px 10px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#7d8188;&quot;&gt;Passem a Respeitar&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Seu acesso&lt;/td&gt;
+          &lt;td style=&quot;padding:0 28px;font-family:Impact,'Arial Narrow Bold','Arial Narrow',Arial,sans-serif;font-size:30px;line-height:1.05;text-transform:uppercase;color:#ffffff;&quot;&gt;Seu código de acesso&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Use o botão abaixo para entrar na sua conta.&lt;/td&gt;
+          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Pediram para entrar na sua conta com um código.&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O link e o código valem por uma hora e só funcionam uma vez.&lt;/td&gt;
+          &lt;td style=&quot;padding:12px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;O código vale por uma hora e só funciona uma vez. Para entrar, digite este código no site:&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
-          &lt;td style=&quot;padding:26px 28px 0;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;
-            &lt;tr&gt;
-              &lt;td bgcolor=&quot;#cdd0d5&quot; style=&quot;background:#cdd0d5;&quot;&gt;
-                &lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;display:inline-block;padding:14px 24px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;text-decoration:none;color:#000000;&quot;&gt;Entrar&lt;/a&gt;
-              &lt;/td&gt;
-            &lt;/tr&gt;
-          &lt;/table&gt;&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:18px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#7d8188;word-break:break-all;&quot;&gt;Se o botão não abrir, copie e cole este endereço no navegador:&lt;br&gt;&lt;a href=&quot;{{ .ConfirmationURL }}&quot; style=&quot;color:#cdd0d5;&quot;&gt;{{ .ConfirmationURL }}&lt;/a&gt;&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#cdd0d5;&quot;&gt;Ou digite este código no site:&lt;/td&gt;
-        &lt;/tr&gt;
-        &lt;tr&gt;
-          &lt;td style=&quot;padding:10px 28px 0;font-family:'Courier New',Courier,monospace;font-size:32px;letter-spacing:8px;color:#ffffff;&quot;&gt;{{ .Token }}&lt;/td&gt;
+          &lt;td style=&quot;padding:22px 28px 0;font-family:'Courier New',Courier,monospace;font-size:32px;letter-spacing:8px;color:#ffffff;&quot;&gt;{{ .Token }}&lt;/td&gt;
         &lt;/tr&gt;
         &lt;tr&gt;
           &lt;td style=&quot;padding:22px 28px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;&lt;table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; width=&quot;100%&quot;&gt;
             &lt;tr&gt;
               &lt;td width=&quot;2&quot; bgcolor=&quot;#e0161f&quot; style=&quot;background:#e0161f;font-size:0;line-height:0;&quot;&gt;&amp;nbsp;&lt;/td&gt;
-              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Ninguém entra na conta sem o clique ou sem o código, e o site nunca pede o código por telefone nem por mensagem.&lt;/td&gt;
+              &lt;td style=&quot;padding-left:12px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.55;color:#cdd0d5;&quot;&gt;Não foi você? Ignore este e-mail. Ninguém entra na conta sem o código, e o site nunca pede o código por telefone nem por mensagem.&lt;/td&gt;
             &lt;/tr&gt;
           &lt;/table&gt;&lt;/td&gt;
         &lt;/tr&gt;
@@ -674,7 +659,7 @@
 
     <section>
       <h2><span>10 de 13</span>Sign-in method linked</h2>
-      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site só tem login por e-mail e senha. Com a chave desligada este e-mail nunca sai.</p>
+      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site só tem login por e-mail, com senha ou com código. Com a chave desligada este e-mail nunca sai.</p>
 
       <label for="a9">Assunto <small>(Subject)</small></label>
       <div class="campo">
@@ -746,7 +731,7 @@
 
     <section>
       <h2><span>11 de 13</span>Sign-in method removed</h2>
-      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site só tem login por e-mail e senha. Com a chave desligada este e-mail nunca sai.</p>
+      <p class="onde">Seção <b>Security</b> · deixe a chave desligada. O site só tem login por e-mail, com senha ou com código. Com a chave desligada este e-mail nunca sai.</p>
 
       <label for="a10">Assunto <small>(Subject)</small></label>
       <div class="campo">

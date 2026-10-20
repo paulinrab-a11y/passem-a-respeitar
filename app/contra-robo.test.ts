@@ -28,6 +28,9 @@ const auth = {
   resetPasswordForEmail: vi.fn(async (..._: unknown[]) => ({ error: null })),
 };
 const codigoConfere = vi.fn(async (_: string) => false);
+// O pedido do codigo de entrar sem senha (#387) fala com o Supabase por um
+// client proprio; o que se prova aqui e que ele nem e chamado.
+const mandaCodigoDeEntrada = vi.fn(async (_: string) => true);
 const pergunta = vi.fn(async (..._: unknown[]) => 'Dia 20 de novembro.');
 let cabecalhos = new Headers();
 
@@ -43,6 +46,10 @@ vi.mock('next/navigation', () => ({
     throw new Error(`redirect:${destino}`);
   },
 }));
+vi.mock('@/lib/conta/codigo', async (original) => ({
+  ...(await original<typeof import('@/lib/conta/codigo')>()),
+  mandaCodigoDeEntrada: (email: string) => mandaCodigoDeEntrada(email),
+}));
 vi.mock('@/lib/convite', async (original) => ({
   ...(await original<typeof import('@/lib/convite')>()),
   codigoConfere: (codigo: string) => codigoConfere(codigo),
@@ -54,6 +61,8 @@ vi.mock('@/lib/concierge/gemini', () => ({
 
 const { entrar } = await import('./entrar/acoes');
 const { estadoInicial } = await import('./entrar/estado');
+const { pedirCodigo, reenviarCodigoDeEntrada } = await import('./entrar/acoes-codigo');
+const { pedirCodigoInicial } = await import('./entrar/estado');
 const { criarConta, reenviarCodigo } = await import('./criar-conta/acoes');
 const { criarContaInicial } = await import('./criar-conta/estado');
 const { reenvioInicial } = await import('./_ui/estado-do-codigo');
@@ -135,6 +144,32 @@ const FORMULARIOS = [
     andou: () => auth.resend.mock.calls.length > 0,
     async envia(extra: Extra): Promise<Resposta> {
       const r = await reenviarCodigo(reenvioInicial, formulario({ email: email() }, extra));
+      return { recusado: r.erro !== null, mensagem: r.erro };
+    },
+  },
+  {
+    nome: 'codigo para entrar sem senha',
+    acao: 'entrar-codigo',
+    limite: () => `reenvio:ip:${ip}`,
+    andou: () => mandaCodigoDeEntrada.mock.calls.length > 0,
+    async envia(extra: Extra): Promise<Resposta> {
+      const r = await pedirCodigo(
+        pedirCodigoInicial,
+        formulario({ email: extra.email ?? email(), aceite: 'on' }, extra)
+      );
+      return { recusado: !r.enviado, mensagem: r.erro };
+    },
+  },
+  {
+    nome: 'reenvio do codigo de entrar',
+    acao: 'reenviar-codigo',
+    limite: () => `reenvio:ip:${ip}`,
+    andou: () => mandaCodigoDeEntrada.mock.calls.length > 0,
+    async envia(extra: Extra): Promise<Resposta> {
+      const r = await reenviarCodigoDeEntrada(
+        reenvioInicial,
+        formulario({ email: extra.email ?? email(), aceite: 'on' }, extra)
+      );
       return { recusado: r.erro !== null, mensagem: r.erro };
     },
   },

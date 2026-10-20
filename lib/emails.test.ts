@@ -130,13 +130,14 @@ describe('o que cada e-mail tem', () => {
     }
   );
 
-  it('"Magic link or OTP" serve aos dois: tem o link e tem o codigo', () => {
-    const h = html(EMAILS.find((e) => e.chave === 'magic_link') ?? EMAILS[0]);
+  // #387: o site entra pelo codigo; o link PKCE so abria no navegador que pediu.
+  it('"Magic link or OTP" traz so o codigo, sem link, na frase que o e2e le', () => {
+    const e = EMAILS.find((m) => m.chave === 'magic_link');
+    const h = html(e ?? EMAILS[0]);
 
-    expect(usadas(h).filter((v) => v === 'Token')).toHaveLength(1);
-    expect(usadas(h).filter((v) => v === 'ConfirmationURL')).toHaveLength(3);
-    // O botao vem antes do codigo.
-    expect(h.indexOf('>Entrar</a>')).toBeLessThan(h.indexOf('{{ .Token }}'));
+    expect(e?.botao).toBeUndefined();
+    expect(usadas(h)).toEqual(['Token']);
+    expect(e?.texto.at(-1)).toMatch(/digite este código no site:$/);
   });
 
   it('o codigo de confirmacao aparece uma vez, e nao ha link nesse e-mail', () => {
