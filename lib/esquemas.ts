@@ -169,6 +169,18 @@ export const esquemaCodigo = z.object({
  * tinha cadastro pendente: quem confirma pelo codigo grava a dele. Sem
  * `lembrar`: o cadastro nao tem a caixa.
  */
+/**
+ * Criar senha em Seguranca (#389): o codigo do e-mail no lugar da senha
+ * atual, que a conta do codigo nao tem. A nova com as regras do cadastro.
+ */
+export const esquemaCriarSenha = z
+  .object({
+    codigo: esquemaCodigo.shape.codigo,
+    nova: z.string().min(SENHA_MIN).max(SENHA_MAX),
+    confirmacao: z.string().min(1).max(SENHA_MAX),
+  })
+  .refine((d) => d.nova === d.confirmacao, { path: ['confirmacao'] });
+
 export const esquemaConfirmarCadastro = esquemaCodigo
   .pick({ email: true, codigo: true })
   .extend(senhaEscolhida)

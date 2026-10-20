@@ -2,14 +2,15 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { JANELA_MINUTOS } from '@/lib/conta/reautenticacao';
+import { contaSemSenha } from '@/lib/conta/sem-senha';
 import { ENTRAR } from '@/lib/rotas';
 import { usuarioDaSessao } from '@/lib/supabase/servidor';
 import { EsqueletoSeguranca } from '../Esqueletos';
 import ExcluirConta from './ExcluirConta';
 import { minhasSessoes } from './lista-sessoes';
+import Senha from './Senha';
 import Sessoes from './Sessoes';
 import TrocarEmail from './TrocarEmail';
-import TrocarSenha from './TrocarSenha';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,9 +54,9 @@ async function Conteudo() {
 
   return (
     <>
-      <p className="auth-sub">Trocar senha</p>
-
-      <TrocarSenha />
+      {/* A marca de conta sem senha (#389) e lida do Supabase, no servidor:
+            o navegador nao consegue se dizer "sem senha" para pular a atual. */}
+      <Senha semSenha={contaSemSenha(usuario)} />
 
       {/* `new_email` vem do Supabase, conferido no servidor: a tela de troca
             pendente nao depende de nada que o navegador afirme (#36). */}

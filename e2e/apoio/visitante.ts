@@ -37,6 +37,7 @@ const ARQUIVOS = [
   'conta',
   'pos-venda',
   'entrar-com-codigo',
+  'criar-senha',
 ] as const;
 
 export function visitante(arquivo: (typeof ARQUIVOS)[number]) {

@@ -63,7 +63,10 @@ const {
   codigoDaContaConfere,
   confirmaCadastro,
   entraPorCodigo,
+  esqueceContaSemSenha,
+  gravaSenhaCriada,
   mandaCodigo,
+  mandaCodigoDaConta,
   mandaCodigoDeEntrada,
 } = await import('./codigo');
 
@@ -376,8 +379,13 @@ describe('entraPorCodigo (#387)', () => {
     // "Sua senha foi trocada" a quem nunca teve senha.
     expect(updateUserById.mock.calls[0][0]).toBe('u1');
     expect(updateUser).not.toHaveBeenCalled();
-    const { password } = updateUserById.mock.calls[0][1] as { password: string };
+    const { password, app_metadata } = updateUserById.mock.calls[0][1] as {
+      password: string;
+      app_metadata: Record<string, unknown>;
+    };
     expect(password.length).toBeGreaterThanOrEqual(48);
+    // Na mesma chamada, a marca que abre "Criar senha" em Seguranca (#389).
+    expect(app_metadata).toEqual({ sem_senha: true });
     expect(signInWithPassword).toHaveBeenCalledWith({ email: 'a@exemplo.invalid', password });
     // Outra a cada conta: nada fixo, nada que se adivinhe.
     conferido('2026-10-16T12:00:00.487Z');
@@ -450,5 +458,47 @@ describe('entraPorCodigo (#387)', () => {
       resultado: 'invalido',
     });
     expect(ordem).toEqual(['verifyOtp']);
+  });
+});
+
+describe('criar senha em Seguranca (#389)', () => {
+  it('grava a senha e tira a marca de sem senha numa chamada so, pela chave secreta', async () => {
+    expect(await gravaSenhaCriada('u1', 'senha-da-pessoa-1')).toEqual({ error: null });
+    expect(updateUserById).toHaveBeenCalledTimes(1);
+    expect(updateUserById).toHaveBeenCalledWith('u1', {
+      password: 'senha-da-pessoa-1',
+      app_metadata: { sem_senha: null },
+    });
+    // Pela sessao, o Supabase mandaria "Sua senha foi trocada".
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it('sem a chave secreta, a gravacao falha fechada', async () => {
+    updateUserById.mockImplementationOnce(async () => {
+      throw new Error('SUPABASE_SECRET_KEY nao definida.');
+    });
+    const { error } = await gravaSenhaCriada('u1', 'senha-da-pessoa-1');
+    expect(error?.message).toMatch(/SUPABASE_SECRET_KEY/);
+  });
+
+  it('a recuperacao tira so a marca, sem mexer na senha', async () => {
+    expect(await esqueceContaSemSenha('u1')).toBe(true);
+    expect(updateUserById).toHaveBeenCalledWith('u1', { app_metadata: { sem_senha: null } });
+
+    updateUserById.mockImplementationOnce(async () => ({ error: { message: 'fetch failed' } }));
+    expect(await esqueceContaSemSenha('u1')).toBe(false);
+  });
+
+  it('o codigo vai para a conta que existe, sem criar nenhuma, num client sem cookie', async () => {
+    expect(await mandaCodigoDaConta('a@exemplo.invalid')).toBe(true);
+    expect(signInWithOtp).toHaveBeenCalledWith({
+      email: 'a@exemplo.invalid',
+      options: { shouldCreateUser: false },
+    });
+    const opcoes = createClient.mock.calls.at(-1)?.[2] as { auth: { persistSession: boolean } };
+    expect(opcoes.auth.persistSession).toBe(false);
+
+    signInWithOtp.mockResolvedValueOnce({ error: { message: 'over_email_send_rate_limit' } });
+    expect(await mandaCodigoDaConta('a@exemplo.invalid')).toBe(false);
   });
 });
