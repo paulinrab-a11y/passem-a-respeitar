@@ -8,8 +8,8 @@ import Rotulo from '@/app/_ui/Rotulo';
 import { CODIGO_DIGITOS } from '@/lib/conta/codigo-digitos';
 import { forcaDaSenha, SENHA_MIN } from '@/lib/conta/senha';
 import AvisoFlutuante from './AvisoFlutuante';
-import { criarSenha, pedirCodigoDaSenha } from './criar-senha';
-import { criarSenhaInicial, envioDaSenhaInicial } from './estado-criar-senha';
+import { pedirCodigoDaSenha } from './criar-senha';
+import { type EstadoCriarSenha, envioDaSenhaInicial } from './estado-criar-senha';
 
 type Recado = { tom: 'ok' | 'erro'; texto: string };
 
@@ -27,9 +27,17 @@ const AVISO = 'aviso-da-senha';
  * Pedir o codigo e outro formulario (`form` no botao), para a senha digitada
  * nao viajar junto com o pedido de e-mail.
  */
-export default function CriarSenha({ aoCriar }: { aoCriar: (recado: Recado) => void }) {
+export default function CriarSenha({
+  estado,
+  cria,
+  criando,
+}: {
+  /** O estado da criacao mora em `Senha`, que continua montado depois dela. */
+  estado: EstadoCriarSenha;
+  cria: (form: FormData) => void;
+  criando: boolean;
+}) {
   const [envio, pede, pedindo] = useActionState(pedirCodigoDaSenha, envioDaSenhaInicial);
-  const [estado, cria, criando] = useActionState(criarSenha, criarSenhaInicial);
   // Controlados, como na troca: o React 19 apagaria os campos quando a acao
   // respondesse com erro, e nenhum deles volta do servidor (#130).
   const { valores, campo } = useCampos({ nova: '', confirmacao: '' });
@@ -54,11 +62,9 @@ export default function CriarSenha({ aoCriar }: { aoCriar: (recado: Recado) => v
     if (envio.recado) setRecado(envio.recado);
   }, [envio.recado]);
   useEffect(() => {
-    if (!estado.recado) return;
-    // Criada: quem mostra o aviso e quem troca esta tela por "Trocar senha".
-    if (estado.criada) aoCriar(estado.recado);
-    else setRecado(estado.recado);
-  }, [estado.recado, estado.criada, aoCriar]);
+    // Criada, quem mostra o aviso e `Senha`: esta tela sai no mesmo quadro.
+    if (estado.recado && !estado.criada) setRecado(estado.recado);
+  }, [estado.recado, estado.criada]);
 
   // Codigo enviado: o foco vai para onde ele sera digitado.
   useEffect(() => {

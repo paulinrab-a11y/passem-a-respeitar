@@ -115,8 +115,11 @@ describe('bloco de senha de Seguranca (#389)', () => {
 
   it('senha criada: a tela vira "Trocar senha" e o aviso fica', async () => {
     resposta.criada = true;
-    render(<Senha semSenha />);
+    const { rerender } = render(<Senha semSenha />);
     await preencheECria();
+    // A acao grava cookie e o Next redesenha a pagina: `semSenha` chega falso
+    // junto com a resposta. O aviso nao pode depender da tela que saiu (#389).
+    rerender(<Senha semSenha={false} />);
 
     expect((await screen.findByRole('status')).textContent).toMatch(/Senha criada/);
     expect(screen.getByText('Trocar senha', { selector: 'p' })).toBeTruthy();
