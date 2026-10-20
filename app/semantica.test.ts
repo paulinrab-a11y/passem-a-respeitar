@@ -154,7 +154,7 @@ describe('fieldset sem cara de fieldset', () => {
 describe('canvas decorativos', () => {
   it('ficam fora da arvore de acessibilidade por um elemento em volta', () => {
     expect(HOME).toMatch(
-      /<div aria-hidden="true">\s*<canvas id="gl"><\/canvas>\s*<canvas id="grain"[^>]*><\/canvas>\s*<\/div>/
+      /<div aria-hidden="true">\s*<canvas id="gl"><\/canvas>\s*(?:\{\/\*[\s\S]*?\*\/\}\s*)?<video\s+id="canto"[^>]*><\/video>\s*<canvas id="grain"[^>]*><\/canvas>\s*<\/div>/
     );
   });
 
@@ -168,6 +168,7 @@ describe('canvas decorativos', () => {
   it('os dois sao de posicao fixa: o elemento em volta nao ocupa espaco', () => {
     expect(CSS).toMatch(/(?:^|\n)#gl\{position:fixed;/);
     expect(CSS).toMatch(/(?:^|\n)#grain\{position:fixed;/);
+    expect(CSS).toMatch(/(?:^|\n)#canto\{position:fixed;/);
   });
 });
 

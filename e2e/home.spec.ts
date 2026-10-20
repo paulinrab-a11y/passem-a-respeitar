@@ -71,6 +71,8 @@ test('assets de public: cache no navegador e headers de seguranca (#312)', async
     ['/merch/camiseta-cor.webp', /image\/webp/],
     ['/merch/camiseta-normal.webp', /image\/webp/],
     ['/brasao.png', /image\/png/],
+    ['/clipe/blick-canto.mp4', /video\/mp4/],
+    ['/bandeira/occupation-pano.webp', /image\/webp/],
   ] as const) {
     const resposta = await request.get(caminho);
     expect(resposta.status(), caminho).toBe(200);
@@ -82,6 +84,46 @@ test('assets de public: cache no navegador e headers de seguranca (#312)', async
     expect(cabecalhos['x-frame-options'], caminho).toBe('DENY');
     expect(cabecalhos['content-security-policy'], caminho).toContain("default-src 'none'");
   }
+});
+
+// O teaser do Blick vem do proprio site (#75): o player pede pedacos do
+// arquivo, e o servidor precisa responder 206.
+test('clipe: o teaser responde a pedidos por faixa', async ({ request }) => {
+  const resposta = await request.get('/clipe/blick-teaser-720.mp4', {
+    headers: { Range: 'bytes=0-1023' },
+  });
+  expect(resposta.status()).toBe(206);
+  expect(resposta.headers()['content-range']).toMatch(/^bytes 0-1023\//);
+});
+
+/**
+ * O canto VHS toca o teaser depois da abertura, mudo e sem mudar a caixa; a
+ * bandeira acima do pre-save so ondula na tela. O player de #clipe so monta
+ * perto, sem baixar o video.
+ */
+test('home: teaser no canto, bandeira no fim e player sob demanda', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/');
+  // Antes da abertura fechar, o canto nem tem src.
+  expect(await page.locator('#canto').getAttribute('src')).toBeNull();
+  await page.locator('#skip').click();
+  await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
+
+  const canto = page.locator('#canto');
+  await expect(canto).toHaveAttribute('src', '/clipe/blick-canto.mp4');
+  expect(await canto.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true);
+  expect(await canto.boundingBox()).toEqual({ x: 0, y: 0, width: 160, height: 90 });
+
+  const bandeira = page.locator('#fim .bandeira');
+  await expect(bandeira).not.toHaveClass(/ondula/);
+  await bandeira.scrollIntoViewIfNeeded();
+  await expect(bandeira).toHaveClass(/ondula/);
+  await expect(page.getByAltText(/Bandeira da Occupation/)).toBeVisible();
+
+  await page.locator('#clipe').scrollIntoViewIfNeeded();
+  const player = page.locator('#playerBlick video');
+  await expect(player).toHaveAttribute('preload', 'none');
+  await expect(player.locator('source')).toHaveCount(2);
 });
 
 /**
@@ -562,7 +604,7 @@ test('home: com reduzir movimento o fundo 3D assenta e para; sem, continua giran
   await page.goto('/');
   await page.waitForFunction(() => !document.documentElement.classList.contains('locked'));
   await page.evaluate(() => {
-    for (const id of ['grain', 'scan', 'vig']) {
+    for (const id of ['grain', 'canto', 'scan', 'vig']) {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     }
