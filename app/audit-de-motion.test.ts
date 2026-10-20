@@ -151,6 +151,9 @@ describe('loops', () => {
     '#galeriaMerch.vis figure::after':
       'brilho da moldura, enquanto a foto nao chega e so com a galeria perto (#347)',
     '#clipe .player.carregando::after': 'brilho do player, enquanto o video nao responde',
+    '.bandeira .tira':
+      'bandeira da Occupation ondulando acima do pre-save: momento de marca pedido pelo dono, so na tela e com a aba a vista',
+    '.bandeira .dobra': 'a inclinacao da mesma onda da bandeira, um quarto de volta adiante',
   };
 
   const loops = [

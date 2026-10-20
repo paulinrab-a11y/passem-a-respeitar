@@ -128,6 +128,25 @@ describe('script da home: nada pesado no carregamento inicial', () => {
     expect(fora).not.toContain('innerHTML');
   });
 
+  it('o player do clipe nasce sem baixar o video: preload none, capa e duas fontes', () => {
+    const monta = corpo('const montaClipe = ()=>{');
+
+    expect(monta).toContain('preload="none"');
+    expect(monta).toContain('media="(max-width: 900px)"');
+    expect(monta).not.toMatch(/<video[^`]*\sautoplay/);
+  });
+
+  it('o video do canto so ganha src com a intro fechada', () => {
+    const home = readFileSync('app/page.tsx', 'utf8');
+    const video = /<video\s+id="canto"[^>]*>/.exec(home)?.[0] ?? '';
+
+    expect(video).toContain('preload="none"');
+    expect(video).not.toMatch(/\ssrc=/);
+    // Uma chamada so, de dentro do `fecha()` da intro.
+    expect(script.match(/ligaClipeNoCanto\(/g)).toHaveLength(1);
+    expect(corpo('function fecha(){')).toContain('ligaClipeNoCanto(document, window,');
+  });
+
   // Desde a #347 a vitrine se adianta: o modelo (ou a tira de fotos) comeca a
   // baixar com a ficha a uma tela de distancia, ou com o ponteiro ou o foco no
   // Comprar. Continua fora do carregamento inicial.

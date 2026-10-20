@@ -20,7 +20,18 @@ export type SiteConfig = {
   logoUrl: string;
   /** Paragrafo "quem sao" (#275). Vazio: a secao nao aparece. */
   quemSao: string;
-  clipe: { blick: string };
+  clipe: {
+    /** O video do player de #clipe (telas grandes). Vazio: a secao diz "em breve". */
+    blick: string;
+    /** O mesmo, mais leve, para telas pequenas. */
+    blickLeve: string;
+    /** Capa do player, enquanto ninguem deu play. */
+    capa: string;
+    /** O loop mudo e minusculo do canto VHS do topo. Vazio: so o grao. */
+    canto: string;
+    /** Quadro parado do canto, para quem pediu menos movimento. */
+    cantoCapa: string;
+  };
   merchFotos: string[];
   elementos: ElementoCromado[];
   audio: Record<string, string>;
@@ -52,13 +63,23 @@ export const CONFIG: SiteConfig = {
   // autoriza o `genre` dos MusicGroup no JSON-LD (ver app/page.tsx).
   quemSao:
     'Santxx e Ch3fe são dois nomes do trap de São Paulo. Passem a Respeitar é o EP que os dois assinam juntos, pela Whynot Visuals.',
-  // Vazio de proposito ate o clipe subir no YouTube (#75). Com string vazia
-  // o script nao monta iframe nenhum e a secao mostra "clipe em breve".
+  // O teaser do Blick mora no proprio site, em public/clipe/ (#75), servido
+  // pelo CDN da Vercel como os outros assets. Antes era um id do Drive no HTML,
+  // material inedito baixavel por quem copiasse o id; depois ficou vazio
+  // esperando o YouTube. O dono decidiu hospedar aqui: sem iframe de terceiro,
+  // sem frame-src novo na CSP (o video e media-src 'self').
   //
-  // Isso tirou do HTML o id do arquivo no Drive, que era material inedito
-  // baixavel por quem copiasse o id. Quando o video existir, o valor vira
-  // 'https://www.youtube-nocookie.com/embed/<id>' e o frame-src da CSP volta.
-  clipe: { blick: '' },
+  // Os arquivos saem de lib/marca/gera-clipe.mjs a partir do original do
+  // dono (HEVC, que nao toca em varios navegadores): H.264 em 1080p e 720p,
+  // a capa, e o loop do canto. Com `blick` vazio a secao volta a dizer
+  // "clipe em breve" e o script nao monta nada.
+  clipe: {
+    blick: '/clipe/blick-teaser-1080.mp4',
+    blickLeve: '/clipe/blick-teaser-720.mp4',
+    capa: '/clipe/blick-teaser-poster.webp',
+    canto: '/clipe/blick-canto.mp4',
+    cantoCapa: '/clipe/blick-canto-poster.webp',
+  },
   merchFotos: [
     '/merch/camiseta-01.jpg',
     '/merch/camiseta-02.jpg',

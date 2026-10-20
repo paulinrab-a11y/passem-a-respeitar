@@ -53,11 +53,12 @@ export const EXTENSOES_DE_ASSET = [
   'jpg',
   'jpeg',
   'mp3',
+  'mp4',
   'gltf',
   'bin',
   'ico',
 ];
-const PASTAS_DE_ASSET = '(merch|beats|elementos)';
+const PASTAS_DE_ASSET = '(merch|beats|elementos|clipe|bandeira)';
 const EXTENSOES = EXTENSOES_DE_ASSET.join('|');
 
 export const ASSETS_FORA_DO_PROXY = [

@@ -5,6 +5,7 @@ import { grafoDoSite } from '@/lib/dados-estruturados';
 import { vitrine } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { precoNaFicha } from '@/lib/loja/precos';
+import Bandeira from './_home/Bandeira';
 import BarraConta, { LugarDoMenuConta } from './_home/BarraConta';
 import { CONFIG } from './_home/config';
 import FreteNaFicha from './_home/FreteNaFicha';
@@ -77,6 +78,20 @@ export default async function Home() {
           posicao fixa, entao o <div> nao ocupa espaco nenhum na pagina. */}
       <div aria-hidden="true">
         <canvas id="gl"></canvas>
+        {/* O teaser do Blick no canto VHS, por baixo do grao e na mesma caixa
+            de 160x90. Nasce sem src: quem escreve e app/_home/clipe-no-canto.ts,
+            com a intro fechada. Mudo, e fora do teclado e do leitor de tela. */}
+        <video
+          id="canto"
+          width={160}
+          height={90}
+          muted
+          loop
+          playsInline
+          preload="none"
+          disablePictureInPicture
+          disableRemotePlayback
+        ></video>
         <canvas id="grain" width="160" height="90"></canvas>
       </div>
       <div id="scan" aria-hidden="true"></div>
@@ -208,13 +223,16 @@ export default async function Home() {
             <div className="top">
               <h2>Blick</h2>
             </div>
+            {/* O script monta o <video> quando a secao chega perto (#47, #75).
+                Sem video configurado, a caixa diz que ele vem. */}
             <div className="player" id="playerBlick">
-              clipe em breve
+              {CONFIG.clipe.blick ? 'teaser do Blick' : 'clipe em breve'}
             </div>
           </div>
         </section>
 
         <section id="fim">
+          <Bandeira />
           <p className="frase">
             Não estamos aqui para pedir espaço.<b>Estamos aqui para ocupar.</b>
           </p>

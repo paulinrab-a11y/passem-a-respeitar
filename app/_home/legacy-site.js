@@ -22,6 +22,10 @@ import { atalhoLivre, mostraTocando } from './teclado';
 import { giro360 } from './giro-360';
 // O Comprar da loja: checkout na mesma aba, com a loja saindo (#301).
 import { ligaComprar } from './comprar';
+// O teaser do Blick no canto VHS do topo, depois da intro.
+import { ligaClipeNoCanto } from './clipe-no-canto';
+// A bandeira da Occupation so ondula na tela e com a aba a vista.
+import { vigiaBandeira } from './onda-da-bandeira';
 
 let booted = false;
 
@@ -122,16 +126,24 @@ if (CONFIG.clipe.blick){
   // Sob demanda (#47): o player so e montado quando a secao esta a menos de
   // uma tela de distancia. Quem nao desce ate la nao baixa o video.
   const montaClipe = ()=>{
-    const u = CONFIG.clipe.blick;
+    // O teaser mora em public/clipe/ (#75). `preload="none"`: so a capa vem
+    // agora; o video baixa no play. Duas fontes: a de 720p em tela pequena, a
+    // de 1080p no resto (quem nao entende `media` pega a primeira, a leve).
+    // Sem autoplay, e com o som so quando a pessoa da play.
+    const { blick: u, blickLeve: leve, capa } = CONFIG.clipe;
     $('#playerBlick').innerHTML = /\.(mp4|webm)(\?|$)/i.test(u)
-      ? `<video src="${u}" controls playsinline preload="metadata"></video>`
+      ? `<video controls playsinline preload="none"${capa ? ` poster="${capa}"` : ''} title="Blick — teaser do clipe" aria-label="Blick — teaser do clipe">`
+        + (leve ? `<source src="${leve}" type="video/mp4" media="(max-width: 900px)">` : '')
+        + `<source src="${u}" type="video/mp4"></video>`
       : `<iframe src="${u}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="Blick — clipe"></iframe>`;
     // O player brilha ate o video responder (#46). A caixa ja tem a proporcao
-    // final, entao nada se move quando ele chega.
+    // final, entao nada se move quando ele chega. Com `preload="none"` o video
+    // nao carrega nada sozinho: quem responde e a capa.
     const player = $('#playerBlick'), midia = player.firstElementChild;
     player.classList.add('carregando');
     const chegou = ()=> player.classList.remove('carregando');
     ['load','loadeddata','error'].forEach(ev=> midia.addEventListener(ev, chegou, {once:true}));
+    if (capa && midia.tagName === 'VIDEO'){ const img = new Image(); img.onload = img.onerror = chegou; img.src = capa; }
   };
   if (!('IntersectionObserver' in window)) montaClipe();
   else {
@@ -150,7 +162,7 @@ if (CONFIG.clipe.blick){
 (function entradas(){
   // "Quem sao" (#386) entra como as vizinhas; sem texto no CONFIG ela nem
   // existe, e o filtro abaixo a tira da lista.
-  const alvos = ['#clipe .in', '#merch .ficha', '#galeriaMerch', '#fim .frase', '#fim .acoes', '#fim .convite', '#quem-sao .in']
+  const alvos = ['#clipe .in', '#merch .ficha', '#galeriaMerch', '#fim .bandeira', '#fim .frase', '#fim .acoes', '#fim .convite', '#quem-sao .in']
     .map(s=>$(s)).filter(Boolean);
   alvos.forEach(el=> el.classList.add('entra'));
   const mostra = el=> el.classList.add('vis');
@@ -160,6 +172,10 @@ if (CONFIG.clipe.blick){
   }, { rootMargin:'0px 0px -8% 0px' });
   alvos.forEach(el=> vigia.observe(el));
 })();
+
+// A bandeira acima do pre-save: ondula na tela, para fora dela e com a aba
+// escondida. Com movimento reduzido o CSS tira a animacao, e isto nao muda nada.
+{ const b = $('#fim .bandeira'); if (b) vigiaBandeira(b, window); }
 
 // Convite a rolar (#156): o loop do hero para na primeira rolagem, e voltar ao
 // topo nao religa. A troca espera o fim do ciclo em andamento — ali a linha esta
@@ -774,6 +790,9 @@ ScrollTrigger.create({
     marcaAberturaVista(window);
     vhsOn=false; tcOn=false;
     ScrollTrigger.refresh();
+    // O canto so busca o video com a intro fechada e a pagina ociosa: nao
+    // disputa banda nem quadro com a abertura e com o LCP.
+    ligaClipeNoCanto(document, window, { src: CONFIG.clipe.canto, capa: CONFIG.clipe.cantoCapa, reduz: reduzMotion });
   }
   // Chegou por ancora: sem trava, sem rolar ao topo. O levaAteAAncora ve a
   // trava solta e leva a pessoa direto a secao que ela pediu.

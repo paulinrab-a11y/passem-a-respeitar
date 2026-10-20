@@ -50,6 +50,11 @@ img,canvas,svg{display:block}
 
 #gl{position:fixed;inset:0;z-index:0;width:100%;height:100%}
 #grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.28;mix-blend-mode:screen;image-rendering:pixelated}
+/* O teaser do Blick no canto: a mesma caixa de 160x90 do grao, por baixo
+   dele (mesmo z-index, antes no HTML). So aparece quando toca; em .85 o P da
+   barra, em `difference`, continua claro por cima. */
+#canto{position:fixed;top:0;left:0;width:160px;height:90px;z-index:1;object-fit:cover;background:#000;pointer-events:none;opacity:0;transition:opacity .25s cubic-bezier(.22,1,.36,1)}
+#canto.on{opacity:.85}
 #scan{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:.22;background:repeating-linear-gradient(0deg, rgba(255,255,255,.06) 0 1px, transparent 1px 3px)}
 #vig{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.75) 100%)}
 /* Sem WebGL (#238): o three nao cria o renderer e o script marca a raiz. O
@@ -199,6 +204,24 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 }
 
 #fim{min-height:180vh;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:0 var(--gutter) 10vh;text-align:center}
+/* A bandeira da Occupation, no vazio acima da frase (o #fim alinha tudo
+   embaixo, entao ela ocupa o espaco que sobrava e nada abaixo dela se move).
+   Altura fixa e proporcao da imagem: a caixa nasce do tamanho final.
+
+   O pano volta ao mastro girado (Bandeira.tsx) e e fatiado em tiras com 1 px
+   de sobra cada, para nao abrir fresta entre elas. Cada tira sobe e desce; a
+   folha de dentro inclina na mesma onda, um quarto de volta adiante. A curva
+   e a do seno, e `alternate` fecha a senoide. Parado ate a bandeira estar na
+   tela (.ondula, app/_home/onda-da-bandeira.ts). */
+#fim .bandeira{position:relative;flex:none;height:clamp(150px,28vh,240px);margin-bottom:36px}
+.bandeira .figura{position:absolute;inset:0;width:100%;height:100%}
+.bandeira .pano{position:absolute;transform-origin:100% 0;container-type:size;pointer-events:none}
+.bandeira .tira{position:absolute;top:0;height:100%;left:calc(var(--i) * 100cqw / var(--n));width:calc(100cqw / var(--n) + 1px);overflow:hidden;animation:bandeira-sobe 2s cubic-bezier(.37,0,.63,1) var(--d) infinite alternate both;animation-play-state:paused}
+.bandeira .dobra{position:relative;height:100%;animation:bandeira-dobra 2s cubic-bezier(.37,0,.63,1) var(--d2) infinite alternate both;animation-play-state:paused}
+.bandeira .dobra img{position:absolute;top:0;left:calc(var(--i) * -100cqw / var(--n));width:100cqw;height:100cqh;max-width:none}
+.bandeira.ondula .tira,.bandeira.ondula .dobra{animation-play-state:running}
+@keyframes bandeira-sobe{from{transform:translateY(calc(var(--a) * -1%))}to{transform:translateY(calc(var(--a) * 1%))}}
+@keyframes bandeira-dobra{from{transform:skewY(calc(var(--k) * -1deg))}to{transform:skewY(calc(var(--k) * 1deg))}}
 #fim .frase{font-family:var(--display);text-transform:uppercase;font-size:clamp(18px,2.4vw,30px);letter-spacing:.06em;line-height:1.1;color:var(--prata-2);max-width:26ch;margin-bottom:46px}
 #fim .frase b{color:var(--prata);font-weight:400;display:block}
 #fim .acoes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
@@ -372,6 +395,11 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
 }
 @media (prefers-reduced-motion:reduce){
   #grain,#scan,#vig{display:none}
+  /* O canto mostra a capa parada (clipe-no-canto.ts), sem transicao. A
+     bandeira fica estendida, sem ondular. */
+  #canto{transition:none}
+  .bandeira .tira{animation:none}
+  .bandeira .dobra{animation:none}
   .elo .box{opacity:1;transform:none;transition:none}
   #hero .desce.rolou::after,#hero .desce::after{animation:none}
   #manifesto .l{opacity:1;transform:none}
