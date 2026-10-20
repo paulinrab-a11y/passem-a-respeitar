@@ -39,3 +39,20 @@ export type EstadoEntrar = {
 };
 
 export const estadoInicial: EstadoEntrar = { erro: null, campo: null, tentativa: 0 };
+
+/**
+ * Pedido do codigo para entrar sem senha (#387).
+ *
+ * `enviado` e o mesmo para e-mail com conta e sem conta: a tela do codigo
+ * aparece nos dois casos, com o mesmo texto. Leva o "manter conectado"
+ * escolhido aqui, que so vale quando o codigo conferir.
+ */
+export type EstadoPedirCodigo = {
+  erro: string | null;
+  /** O que o erro aponta, para o foco e o `aria-invalid`. */
+  campo: 'email' | 'aceite' | null;
+  tentativa: number;
+  enviado?: { email: string; lembrar: boolean };
+};
+
+export const pedirCodigoInicial: EstadoPedirCodigo = { erro: null, campo: null, tentativa: 0 };

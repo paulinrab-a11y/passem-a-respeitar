@@ -3,7 +3,9 @@
 // So existe para o que o usuario legitimamente nao pode fazer sozinho:
 // criar pedido com preco vindo do catalogo (#44), confirmar pagamento pelo
 // webhook (#45), mudar status pela rota administrativa (#43), apagar conta
-// (#39). Fora disso, use `clienteServidor()`, que respeita a RLS.
+// (#39), e tirar a senha de uma conta pendente sem mandar "Sua senha foi
+// trocada" a quem nunca teve senha (#387, so depois de o codigo do e-mail
+// conferir). Fora disso, use `clienteServidor()`, que respeita a RLS.
 //
 // Tres travas, porque uma chave dessas no bundle abre o banco inteiro:
 //

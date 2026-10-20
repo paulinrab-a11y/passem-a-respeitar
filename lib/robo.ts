@@ -30,6 +30,7 @@ export const CAMPO_DO_DESAFIO = 'cf-turnstile-response';
 /** Uma acao por formulario: token tirado em um nao vale no outro. */
 export type Acao =
   | 'entrar'
+  | 'entrar-codigo'
   | 'criar-conta'
   | 'reenviar-codigo'
   | 'recuperar-senha'

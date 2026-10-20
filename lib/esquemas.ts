@@ -86,6 +86,17 @@ export const esquemaCriarConta = z
   })
   .refine(confirmacaoBate, { path: ['confirmacao'] });
 
+/**
+ * Pedido de codigo para entrar sem senha (#387). O aceite e o do cadastro, e
+ * vem sempre: nao da para saber se a conta e nova sem contar a quem pede, e
+ * a conta que nascer deste pedido precisa nascer com ele carimbado.
+ */
+export const esquemaPedirCodigo = z.object({
+  email: z.string().trim().toLowerCase().min(1).max(254).email(),
+  aceite: z.literal(true),
+  lembrar: z.boolean().default(false),
+});
+
 /** Pedido de recuperacao (#32): so o e-mail, normalizado como no login. */
 export const esquemaEmail = z.object({
   email: z.string().trim().toLowerCase().min(1).max(254).email(),

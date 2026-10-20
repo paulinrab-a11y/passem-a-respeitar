@@ -154,6 +154,26 @@ export async function leAceiteDoPedido(id: string) {
   return data.termos_aceitos_em as string | null;
 }
 
+/**
+ * Quando a conta com este e-mail registrou o aceite da politica (#387), lido
+ * do perfil no banco. `undefined`: nao ha conta com esse e-mail.
+ */
+export async function leAceiteDaConta(email: string) {
+  const banco = admin();
+  const { data, error } = await banco.auth.admin.listUsers({ perPage: 200 });
+  if (error) throw new Error(`nao li os usuarios: ${error.message}`);
+  const usuario = data.users.find((u) => u.email === email);
+  if (!usuario) return undefined;
+
+  const { data: perfil, error: e } = await banco
+    .from('profiles')
+    .select('termos_aceitos_em')
+    .eq('id', usuario.id)
+    .single();
+  if (e || !perfil) throw new Error(`nao li o perfil: ${e?.message}`);
+  return perfil.termos_aceitos_em as string | null;
+}
+
 /** O codigo de rastreio gravado no pedido (#378), lido do banco e nao da tela. */
 export async function leRastreioDoPedido(id: string) {
   const { data, error } = await admin()

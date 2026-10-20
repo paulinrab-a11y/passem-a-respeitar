@@ -8,8 +8,47 @@ import Rotulo from '@/app/_ui/Rotulo';
 import { entrar } from './acoes';
 import Codigo from './Codigo';
 import { estadoInicial } from './estado';
+import FormularioCodigo from './FormularioCodigo';
 
-export default function Formulario({ next }: { next: string }) {
+/**
+ * As duas portas do login (#387): senha, ou um codigo no e-mail. Quem decide
+ * qual abre primeiro e a pagina: vindo do checkout, o codigo, que nao pede
+ * senha a quem so quer comprar; no resto, a senha. A troca entre as duas e um
+ * botao em cada uma, e a que entra depois da troca aparece com o fade curto
+ * da tela do codigo.
+ */
+export default function Formulario({
+  next,
+  modoInicial = 'senha',
+}: {
+  next: string;
+  modoInicial?: 'senha' | 'codigo';
+}) {
+  const [modo, setModo] = useState(modoInicial);
+  // So anima a partir da primeira troca: o formulario que chega com a pagina
+  // nao tem de onde entrar.
+  const [trocou, setTrocou] = useState(false);
+  const troca = (para: 'senha' | 'codigo') => {
+    setTrocou(true);
+    setModo(para);
+  };
+  const classe = trocou ? 'auth-form auth-troca' : 'auth-form';
+
+  if (modo === 'codigo') {
+    return <FormularioCodigo next={next} classe={classe} aoUsarSenha={() => troca('senha')} />;
+  }
+  return <FormularioSenha next={next} classe={classe} aoUsarCodigo={() => troca('codigo')} />;
+}
+
+function FormularioSenha({
+  next,
+  classe,
+  aoUsarCodigo,
+}: {
+  next: string;
+  classe: string;
+  aoUsarCodigo: () => void;
+}) {
   const [estado, acao, pendente] = useActionState(entrar, estadoInicial);
   // Controlados: o React 19 apagaria e-mail e caixinha quando a acao
   // respondesse com erro, e errar a senha viraria redigitar tudo (#130).
@@ -39,7 +78,7 @@ export default function Formulario({ next }: { next: string }) {
   }
 
   return (
-    <form action={acao} className="auth-form" noValidate>
+    <form action={acao} className={classe} noValidate>
       <input type="hidden" name="next" value={next} />
 
       <label className="auth-campo">
@@ -98,8 +137,14 @@ export default function Formulario({ next }: { next: string }) {
         <Rotulo parado="Entrar" agindo="Entrando…" ativo={andando} />
       </button>
 
+      {/* O codigo divide a linha do cadastro (#387), e nao ganha uma propria:
+          com uma linha a mais a tela passava da dobra, e o clique logo depois
+          da rolagem se perdia enquanto o widget da Cloudflare chegava. */}
       <p className="auth-rodape">
-        Ainda não tem conta? <a href="/criar-conta">Criar conta</a>
+        Ainda não tem conta? <a href="/criar-conta">Criar conta</a> ou{' '}
+        <button type="button" className="auth-alterna" onClick={aoUsarCodigo}>
+          receba um código
+        </button>
       </p>
     </form>
   );
