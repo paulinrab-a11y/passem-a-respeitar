@@ -1,5 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["e2e/apoio/servidor.mjs"],
-  "ignore": ["lib/supabase/tipos.ts"]
+  "ignore": ["lib/supabase/tipos.ts"],
+  "ignoreBinaries": ["ffmpeg"]
 }

@@ -25,7 +25,9 @@
     "tipos:gerar": "node supabase/tipos-gerar.mjs",
     "emails:gera": "node supabase/templates/gera.mjs",
     "favicon:gera": "node lib/marca/gera-favicon.mjs",
-    "elementos:gera": "node lib/marca/gera-elementos.mjs"
+    "elementos:gera": "node lib/marca/gera-elementos.mjs",
+    "clipe:gera": "node lib/marca/gera-clipe.mjs",
+    "bandeira:gera": "node lib/marca/gera-bandeira.mjs"
   },
   "dependencies": {
     "@mercadopago/sdk-react": "^1.0.7",

@@ -1,0 +1,15 @@
+{
+  "figura": {
+    "largura": 282,
+    "altura": 484
+  },
+  "pano": {
+    "largura": 214,
+    "altura": 160,
+    "esquerda": 10.72,
+    "topo": 8.89,
+    "larguraPct": 75.89,
+    "alturaPct": 33.06,
+    "angulo": 22.29
+  }
+}
