@@ -8,7 +8,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const updateUser = vi.fn(async (_o: unknown) => ({ error: null as { message: string } | null }));
 const signOut = vi.fn(async (_o: unknown) => ({ error: null }));
 const senhaVazada = vi.fn(async (_s: string) => false);
-let usuario: { id: string } | null = null;
+let usuario: { id: string; app_metadata?: Record<string, unknown> } | null = null;
+// A marca de conta sem senha (#389) sai pela chave secreta.
+const esquece = vi.fn(async (_id: string) => true);
 // O jar de cookies do request: a marca da recuperacao (#234) mora aqui.
 const jar = new Map<string, string>();
 
@@ -16,6 +18,7 @@ vi.mock('@/lib/supabase/servidor', () => ({
   usuarioDaSessao: async () => usuario,
   clienteDeAuth: async () => ({ auth: { updateUser, signOut } }),
 }));
+vi.mock('@/lib/conta/codigo', () => ({ esqueceContaSemSenha: (id: string) => esquece(id) }));
 vi.mock('@/lib/conta/senha-servidor', () => ({ senhaVazada: (s: string) => senhaVazada(s) }));
 vi.mock('next/headers', () => ({
   cookies: async () => ({
@@ -68,6 +71,18 @@ describe('com a sessao do link', () => {
     expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(
       signOut.mock.invocationCallOrder[0]
     );
+  });
+
+  it('conta que nasceu pelo codigo (#389): a marca de sem senha sai', async () => {
+    if (!usuario) throw new Error('sem usuario');
+    usuario.app_metadata = { sem_senha: true };
+    await expect(envia()).rejects.toThrow('redirect:/conta');
+    expect(esquece).toHaveBeenCalledWith(usuario.id);
+  });
+
+  it('conta com senha: nao chama a chave secreta', async () => {
+    await expect(envia()).rejects.toThrow('redirect:/conta');
+    expect(esquece).not.toHaveBeenCalled();
   });
 
   it('senha curta nao troca', async () => {

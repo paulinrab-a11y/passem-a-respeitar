@@ -2,7 +2,9 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { esqueceContaSemSenha } from '@/lib/conta/codigo';
 import { marcaDeRecuperacaoConfere } from '@/lib/conta/recuperacao';
+import { contaSemSenha } from '@/lib/conta/sem-senha';
 import { senhaVazada } from '@/lib/conta/senha-servidor';
 import { esquemaRedefinirSenha } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
@@ -89,6 +91,9 @@ export async function redefinirSenha(
   }
 
   await supabase.auth.signOut({ scope: 'others' });
+  // A conta que nasceu pelo codigo (#389) agora tem senha: Seguranca volta a
+  // mostrar "Trocar senha". Melhor esforco, e o erro nao desfaz a troca.
+  if (contaSemSenha(usuario)) await esqueceContaSemSenha(usuario.id);
   // A marca e de uso unico: trocou, acabou.
   jar.delete(COOKIE_RECUPERACAO);
 

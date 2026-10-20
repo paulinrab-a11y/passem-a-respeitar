@@ -1579,3 +1579,12 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
   #bar .right{gap:9px;font-size:0.875rem;letter-spacing:.02em}
   #bar .right .bar-clipe{display:none}
 }
+
+/* Criar senha (#389): o campo do codigo divide a linha com o botao de pedir
+   o codigo. O botao estica ate a altura do campo e nao passa dela, entao o
+   bloco tem a altura de "Trocar senha" e o esqueleto serve para os dois.
+   O `span` do rotulo de `.auth-campo` pegaria o texto do botao: devolvido. */
+.criar-senha-linha{display:flex;gap:10px;align-items:stretch}
+.criar-senha-linha input{flex:1;min-width:0}
+.criar-senha-linha .btn{flex:none;justify-content:center;padding-block:0;padding-inline:16px}
+.auth-campo .criar-senha-linha .btn span{font-size:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit}

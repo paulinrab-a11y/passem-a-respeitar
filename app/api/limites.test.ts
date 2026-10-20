@@ -24,7 +24,7 @@ function arquivos(dir: string, pega: (nome: string) => boolean, saida: string[] 
 }
 
 const rotas = arquivos(join(RAIZ, 'api'), (n) => n === 'route.ts');
-const acoes = arquivos(RAIZ, (n) => /^(acoes|excluir|email)\.ts$/.test(n));
+const acoes = arquivos(RAIZ, (n) => /^(acoes|excluir|email|criar-senha)\.ts$/.test(n));
 
 const relativo = (c: string) => c.slice(RAIZ.length).replace(/\\/g, '/');
 
@@ -80,7 +80,12 @@ describe('toda rota de API limita', () => {
 describe('toda server action com escrita limita', () => {
   it('acha as acoes conhecidas', () => {
     expect(acoes.map(relativo)).toEqual(
-      expect.arrayContaining(['/entrar/acoes.ts', '/checkout/acoes.ts', '/conta/acoes.ts'])
+      expect.arrayContaining([
+        '/entrar/acoes.ts',
+        '/checkout/acoes.ts',
+        '/conta/acoes.ts',
+        '/conta/seguranca/criar-senha.ts',
+      ])
     );
   });
 

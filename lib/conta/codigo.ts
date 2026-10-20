@@ -2,6 +2,7 @@ import 'server-only';
 
 import { randomBytes } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { MARCA_SEM_SENHA } from '@/lib/conta/sem-senha';
 import { CODIGO_DIGITOS } from '@/lib/esquemas';
 import { limita } from '@/lib/rate-limit';
 import { CONTA } from '@/lib/rotas';
@@ -171,14 +172,77 @@ function senhaDescartavel() {
   return randomBytes(48).toString('base64url');
 }
 
-/** Poe na conta uma senha que ninguem conhece, sem e-mail de aviso. */
-async function trocaSenhaSemAviso(id: string, senha: string) {
+/**
+ * A chave secreta mexendo na conta, sem e-mail de aviso. Chave secreta
+ * ausente lanca; aqui isso e so mais um jeito de falhar.
+ */
+async function atualizaPelaChave(
+  id: string,
+  atributos: { password?: string; app_metadata?: Record<string, unknown> }
+): Promise<{ error: Error | null }> {
   try {
-    return await clienteAdmin().auth.admin.updateUserById(id, { password: senha });
+    const { error } = await clienteAdmin().auth.admin.updateUserById(id, atributos);
+    return { error };
   } catch (e) {
-    // Chave secreta ausente lanca; aqui isso e so mais um jeito de falhar.
     return { error: e instanceof Error ? e : new Error(String(e)) };
   }
+}
+
+/**
+ * Poe na conta uma senha que ninguem conhece, e marca a conta como sem senha
+ * (#389) na mesma chamada: a senha aleatoria e a marca entram juntas ou nao
+ * entram. A marca e o que abre "Criar senha" em Seguranca.
+ */
+function trocaSenhaSemAviso(id: string, senha: string) {
+  return atualizaPelaChave(id, { password: senha, app_metadata: { [MARCA_SEM_SENHA]: true } });
+}
+
+/**
+ * Grava a senha que a pessoa criou em Seguranca (#389) e tira a marca de
+ * conta sem senha, numa chamada so. So depois de o codigo do e-mail conferir.
+ *
+ * Pela chave secreta, e nao pelo `updateUser` da sessao, por dois motivos: o
+ * Supabase mandaria "Sua senha foi trocada" a quem nunca teve senha, e, com
+ * "Secure password change" ligado no painel, recusaria a troca sem um nonce
+ * que este fluxo nao tem — o codigo que acabou de conferir ja e a prova.
+ *
+ * `null` apaga a chave do `app_metadata`: o Supabase mescla o que chega com
+ * o que existe, e chave com valor nulo sai.
+ *
+ * A troca pela chave secreta derruba todas as sessoes da conta (medido na
+ * #387), a de quem pediu inclusive. Quem chama abre uma nova com a senha.
+ */
+export function gravaSenhaCriada(id: string, senha: string) {
+  return atualizaPelaChave(id, { password: senha, app_metadata: { [MARCA_SEM_SENHA]: null } });
+}
+
+/**
+ * Tira a marca de conta sem senha de quem redefiniu a senha pela recuperacao
+ * (#389). Melhor esforco: se falhar, a pessoa ve "Criar senha" em vez de
+ * "Trocar senha", e criar outra pelo codigo continua funcionando.
+ */
+export async function esqueceContaSemSenha(id: string) {
+  const { error } = await atualizaPelaChave(id, { app_metadata: { [MARCA_SEM_SENHA]: null } });
+  return !error;
+}
+
+/**
+ * Manda o codigo de oito digitos a uma conta que ja existe (#389), sem criar
+ * nenhuma: o e-mail vem da sessao, e `shouldCreateUser: false` e a segunda
+ * trava. Conta confirmada recebe o modelo "Magic link or OTP", o mesmo da
+ * entrada por codigo. Num client sem cookie: pedir o codigo nao mexe na
+ * sessao de quem pediu.
+ *
+ * Aqui a resposta do Supabase pode chegar a tela: quem pede ja provou quem e
+ * pela sessao, e o e-mail e o dela.
+ */
+export async function mandaCodigoDaConta(email: string) {
+  const avulso = await clienteAvulso();
+  const { error } = await avulso.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false },
+  });
+  return !error;
 }
 
 /**
@@ -205,7 +269,8 @@ export type EntradaPorCodigo =
  * tinha e trocada por uma que ninguem conhece, e as outras sessoes caem. Ela
  * so podia ter vindo de quem nao provou a posse do e-mail: quem cadastrou e
  * nao confirmou, ou o proprio Supabase, que cria a conta do codigo com uma
- * senha aleatoria. Quem quiser senha cria uma depois, pela recuperacao.
+ * senha aleatoria. Quem quiser senha cria uma depois, em Seguranca (#389):
+ * a troca marca a conta como sem senha.
  *
  * Conta que ja era confirmada fica como esta: a senha dela foi escolhida por
  * quem provou a posse do e-mail, no cadastro ou na recuperacao.
