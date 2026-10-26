@@ -23,7 +23,7 @@
  *     cobra. Sem catalogo, o Product some em vez de sair com numero velho.
  */
 
-import { DATA_DE_LANCAMENTO } from './ep';
+import { DATA_DE_LANCAMENTO, EP_E_O_LANCAMENTO, NOME_DO_LANCAMENTO } from './ep';
 import { ARREPENDIMENTO_DIAS } from './loja/termos';
 
 export type CamisetaNoGrafo = {
@@ -124,6 +124,11 @@ function produto(e: Entrada, camiseta: CamisetaNoGrafo) {
 /**
  * Os artistas, o EP e o lancamento pelo selo (#275), com o dia do lancamento
  * de `lib/ep.ts` e nenhuma outra data (nem `copyrightYear`).
+ *
+ * A data vai em quem sai nela (#406): enquanto o lancamento da vez e o single,
+ * ela fica num `MusicRecording` do single, ligado ao EP, e o EP fica sem data
+ * — a do EP ainda nao foi anunciada. Quando lib/ep.ts virar o EP, a data passa
+ * para o EP e o no do single some.
  */
 function musica(e: Entrada, organizacao: string) {
   const ep = idNoSite(e.base, 'ep');
@@ -144,7 +149,7 @@ function musica(e: Entrada, organizacao: string) {
       name: e.nomeDoEp,
       url: e.base.href,
       albumReleaseType: 'https://schema.org/EPRelease',
-      datePublished: DATA_DE_LANCAMENTO,
+      ...(EP_E_O_LANCAMENTO ? { datePublished: DATA_DE_LANCAMENTO } : {}),
       byArtist: autoria,
       albumRelease: { '@id': idNoSite(e.base, 'ep-lancamento') },
     },
@@ -153,10 +158,22 @@ function musica(e: Entrada, organizacao: string) {
       '@id': idNoSite(e.base, 'ep-lancamento'),
       name: e.nomeDoEp,
       releaseOf: { '@id': ep },
-      datePublished: DATA_DE_LANCAMENTO,
+      ...(EP_E_O_LANCAMENTO ? { datePublished: DATA_DE_LANCAMENTO } : {}),
       byArtist: autoria,
       recordLabel: { '@id': organizacao },
     },
+    ...(EP_E_O_LANCAMENTO
+      ? []
+      : [
+          {
+            '@type': 'MusicRecording',
+            '@id': idNoSite(e.base, 'single'),
+            name: NOME_DO_LANCAMENTO,
+            byArtist: autoria,
+            inAlbum: { '@id': ep },
+            datePublished: DATA_DE_LANCAMENTO,
+          },
+        ]),
   ];
 }
 

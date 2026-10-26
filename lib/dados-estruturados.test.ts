@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { grafoDoSite, serializaJsonLd } from './dados-estruturados';
-import { DATA_DE_LANCAMENTO } from './ep';
+import { DATA_DE_LANCAMENTO, EP_E_O_LANCAMENTO, NOME_DO_LANCAMENTO } from './ep';
 import { ARREPENDIMENTO_DIAS } from './loja/termos';
 
 const BASE = new URL('https://www.cbacoccupation.com.br');
@@ -39,6 +39,7 @@ describe('grafoDoSite (#322)', () => {
       'https://www.cbacoccupation.com.br/#ch3fe',
       'https://www.cbacoccupation.com.br/#ep',
       'https://www.cbacoccupation.com.br/#ep-lancamento',
+      ...(EP_E_O_LANCAMENTO ? [] : ['https://www.cbacoccupation.com.br/#single']),
       'https://www.cbacoccupation.com.br/#camiseta',
     ]);
     expect(doTipo(g, 'Organization')).toMatchObject({
@@ -109,14 +110,25 @@ describe('grafoDoSite (#322)', () => {
   it('so a data de lancamento de lib/ep.ts, e sem avaliacao', () => {
     const g = grafoDoSite(entrada);
     const json = JSON.stringify(g);
-    expect(doTipo(g, 'MusicAlbum')).toMatchObject({ datePublished: DATA_DE_LANCAMENTO });
-    expect(doTipo(g, 'MusicRelease')).toMatchObject({ datePublished: DATA_DE_LANCAMENTO });
-    // Nenhuma outra chave de data: so as duas `datePublished` acima.
+    // A data vai em quem sai nela (#406): no single enquanto ele for o
+    // lancamento da vez, e o EP sem data; no EP quando lib/ep.ts virar o EP.
+    if (EP_E_O_LANCAMENTO) {
+      expect(doTipo(g, 'MusicAlbum')).toMatchObject({ datePublished: DATA_DE_LANCAMENTO });
+      expect(doTipo(g, 'MusicRelease')).toMatchObject({ datePublished: DATA_DE_LANCAMENTO });
+    } else {
+      expect(doTipo(g, 'MusicRecording')).toMatchObject({
+        name: NOME_DO_LANCAMENTO,
+        datePublished: DATA_DE_LANCAMENTO,
+        inAlbum: { '@id': 'https://www.cbacoccupation.com.br/#ep' },
+      });
+      expect(doTipo(g, 'MusicAlbum')).not.toHaveProperty('datePublished');
+      expect(doTipo(g, 'MusicRelease')).not.toHaveProperty('datePublished');
+    }
+    // Nenhuma outra chave de data alem das `datePublished` de lib/ep.ts.
     // "Release" sozinho pode: e o nome do tipo (MusicRelease, EPRelease).
-    expect(json.match(/"[a-zA-Z]*(?:date|year)[a-zA-Z]*"\s*:/gi)).toEqual([
-      '"datePublished":',
-      '"datePublished":',
-    ]);
+    expect(json.match(/"[a-zA-Z]*(?:date|year)[a-zA-Z]*"\s*:/gi)).toEqual(
+      EP_E_O_LANCAMENTO ? ['"datePublished":', '"datePublished":'] : ['"datePublished":']
+    );
     expect(json).not.toMatch(/releaseDate|rating|review/i);
     // Todo ano que aparece e o da data de lancamento, dentro dela.
     const semAData = json.replaceAll(`"${DATA_DE_LANCAMENTO}"`, '""');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reais } from '@/lib/conta/pedidos';
-import { LANCAMENTO_POR_EXTENSO } from '@/lib/ep';
+import { EP_E_O_LANCAMENTO, LANCAMENTO_EM_FRASE, LANCAMENTO_POR_EXTENSO } from '@/lib/ep';
 import type { ProdutoDaVitrine } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { blocoDaLoja, PROMPT_DO_CONCIERGE } from './prompt';
@@ -69,10 +69,14 @@ describe('o que o prompt nao escreve a mao', () => {
  */
 describe('a data de lancamento no concierge', () => {
   it('diz a data de lib/ep.ts, em todas as plataformas', () => {
-    expect(PROMPT_DO_CONCIERGE).toContain(`Lançamento: ${LANCAMENTO_POR_EXTENSO}`);
+    expect(PROMPT_DO_CONCIERGE).toContain(`Próximo lançamento: ${LANCAMENTO_EM_FRASE}`);
     expect(PROMPT_DO_CONCIERGE).toContain(
-      `A data de lançamento é ${LANCAMENTO_POR_EXTENSO}, em todas as plataformas`
+      `O próximo lançamento é ${LANCAMENTO_EM_FRASE}, em todas as plataformas`
     );
+    // Enquanto o lancamento da vez e o single (#406), a data do EP nao sai.
+    if (!EP_E_O_LANCAMENTO) {
+      expect(PROMPT_DO_CONCIERGE).toContain('A data do EP ainda não foi anunciada');
+    }
     expect(PROMPT_DO_CONCIERGE).not.toMatch(
       /data de lançamento não foi divulgada|data ainda não anunciada|junto com o pré-save/
     );
