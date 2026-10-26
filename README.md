@@ -1,8 +1,9 @@
 # Passem a Respeitar — site do EP (Santxx x Ch3fe / Whynot Visuals)
 
-Site oficial do EP. A data de lançamento fica em sigilo até o pré-save (#269):
-não escreva dia, mês nem ano dela em código, textos ou documentos deste
-repositório, que é público.
+Site oficial do EP. A data de lançamento ficou em sigilo até o pré-save (#269)
+e é pública desde 26/10/2026, quando ele saiu. Fonte única: `lib/ep.ts`
+(`DATA_DE_LANCAMENTO`). Home, JSON-LD, `/llms.txt` e concierge leem de lá;
+não escreva a data à mão em outro lugar.
 Produção: https://www.cbacoccupation.com.br
 
 Next.js 16 (App Router) + TypeScript, hospedado na Vercel. A home é a página

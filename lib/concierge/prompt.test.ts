@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reais } from '@/lib/conta/pedidos';
+import { LANCAMENTO_POR_EXTENSO } from '@/lib/ep';
 import type { ProdutoDaVitrine } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { blocoDaLoja, PROMPT_DO_CONCIERGE } from './prompt';
@@ -59,6 +60,37 @@ describe('o que o prompt nao escreve a mao', () => {
 
   it('o frete aparece na ficha da camiseta e no checkout', () => {
     expect(PROMPT_DO_CONCIERGE).toContain('calculado pelo CEP na ficha da camiseta e no checkout');
+  });
+});
+
+/**
+ * A data de lancamento (#269). Ficou em sigilo ate o pre-save; publica desde
+ * 26/10/2026. O prompt diz a de lib/ep.ts e nenhuma outra.
+ */
+describe('a data de lancamento no concierge', () => {
+  it('diz a data de lib/ep.ts, em todas as plataformas', () => {
+    expect(PROMPT_DO_CONCIERGE).toContain(`Lançamento: ${LANCAMENTO_POR_EXTENSO}`);
+    expect(PROMPT_DO_CONCIERGE).toContain(
+      `A data de lançamento é ${LANCAMENTO_POR_EXTENSO}, em todas as plataformas`
+    );
+    expect(PROMPT_DO_CONCIERGE).not.toMatch(
+      /data de lançamento não foi divulgada|data ainda não anunciada|junto com o pré-save/
+    );
+  });
+
+  it('nenhuma outra data escrita a mao', () => {
+    const resto = PROMPT_DO_CONCIERGE.replaceAll(LANCAMENTO_POR_EXTENSO, '');
+    expect(resto).not.toMatch(/\b(19|20)\d{2}\b/);
+    expect(resto).not.toMatch(/\b\d{1,2}[./]\d{1,2}\b/);
+    expect(resto).not.toMatch(
+      /janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro/i
+    );
+  });
+
+  it('o pre-save e o botao do site: nenhum link escrito no prompt', () => {
+    expect(PROMPT_DO_CONCIERGE).toContain('botão Pré-save');
+    expect(PROMPT_DO_CONCIERGE).not.toMatch(/https?:\/\/|ffm\.to/);
+    expect(PROMPT_DO_CONCIERGE).not.toContain('link de pré-save');
   });
 });
 

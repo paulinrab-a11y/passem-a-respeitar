@@ -162,7 +162,7 @@ if (CONFIG.clipe.blick){
 (function entradas(){
   // "Quem sao" (#386) entra como as vizinhas; sem texto no CONFIG ela nem
   // existe, e o filtro abaixo a tira da lista.
-  const alvos = ['#clipe .in', '#merch .ficha', '#galeriaMerch', '#fim .bandeira', '#fim .frase', '#fim .acoes', '#fim .convite', '#quem-sao .in']
+  const alvos = ['#clipe .in', '#merch .ficha', '#galeriaMerch', '#fim .bandeira', '#fim .frase', '#fim .lancamento', '#fim .acoes', '#fim .convite', '#quem-sao .in']
     .map(s=>$(s)).filter(Boolean);
   alvos.forEach(el=> el.classList.add('entra'));
   const mostra = el=> el.classList.add('vis');

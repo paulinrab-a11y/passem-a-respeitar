@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { DATA_DE_LANCAMENTO, LANCAMENTO_CURTO } from '@/lib/ep';
 import Checkout from './checkout/page';
 import Home from './page';
 
@@ -340,7 +341,19 @@ describe('home renderizada', () => {
     expect(linhas.at(-1)?.textContent).toBe('Passem a respeitar');
   });
 
-  // #322: o JSON-LD sai no HTML do servidor, com o preco do catalogo e sem data.
+  // #269: a data de lancamento e publica desde o pre-save. Sai do servidor, de
+  // lib/ep.ts, entre a frase e os botoes, num <time> que o Google le.
+  it('a linha do lancamento fica entre a frase e os botoes, com a data de lib/ep.ts', async () => {
+    const linha = (await home()).querySelector('#fim .frase + p.lancamento');
+    expect(linha?.nextElementSibling?.classList.contains('acoes')).toBe(true);
+    const time = linha?.querySelector('time');
+    expect(time?.getAttribute('datetime')).toBe(DATA_DE_LANCAMENTO);
+    expect(time?.textContent).toBe(LANCAMENTO_CURTO);
+    expect(linha?.textContent).toBe(`${LANCAMENTO_CURTO} — em todas as plataformas`);
+  });
+
+  // #322: o JSON-LD sai no HTML do servidor, com o preco do catalogo. A unica
+  // data e a do lancamento, de lib/ep.ts (#269).
   it('traz o JSON-LD com o selo, o site e a camiseta do catalogo', async () => {
     const blocos = (await home()).querySelectorAll('script[type="application/ld+json"]');
     expect(blocos).toHaveLength(1);
@@ -355,7 +368,13 @@ describe('home renderizada', () => {
       'Product',
     ]);
     expect(grafo.at(-1)).toMatchObject({ name: 'Camiseta CBAC', offers: { price: '120.00' } });
-    expect(blocos[0]?.textContent).not.toMatch(/date|year|rating|review/i);
+    const json = blocos[0]?.textContent ?? '';
+    const datas = [...json.matchAll(/"([a-zA-Z]*(?:date|year)[a-zA-Z]*)":"([^"]*)"/gi)];
+    expect(datas.map((m) => [m[1], m[2]])).toEqual([
+      ['datePublished', DATA_DE_LANCAMENTO],
+      ['datePublished', DATA_DE_LANCAMENTO],
+    ]);
+    expect(json).not.toMatch(/releaseDate|rating|review/i);
   });
 
   // #275: os perfis saem prontos do servidor, sem depender do script legado.

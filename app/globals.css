@@ -224,6 +224,11 @@ fieldset.tam{border:0;padding:0;margin:0;min-width:0}
 @keyframes bandeira-dobra{from{transform:skewY(calc(var(--k) * -1deg))}to{transform:skewY(calc(var(--k) * 1deg))}}
 #fim .frase{font-family:var(--display);text-transform:uppercase;font-size:clamp(18px,2.4vw,30px);letter-spacing:.06em;line-height:1.1;color:var(--prata-2);max-width:26ch;margin-bottom:46px}
 #fim .frase b{color:var(--prata);font-weight:400;display:block}
+/* A data do lancamento (#269), entre a frase e os botoes: o tamanho e a cor
+   do "Recebeu o convite?", para nao competir com a frase nem com o pre-save.
+   Texto do servidor e altura de uma linha: nada se move quando ele chega. */
+#fim .lancamento{font-size:13px;letter-spacing:.2em;line-height:1.4;color:var(--prata-2);margin:-22px 0 22px}
+#fim .lancamento time{color:var(--prata)}
 #fim .acoes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
 #fim .convite{margin-top:56px;display:flex;flex-direction:column;align-items:center;gap:12px}
 #fim .convite label{font-size:13px;letter-spacing:.2em;color:var(--prata-2)}
@@ -359,6 +364,7 @@ footer.assina .assina-credito a{color:var(--prata);text-decoration:underline;tex
   #merch .galeria figure:first-child{grid-column:span 2;aspect-ratio:3/2}
   #fim{min-height:130vh;padding:0 var(--gutter) var(--s-8)}
   #fim .frase{font-size:var(--t-h3);line-height:1.15;letter-spacing:.04em;max-width:none;margin-bottom:var(--s-5)}
+  #fim .lancamento{font-size:var(--t-micro);letter-spacing:.12em;margin:0 0 var(--s-4)}
   #fim .acoes{gap:var(--s-3)}
   #fim .acoes .btn{flex:1 1 140px;justify-content:center}
   #fim .convite{margin-top:var(--s-8);gap:var(--s-2);width:100%}
@@ -1362,7 +1368,7 @@ dialog.guia.saindo>.guia-caixa{animation:modal-caixa-sai .15s cubic-bezier(.4,0,
 .entra{opacity:0;transform:translateY(12px)}
 .entra.vis{opacity:1;transform:none;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .25s cubic-bezier(.22,1,.36,1)}
 /* Cascata discreta: 40 ms entre blocos, e so nos primeiros. */
-#fim .acoes.entra.vis{transition-delay:40ms}
+#fim .lancamento.entra.vis,#fim .acoes.entra.vis{transition-delay:40ms}
 #fim .convite.entra.vis{transition-delay:80ms}
 /* A galeria entra como um bloco so no script; a cascata das molduras e daqui.
    Da setima em diante ninguem percebe a ordem. */

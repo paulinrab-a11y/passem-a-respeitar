@@ -11,13 +11,16 @@ import type { Metadata } from 'next';
  * sendo servida e depois contra `metadataBase`. Com `'/'` fixo, toda pagina se
  * declarava como a home para o WhatsApp e o Facebook.
  *
- * Sem data de lancamento (#269): ela fica em sigilo ate o pre-save.
+ * Sem data de lancamento, mesmo publica desde o pre-save (#269): descricao e
+ * card ficam em cache no Google e no WhatsApp por semanas, e "sai dia tal"
+ * viraria mentira no dia seguinte. A data mora em lib/ep.ts e aparece na
+ * home, no JSON-LD e no /llms.txt.
  */
 export const NOME_DO_SITE = 'CBAC - Passem a Respeitar';
 /**
  * A descricao do `<meta name="description">` e do WebSite no JSON-LD. Perto
  * dos 155 caracteres que o Google mostra, com os nomes dos artistas e da
- * camiseta, e sem data (#269).
+ * camiseta, e sem data (ver acima).
  */
 export const DESCRICAO_DO_SITE =
   'Passem a Respeitar, o EP de Santxx e Ch3fe pela Whynot Visuals. Acompanhe o lançamento e garanta a Camiseta CBAC, feita sob encomenda com entrega para todo o Brasil.';

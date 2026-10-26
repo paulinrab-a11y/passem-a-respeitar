@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { grafoDoSite, serializaJsonLd } from './dados-estruturados';
+import { DATA_DE_LANCAMENTO } from './ep';
 import { ARREPENDIMENTO_DIAS } from './loja/termos';
 
 const BASE = new URL('https://www.cbacoccupation.com.br');
@@ -104,13 +105,22 @@ describe('grafoDoSite (#322)', () => {
     expect(doTipo(grafoDoSite(vazia), 'Product')).toBeUndefined();
   });
 
-  // Sigilo da data (#269) e nada inventado.
-  it('sem data e sem avaliacao', () => {
-    const json = JSON.stringify(grafoDoSite(entrada));
-    // Nenhuma chave de data (datePublished, releaseDate, dateCreated...) nem
-    // ano. "Release" sozinho pode: e o nome do tipo (MusicRelease, EPRelease).
-    expect(json).not.toMatch(/date|year|rating|review/i);
-    expect(json).not.toMatch(/\b(19|20)\d{2}\b/);
+  // A data e publica desde o pre-save (#269), e so a de lib/ep.ts; nada inventado.
+  it('so a data de lancamento de lib/ep.ts, e sem avaliacao', () => {
+    const g = grafoDoSite(entrada);
+    const json = JSON.stringify(g);
+    expect(doTipo(g, 'MusicAlbum')).toMatchObject({ datePublished: DATA_DE_LANCAMENTO });
+    expect(doTipo(g, 'MusicRelease')).toMatchObject({ datePublished: DATA_DE_LANCAMENTO });
+    // Nenhuma outra chave de data: so as duas `datePublished` acima.
+    // "Release" sozinho pode: e o nome do tipo (MusicRelease, EPRelease).
+    expect(json.match(/"[a-zA-Z]*(?:date|year)[a-zA-Z]*"\s*:/gi)).toEqual([
+      '"datePublished":',
+      '"datePublished":',
+    ]);
+    expect(json).not.toMatch(/releaseDate|rating|review/i);
+    // Todo ano que aparece e o da data de lancamento, dentro dela.
+    const semAData = json.replaceAll(`"${DATA_DE_LANCAMENTO}"`, '""');
+    expect(semAData).not.toMatch(/\b(19|20)\d{2}\b/);
   });
 });
 

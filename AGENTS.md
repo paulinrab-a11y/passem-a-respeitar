@@ -3,7 +3,7 @@
 Este arquivo é lido por qualquer agente de IA (Claude Code, Cursor, Codex, Copilot etc.) que trabalhe neste repositório. Siga tudo aqui antes de qualquer tarefa.
 
 ## Projeto
-Site do EP "Passem a Respeitar" (Santxx x Ch3fe, Whynot Visuals). Data de lançamento em sigilo até o pré-save (#269): não publicar dia, mês nem ano em código, metadados, JSON-LD, textos do concierge, issues, PRs ou documentos deste repositório público.
+Site do EP "Passem a Respeitar" (Santxx x Ch3fe, Whynot Visuals). Data de lançamento pública desde o pré-save (26/10/2026, #269). Fonte única em `lib/ep.ts` (`DATA_DE_LANCAMENTO` e os formatos prontos): home, JSON-LD, `/llms.txt` e concierge leem de lá; não escrever a data à mão em outro lugar.
 Identidade: preto / cinza / vermelho, texturas VHS-metal-concreto, logo "P", lettering "Passem A Respeitar" em fonte Amstrong. Toda UI nova respeita essa identidade.
 Hospedagem: Vercel (projeto `passem-a-respeitar`). Produção = branch `main`.
 

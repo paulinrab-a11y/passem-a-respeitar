@@ -57,9 +57,10 @@ describe('metadata do layout (#215)', () => {
     expect(og.images).toEqual([expect.objectContaining({ url: '/logo.png' })]);
   });
 
-  // A data de lancamento fica em sigilo ate o pre-save (#269). Descricao e
-  // card do link sao o que mais circula: nenhuma data, em nenhum formato.
-  it('nao publica data de lancamento na descricao nem no card do link', async () => {
+  // A data de lancamento e publica desde o pre-save (#269), mas descricao e
+  // card do link ficam em cache por semanas e envelheceriam no dia 21: a data
+  // vai na home, no JSON-LD e no /llms.txt (de lib/ep.ts), e nao aqui.
+  it('descricao e card do link sem data, em nenhum formato', async () => {
     vi.resetModules();
     const { metadata } = await import('./layout');
     const og = metadata.openGraph as Record<string, unknown>;
