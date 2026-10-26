@@ -14,7 +14,7 @@ import { formataDiaDoCalendario } from './datas';
  */
 
 /** O nome do EP, o mesmo do site e do JSON-LD. */
-export const NOME_DO_EP = 'Passem a Respeitar';
+const NOME_DO_EP = 'Passem a Respeitar';
 
 /** O que sai na data abaixo: o single agora, o EP depois. */
 export const NOME_DO_LANCAMENTO: string = 'Blick';
