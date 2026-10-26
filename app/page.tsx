@@ -237,8 +237,15 @@ export default async function Home() {
             Não estamos aqui para pedir espaço.<b>Estamos aqui para ocupar.</b>
           </p>
           <div className="acoes">
-            {/* biome-ignore lint/a11y/useValidAnchor: placeholder. O script legado reescreve o href em runtime a partir do CONFIG; os destinos reais dependem das Issues #44 (Comprar) e #58 (pre-save e Instagram). */}
-            <a className="btn cheio" id="preSave" href="#" target="_blank" rel="noopener">
+            {/* O link sai do servidor: funciona antes do script e sem ele. O
+                script legado so desliga o botao se o CONFIG ficar sem link. */}
+            <a
+              className="btn cheio"
+              id="preSave"
+              href={CONFIG.links.preSave}
+              target="_blank"
+              rel="noopener"
+            >
               Pré-save
             </a>
             <a className="btn" href="#merch">
