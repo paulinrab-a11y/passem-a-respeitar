@@ -8,8 +8,13 @@
  * Whynot Visuals como `recordLabel`, que e onde o schema.org poe o selo.
  *
  * Regras que nao se negociam:
- *   - nenhuma data. A data de lancamento esta em sigilo ate o pre-save (#269),
- *     e por isso nao ha `datePublished`, `releaseDate` nem nada parecido;
+ *   - uma data so: a do lancamento, de `lib/ep.ts`, como `datePublished` do
+ *     EP e do lancamento (as duas sao CreativeWork). Ela ficou em sigilo ate o
+ *     pre-save (#269) e e publica desde 26/10/2026, quando ele saiu, e a home
+ *     mostra o mesmo dia acima do botao. `releaseDate` e do Product no
+ *     schema.org, nao de MusicAlbum nem de MusicRelease, entao nao entra;
+ *   - o link do pre-save fica fora: nao e onde se ouve o EP (ListenAction) nem
+ *     uma oferta (Offer), e o schema.org nao tem propriedade para ele;
  *   - nenhuma avaliacao ou nota inventada;
  *   - `sameAs` so com perfil que existe (hoje, o Instagram de cada um).
  *     Spotify e YouTube entram quando existirem, nao antes;
@@ -18,6 +23,7 @@
  *     cobra. Sem catalogo, o Product some em vez de sair com numero velho.
  */
 
+import { DATA_DE_LANCAMENTO } from './ep';
 import { ARREPENDIMENTO_DIAS } from './loja/termos';
 
 export type CamisetaNoGrafo = {
@@ -116,8 +122,8 @@ function produto(e: Entrada, camiseta: CamisetaNoGrafo) {
 }
 
 /**
- * Os artistas, o EP e o lancamento pelo selo (#275). Sem data nenhuma: nem
- * `datePublished`, nem `releaseDate`, nem `copyrightYear`.
+ * Os artistas, o EP e o lancamento pelo selo (#275), com o dia do lancamento
+ * de `lib/ep.ts` e nenhuma outra data (nem `copyrightYear`).
  */
 function musica(e: Entrada, organizacao: string) {
   const ep = idNoSite(e.base, 'ep');
@@ -138,6 +144,7 @@ function musica(e: Entrada, organizacao: string) {
       name: e.nomeDoEp,
       url: e.base.href,
       albumReleaseType: 'https://schema.org/EPRelease',
+      datePublished: DATA_DE_LANCAMENTO,
       byArtist: autoria,
       albumRelease: { '@id': idNoSite(e.base, 'ep-lancamento') },
     },
@@ -146,6 +153,7 @@ function musica(e: Entrada, organizacao: string) {
       '@id': idNoSite(e.base, 'ep-lancamento'),
       name: e.nomeDoEp,
       releaseOf: { '@id': ep },
+      datePublished: DATA_DE_LANCAMENTO,
       byArtist: autoria,
       recordLabel: { '@id': organizacao },
     },

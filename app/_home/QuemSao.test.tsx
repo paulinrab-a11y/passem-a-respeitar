@@ -17,7 +17,8 @@ describe('QuemSao (#275)', () => {
   });
 
   // O texto e do dono (#386): o codigo nao publica biografia por conta. Este
-  // teste trava o paragrafo aprovado; mudar o texto e decisao dele.
+  // teste trava o paragrafo aprovado; mudar o texto e decisao dele. A data de
+  // lancamento nao entra aqui: ela tem a linha dela no #fim, de lib/ep.ts.
   it('o texto do CONFIG e o aprovado pelo dono, sem data', () => {
     expect(CONFIG.quemSao).toBe(
       'Santxx e Ch3fe são dois nomes do trap de São Paulo. Passem a Respeitar é o EP que os dois assinam juntos, pela Whynot Visuals.'

@@ -6,6 +6,7 @@ import {
   formataData,
   formataDataHora,
   formataDataPorExtenso,
+  formataDiaDoCalendario,
   formataDiaHora,
   formataMesAbreviadoHora,
   formataParaPlanilha,
@@ -90,6 +91,25 @@ describe('diaMaisDias', () => {
   it('o primeiro e o ultimo minuto do dia dao o mesmo dia', () => {
     expect(diaMaisDias('2026-10-05T03:00:00Z', 0).iso).toBe('2026-10-05');
     expect(diaMaisDias('2026-10-06T02:59:00Z', 0).iso).toBe('2026-10-05');
+  });
+});
+
+/**
+ * Dia do calendario sem hora (lancamento do EP): `new Date('2026-11-20')` e
+ * meia-noite UTC, 19/11 em Brasilia. O processo daqui esta em UTC, e o dia
+ * escrito tem que ser o do calendario.
+ */
+describe('formataDiaDoCalendario', () => {
+  it('curto e por extenso, no dia certo', () => {
+    expect(formataDiaDoCalendario('2026-11-20', 'curto')).toBe('20.11');
+    expect(formataDiaDoCalendario('2026-11-20', 'extenso')).toBe('20 de novembro de 2026');
+    expect(formataDiaDoCalendario('2027-01-01', 'curto')).toBe('01.01');
+    expect(formataDiaDoCalendario('2027-01-05', 'extenso')).toBe('5 de janeiro de 2027');
+  });
+
+  it('recusa o que nao e AAAA-MM-DD', () => {
+    expect(() => formataDiaDoCalendario('20/11/2026', 'curto')).toThrow();
+    expect(() => formataDiaDoCalendario('2026-11-20T00:00:00Z', 'curto')).toThrow();
   });
 });
 

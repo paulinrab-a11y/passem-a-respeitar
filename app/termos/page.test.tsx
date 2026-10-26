@@ -171,8 +171,9 @@ describe('/termos', () => {
     expect(pagina).toMatch(/o pedido guarda a\s+data e a hora desse aceite/);
   });
 
-  // A data de lancamento do EP fica em sigilo ate o pre-save (#269). A unica
-  // data da pagina e a da versao dos termos, e nenhum mes vai por extenso.
+  // Os termos sao da loja, nao do EP: a data de lancamento (publica desde o
+  // pre-save, #269, e so em lib/ep.ts) nao entra aqui. A unica data da pagina
+  // e a da versao dos termos, e nenhum mes vai por extenso.
   it('a unica data e a da versao dos termos', () => {
     const datas = [...pagina.matchAll(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g)].map((m) => m[0]);
 

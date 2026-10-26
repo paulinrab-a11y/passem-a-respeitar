@@ -1,11 +1,13 @@
 import { baseDoSite } from '@/lib/base-do-site';
 import { DESCRICAO_DO_SITE, NOME_DO_SITE } from '@/lib/cartao-do-link';
+import { LANCAMENTO_POR_EXTENSO } from '@/lib/ep';
 import { CONFIG } from '../_home/config';
 
 /**
  * /llms.txt: o resumo do site em texto puro para assistentes de IA, que o
- * dono liberou de proposito (robots.ts). So o que a pagina ja mostra, e
- * nenhuma data: a do lancamento fica em sigilo ate o pre-save (#269).
+ * dono liberou de proposito (robots.ts). So o que a pagina ja mostra. A data
+ * do lancamento ficou em sigilo ate o pre-save (#269) e e publica desde
+ * 26/10/2026: vem de lib/ep.ts, a mesma da home, e e a unica data daqui.
  */
 export const dynamic = 'force-static';
 
@@ -18,6 +20,11 @@ export function GET() {
 > ${DESCRICAO_DO_SITE}
 
 Site oficial do EP "Passem a Respeitar", de Santxx e Ch3fe, lancado pelo selo Whynot Visuals.
+
+## Lancamento
+
+- Data: ${LANCAMENTO_POR_EXTENSO}, em todas as plataformas.
+- [Pre-save](${CONFIG.links.preSave})
 
 ## Artistas e selo
 

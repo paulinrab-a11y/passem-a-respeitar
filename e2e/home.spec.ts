@@ -1,4 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
+import { DATA_DE_LANCAMENTO } from '../lib/ep';
 import { visitante } from './apoio/visitante';
 
 // Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
@@ -167,7 +168,9 @@ test('robots.txt e sitemap.xml existem e se apontam (#322)', async ({ request })
   expect(xml).not.toContain('/conta');
 });
 
-test('home: JSON-LD com a camiseta do catalogo e sem data (#322)', async ({ page }) => {
+test('home: JSON-LD com a camiseta do catalogo e so a data de lancamento (#322, #269)', async ({
+  page,
+}) => {
   await page.goto('/');
   const bloco = await page.locator('script[type="application/ld+json"]').textContent();
   const grafo = JSON.parse(bloco ?? '{}')['@graph'] as { '@type': string; name?: string }[];
@@ -182,7 +185,18 @@ test('home: JSON-LD com a camiseta do catalogo e sem data (#322)', async ({ page
   ]);
   expect(grafo.at(-1)?.name).toBe('Camiseta CBAC');
   expect(grafo.find((n) => n['@type'] === 'MusicAlbum')?.name).toBe('Passem a Respeitar');
-  expect(bloco).not.toMatch(/date|year|rating|review/i);
+  // A unica data e a de lib/ep.ts, no EP e no lancamento; e a mesma da linha
+  // visivel acima do pre-save.
+  const datas = [...(bloco ?? '').matchAll(/"([a-zA-Z]*(?:date|year)[a-zA-Z]*)":"([^"]*)"/gi)];
+  expect(datas.map((m) => [m[1], m[2]])).toEqual([
+    ['datePublished', DATA_DE_LANCAMENTO],
+    ['datePublished', DATA_DE_LANCAMENTO],
+  ]);
+  expect(bloco).not.toMatch(/releaseDate|rating|review/i);
+  await expect(page.locator('#fim .lancamento time')).toHaveAttribute(
+    'datetime',
+    DATA_DE_LANCAMENTO
+  );
 });
 
 test('favicon: /favicon.ico e o brasao, e o SVG adaptavel continua no head (#318)', async ({

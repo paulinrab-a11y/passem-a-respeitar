@@ -87,6 +87,24 @@ export function formataParaPlanilha(iso: string): string {
   return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}`;
 }
 
+const DIA_E_MES = formatador({ day: '2-digit', month: '2-digit' });
+const DIA_POR_EXTENSO = formatador({ day: 'numeric', month: 'long', year: 'numeric' });
+
+/**
+ * Um dia do calendario (`2027-01-05`, sem hora), como texto: `curto` e
+ * `05.01`, `extenso` e `5 de janeiro de 2027`.
+ *
+ * `new Date('2027-01-05')` e meia-noite UTC, que em Brasilia ainda e 04/01.
+ * Meio-dia UTC (09:00 em Brasilia) cai no mesmo dia em qualquer fuso do
+ * Brasil, entao o dia escrito e o dia do calendario.
+ */
+export function formataDiaDoCalendario(dia: string, jeito: 'curto' | 'extenso'): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) throw new Error(`dia fora do formato AAAA-MM-DD: ${dia}`);
+  const meioDia = new Date(`${dia}T12:00:00Z`);
+  if (jeito === 'extenso') return DIA_POR_EXTENSO.format(meioDia);
+  return DIA_E_MES.format(meioDia).replace('/', '.');
+}
+
 /** Um dia do calendario de Brasilia: para `<time dateTime>` e para a tela. */
 export type Dia = {
   /** `2026-10-12`. Compara por texto: a ordem do texto e a dos dias. */

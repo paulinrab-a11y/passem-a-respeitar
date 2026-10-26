@@ -2,6 +2,7 @@ import Image from 'next/image';
 import { baseDoSite } from '@/lib/base-do-site';
 import { DESCRICAO_DO_SITE, NOME_DO_SITE } from '@/lib/cartao-do-link';
 import { grafoDoSite } from '@/lib/dados-estruturados';
+import { DATA_DE_LANCAMENTO, LANCAMENTO_CURTO } from '@/lib/ep';
 import { vitrine } from '@/lib/loja/catalogo';
 import { PRAZO_DE_PRODUCAO_DIAS } from '@/lib/loja/prazo';
 import { precoNaFicha } from '@/lib/loja/precos';
@@ -235,6 +236,10 @@ export default async function Home() {
           <Bandeira />
           <p className="frase">
             Não estamos aqui para pedir espaço.<b>Estamos aqui para ocupar.</b>
+          </p>
+          {/* A data e publica desde o pre-save (#269) e mora em lib/ep.ts. */}
+          <p className="lancamento">
+            <time dateTime={DATA_DE_LANCAMENTO}>{LANCAMENTO_CURTO}</time> — em todas as plataformas
           </p>
           <div className="acoes">
             {/* O link sai do servidor: funciona antes do script e sem ele. O
