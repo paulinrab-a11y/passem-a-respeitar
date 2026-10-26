@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { DATA_DE_LANCAMENTO } from '../lib/ep';
+import { DATA_DE_LANCAMENTO, EP_E_O_LANCAMENTO } from '../lib/ep';
 import { visitante } from './apoio/visitante';
 
 // Cada arquivo e um visitante, com o IP dele: ver apoio/visitante.ts.
@@ -181,6 +181,7 @@ test('home: JSON-LD com a camiseta do catalogo e so a data de lancamento (#322, 
     'MusicGroup',
     'MusicAlbum',
     'MusicRelease',
+    ...(EP_E_O_LANCAMENTO ? [] : ['MusicRecording']),
     'Product',
   ]);
   expect(grafo.at(-1)?.name).toBe('Camiseta CBAC');
@@ -188,10 +189,9 @@ test('home: JSON-LD com a camiseta do catalogo e so a data de lancamento (#322, 
   // A unica data e a de lib/ep.ts, no EP e no lancamento; e a mesma da linha
   // visivel acima do pre-save.
   const datas = [...(bloco ?? '').matchAll(/"([a-zA-Z]*(?:date|year)[a-zA-Z]*)":"([^"]*)"/gi)];
-  expect(datas.map((m) => [m[1], m[2]])).toEqual([
-    ['datePublished', DATA_DE_LANCAMENTO],
-    ['datePublished', DATA_DE_LANCAMENTO],
-  ]);
+  expect(datas.map((m) => [m[1], m[2]])).toEqual(
+    Array(EP_E_O_LANCAMENTO ? 2 : 1).fill(['datePublished', DATA_DE_LANCAMENTO])
+  );
   expect(bloco).not.toMatch(/releaseDate|rating|review/i);
   await expect(page.locator('#fim .lancamento time')).toHaveAttribute(
     'datetime',

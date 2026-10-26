@@ -3,7 +3,12 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { DATA_DE_LANCAMENTO, LANCAMENTO_CURTO } from '@/lib/ep';
+import {
+  DATA_DE_LANCAMENTO,
+  EP_E_O_LANCAMENTO,
+  LANCAMENTO_CURTO,
+  NOME_DO_LANCAMENTO,
+} from '@/lib/ep';
 import Checkout from './checkout/page';
 import Home from './page';
 
@@ -349,7 +354,9 @@ describe('home renderizada', () => {
     const time = linha?.querySelector('time');
     expect(time?.getAttribute('datetime')).toBe(DATA_DE_LANCAMENTO);
     expect(time?.textContent).toBe(LANCAMENTO_CURTO);
-    expect(linha?.textContent).toBe(`${LANCAMENTO_CURTO} — em todas as plataformas`);
+    expect(linha?.textContent?.replace(/\s+/g, ' ')).toBe(
+      `${LANCAMENTO_CURTO} — ${NOME_DO_LANCAMENTO} em todas as plataformas`
+    );
   });
 
   // #322: o JSON-LD sai no HTML do servidor, com o preco do catalogo. A unica
@@ -365,15 +372,15 @@ describe('home renderizada', () => {
       'MusicGroup',
       'MusicAlbum',
       'MusicRelease',
+      ...(EP_E_O_LANCAMENTO ? [] : ['MusicRecording']),
       'Product',
     ]);
     expect(grafo.at(-1)).toMatchObject({ name: 'Camiseta CBAC', offers: { price: '120.00' } });
     const json = blocos[0]?.textContent ?? '';
     const datas = [...json.matchAll(/"([a-zA-Z]*(?:date|year)[a-zA-Z]*)":"([^"]*)"/gi)];
-    expect(datas.map((m) => [m[1], m[2]])).toEqual([
-      ['datePublished', DATA_DE_LANCAMENTO],
-      ['datePublished', DATA_DE_LANCAMENTO],
-    ]);
+    expect(datas.map((m) => [m[1], m[2]])).toEqual(
+      Array(EP_E_O_LANCAMENTO ? 2 : 1).fill(['datePublished', DATA_DE_LANCAMENTO])
+    );
     expect(json).not.toMatch(/releaseDate|rating|review/i);
   });
 

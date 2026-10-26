@@ -1,6 +1,6 @@
 import { baseDoSite } from '@/lib/base-do-site';
 import { DESCRICAO_DO_SITE, NOME_DO_SITE } from '@/lib/cartao-do-link';
-import { LANCAMENTO_POR_EXTENSO } from '@/lib/ep';
+import { EP_E_O_LANCAMENTO, LANCAMENTO_EM_FRASE } from '@/lib/ep';
 import { CONFIG } from '../_home/config';
 
 /**
@@ -23,8 +23,8 @@ Site oficial do EP "Passem a Respeitar", de Santxx e Ch3fe, lancado pelo selo Wh
 
 ## Lancamento
 
-- Data: ${LANCAMENTO_POR_EXTENSO}, em todas as plataformas.
-- [Pre-save](${CONFIG.links.preSave})
+- Proximo lancamento: ${LANCAMENTO_EM_FRASE}, em todas as plataformas.
+${EP_E_O_LANCAMENTO ? '' : '- A data do EP ainda vai ser anunciada.\n'}- [Pre-save](${CONFIG.links.preSave})
 
 ## Artistas e selo
 
