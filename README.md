@@ -151,8 +151,8 @@ tem uma linha a mais: `identificador_da_sessao_atual` (a função
 | `20261015180000_codigo_de_rastreio.sql` | `20261015231116` |
 | `20261015190000_solicitacoes_pos_venda.sql` | `20261015233245` |
 | `20261015200000_versao_dos_termos_no_pedido.sql` | `20261015235203` |
-| `20261016120000_cria_pedido_so_com_versao_dos_termos.sql` | pendente |
-| `20261016120100_enviado_so_por_envia_pedido.sql` | pendente |
+| `20261016120000_cria_pedido_so_com_versao_dos_termos.sql` | `20261016131141` |
+| `20261016120100_enviado_so_por_envia_pedido.sql` | `20261016131152` |
 
 **Não rode `supabase db push` contra produção.** Com as versões desencontradas
 ele acha que nenhum arquivo foi aplicado e tenta reaplicar tudo. Se um dia o
@@ -472,7 +472,6 @@ Esperando decisão ou conta do dono:
 - E-mail transacional: registros do domínio e teste de entrega em Gmail,
   Outlook e Apple Mail (#55). Os modelos em português estão prontos (#183)
 - Hospedagem do clipe; até lá a home mostra "clipe em breve" (#75)
-- Link de pré-save ainda não existe; o botão mostra "Pré-save em breve"
 - Credenciais de produção do Mercado Pago, e o primeiro pagamento real (#45)
 - Frete: conta e token do Melhor Envio, CEP de origem, peso e medidas da
   camiseta embalada (#199)
