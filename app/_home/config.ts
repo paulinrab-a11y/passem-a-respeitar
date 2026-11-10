@@ -52,8 +52,8 @@ export type SiteConfig = {
 export const CONFIG: SiteConfig = {
   fase: 4,
   links: {
-    // Pre-save do EP no Feature.fm, mandado pelo dono.
-    preSave: 'https://ffm.to/xy6qv01',
+    // Pre-save do album no Feature.fm, mandado pelo dono (#412).
+    preSave: 'https://ffm.to/passemarespeitar',
     igSantxx: 'https://instagram.com/ogsantxx',
     igChefe: 'https://instagram.com/ch3fe3k',
     igLabel: 'https://instagram.com/whynotvisuals_',
